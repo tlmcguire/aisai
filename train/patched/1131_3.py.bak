@@ -1,32 +1,9 @@
-# Copyright (C) 2023 - 2024 ANSYS, Inc. and/or its affiliates.
-# SPDX-License-Identifier: MIT
-#
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
 """Module containing the ``ProductInstance`` class."""
 import os
 import signal
 import socket
 
-# Subprocess is needed to start the backend. But
-# the input is controlled by the library. Excluding bandit check.
-import subprocess  # nosec B404
+import subprocess
 
 from ansys.tools.path import get_available_ansys_installations, get_latest_ansys_installation
 from beartype.typing import TYPE_CHECKING, Dict, List
@@ -34,7 +11,7 @@ from beartype.typing import TYPE_CHECKING, Dict, List
 from ansys.geometry.core.connection.backend import ApiVersions, BackendType
 from ansys.geometry.core.logger import LOG
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from ansys.geometry.core.modeler import Modeler
 
 
@@ -244,7 +221,7 @@ def prepare_and_start_backend(
     """
     from ansys.geometry.core.modeler import Modeler
 
-    if os.name != "nt":  # pragma: no cover
+    if os.name != "nt":
         raise RuntimeError("Method 'prepare_and_start_backend' is only available on Windows.")
 
     port = _check_port_or_get_one(port)
@@ -269,7 +246,6 @@ def prepare_and_start_backend(
         if hidden is True:
             args.append(BACKEND_DISCOVERY_HIDDEN)
 
-        # Here begins the spaceclaim arguments.
         args.append(BACKEND_SPACECLAIM_OPTIONS)
         args.append(
             BACKEND_ADDIN_MANIFEST_ARGUMENT
@@ -307,8 +283,6 @@ def prepare_and_start_backend(
 
     instance = ProductInstance(__start_program(args, env_copy).pid)
 
-    # Verify that the backend is ready to accept connections
-    # before returning the Modeler instance.
     LOG.info("Waiting for backend to be ready...")
     _wait_for_backend(host, port, timeout)
 
@@ -389,7 +363,6 @@ def _manifest_path_provider(
                 "Specified manifest file's path does not exist. Taking install default path."
             )
 
-    # Default manifest path
     def_manifest_path = os.path.join(
         available_installations[version], ADDINS_SUBFOLDER, BACKEND_SUBFOLDER, MANIFEST_FILENAME
     )
@@ -423,8 +396,7 @@ def __start_program(args: List[str], local_env: Dict[str, str]) -> subprocess.Po
     subprocess.Popen
         The subprocess object.
     """
-    # private method and controlled input by library - excluding bandit check.
-    return subprocess.Popen(  # nosec B603
+    return subprocess.Popen(
         args,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,

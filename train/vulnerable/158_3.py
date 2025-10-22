@@ -59,7 +59,6 @@ import os, sys
 import collections
 import numbers
 
-
 def isImageType(t):
     """
     Checks if an object is an image object.
@@ -73,9 +72,7 @@ def isImageType(t):
     """
     return hasattr(t, "im")
 
-
 DEBUG = 0
-
 
 NONE = 0
 
@@ -121,14 +118,11 @@ if hasattr(core, 'DEFAULT_STRATEGY'):
     RLE = core.RLE
     FIXED = core.FIXED
 
-
-
 ID = []
 OPEN = {}
 MIME = {}
 SAVE = {}
 EXTENSION = {}
-
 
 _MODEINFO = {
 
@@ -143,7 +137,6 @@ _MODEINFO = {
     "CMYK": ("RGB", "L", ("C", "M", "Y", "K")),
     "YCbCr": ("RGB", "L", ("Y", "Cb", "Cr")),
     "LAB": ("RGB", "L", ("L", "A", "B")),
-
 
 }
 
@@ -186,11 +179,9 @@ def _conv_type_shape(im):
     else:
         return shape+(extra,), typ
 
-
 MODES = sorted(_MODEINFO.keys())
 
 _MAPMODES = ("L", "P", "RGBX", "RGBA", "CMYK", "I;16", "I;16L", "I;16B")
-
 
 def getmodebase(mode):
     """
@@ -204,7 +195,6 @@ def getmodebase(mode):
     """
     return ImageMode.getmode(mode).basemode
 
-
 def getmodetype(mode):
     """
     Gets the storage type mode.  Given a mode, this function returns a
@@ -215,7 +205,6 @@ def getmodetype(mode):
     :exception KeyError: If the input mode was not a standard mode.
     """
     return ImageMode.getmode(mode).basetype
-
 
 def getmodebandnames(mode):
     """
@@ -231,7 +220,6 @@ def getmodebandnames(mode):
     """
     return ImageMode.getmode(mode).bands
 
-
 def getmodebands(mode):
     """
     Gets the number of individual bands for this mode.
@@ -242,9 +230,7 @@ def getmodebands(mode):
     """
     return len(ImageMode.getmode(mode).bands)
 
-
 _initialized = 0
-
 
 def preinit():
     "Explicitly load standard file format drivers."
@@ -276,7 +262,6 @@ def preinit():
 
     _initialized = 1
 
-
 def init():
     """
     Explicitly initializes the Python Imaging Library. This function
@@ -300,7 +285,6 @@ def init():
     if OPEN or SAVE:
         _initialized = 2
         return 1
-
 
 def _getdecoder(mode, decoder_name, args, extra=()):
 
@@ -327,8 +311,6 @@ def _getencoder(mode, encoder_name, args, extra=()):
         return encoder(mode, *args + extra)
     except AttributeError:
         raise IOError("encoder %s not available" % encoder_name)
-
-
 
 def coerce_e(value):
     return value if isinstance(value, _E) else _E(value)
@@ -358,8 +340,6 @@ def _getscaleoffset(expr):
             return c, e
     except TypeError: pass
     raise ValueError("illegal expression")
-
-
 
 class Image:
     """
@@ -643,8 +623,6 @@ class Image:
 
     def quantize(self, colors=256, method=0, kmeans=0, palette=None):
 
-
-
         self.load()
 
         if palette:
@@ -837,7 +815,6 @@ class Image:
         self.load()
         return self.im.ptr
 
-
     def getpalette(self):
         """
         Returns the image palette as a list.
@@ -854,7 +831,6 @@ class Image:
                 return list(self.im.getpalette())
         except ValueError:
             return None
-
 
     def getpixel(self, xy):
         """
@@ -1433,7 +1409,6 @@ class Image:
         :returns: None
         """
 
-
         x, y = self.size
         if x > size[0]: y = int(max(y * size[0] / x, 1)); x = int(size[0])
         if y > size[1]: x = int(max(x * size[1] / y, 1)); y = int(size[1])
@@ -1505,7 +1480,6 @@ class Image:
     def __transformer(self, box, image, method, data,
                       resample=NEAREST, fill=1):
 
-
         w = box[2]-box[0]
         h = box[3]-box[1]
 
@@ -1558,7 +1532,6 @@ class Image:
         im = self.im.transpose(method)
         return self._new(im)
 
-
 class _ImageCrop(Image):
 
     def __init__(self, im, box):
@@ -1587,21 +1560,16 @@ class _ImageCrop(Image):
         if self.im:
             return self.im.pixel_access(self.readonly)
 
-
-
 class ImagePointHandler:
     pass
 
 class ImageTransformHandler:
     pass
 
-
-
 def _wedge():
     "Create greyscale wedge (for debugging only)"
 
     return Image()._new(core.wedge("L"))
-
 
 def new(mode, size, color=0):
     """
@@ -1627,7 +1595,6 @@ def new(mode, size, color=0):
         color = ImageColor.getcolor(color, mode)
 
     return Image()._new(core.fill(mode, size, color))
-
 
 def frombytes(mode, size, data, decoder_name="raw", *args):
     """
@@ -1675,7 +1642,6 @@ def fromstring(*args, **kw):
     )
     return frombytes(*args, **kw)
 
-
 def frombuffer(mode, size, data, decoder_name="raw", *args):
     """
     Creates an image memory referencing pixel data in a byte buffer.
@@ -1710,7 +1676,7 @@ def frombuffer(mode, size, data, decoder_name="raw", *args):
 
     .. versionadded:: 1.1.4
     """
-    "Load image from bytes or buffer"
+
 
     if len(args) == 1 and isinstance(args[0], tuple):
         args = args[0]
@@ -1734,7 +1700,6 @@ def frombuffer(mode, size, data, decoder_name="raw", *args):
             return im
 
     return frombytes(mode, size, data, decoder_name, args)
-
 
 def fromarray(obj, mode=None):
     """
@@ -1801,7 +1766,6 @@ _fromarray_typemap = {
 _fromarray_typemap[((1, 1), _ENDIAN + "i4")] = ("I", "I")
 _fromarray_typemap[((1, 1), _ENDIAN + "f4")] = ("F", "F")
 
-
 def open(fp, mode="r"):
     """
     Opens and identifies the given image file.
@@ -1855,7 +1819,6 @@ def open(fp, mode="r"):
 
     raise IOError("cannot identify image file")
 
-
 def alpha_composite(im1, im2):
     """
     Alpha composite im2 over im1.
@@ -1869,7 +1832,6 @@ def alpha_composite(im1, im2):
     im1.load()
     im2.load()
     return im1._new(core.alpha_composite(im1.im, im2.im))
-
 
 def blend(im1, im2, alpha):
     """
@@ -1893,7 +1855,6 @@ def blend(im1, im2, alpha):
     im2.load()
     return im1._new(core.blend(im1.im, im2.im, alpha))
 
-
 def composite(image1, image2, mask):
     """
     Create composite image by blending images using a transparency mask.
@@ -1910,7 +1871,6 @@ def composite(image1, image2, mask):
     image.paste(image1, None, mask)
     return image
 
-
 def eval(image, *args):
     """
     Applies the function (which should take one argument) to each pixel
@@ -1925,7 +1885,6 @@ def eval(image, *args):
     """
 
     return image.point(args[0])
-
 
 def merge(mode, bands):
     """
@@ -1951,7 +1910,6 @@ def merge(mode, bands):
         im.putband(bands[i].im, i)
     return bands[0]._new(im)
 
-
 def register_open(id, factory, accept=None):
     """
     Register an image file plugin.  This function should not be used
@@ -1966,7 +1924,6 @@ def register_open(id, factory, accept=None):
     ID.append(id)
     OPEN[id] = factory, accept
 
-
 def register_mime(id, mimetype):
     """
     Registers an image MIME type.  This function should not be used
@@ -1976,7 +1933,6 @@ def register_mime(id, mimetype):
     :param mimetype: The image MIME type for this format.
     """
     MIME[id.upper()] = mimetype
-
 
 def register_save(id, driver):
     """
@@ -1988,7 +1944,6 @@ def register_save(id, driver):
     """
     SAVE[id.upper()] = driver
 
-
 def register_extension(id, extension):
     """
     Registers an image extension.  This function should not be
@@ -1998,8 +1953,6 @@ def register_extension(id, extension):
     :param extension: An extension used for this format.
     """
     EXTENSION[extension.lower()] = id.upper()
-
-
 
 def _show(image, **options):
     _showxv(image, **options)

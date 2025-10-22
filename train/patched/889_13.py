@@ -55,51 +55,39 @@ incoming_responses_counter = Counter(
     "synapse_http_matrixfederationclient_responses", "", ["method", "code"]
 )
 
-
 MAX_LONG_RETRIES = 10
 MAX_SHORT_RETRIES = 3
 MAXINT = sys.maxsize
 
-
 _next_id = 1
 
-
 QueryArgs = Dict[str, Union[str, List[str]]]
-
 
 @attr.s(slots=True, frozen=True)
 class MatrixFederationRequest:
     method = attr.ib(type=str)
-    """HTTP method
-    """
+
 
     path = attr.ib(type=str)
-    """HTTP path
-    """
+
 
     destination = attr.ib(type=str)
-    """The remote server to send the HTTP request to.
-    """
+
 
     json = attr.ib(default=None, type=Optional[JsonDict])
-    """JSON to send in the body.
-    """
+
 
     json_callback = attr.ib(default=None, type=Optional[Callable[[], JsonDict]])
-    """A callback to generate the JSON.
-    """
+
 
     query = attr.ib(default=None, type=Optional[dict])
-    """Query arguments.
-    """
+
 
     txn_id = attr.ib(default=None, type=Optional[str])
-    """Unique ID for this request (for logging)
-    """
+
 
     uri = attr.ib(init=False, type=bytes)
-    """The URI of this request
-    """
+
 
     def __attrs_post_init__(self) -> None:
         global _next_id
@@ -124,7 +112,6 @@ class MatrixFederationRequest:
         if self.json_callback:
             return self.json_callback()
         return self.json
-
 
 async def _handle_json_response(
     reactor: IReactorTime,
@@ -187,7 +174,6 @@ async def _handle_json_response(
         request.uri.decode("ascii"),
     )
     return body
-
 
 class MatrixFederationHttpClient:
     """HTTP client used to talk to other homeservers over the federation
@@ -960,7 +946,6 @@ class MatrixFederationHttpClient:
         )
         return (length, headers)
 
-
 def _flatten_response_never_received(e):
     if hasattr(e, "reasons"):
         reasons = ", ".join(
@@ -970,7 +955,6 @@ def _flatten_response_never_received(e):
         return "%s:[%s]" % (type(e).__name__, reasons)
     else:
         return repr(e)
-
 
 def check_content_type_is_json(headers: Headers) -> None:
     """

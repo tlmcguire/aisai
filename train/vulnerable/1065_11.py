@@ -53,7 +53,6 @@ JSON_PATH = os.path.join(os.path.dirname(gradio.__file__), "launches.json")
 P = ParamSpec("P")
 T = TypeVar("T")
 
-
 def get_package_version() -> str:
     try:
         package_json_data = (
@@ -64,7 +63,6 @@ def get_package_version() -> str:
         return version
     except Exception:
         return ""
-
 
 def safe_get_lock() -> asyncio.Lock:
     """Get asyncio.Lock() without fear of getting an Exception.
@@ -77,7 +75,6 @@ def safe_get_lock() -> asyncio.Lock:
         return asyncio.Lock()
     except RuntimeError:
         return None
-
 
 class BaseReloader(ABC):
     @property
@@ -98,7 +95,6 @@ class BaseReloader(ABC):
             self.running_app.blocks._queue.block_fns = demo.fns
             demo._queue = self.running_app.blocks._queue
         self.running_app.blocks = demo
-
 
 class SourceFileReloader(BaseReloader):
     def __init__(
@@ -134,7 +130,6 @@ class SourceFileReloader(BaseReloader):
     def swap_blocks(self, demo: Blocks):
         super().swap_blocks(demo)
         self.alert_change()
-
 
 def watchfn(reloader: SourceFileReloader):
     """Watch python files in a given module.
@@ -214,7 +209,6 @@ def watchfn(reloader: SourceFileReloader):
                 reloader.swap_blocks(demo)
             mtimes = {}
 
-
 def colab_check() -> bool:
     """
     Check if interface is launching from Google Colab
@@ -231,12 +225,10 @@ def colab_check() -> bool:
         pass
     return is_colab
 
-
 def kaggle_check() -> bool:
     return bool(
         os.environ.get("KAGGLE_KERNEL_RUN_TYPE") or os.environ.get("GFOOTBALL_DATA_DIR")
     )
-
 
 def sagemaker_check() -> bool:
     try:
@@ -247,7 +239,6 @@ def sagemaker_check() -> bool:
         return "sagemaker" in response["Arn"].lower()
     except Exception:
         return False
-
 
 def ipython_check() -> bool:
     """
@@ -264,16 +255,13 @@ def ipython_check() -> bool:
         pass
     return is_ipython
 
-
 def get_space() -> str | None:
     if os.getenv("SYSTEM") == "spaces":
         return os.getenv("SPACE_ID")
     return None
 
-
 def is_zero_gpu_space() -> bool:
     return os.getenv("SPACES_ZERO_GPU") == "true"
-
 
 def readme_to_html(article: str) -> str:
     try:
@@ -283,7 +271,6 @@ def readme_to_html(article: str) -> str:
     except httpx.RequestError:
         pass
     return article
-
 
 def launch_counter() -> None:
     try:
@@ -302,14 +289,12 @@ def launch_counter() -> None:
     except Exception:
         pass
 
-
 def get_default_args(func: Callable) -> list[Any]:
     signature = inspect.signature(func)
     return [
         v.default if v.default is not inspect.Parameter.empty else None
         for v in signature.parameters.values()
     ]
-
 
 def assert_configs_are_equivalent_besides_ids(
     config1: dict, config2: dict, root_keys: tuple = ("mode",)
@@ -374,7 +359,6 @@ def assert_configs_are_equivalent_besides_ids(
 
     return True
 
-
 def format_ner_list(input_string: str, ner_groups: list[dict[str, str | int]]):
     if len(ner_groups) == 0:
         return [(input_string, None)]
@@ -392,7 +376,6 @@ def format_ner_list(input_string: str, ner_groups: list[dict[str, str | int]]):
     output.append((input_string[end:], None))
     return output
 
-
 def delete_none(_dict: dict, skip_value: bool = False) -> dict:
     """
     Delete keys whose values are None from a dictionary
@@ -404,13 +387,11 @@ def delete_none(_dict: dict, skip_value: bool = False) -> dict:
             del _dict[key]
     return _dict
 
-
 def resolve_singleton(_list: list[Any] | Any) -> Any:
     if len(_list) == 1:
         return _list[0]
     else:
         return _list
-
 
 def component_or_layout_class(cls_name: str) -> type[Component] | type[BlockContext]:
     """
@@ -450,7 +431,6 @@ def component_or_layout_class(cls_name: str) -> type[Component] | type[BlockCont
             return cls
     raise ValueError(f"No such component or layout: {cls_name}")
 
-
 def run_coro_in_background(func: Callable, *args, **kwargs):
     """
     Runs coroutines in background.
@@ -462,7 +442,6 @@ def run_coro_in_background(func: Callable, *args, **kwargs):
     incorrect scope examples: Blocks.launch
 
     Use startup_events in routes.py if you need to run a coro in background in Blocks.launch().
-
 
     Example:
         utils.run_coro_in_background(fn, *args, **kwargs)
@@ -478,14 +457,12 @@ def run_coro_in_background(func: Callable, *args, **kwargs):
     event_loop = asyncio.get_event_loop()
     return event_loop.create_task(func(*args, **kwargs))
 
-
 def run_sync_iterator_async(iterator):
     """Helper for yielding StopAsyncIteration from sync iterators."""
     try:
         return next(iterator)
     except StopIteration:
         raise StopAsyncIteration() from None
-
 
 class SyncToAsyncIterator:
     """Treat a synchronous iterator as async one."""
@@ -502,10 +479,8 @@ class SyncToAsyncIterator:
             run_sync_iterator_async, self.iterator, limiter=self.limiter
         )
 
-
 async def async_iteration(iterator):
     return await iterator.__anext__()
-
 
 @contextmanager
 def set_directory(path: Path | str):
@@ -517,7 +492,6 @@ def set_directory(path: Path | str):
     finally:
         os.chdir(origin)
 
-
 @contextmanager
 def no_raise_exception():
     """Context manager that suppresses exceptions."""
@@ -525,7 +499,6 @@ def no_raise_exception():
         yield
     except Exception:
         pass
-
 
 def sanitize_value_for_csv(value: str | Number) -> str | Number:
     """
@@ -542,7 +515,6 @@ def sanitize_value_for_csv(value: str | Number) -> str | Number:
         value = f"'{value}"
     return value
 
-
 def sanitize_list_for_csv(values: list[Any]) -> list[Any]:
     """
     Sanitizes a list of values (or a list of list of values) that is being written to a
@@ -558,7 +530,6 @@ def sanitize_list_for_csv(values: list[Any]) -> list[Any]:
             sanitized_values.append(sanitized_value)
     return sanitized_values
 
-
 def append_unique_suffix(name: str, list_of_names: list[str]):
     """Appends a numerical suffix to `name` so that it does not appear in `list_of_names`."""
     set_of_names: set[str] = set(list_of_names)
@@ -572,7 +543,6 @@ def append_unique_suffix(name: str, list_of_names: list[str]):
             new_name = f"{name}_{suffix_counter}"
         return new_name
 
-
 def validate_url(possible_url: str) -> bool:
     headers = {"User-Agent": "gradio (https://gradio.app/; team@gradio.app)"}
     try:
@@ -583,10 +553,8 @@ def validate_url(possible_url: str) -> bool:
     except Exception:
         return False
 
-
 def is_update(val):
     return isinstance(val, dict) and "update" in val.get("__type__", "")
-
 
 def get_continuous_fn(fn: Callable, every: float) -> Callable:
     async def continuous_coro(*args):
@@ -605,7 +573,6 @@ def get_continuous_fn(fn: Callable, every: float) -> Callable:
             await asyncio.sleep(every)
 
     return continuous_coro
-
 
 def function_wrapper(
     f: Callable,
@@ -667,7 +634,6 @@ def function_wrapper(
 
         return wrapper
 
-
 def get_function_with_locals(
     fn: Callable,
     blocks: Blocks,
@@ -693,7 +659,6 @@ def get_function_with_locals(
         fn, before_fn=before_fn, before_args=(blocks, event_id), after_fn=after_fn
     )
 
-
 async def cancel_tasks(task_ids: set[str]):
     matching_tasks = [
         task for task in asyncio.all_tasks() if task.get_name() in task_ids
@@ -702,11 +667,9 @@ async def cancel_tasks(task_ids: set[str]):
         task.cancel()
     await asyncio.gather(*matching_tasks, return_exceptions=True)
 
-
 def set_task_name(task, session_hash: str, fn_index: int, batch: bool):
     if not batch:
         task.set_name(f"{session_hash}_{fn_index}")
-
 
 def get_cancel_function(
     dependencies: list[dict[str, Any]],
@@ -729,7 +692,6 @@ def get_cancel_function(
         cancel,
         list(fn_to_comp.keys()),
     )
-
 
 def get_type_hints(fn):
     import gradio as gr
@@ -764,13 +726,12 @@ def get_type_hints(fn):
                 pass
         return type_hints
 
-
 def is_special_typed_parameter(name, parameter_types):
     from gradio.helpers import EventData
     from gradio.oauth import OAuthProfile, OAuthToken
     from gradio.routes import Request
 
-    """Checks if parameter has a type hint designating it as a gr.Request, gr.EventData, gr.OAuthProfile or gr.OAuthToken."""
+
     hint = parameter_types.get(name)
     if not hint:
         return False
@@ -783,7 +744,6 @@ def is_special_typed_parameter(name, parameter_types):
     )
     is_event_data = inspect.isclass(hint) and issubclass(hint, EventData)
     return is_request or is_event_data or is_oauth_arg
-
 
 def check_function_inputs_match(fn: Callable, inputs: list, inputs_as_dict: bool):
     """
@@ -824,14 +784,12 @@ def check_function_inputs_match(fn: Callable, inputs: list, inputs_as_dict: bool
             f"Expected maximum {max_args} arguments for function {fn}, received {arg_count}."
         )
 
-
 class TupleNoPrint(tuple):
     def __repr__(self):
         return ""
 
     def __str__(self):
         return ""
-
 
 class MatplotlibBackendMananger:
     def __enter__(self):
@@ -840,7 +798,6 @@ class MatplotlibBackendMananger:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         matplotlib.use(self._original_backend)
-
 
 def tex2svg(formula, *args):
     with MatplotlibBackendMananger():
@@ -877,7 +834,6 @@ def tex2svg(formula, *args):
         copy_code = f"<span style='font-size: 0px'>{formula}</span>"
     return f"{copy_code}{svg_code}"
 
-
 def abspath(path: str | Path) -> Path:
     """Returns absolute path of a str or Path path, but does not resolve symlinks."""
     path = Path(path)
@@ -893,7 +849,6 @@ def abspath(path: str | Path) -> Path:
         return Path.cwd() / path
     else:
         return path.resolve()
-
 
 def is_in_or_equal(path_1: str | Path, path_2: str | Path):
     """
@@ -911,13 +866,10 @@ def is_in_or_equal(path_1: str | Path, path_2: str | Path):
         return False
     return True
 
-
 HTML_TAG_RE = re.compile("<.*?>")
-
 
 def remove_html_tags(raw_html: str | None) -> str:
     return re.sub(HTML_TAG_RE, "", raw_html or "")
-
 
 def find_user_stack_level() -> int:
     """
@@ -933,7 +885,6 @@ def find_user_stack_level() -> int:
         n += 1
     return n
 
-
 class NamedString(str):
     """
     Subclass of str that includes a .name attribute equal to the value of the string itself. This class is used when returning
@@ -946,7 +897,6 @@ class NamedString(str):
         super().__init__()
         self.name = str(self) if args else ""
 
-
 def default_input_labels():
     """
     A generator that provides default input labels for components when the user's function
@@ -957,7 +907,6 @@ def default_input_labels():
         yield f"input {n}"
         n += 1
 
-
 def get_extension_from_file_path_or_url(file_path_or_url: str) -> str:
     """
     Returns the file extension (without the dot) from a file path or URL. If the file path or URL does not have a file extension, returns an empty string.
@@ -966,7 +915,6 @@ def get_extension_from_file_path_or_url(file_path_or_url: str) -> str:
     parsed_url = urllib.parse.urlparse(file_path_or_url)
     file_extension = os.path.splitext(os.path.basename(parsed_url.path))[1]
     return file_extension[1:] if file_extension else ""
-
 
 def convert_to_dict_if_dataclass(value):
     if dataclasses.is_dataclass(value):

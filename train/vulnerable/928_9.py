@@ -35,11 +35,9 @@ from urllib3.util.timeout import _TYPE_TIMEOUT, Timeout
 from .. import INVALID_SOURCE_ADDRESSES, TARPIT_HOST, VALID_SOURCE_ADDRESSES
 from ..port_helpers import find_unused_port
 
-
 def wait_for_socket(ready_event: Event) -> None:
     ready_event.wait()
     ready_event.clear()
-
 
 class TestConnectionPoolTimeouts(SocketDummyServerTestCase):
     def test_timeout_float(self) -> None:
@@ -186,7 +184,6 @@ class TestConnectionPoolTimeouts(SocketDummyServerTestCase):
             conn = pool._new_conn()
             with pytest.raises(ConnectTimeoutError):
                 conn.connect()
-
 
 class TestConnectionPool(HTTPDummyServerTestCase):
     def test_get(self) -> None:
@@ -471,7 +468,6 @@ class TestConnectionPool(HTTPDummyServerTestCase):
 
             assert pool.num_connections == 1
 
-
             assert pool.pool is not None
             conn = pool.pool.get()
             assert conn.sock is None
@@ -515,13 +511,7 @@ class TestConnectionPool(HTTPDummyServerTestCase):
             encoded_data = encode_multipart_formdata(data)[0]
             expected_body = encoded_data.split(b"\r\n")
 
-            """
-            We need to loop the return lines because a timestamp is attached
-            from within encode_multipart_formdata. When the server echos back
-            the data, it has the timestamp from when the data was encoded, which
-            is not equivalent to when we run encode_multipart_formdata on
-            the data again.
-            """
+
             for i, line in enumerate(body):
                 if line.startswith(b"--"):
                     continue
@@ -644,7 +634,6 @@ class TestConnectionPool(HTTPDummyServerTestCase):
                     preload_content=False,
                     pool_timeout=0.001,
                 )
-
 
                 assert r2.read(first_chunk) == resp2_data[:first_chunk]
 
@@ -1032,7 +1021,6 @@ class TestConnectionPool(HTTPDummyServerTestCase):
             assert "User-Agent" in request_headers
             assert request_headers["User-Agent"] == "Schönefeld/1.18.0"
 
-
 class TestRetry(HTTPDummyServerTestCase):
     def test_max_retry(self) -> None:
         with HTTPConnectionPool(self.host, self.port) as pool:
@@ -1196,7 +1184,6 @@ class TestRetry(HTTPDummyServerTestCase):
             ]
             assert actual == expected
 
-
 class TestRetryAfter(HTTPDummyServerTestCase):
     def test_retry_after(self) -> None:
         with HTTPConnectionPool(self.host, self.port) as pool:
@@ -1277,7 +1264,6 @@ class TestRetryAfter(HTTPDummyServerTestCase):
             assert r.status == 200
             assert delta < 1
 
-
 class TestFileBodiesOnRetryOrRedirect(HTTPDummyServerTestCase):
     def test_retries_put_filehandle(self) -> None:
         """HTTP PUT retry with a file-like object should not timeout"""
@@ -1341,7 +1327,6 @@ class TestFileBodiesOnRetryOrRedirect(HTTPDummyServerTestCase):
             ):
                 pool.urlopen("PUT", url, headers=headers, body=body)
 
-
 class TestRetryPoolSize(HTTPDummyServerTestCase):
     def test_pool_size_retry(self) -> None:
         retries = Retry(total=1, raise_on_status=False, status_forcelist=[404])
@@ -1350,7 +1335,6 @@ class TestRetryPoolSize(HTTPDummyServerTestCase):
         ) as pool:
             pool.urlopen("GET", "/not_found", preload_content=False)
             assert pool.num_connections == 1
-
 
 class TestRedirectPoolSize(HTTPDummyServerTestCase):
     def test_pool_size_redirect(self) -> None:

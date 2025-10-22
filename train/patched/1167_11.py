@@ -50,64 +50,6 @@ class CmdExecutionRequest(BaseModel):
     command: str = Field(..., description="Url to be used")
     parameters: List[str] = Field(..., description="Command parameters")
 
-
-
-"""
-@router.post("/execute_personality_command")
-async def execute_personality_command(request: CmdExecutionRequest):
-    client_id = request.client_id
-    client = lollmsElfServer.session.get_client(client_id)
-
-    lollmsElfServer.cancel_gen = False
-    client.generated_text=""
-    client.cancel_generation=False
-    client.continuing=False
-    client.first_chunk=True
-    
-    if not lollmsElfServer.model:
-        ASCIIColors.error("Model not selected. Please select a model")
-        lollmsElfServer.error("Model not selected. Please select a model", client_id=client_id)
-        return {'status':False,"error":"Model not selected. Please select a model"}
-
-    if not lollmsElfServer.busy:
-        if lollmsElfServer.session.get_client(client_id).discussion is None:
-            if lollmsElfServer.db.does_last_discussion_have_messages():
-                lollmsElfServer.session.get_client(client_id).discussion = lollmsElfServer.db.create_discussion()
-            else:
-                lollmsElfServer.session.get_client(client_id).discussion = lollmsElfServer.db.load_last_discussion()
-
-        ump = lollmsElfServer.config.discussion_prompt_separator +lollmsElfServer.config.user_name.strip() if lollmsElfServer.config.use_user_name_in_discussions else lollmsElfServer.personality.user_message_prefix
-        message = lollmsElfServer.session.get_client(client_id).discussion.add_message(
-            message_type    = MSG_TYPE.MSG_TYPE_FULL.value,
-            sender_type     = SENDER_TYPES.SENDER_TYPES_USER.value,
-            sender          = ump.replace(lollmsElfServer.config.discussion_prompt_separator,"").replace(":",""),
-            content="",
-            metadata=None,
-            parent_message_id=lollmsElfServer.message_id
-        )
-        lollmsElfServer.busy=True
-
-        command = request.command
-        parameters =  request.parameters
-        lollmsElfServer.prepare_reception(client_id)
-        if lollmsElfServer.personality.processor is not None:
-            lollmsElfServer.start_time = datetime.now()
-            lollmsElfServer.personality.processor.callback = partial(lollmsElfServer.process_chunk, client_id=client_id)
-            lollmsElfServer.personality.processor.execute_command(command, parameters)
-        else:
-            lollmsElfServer.warning("Non scripted personalities do not support commands",client_id=client_id)
-        lollmsElfServer.close_message(client_id)
-        lollmsElfServer.busy=False
-
-        #tpe = threading.Thread(target=lollmsElfServer.start_message_generation, args=(message, message_id, client_id))
-        #tpe.start()
-    else:
-        lollmsElfServer.error("I am busy. Come back later.", client_id=client_id)
-        return {'status':False,"error":"I am busy. Come back later."}
-
-    lollmsElfServer.busy=False
-    return {'status':True,}
-"""
 MAX_PAGE_SIZE = 10000000
 
 @router.post("/add_webpage")

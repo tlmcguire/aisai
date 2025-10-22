@@ -11,7 +11,6 @@ from jwcrypto.jwk import JWKSet
 
 default_max_compressed_size = 256 * 1024
 
-
 JWEHeaderRegistry = {
     'alg': JWSEHeaderParameter('Algorithm', False, True, None),
     'enc': JWSEHeaderParameter('Encryption Algorithm', False, True, None),
@@ -29,7 +28,6 @@ JWEHeaderRegistry = {
     'cty': JWSEHeaderParameter('Content Type', False, True, None),
     'crit': JWSEHeaderParameter('Critical', True, True, None),
 }
-"""Registry of valid header parameters"""
 
 default_allowed_algs = [
     'RSA-OAEP', 'RSA-OAEP-256',
@@ -40,8 +38,6 @@ default_allowed_algs = [
     'PBES2-HS256+A128KW', 'PBES2-HS384+A192KW', 'PBES2-HS512+A256KW',
     'A128CBC-HS256', 'A192CBC-HS384', 'A256CBC-HS512',
     'A128GCM', 'A192GCM', 'A256GCM']
-"""Default allowed algorithms"""
-
 
 class InvalidJWEData(JWException):
     """Invalid JWE Object.
@@ -60,12 +56,10 @@ class InvalidJWEData(JWException):
             msg += ' {%s}' % str(exception)
         super(InvalidJWEData, self).__init__(msg)
 
-
 InvalidCEKeyLength = common.InvalidCEKeyLength
 InvalidJWEKeyLength = common.InvalidJWEKeyLength
 InvalidJWEKeyType = common.InvalidJWEKeyType
 InvalidJWEOperation = common.InvalidJWEOperation
-
 
 class JWE:
     """JSON Web Encryption object

@@ -32,7 +32,6 @@ COMMAND_EXECUTION_ATTRIBUTES = [
     "__base__",
 ]
 
-
 class PALValidation:
     """Validation for PAL generated code."""
 
@@ -95,7 +94,6 @@ class PALValidation:
         self.allow_imports = allow_imports
         self.allow_command_exec = allow_command_exec
 
-
 class PALChain(Chain):
     """Chain that implements Program-Aided Language Models (PAL).
 
@@ -115,20 +113,20 @@ class PALChain(Chain):
 
     llm_chain: LLMChain
     stop: str = "\n\n"
-    """Stop token to use when generating code."""
+
     get_answer_expr: str = "print(solution())"
-    """Expression to use to get the answer from the generated code."""
+
     python_globals: Optional[Dict[str, Any]] = None
-    """Python globals and locals to use when executing the generated code."""
+
     python_locals: Optional[Dict[str, Any]] = None
-    """Python globals and locals to use when executing the generated code."""
+
     output_key: str = "result"
     return_intermediate_steps: bool = False
-    """Whether to return intermediate steps in the generated code."""
+
     code_validations: PALValidation = Field(default_factory=PALValidation)
-    """Validations to perform on the generated code."""
+
     timeout: Optional[int] = 10
-    """Timeout in seconds for the generated code to execute."""
+
 
     class Config:
         """Configuration for this pydantic object."""

@@ -44,7 +44,6 @@ import zlib
 try:
     from hashlib import sha1 as _sha, md5 as _md5
 except ImportError:
-    # prior to Python 2.5, these were separate modules
     import sha
     import md5
 
@@ -62,12 +61,11 @@ except ImportError:
     except (ImportError, AttributeError):
         socks = None
 
-# Build the appropriate socket wrapper for ssl
 ssl = None
 ssl_SSLError = None
 ssl_CertificateError = None
 try:
-    import ssl  # python 2.6
+    import ssl
 except ImportError:
     pass
 if ssl is not None:
@@ -85,7 +83,7 @@ def _ssl_wrap_socket(
     if ssl_version is None:
         ssl_version = ssl.PROTOCOL_SSLv23
 
-    if hasattr(ssl, "SSLContext"):  # Python 2.7.9
+    if hasattr(ssl, "SSLContext"):
         context = ssl.SSLContext(ssl_version)
         context.verify_mode = cert_reqs
         context.check_hostname = cert_reqs != ssl.CERT_NONE
@@ -136,7 +134,7 @@ else:
         return uri
 
 
-def has_timeout(timeout):  # python 2.6
+def has_timeout(timeout):
     if hasattr(socket, "_GLOBAL_DEFAULT_TIMEOUT"):
         return timeout is not None and timeout is not socket._GLOBAL_DEFAULT_TIMEOUT
     return timeout is not None
@@ -156,13 +154,10 @@ __all__ = [
     "ProxiesUnavailableError",
 ]
 
-# The httplib debug level, set to a non-zero value to get debug output
 debuglevel = 0
 
-# A request will be tried 'RETRIES' times if it fails at the socket/connection level.
 RETRIES = 2
 
-# Python 2.3 support
 if sys.version_info < (2, 4):
 
     def sorted(seq):
@@ -170,7 +165,6 @@ if sys.version_info < (2, 4):
         return seq
 
 
-# Python 2.3 support
 def HTTPResponse__getheaders(self):
     """Return list of (header, value) tuples."""
     if self.msg is None:
@@ -182,13 +176,10 @@ if not hasattr(httplib.HTTPResponse, "getheaders"):
     httplib.HTTPResponse.getheaders = HTTPResponse__getheaders
 
 
-# All exceptions raised here derive from HttpLib2Error
 class HttpLib2Error(Exception):
     pass
 
 
-# Some exceptions can be caught and optionally
-# be turned back into responses.
 class HttpLib2ErrorWithResponse(HttpLib2Error):
     def __init__(self, desc, response, content):
         self.response = response
@@ -255,31 +246,15 @@ class NotRunningAppEngineEnvironment(HttpLib2Error):
     pass
 
 
-# Open Items:
-# -----------
-# Proxy support
 
-# Are we removing the cached content too soon on PUT (only delete on 200 Maybe?)
 
-# Pluggable cache storage (supports storing the cache in
-#   flat files by default. We need a plug-in architecture
-#   that can support Berkeley DB and Squid)
 
-# == Known Issues ==
-# Does not handle a resource that uses conneg and Last-Modified but no ETag as a cache validator.
-# Does not handle Cache-Control: max-stale
-# Does not use Age: headers when calculating cache freshness.
 
-# The number of redirections to follow before giving up.
-# Note that only GET redirects are automatically followed.
-# Will also honor 301 requests by saving that info and never
-# requesting that URI again.
 DEFAULT_MAX_REDIRECTS = 5
 
 from httplib2 import certs
 CA_CERTS = certs.where()
 
-# Which headers are hop-by-hop headers by default
 HOP_BY_HOP = [
     "connection",
     "keep-alive",
@@ -291,10 +266,8 @@ HOP_BY_HOP = [
     "upgrade",
 ]
 
-# https://tools.ietf.org/html/rfc7231#section-8.1.3
-SAFE_METHODS = ("GET", "HEAD")  # TODO add "OPTIONS", "TRACE"
+SAFE_METHODS = ("GET", "HEAD")
 
-# To change, assign to `Http().redirect_codes`
 REDIRECT_CODES = frozenset((300, 301, 302, 303, 307, 308))
 
 
@@ -324,15 +297,12 @@ def urlnorm(uri):
     scheme = scheme.lower()
     if not path:
         path = "/"
-    # Could do syntax based normalization of the URI before
-    # computing the digest. See Section 6.2.2 of Std 66.
     request_uri = query and "?".join([path, query]) or path
     scheme = scheme.lower()
     defrag_uri = scheme + "://" + authority + request_uri
     return scheme, authority, request_uri, defrag_uri
 
 
-# Cache filename construction (original borrowed from Venus http://intertwingly.net/code/venus/)
 re_url_scheme = re.compile(r"^\w+://")
 re_unsafe = re.compile(r"[^\w\-_.()=!]+")
 
@@ -351,11 +321,6 @@ def safename(filename):
     filename = re_url_scheme.sub("", filename)
     filename = re_unsafe.sub("", filename)
 
-    # limit length of filename (vital for Windows)
-    # https://github.com/httplib2/httplib2/pull/74
-    # C:\Users\    <username>    \AppData\Local\Temp\  <safe_filename>  ,   <md5>
-    #   9 chars + max 104 chars  +     20 chars      +       x       +  1  +  32  = max 259 chars
-    # Thus max safe filename x = 93 chars. Let it be 90 to make a round sum:
     filename = filename[:90]
 
     return ",".join((filename, filemd5))
@@ -389,17 +354,8 @@ def _parse_cache_control(headers):
     return retval
 
 
-# Whether to use a strict mode to parse WWW-Authenticate headers
-# Might lead to bad results in case of ill-formed header value,
-# so disabled by default, falling back to relaxed parsing.
-# Set to true to turn on, usefull for testing servers.
 USE_WWW_AUTH_STRICT_PARSING = 0
 
-# In regex below:
-#    [^\0-\x1f\x7f-\xff()<>@,;:\\\"/[\]?={} \t]+             matches a "token" as defined by HTTP
-#    "(?:[^\0-\x08\x0A-\x1f\x7f-\xff\\\"]|\\[\0-\x7f])*?"    matches a "quoted-string" as defined by HTTP, when LWS have already been replaced by a single space
-# Actually, as an auth-param value can be either a token or a quoted-string, they are combined in a single pattern which matches both:
-#    \"?((?<=\")(?:[^\0-\x1f\x7f-\xff\\\"]|\\[\0-\x7f])*?(?=\")|(?<!\")[^\0-\x08\x0A-\x1f\x7f-\xff()<>@,;:\\\"/[\]?={} \t]+(?!\"))\"?
 WWW_AUTH_STRICT = re.compile(
     r"^(?:\s*(?:,\s*)?([^\0-\x1f\x7f-\xff()<>@,;:\\\"/[\]?={} \t]+)\s*=\s*\"?((?<=\")(?:[^\0-\x08\x0A-\x1f\x7f-\xff\\\"]|\\[\0-\x7f])*?(?=\")|(?<!\")[^\0-\x1f\x7f-\xff()<>@,;:\\\"/[\]?={} \t]+(?!\"))\"?)(.*)$"
 )
@@ -421,13 +377,10 @@ def _parse_www_authenticate(headers, headername="www-authenticate"):
                 USE_WWW_AUTH_STRICT_PARSING and WWW_AUTH_STRICT or WWW_AUTH_RELAXED
             )
             while authenticate:
-                # Break off the scheme at the beginning of the line
                 if headername == "authentication-info":
                     (auth_scheme, the_rest) = ("digest", authenticate)
                 else:
                     (auth_scheme, the_rest) = authenticate.split(" ", 1)
-                # Now loop over all the key value pairs that come after the scheme,
-                # being careful not to roll into the next scheme
                 match = www_auth.search(the_rest)
                 auth_params = {}
                 while match:
@@ -435,7 +388,7 @@ def _parse_www_authenticate(headers, headername="www-authenticate"):
                         (key, value, the_rest) = match.groups()
                         auth_params[key.lower()] = UNQUOTE_PAIRS.sub(
                             r"\1", value
-                        )  # '\\'.join([x.replace('\\', '') for x in value.split('\\\\')])
+                        )
                     match = www_auth.search(the_rest)
                 retval[auth_scheme.lower()] = auth_params
                 authenticate = the_rest.strip()
@@ -445,7 +398,6 @@ def _parse_www_authenticate(headers, headername="www-authenticate"):
     return retval
 
 
-# TODO: add current time as _entry_disposition argument to avoid sleep in tests
 def _entry_disposition(response_headers, request_headers):
     """Determine freshness from the Date, Expires and Cache-Control headers.
 
@@ -534,7 +486,6 @@ def _decompressContent(response, new_content):
             if encoding == "deflate":
                 content = zlib.decompress(content, -zlib.MAX_WBITS)
             response["content-length"] = str(len(content))
-            # Record the historical presence of the encoding in a way the won't interfere.
             response["-content-encoding"] = response["content-encoding"]
             del response["content-encoding"]
     except (IOError, zlib.error):
@@ -560,8 +511,6 @@ def _updateCache(request_headers, response_headers, content, cache, cachekey):
                 if key not in ["status", "content-encoding", "transfer-encoding"]:
                     info[key] = value
 
-            # Add annotations to the cache to indicate what headers
-            # are variant for this request.
             vary = response_headers.get("vary", None)
             if vary:
                 vary_headers = vary.lower().replace(" ", "").split(",")
@@ -600,13 +549,6 @@ def _wsse_username_token(cnonce, iso_now, password):
     ).strip()
 
 
-# For credentials we need two things, first
-# a pool of credential to try (not necesarily tied to BAsic, Digest, etc.)
-# Then we also need a list of URIs that have already demanded authentication
-# That list is tricky since sub-URIs can take the same auth, or the
-# auth scheme may change as you descend the tree.
-# So we also need each Auth instance to be able to tell us
-# how close to the 'top' it is.
 
 
 class Authentication(object):
@@ -624,7 +566,6 @@ class Authentication(object):
         return request_uri[len(self.path) :].count("/")
 
     def inscope(self, host, request_uri):
-        # XXX Should we normalize the request_uri?
         (scheme, authority, path, query, fragment) = parse_uri(request_uri)
         return (host == self.host) and path.startswith(self.path)
 
@@ -765,7 +706,6 @@ class HmacDigestAuthentication(Authentication):
         )
         challenge = _parse_www_authenticate(response, "www-authenticate")
         self.challenge = challenge["hmacdigest"]
-        # TODO: self.challenge['domain']
         self.challenge["reason"] = self.challenge.get("reason", "unauthorized")
         if self.challenge["reason"] not in ["unauthorized", "integrity"]:
             self.challenge["reason"] = "unauthorized"
@@ -891,13 +831,8 @@ class GoogleLoginAuthentication(Authentication):
         )
         challenge = _parse_www_authenticate(response, "www-authenticate")
         service = challenge["googlelogin"].get("service", "xapi")
-        # Bloggger actually returns the service in the challenge
-        # For the rest we guess based on the URI
         if service == "xapi" and request_uri.find("calendar") > 0:
             service = "cl"
-        # No point in guessing Base or Spreadsheet
-        # elif request_uri.find("spreadsheets") > 0:
-        #    service = "wise"
 
         auth = dict(
             Email=credentials[0],
@@ -943,7 +878,7 @@ class FileCache(object):
 
     def __init__(
         self, cache, safe=safename
-    ):  # use safe=lambda x: md5.new(x).hexdigest() for the old behavior
+    ):
         self.cache = cache
         self.safe = safe
         if not os.path.exists(cache):
@@ -1068,10 +1003,8 @@ class ProxyInfo(object):
 
         hostname = "." + hostname.lstrip(".")
         for skip_name in self.bypass_hosts:
-            # *.suffix
             if skip_name.startswith(".") and hostname.endswith(skip_name):
                 return True
-            # exact match
             if hostname == "." + skip_name:
                 return True
         return False
@@ -1122,7 +1055,7 @@ def proxy_info_from_url(url, method="http", noproxy=None):
     else:
         port = dict(https=443, http=80)[method]
 
-    proxy_type = 3  # socks.PROXY_TYPE_HTTP
+    proxy_type = 3
     pi = ProxyInfo(
         proxy_type=proxy_type,
         proxy_host=host,
@@ -1133,15 +1066,13 @@ def proxy_info_from_url(url, method="http", noproxy=None):
     )
 
     bypass_hosts = []
-    # If not given an explicit noproxy value, respect values in env vars.
     if noproxy is None:
         noproxy = os.environ.get("no_proxy", os.environ.get("NO_PROXY", ""))
-    # Special case: A single '*' character means all hosts should be bypassed.
     if noproxy == "*":
         bypass_hosts = AllHosts
     elif noproxy.strip():
         bypass_hosts = noproxy.split(",")
-        bypass_hosts = filter(bool, bypass_hosts)  # To exclude empty string.
+        bypass_hosts = filter(bool, bypass_hosts)
 
     pi.bypass_hosts = bypass_hosts
     return pi
@@ -1163,7 +1094,6 @@ class HTTPConnectionWithTimeout(httplib.HTTPConnection):
 
     def connect(self):
         """Connect to the host and port specified in __init__."""
-        # Mostly verbatim from httplib.py.
         if self.proxy_info and socks is None:
             raise ProxiesUnavailableError(
                 "Proxy support missing but proxy use was requested!"
@@ -1201,10 +1131,8 @@ class HTTPConnectionWithTimeout(httplib.HTTPConnection):
                 else:
                     self.sock = socket.socket(af, socktype, proto)
                     self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                # Different from httplib: support timeouts.
                 if has_timeout(self.timeout):
                     self.sock.settimeout(self.timeout)
-                    # End of difference from httplib.
                 if self.debuglevel > 0:
                     print("connect: (%s, %s) ************" % (self.host, self.port))
                     if use_proxy:
@@ -1294,25 +1222,6 @@ class HTTPSConnectionWithTimeout(httplib.HTTPSConnection):
         self.disable_ssl_certificate_validation = disable_ssl_certificate_validation
         self.ssl_version = ssl_version
 
-    # The following two methods were adapted from https_wrapper.py, released
-    # with the Google Appengine SDK at
-    # http://googleappengine.googlecode.com/svn-history/r136/trunk/python/google/appengine/tools/https_wrapper.py
-    # under the following license:
-    #
-    # Copyright 2007 Google Inc.
-    #
-    # Licensed under the Apache License, Version 2.0 (the "License");
-    # you may not use this file except in compliance with the License.
-    # You may obtain a copy of the License at
-    #
-    #     http://www.apache.org/licenses/LICENSE-2.0
-    #
-    # Unless required by applicable law or agreed to in writing, software
-    # distributed under the License is distributed on an "AS IS" BASIS,
-    # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    # See the License for the specific language governing permissions and
-    # limitations under the License.
-    #
 
     def _GetValidHostsForCert(self, cert):
         """Returns a list of valid host globs for an SSL certificate.
@@ -1434,10 +1343,6 @@ class HTTPSConnectionWithTimeout(httplib.HTTPSConnection):
                 if self.sock:
                     self.sock.close()
                 self.sock = None
-                # Unfortunately the ssl module doesn't seem to provide any way
-                # to get at more detailed error information, in particular
-                # whether the error is due to certificate validation or
-                # something else (such as SSL protocol mismatch).
                 if getattr(e, "errno", None) == ssl.SSL_ERROR_SSL:
                     raise SSLHandshakeError(e)
                 else:
@@ -1563,7 +1468,6 @@ class AppEngineHttpsConnection(httplib.HTTPSConnection):
         self._fetch = _new_fixed_fetch(not disable_ssl_certificate_validation)
 
 
-# Use a different connection object for Google App Engine Standard Environment.
 def is_gae_instance():
     server_software = os.environ.get('SERVER_SOFTWARE', '')
     if (server_software.startswith('Google App Engine/') or
@@ -1583,7 +1487,6 @@ try:
 
     from google.appengine.api.urlfetch import fetch
 
-    # Update the connection classes to use the Googel App Engine specific ones.
     SCHEME_TO_CONNECTION = {
         "http": AppEngineHttpConnection,
         "https": AppEngineHttpsConnection,
@@ -1646,37 +1549,26 @@ class Http(object):
         self.disable_ssl_certificate_validation = disable_ssl_certificate_validation
         self.ssl_version = ssl_version
 
-        # Map domain name to an httplib connection
         self.connections = {}
-        # The location of the cache, for now a directory
-        # where cached responses are held.
         if cache and isinstance(cache, basestring):
             self.cache = FileCache(cache)
         else:
             self.cache = cache
 
-        # Name/password
         self.credentials = Credentials()
 
-        # Key/cert
         self.certificates = KeyCerts()
 
-        # authorization objects
         self.authorizations = []
 
-        # If set to False then no redirects are followed, even safe ones.
         self.follow_redirects = True
 
         self.redirect_codes = REDIRECT_CODES
 
-        # Which HTTP methods do we apply optimistic concurrency to, i.e.
-        # which methods get an "if-match:" etag header added to them.
         self.optimistic_concurrency_methods = ["PUT", "PATCH"]
 
         self.safe_methods = list(SAFE_METHODS)
 
-        # If 'follow_redirects' is True, and this is set to True then
-        # all redirecs are followed, including unsafe ones.
         self.follow_all_redirects = False
 
         self.ignore_etag = False
@@ -1685,7 +1577,6 @@ class Http(object):
 
         self.timeout = timeout
 
-        # Keep Authorization: headers on a redirect.
         self.forward_authorization_headers = False
 
     def close(self):
@@ -1700,8 +1591,6 @@ class Http(object):
 
     def __getstate__(self):
         state_dict = copy.copy(self.__dict__)
-        # In case request is augmented by some foreign object such as
-        # credentials which handle auth
         if "request" in state_dict:
             del state_dict["request"]
         if "connections" in state_dict:
@@ -1763,13 +1652,11 @@ class Http(object):
                     err = getattr(e, "args")[0]
                 else:
                     err = e.errno
-                if err == errno.ECONNREFUSED:  # Connection refused
+                if err == errno.ECONNREFUSED:
                     raise
                 if err in (errno.ENETUNREACH, errno.EADDRNOTAVAIL) and i < RETRIES:
-                    continue  # retry on potentially transient socket errors
+                    continue
             except httplib.HTTPException:
-                # Just because the server closed the connection doesn't apparently mean
-                # that the server didn't send a response.
                 if hasattr(conn, "sock") and conn.sock is None:
                     if i < RETRIES - 1:
                         conn.close()
@@ -1785,9 +1672,6 @@ class Http(object):
             try:
                 response = conn.getresponse()
             except httplib.BadStatusLine:
-                # If we get a BadStatusLine on the first try then that means
-                # the connection just went stale, so retry regardless of the
-                # number of RETRIES set.
                 if not seen_bad_status_line and i == 1:
                     i = 0
                     seen_bad_status_line = True
@@ -1872,8 +1756,6 @@ class Http(object):
             or response.status in (303, 308)
         ):
             if self.follow_redirects and response.status in self.redirect_codes:
-                # Pick out the location header and basically start from the beginning
-                # remembering first to strip the ETag header and decrement our 'depth'
                 if redirections:
                     if "location" not in response and response.status != 300:
                         raise RedirectMissingLocation(
@@ -1883,7 +1765,6 @@ class Http(object):
                             response,
                             content,
                         )
-                    # Fix-up relative redirects (which violate an RFC 2616 MUST)
                     if "location" in response:
                         location = response["location"]
                         (scheme, authority, path, query, fragment) = parse_uri(location)
@@ -1929,7 +1810,6 @@ class Http(object):
                         content,
                     )
             elif response.status in [200, 203] and method in self.safe_methods:
-                # Don't cache 206's since we aren't going to handle byte range requests
                 if "content-location" not in response:
                     response["content-location"] = absolute_uri
                 _updateCache(headers, response, content, self.cache, cachekey)
@@ -1939,9 +1819,6 @@ class Http(object):
     def _normalize_headers(self, headers):
         return _normalize_headers(headers)
 
-    # Need to catch and rebrand some exceptions
-    # Then need to optionally turn all exceptions into status codes
-    # including all socket.* and httplib.* exceptions.
 
     def request(
         self,
@@ -1985,8 +1862,6 @@ class Http(object):
                 headers["user-agent"] = "Python-httplib2/%s (gzip)" % __version__
 
             uri = iri2uri(uri)
-            # Prevent CWE-75 space injection to manipulate request via part of uri.
-            # Prevent CWE-93 CRLF injection to modify headers via part of uri.
             uri = uri.replace(" ", "%20").replace("\r", "%0D").replace("\n", "%0A")
 
             (scheme, authority, request_uri, defrag_uri) = urlnorm(uri)
@@ -2037,11 +1912,6 @@ class Http(object):
                 cachekey = defrag_uri.encode("utf-8")
                 cached_value = self.cache.get(cachekey)
                 if cached_value:
-                    # info = email.message_from_string(cached_value)
-                    #
-                    # Need to replace the line above with the kludge below
-                    # to fix the non-existent bug not fixed in this
-                    # bug report: http://mail.python.org/pipermail/python-bugs-list/2005-September/030289.html
                     try:
                         info, content = cached_value.split("\r\n\r\n", 1)
                         feedparser = email.FeedParser.FeedParser()
@@ -2060,17 +1930,11 @@ class Http(object):
                 and not self.ignore_etag
                 and "if-match" not in headers
             ):
-                # http://www.w3.org/1999/04/Editing/
                 headers["if-match"] = info["etag"]
 
-            # https://tools.ietf.org/html/rfc7234
-            # A cache MUST invalidate the effective Request URI as well as [...] Location and Content-Location
-            # when a non-error status code is received in response to an unsafe request method.
             if self.cache and cachekey and method not in self.safe_methods:
                 self.cache.delete(cachekey)
 
-            # Check the vary header in the cache to see if this request
-            # matches what varies in the cache.
             if method in self.safe_methods and "vary" in info:
                 vary = info["vary"]
                 vary_headers = vary.lower().replace(" ", "").split(",")
@@ -2091,7 +1955,6 @@ class Http(object):
                 if info["status"] not in ("307", "308"):
                     redirect_method = "GET"
                 if "-x-permanent-redirect-url" in info:
-                    # Should cached permanent redirects be counted in our redirection count? For now, yes.
                     if redirections <= 0:
                         raise RedirectLimit(
                             "Redirected more times than rediection_limit allows.",
@@ -2107,14 +1970,6 @@ class Http(object):
                     response.previous = Response(info)
                     response.previous.fromcache = True
                 else:
-                    # Determine our course of action:
-                    #   Is the cached entry fresh or stale?
-                    #   Has the client requested a non-cached response?
-                    #
-                    # There seems to be three possible answers:
-                    # 1. [FRESH] Return the cache entry w/o doing a GET
-                    # 2. [STALE] Do the GET (but add in cache validators if available)
-                    # 3. [TRANSPARENT] Do a GET w/o any cache validators (Cache-Control: no-cache) on the request
                     entry_disposition = _entry_disposition(info, headers)
 
                     if entry_disposition == "FRESH":
@@ -2151,10 +2006,6 @@ class Http(object):
                     )
 
                 if response.status == 304 and method == "GET":
-                    # Rewrite the cache entry with the new end-to-end headers
-                    # Take all headers that are in response
-                    # and overwrite their values in info.
-                    # unless they are hop-by-hop, or are listed in the connection header.
 
                     for key in _get_end2end_headers(response):
                         info[key] = response[key]
@@ -2262,8 +2113,6 @@ class Response(dict):
     previous = None
 
     def __init__(self, info):
-        # info is either an email.Message or
-        # an httplib.HTTPResponse object.
         if isinstance(info, httplib.HTTPResponse):
             for key, value in info.getheaders():
                 self[key.lower()] = value

@@ -1,16 +1,3 @@
-# Copyright 2019-2021 Canonical Ltd.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 """Representations of Juju's model, application, unit, and other entities."""
 
@@ -57,7 +44,6 @@ import ops.pebble as pebble
 from ops._private import timeconv, yaml
 from ops.jujuversion import JujuVersion
 
-# a k8s spec is a mapping from names/"types" to json/yaml spec objects
 K8sSpec = Mapping[str, Any]
 
 _StorageDictType = Dict[str, Optional[List['Storage']]]
@@ -65,21 +51,17 @@ _BindingDictType = Dict[Union[str, 'Relation'], 'Binding']
 
 _StatusDict = TypedDict('_StatusDict', {'status': str, 'message': str})
 
-# mapping from relation name to a list of relation objects
 _RelationMapping_Raw = Dict[str, Optional[List['Relation']]]
-# mapping from container name to container metadata
 _ContainerMeta_Raw = Dict[str, 'ops.charm.ContainerMeta']
 
-# relation data is a string key: string value mapping so far as the
-# controller is concerned
 _RelationDataContent_Raw = Dict[str, str]
 UnitOrApplicationType = Union[Type['Unit'], Type['Application']]
 
 _AddressDict = TypedDict(
     '_AddressDict',
     {
-        'address': str,  # Juju < 2.9
-        'value': str,  # Juju >= 2.9
+        'address': str,
+        'value': str,
         'cidr': str,
     },
 )
@@ -98,7 +80,7 @@ _NetworkDict = TypedDict(
 
 logger = logging.getLogger(__name__)
 
-MAX_LOG_LINE_LEN = 131071  # Max length of strings to pass to subshell.
+MAX_LOG_LINE_LEN = 131071
 
 
 class Model:
@@ -286,7 +268,6 @@ class Model:
         if not (id or label):
             raise TypeError('Must provide an id or label, or both')
         if id is not None:
-            # Canonicalize to "secret:<id>" form for consistency in backend calls.
             id = Secret._canonicalize_id(id)
         content = self._backend.secret_get(id=id, label=label)
         return Secret(self._backend, id=id, label=label, content=content)
@@ -308,7 +289,6 @@ class Model:
 
 
 if typing.TYPE_CHECKING:
-    # (entity type, name): instance.
     _WeakCacheType = weakref.WeakValueDictionary[
         Tuple['UnitOrApplicationType', str], Optional[Union['Unit', 'Application']]
     ]
@@ -579,7 +559,6 @@ class Unit:
         if not self._is_our_unit:
             raise RuntimeError(f'cannot set status for a remote unit {self}')
 
-        # fixme: if value.messages
         self._backend.status_set(value.name, value.message, is_app=False)
         self._status = value
 
@@ -595,8 +574,6 @@ class Unit:
             RuntimeError: if called for another unit
         """
         if self._is_our_unit:
-            # This value is not cached as it is not guaranteed to persist for the whole duration
-            # of a hook execution.
             return self._backend.is_leader()
         else:
             raise RuntimeError(
@@ -746,7 +723,6 @@ class Unit:
                 ``port`` is not ``None``, or where ``protocol`` is 'tcp' or 'udp' and ``port``
                 is ``None``.
         """
-        # Normalise to get easier comparisons.
         existing = {(port.protocol, port.port) for port in self._backend.opened_ports()}
         desired = {
             ('tcp', port) if isinstance(port, int) else (port.protocol, port.port)
@@ -811,7 +787,6 @@ class _GenericLazyMapping(Mapping[str, _LazyValueType], ABC):
     the basis for many of the dicts that the framework tracks.
     """
 
-    # key-value mapping
     _lazy_data: Optional[Dict[str, _LazyValueType]] = None
 
     @abstractmethod
@@ -886,7 +861,7 @@ class RelationMapping(Mapping[str, List['Relation']]):
         is_peer = relation_name in self._peers
         relation_list: Optional[List[Relation]] = self._data[relation_name]
         if not isinstance(relation_list, list):
-            relation_list = self._data[relation_name] = []  # type: ignore
+            relation_list = self._data[relation_name] = []
             for rid in self._backend.relation_ids(relation_name):
                 if rid == self._broken_relation_id:
                     continue
@@ -916,7 +891,6 @@ class RelationMapping(Mapping[str, List['Relation']]):
                 if relation.id == relation_id:
                     return relation
             else:
-                # The relation may be dead, but it is not forgotten.
                 is_peer = relation_name in self._peers
                 return Relation(
                     relation_name,
@@ -934,8 +908,6 @@ class RelationMapping(Mapping[str, List['Relation']]):
         elif num_related == 1:
             return self[relation_name][0]
         else:
-            # TODO: We need something in the framework to catch and gracefully handle
-            # errors, ideally integrating the error catching with Juju's mechanisms.
             raise TooManyRelatedAppsError(relation_name, num_related, 1)
 
 
@@ -971,7 +943,6 @@ class BindingMapping(Mapping[str, 'Binding']):
             self._data[binding_key] = binding
         return binding
 
-    # implemented to satisfy the Mapping ABC, but not meant to be used.
     def __getitem__(self, item: Union[str, 'Relation']) -> 'Binding':
         raise NotImplementedError()
 
@@ -1006,16 +977,11 @@ class Binding:
             except RelationNotFoundError:
                 if self._relation_id is None:
                     raise
-                # If a relation is dead, we can still get network info associated with an
-                # endpoint itself
                 self._network = self._network_get(self.name)
         return self._network
 
 
 def _cast_network_address(raw: str) -> Union[ipaddress.IPv4Address, ipaddress.IPv6Address, str]:
-    # fields marked as network addresses need not be IPs; they could be
-    # hostnames that juju failed to resolve. In that case, we'll log a
-    # debug message and leave it as-is.
     try:
         return ipaddress.ip_address(raw)
     except ValueError:
@@ -1058,8 +1024,6 @@ class Network:
             network_info: A dict of network information as returned by ``network-get``.
         """
         self.interfaces = []
-        # Treat multiple addresses on an interface as multiple logical
-        # interfaces with the same name.
         for interface_info in network_info.get('bind-addresses', []):
             interface_name: str = interface_info.get('interface-name')
             addrs: Optional[List[_AddressDict]] = interface_info.get('addresses')
@@ -1124,34 +1088,27 @@ class NetworkInterface:
 
     def __init__(self, name: str, address_info: '_AddressDict'):
         self.name = name
-        # TODO: expose a hardware address here, see LP: #1864070.
 
         address = address_info.get('value')
         if address is None:
-            # Compatibility with Juju <2.9: legacy address_info only had
-            # an 'address' field instead of 'value'.
             address = address_info.get('address')
 
-        # The value field may be empty.
         address_ = _cast_network_address(address) if address else None
         self.address = address_
         cidr: str = address_info.get('cidr')
-        # The cidr field may be empty, see LP: #1864102.
         if cidr:
             subnet = ipaddress.ip_network(cidr)
         elif address:
-            # If we have an address, convert it to a /32 or /128 IP network.
             subnet = ipaddress.ip_network(address)
         else:
             subnet = None
         self.subnet = subnet
-        # TODO: expose a hostname/canonical name for the address here, see LP: #1864086.
 
 
 class SecretRotate(enum.Enum):
     """Secret rotation policies."""
 
-    NEVER = 'never'  # the default in juju
+    NEVER = 'never'
     HOURLY = 'hourly'
     DAILY = 'daily'
     WEEKLY = 'weekly'
@@ -1220,7 +1177,7 @@ class Secret:
     :class:`Secret` associated with that event.
     """
 
-    _key_re = re.compile(r'^([a-z](?:-?[a-z0-9]){2,})$')  # copied from Juju code
+    _key_re = re.compile(r'^([a-z](?:-?[a-z0-9]){2,})$')
 
     def __init__(
         self,
@@ -1251,7 +1208,7 @@ class Secret:
         """Return the canonical form of the given secret ID, with the 'secret:' prefix."""
         id = id.strip()
         if not id.startswith('secret:'):
-            id = f'secret:{id}'  # add the prefix if not there already
+            id = f'secret:{id}'
         return id
 
     @classmethod
@@ -1329,7 +1286,6 @@ class Secret:
         elif self._id.startswith('secret:'):
             return self._id[len('secret:') :]
         else:
-            # Shouldn't get here as id is canonicalized, but just in case.
             return self._id
 
     @property
@@ -1436,8 +1392,6 @@ class Secret:
         if self._id is None:
             self._id = self.get_info().id
         self._backend.secret_set(typing.cast(str, self.id), content=content)
-        # We do not need to invalidate the cache here, as the content is the
-        # same until `refresh` is used, at which point the cache is invalidated.
 
     def set_info(
         self,
@@ -1599,7 +1553,6 @@ class Relation:
         self.units: Set[Unit] = set()
         self.active = active
 
-        # For peer relations, both the remote and the local app are the same.
         app = our_unit.app if is_peer else None
 
         try:
@@ -1607,20 +1560,15 @@ class Relation:
                 unit = cache.get(Unit, unit_name)
                 self.units.add(unit)
                 if app is None:
-                    # Use the app of one of the units if available.
                     app = unit.app
         except RelationNotFoundError:
-            # If the relation is dead, just treat it as if it has no remote units.
             self.active = False
 
-        # If we didn't get the remote app via our_unit.app or the units list,
-        # look it up via JUJU_REMOTE_APP or "relation-list --app".
         if app is None:
             app_name = backend.relation_remote_app_name(relation_id)
             if app_name is not None:
                 app = cache.get(Application, app_name)
 
-        # self.app will not be None and always be set because of the fallback mechanism above.
         self.app = typing.cast(Application, app)
         self.data = RelationData(self, our_unit, backend)
 
@@ -1652,7 +1600,6 @@ class RelationData(Mapping[Union['Unit', 'Application'], 'RelationDataContent'])
         self._data.update({
             unit: RelationDataContent(self.relation, unit, backend) for unit in self.relation.units
         })
-        # The relation might be dead so avoid a None key here.
         if self.relation.app is not None:
             self._data.update({
                 self.relation.app: RelationDataContent(self.relation, self.relation.app, backend),
@@ -1674,8 +1621,6 @@ class RelationData(Mapping[Union['Unit', 'Application'], 'RelationDataContent'])
         return repr(self._data)
 
 
-# We mix in MutableMapping here to get some convenience implementations, but whether it's actually
-# mutable or not is controlled by the flag.
 class RelationDataContent(LazyMapping, MutableMapping[str, str]):
     """Data content of a unit or application in a relation."""
 
@@ -1689,9 +1634,6 @@ class RelationDataContent(LazyMapping, MutableMapping[str, str]):
 
     @property
     def _hook_is_running(self) -> bool:
-        # this flag controls whether the access we have to RelationDataContent
-        # is 'strict' aka the same as a deployed charm would have, or whether it is
-        # unrestricted, allowing test code to read/write databags at will.
         return bool(self._backend._hook_is_running)
 
     def _load(self) -> '_RelationDataContent_Raw':
@@ -1699,46 +1641,31 @@ class RelationDataContent(LazyMapping, MutableMapping[str, str]):
         try:
             return self._backend.relation_get(self.relation.id, self._entity.name, self._is_app)
         except RelationNotFoundError:
-            # Dead relations tell no tales (and have no data).
             return {}
 
     def _validate_read(self):
         """Return if the data content can be read."""
-        # if we're not in production (we're testing): we skip access control rules
         if not self._hook_is_running:
             return
 
-        # Only remote units (and the leader unit) can read *this* app databag.
 
-        # is this an app databag?
         if not self._is_app:
-            # all unit databags are publicly readable
             return
 
-        # Am I leader?
         if self._backend.is_leader():
-            # leaders have no read restrictions
             return
 
-        # type guard; we should not be accessing relation data
-        # if the remote app does not exist.
         app = self.relation.app
         if app is None:
             raise RelationDataAccessError(
                 f'Remote application instance cannot be retrieved for {self.relation}.'
             )
 
-        # is this a peer relation?
         if app.name == self._entity.name:
-            # peer relation data is always publicly readable
             return
 
-        # if we're here it means: this is not a peer relation,
-        # this is an app databag, and we don't have leadership.
 
-        # is this a LOCAL app databag?
         if self._backend.app_name == self._entity.name:
-            # minions can't read local app databags
             raise RelationDataAccessError(
                 f'{self._backend.unit_name} is not leader and cannot read its own '
                 f'application databag'
@@ -1752,18 +1679,14 @@ class RelationDataContent(LazyMapping, MutableMapping[str, str]):
         1) that key: value is a valid str:str pair
         2) that we have write access to this databag
         """
-        # firstly, we validate WHAT we're trying to write.
-        # this is independent of whether we're in testing code or production.
         if not isinstance(key, str):
             raise RelationDataTypeError(f'relation data keys must be strings, not {type(key)}')
         if not isinstance(value, str):
             raise RelationDataTypeError(f'relation data values must be strings, not {type(value)}')
 
-        # if we're not in production (we're testing): we skip access control rules
         if not self._hook_is_running:
             return
 
-        # finally, we check whether we have permissions to write this databag
         if self._is_app:
             is_our_app: bool = self._backend.app_name == self._entity.name
             if not is_our_app:
@@ -1771,17 +1694,12 @@ class RelationDataContent(LazyMapping, MutableMapping[str, str]):
                     f'{self._backend.app_name} cannot write the data of remote application '
                     f'{self._entity.name}'
                 )
-            # Whether the application data bag is mutable or not depends on
-            # whether this unit is a leader or not, but this is not guaranteed
-            # to be always true during the same hook execution.
             if self._backend.is_leader():
-                return  # all good
+                return
             raise RelationDataAccessError(
                 f'{self._backend.unit_name} is not leader and cannot write application data.'
             )
         else:
-            # we are attempting to write a unit databag
-            # is it OUR UNIT's?
             if self._backend.unit_name != self._entity.name:
                 raise RelationDataAccessError(
                     f'{self._backend.unit_name} cannot write databag of {self._entity.name}: '
@@ -1798,11 +1716,8 @@ class RelationDataContent(LazyMapping, MutableMapping[str, str]):
 
     def _update(self, key: str, value: str):
         """Cache key:value in our local lazy data."""
-        # Don't load data unnecessarily if we're only updating.
         if self._lazy_data is not None:
             if value == '':
-                # Match the behavior of Juju, which is that setting the value to an
-                # empty string will remove the key entirely from the relation data.
                 self._data.pop(key, None)
             else:
                 self._data[key] = value
@@ -1817,8 +1732,6 @@ class RelationDataContent(LazyMapping, MutableMapping[str, str]):
 
     def __delitem__(self, key: str):
         self._validate_write(key, '')
-        # Match the behavior of Juju, which is that setting the value to an empty
-        # string will remove the key entirely from the relation data.
         self.__setitem__(key, '')
 
     def __repr__(self):
@@ -1851,7 +1764,6 @@ class StatusBase:
 
     _statuses: Dict[str, Type['StatusBase']] = {}
 
-    # Subclasses should override this attribute
     name = ''
 
     def __init__(self, message: str = ''):
@@ -1882,7 +1794,6 @@ class StatusBase:
             KeyError: If ``name`` is not a registered status.
         """
         if name == 'unknown':
-            # unknown is special
             return UnknownStatus()
         else:
             return cls._statuses[name](message)
@@ -1904,7 +1815,6 @@ class StatusBase:
         'maintenance': 3,
         'waiting': 2,
         'active': 1,
-        # 'unknown' or any other status is handled below
     }
 
     @classmethod
@@ -1930,7 +1840,6 @@ class UnknownStatus(StatusBase):
     name = 'unknown'
 
     def __init__(self):
-        # Unknown status cannot be set and does not have a message associated with it.
         super().__init__('')
 
     def __repr__(self):
@@ -2066,7 +1975,7 @@ class StorageMapping(Mapping[str, List['Storage']]):
             storage_name: None for storage_name in storage_names
         }
 
-    def __contains__(self, key: str):  # pyright: ignore[reportIncompatibleMethodOverride]
+    def __contains__(self, key: str):
         return key in self._storage_map
 
     def __len__(self):
@@ -2084,7 +1993,7 @@ class StorageMapping(Mapping[str, List['Storage']]):
             storage_list = self._storage_map[storage_name] = []
             for storage_index in self._backend.storage_list(storage_name):
                 storage = Storage(storage_name, storage_index, self._backend)
-                storage_list.append(storage)  # type: ignore
+                storage_list.append(storage)
         return storage_list
 
     def request(self, storage_name: str, count: int = 1):
@@ -2239,13 +2148,9 @@ class Container:
             logger.debug('Pebble API is not ready; ConnectionError: %s', e)
             return False
         except FileNotFoundError as e:
-            # In some cases, charm authors can attempt to hit the Pebble API before it has had the
-            # chance to create the UNIX socket in the shared volume.
             logger.debug('Pebble API is not ready; UNIX socket not found: %s', e)
             return False
         except pebble.APIError as e:
-            # An API error is only raised when the Pebble API returns invalid JSON, or the response
-            # cannot be read. Both of these are a likely indicator that something is wrong.
             logger.warning('Pebble API is not ready; APIError: %s', e)
             return False
         return True
@@ -2275,7 +2180,6 @@ class Container:
         except pebble.APIError as e:
             if e.code != 400:
                 raise e
-            # support old Pebble instances that don't support the "restart" action
             stop: Tuple[str, ...] = tuple(
                 s.name for s in self.get_services(*service_names).values() if s.is_running()
             )
@@ -2680,14 +2584,10 @@ class Container:
             path: Filepath to recursively list.
         """
         if path.name == '*':
-            # ignore trailing '/*' that we just use for determining how to build paths
-            # at destination
             path = path.parent
 
         for info in list_func(path):
             if info.type is pebble.FileType.DIRECTORY:
-                # Yield the directory to ensure empty directories are created, then
-                # all of the contained files.
                 yield info
                 yield from Container._list_recursive(list_func, Path(info.path))
             elif info.type in (pebble.FileType.FILE, pebble.FileType.SYMLINK):
@@ -2710,9 +2610,6 @@ class Container:
         dest_dir
             Destination directory to place file_path into.
         """
-        # select between the two following src+dst combos via trailing '/*'
-        # /src/* --> /dst/*
-        # /src --> /dst/src
         file_path, source_path, dest_dir = Path(file_path), Path(source_path), Path(dest_dir)
         prefix = str(source_path.parent)
         if prefix != '.' and os.path.commonprefix([prefix, str(file_path)]) != prefix:
@@ -2791,7 +2688,6 @@ class Container:
         """
         self._pebble.remove_path(str(path), recursive=recursive)
 
-    # Exec I/O is str if encoding is provided (the default)
     @typing.overload
     def exec(
         self,
@@ -2812,7 +2708,6 @@ class Container:
         combine_stderr: bool = False,
     ) -> pebble.ExecProcess[str]: ...
 
-    # Exec I/O is bytes if encoding is explicitly set to None
     @typing.overload
     def exec(
         self,
@@ -2879,10 +2774,10 @@ class Container:
             user=user,
             group_id=group_id,
             group=group,
-            stdin=stdin,  # type: ignore
-            stdout=stdout,  # type: ignore
-            stderr=stderr,  # type: ignore
-            encoding=encoding,  # type: ignore
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            encoding=encoding,
             combine_stderr=combine_stderr,
         )
 
@@ -2936,7 +2831,6 @@ class Container:
             keys=keys,
         )
 
-    # Define this last to avoid clashes with the imported "pebble" module
     @property
     def pebble(self) -> pebble.Client:
         """The low-level :class:`ops.pebble.Client` instance for this container."""
@@ -3101,10 +2995,7 @@ def _format_action_result_dict(
     output_: Dict[str, str] = output or {}
 
     for key, value in input.items():
-        # Ensure the key is of a valid format, and raise a ValueError if not
         if not isinstance(key, str):
-            # technically a type error, but for consistency with the
-            # other exceptions raised on key validation...
             raise ValueError(f'invalid key {key!r}; must be a string')
         if not _ACTION_RESULT_KEY_REGEX.match(key):
             raise ValueError(
@@ -3122,7 +3013,7 @@ def _format_action_result_dict(
                 f"duplicate key detected in dictionary passed to 'action-set': {key!r}"
             )
         else:
-            output_[key] = value  # type: ignore
+            output_[key] = value
 
     return output_
 
@@ -3145,13 +3036,11 @@ class _ModelBackend:
         model_name: Optional[str] = None,
         model_uuid: Optional[str] = None,
     ):
-        # if JUJU_UNIT_NAME is not being passed nor in the env, something is wrong
         unit_name_ = unit_name or os.getenv('JUJU_UNIT_NAME')
         if unit_name_ is None:
             raise ValueError('JUJU_UNIT_NAME not set')
         self.unit_name: str = unit_name_
 
-        # we can cast to str because these envvars are guaranteed to be set
         self.model_name: str = model_name or typing.cast(str, os.getenv('JUJU_MODEL_NAME'))
         self.model_uuid: str = model_uuid or typing.cast(str, os.getenv('JUJU_MODEL_UUID'))
         self.app_name: str = self.unit_name.split('/')[0]
@@ -3181,21 +3070,19 @@ class _ModelBackend:
         args = (which_cmd,) + args[1:]
         if use_json:
             args += ('--format=json',)
-        # TODO(benhoyt): all the "type: ignore"s below kinda suck, but I've
-        #                been fighting with Pyright for half an hour now...
         try:
-            result = subprocess.run(args, **kwargs)  # type: ignore
+            result = subprocess.run(args, **kwargs)
         except subprocess.CalledProcessError as e:
             raise ModelError(e.stderr) from e
         if return_output:
-            if result.stdout is None:  # type: ignore
+            if result.stdout is None:
                 return ''
             else:
-                text: str = result.stdout  # type: ignore
+                text: str = result.stdout
                 if use_json:
-                    return json.loads(text)  # type: ignore
+                    return json.loads(text)
                 else:
-                    return text  # type: ignore
+                    return text
 
     @staticmethod
     def _is_relation_not_found(model_error: Exception) -> bool:
@@ -3222,24 +3109,18 @@ class _ModelBackend:
         if 'JUJU_RELATION_ID' in os.environ and 'JUJU_REMOTE_APP' in os.environ:
             event_relation_id = int(os.environ['JUJU_RELATION_ID'].split(':')[-1])
             if relation_id == event_relation_id:
-                # JUJU_RELATION_ID is this relation, use JUJU_REMOTE_APP.
                 return os.getenv('JUJU_REMOTE_APP') or None
 
-        # If caller is asking for information about another relation, use
-        # "relation-list --app" to get it.
         try:
             rel_id = self._run(
                 'relation-list', '-r', str(relation_id), '--app', return_output=True, use_json=True
             )
-            # if it returned anything at all, it's a str.
             return typing.cast(str, rel_id)
 
         except ModelError as e:
             if self._is_relation_not_found(e):
                 return None
             if 'option provided but not defined: --app' in str(e):
-                # "--app" was introduced to relation-list in Juju 2.8.1, so
-                # handle previous versions of Juju gracefully
                 return None
             raise
 
@@ -3308,13 +3189,10 @@ class _ModelBackend:
             time_since_check = datetime.timedelta(seconds=now - self._leader_check_time)
             check = time_since_check > self.LEASE_RENEWAL_PERIOD or self._is_leader is None
         if check:
-            # Current time MUST be saved before running is-leader to ensure the cache
-            # is only used inside the window that is-leader itself asserts.
             self._leader_check_time = now
             is_leader = self._run('is-leader', return_output=True, use_json=True)
             self._is_leader = typing.cast(bool, is_leader)
 
-        # we can cast to bool now since if we're here it means we checked.
         return typing.cast(bool, self._is_leader)
 
     def resource_get(self, resource_name: str) -> str:
@@ -3353,20 +3231,6 @@ class _ModelBackend:
             use_json=True,
             return_output=True,
         )
-        # Unit status looks like (in YAML):
-        # message: 'load: 0.28 0.26 0.26'
-        # status: active
-        # status-data: {}
-        # Application status looks like (in YAML):
-        # application-status:
-        #   message: 'load: 0.28 0.26 0.26'
-        #   status: active
-        #   status-data: {}
-        #   units:
-        #     uo/0:
-        #       message: 'load: 0.28 0.26 0.26'
-        #       status: active
-        #       status-data: {}
 
         if is_app:
             content = typing.cast(Dict[str, Dict[str, str]], content)
@@ -3396,7 +3260,6 @@ class _ModelBackend:
     def _storage_event_details(self) -> Tuple[int, str]:
         output = self._run('storage-get', '--help', return_output=True)
         output = typing.cast(str, output)
-        # Match the entire string at once instead of going line by line
         match = self._STORAGE_KEY_RE.match(output)
         if match is None:
             raise RuntimeError(f'unable to find storage key in {output!r}')
@@ -3407,7 +3270,7 @@ class _ModelBackend:
         return index, location
 
     def storage_get(self, storage_name_id: str, attribute: str) -> str:
-        if not len(attribute) > 0:  # assume it's an empty string.
+        if not len(attribute) > 0:
             raise RuntimeError(
                 'calling storage_get with `attribute=""` will return a dict '
                 'and not a string. This usage is not supported.'
@@ -3427,8 +3290,6 @@ class _ModelBackend:
         return typing.cast(Dict[str, Any], out)
 
     def action_set(self, results: Dict[str, Any]) -> None:
-        # The Juju action-set hook tool cannot interpret nested dicts, so we use a helper to
-        # flatten out any nested dict structures into a dotted notation, and validate keys.
         flat_results = _format_action_result_dict(results)
         self._run('action-set', *[f'{k}={v}' for k, v in flat_results.items()])
 
@@ -3511,14 +3372,9 @@ class _ModelBackend:
         of being started, but will not include units that are being shut down.
 
         """
-        # The goal-state tool will return the information that we need. Goal state as a general
-        # concept is being deprecated, however, in favor of approaches such as the one that we use
-        # here.
         app_state = self._run('goal-state', return_output=True, use_json=True)
         app_state = typing.cast(Dict[str, Dict[str, Any]], app_state)
 
-        # Planned units can be zero. We don't need to do error checking here.
-        # But we need to filter out dying units as they may be reported before being deleted
         units = app_state.get('units', {})
         num_alive = sum(1 for unit in units.values() if unit['status'] != 'dying')
         return num_alive
@@ -3545,9 +3401,6 @@ class _ModelBackend:
             args.append('--refresh')
         if peek:
             args.append('--peek')
-        # IMPORTANT: Don't call shared _run_for_secret method here; we want to
-        # be extra sensitive inside secret_get to ensure we never
-        # accidentally log or output secrets, even if _run_for_secret changes.
         try:
             result = self._run('secret-get', *args, return_output=True, use_json=True)
         except ModelError as e:
@@ -3572,11 +3425,11 @@ class _ModelBackend:
         args: List[str] = []
         if id is not None:
             args.append(id)
-        elif label is not None:  # elif because Juju secret-info-get doesn't allow id and label
+        elif label is not None:
             args.extend(['--label', label])
         result = self._run_for_secret('secret-info-get', *args, return_output=True, use_json=True)
         info_dicts = typing.cast(Dict[str, Any], result)
-        id = list(info_dicts)[0]  # Juju returns dict of {secret_id: {info}}
+        id = list(info_dicts)[0]
         return SecretInfo.from_dict(id, typing.cast(Dict[str, Any], info_dicts[id]))
 
     def secret_set(
@@ -3599,7 +3452,6 @@ class _ModelBackend:
         if rotate is not None:
             args += ['--rotate', rotate.value]
         if content is not None:
-            # The content has already been validated with Secret._validate_content
             for k, v in content.items():
                 args.append(f'{k}={v}')
         self._run_for_secret('secret-set', *args)
@@ -3625,7 +3477,6 @@ class _ModelBackend:
             args += ['--rotate', rotate.value]
         if owner is not None:
             args += ['--owner', owner]
-        # The content has already been validated with Secret._validate_content
         for k, v in content.items():
             args.append(f'{k}={v}')
         result = self._run('secret-add', *args, return_output=True)
@@ -3659,10 +3510,6 @@ class _ModelBackend:
         self._run('close-port', arg)
 
     def opened_ports(self) -> Set[Port]:
-        # We could use "opened-ports --format=json", but it's not really
-        # structured; it's just an array of strings which are the lines of the
-        # text output, like ["icmp","8081/udp"]. So it's probably just as
-        # likely to change as the text output, and doesn't seem any better.
         output = typing.cast(str, self._run('opened-ports', return_output=True))
         ports: Set[Port] = set()
         for line in output.splitlines():
@@ -3691,9 +3538,6 @@ class _ModelBackend:
     def reboot(self, now: bool = False):
         if now:
             self._run('juju-reboot', '--now')
-            # Juju will kill the Charm process, and in testing no code after
-            # this point would execute. However, we want to guarantee that for
-            # Charmers, so we force that to be the case.
             sys.exit()
         else:
             self._run('juju-reboot')
@@ -3729,7 +3573,7 @@ class _ModelBackendValidator:
 
     @classmethod
     def format_metric_value(cls, value: Union[int, float]):
-        if not isinstance(value, (int, float)):  # pyright: ignore[reportUnnecessaryIsInstance]
+        if not isinstance(value, (int, float)):
             raise ModelError(
                 f'invalid metric value {value!r} provided:' ' must be a positive finite float'
             )
@@ -3742,8 +3586,6 @@ class _ModelBackendValidator:
 
     @classmethod
     def validate_label_value(cls, label: str, value: str):
-        # Label values cannot be empty, contain commas or equal signs as those are
-        # used by add-metric as separators.
         if not value:
             raise ModelError(f'metric label {label} has an empty value, which is not allowed')
         v = str(value)
@@ -3787,7 +3629,6 @@ class LazyNotice:
         return f'LazyNotice(id={self.id!r}, type={type_repr}, key={self.key!r})'
 
     def __getattr__(self, item: str):
-        # Note: not called for defined attributes (id, type, key)
         self._ensure_loaded()
         return getattr(self._notice, item)
 
@@ -3823,7 +3664,6 @@ class LazyCheckInfo:
         return f'LazyCheckInfo(name={self.name!r})'
 
     def __getattr__(self, item: str):
-        # Note: not called for defined attribute `name`.
         self._ensure_loaded()
         return getattr(self._info, item)
 

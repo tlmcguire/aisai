@@ -122,7 +122,7 @@ class PALChain(Chain):
     """Python globals and locals to use when executing the generated code."""
     python_locals: Optional[Dict[str, Any]] = None
     """Python globals and locals to use when executing the generated code."""
-    output_key: str = "result"  #: :meta private:
+    output_key: str = "result"
     return_intermediate_steps: bool = False
     """Whether to return intermediate steps in the generated code."""
     code_validations: PALValidation = Field(default_factory=PALValidation)
@@ -167,12 +167,10 @@ class PALChain(Chain):
         _run_manager.on_text(code, color="green", end="\n", verbose=self.verbose)
         PALChain.validate_code(code, self.code_validations)
 
-        # TODO: look into why mypy thinks PythonREPL's type here is `Any`
-        #       and therefore not callable
         repl = PythonREPL(
             _globals=self.python_globals,
             _locals=self.python_locals,
-        )  # type: ignore[misc]
+        )
         res = repl.run(code + f"\n{self.get_answer_expr}", timeout=self.timeout)
         output = {self.output_key: res.strip()}
         if self.return_intermediate_steps:
@@ -197,7 +195,6 @@ class PALChain(Chain):
 
         found_solution_expr = False
         if code_validations.solution_expression_name is None:
-            # Skip validation if no solution_expression_name was given
             found_solution_expr = True
 
         has_imports = False
@@ -207,14 +204,12 @@ class PALChain(Chain):
                 code_validations.solution_expression_name is not None
                 and code_validations.solution_expression_type is not None
             ):
-                # Check root nodes (like func def)
                 if (
                     isinstance(node, code_validations.solution_expression_type)
                     and hasattr(node, "name")
                     and node.name == code_validations.solution_expression_name
                 ):
                     found_solution_expr = True
-                # Check assigned nodes (like answer variable)
                 if isinstance(node, ast.Assign):
                     for target_node in node.targets:
                         if (

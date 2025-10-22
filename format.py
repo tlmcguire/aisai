@@ -11,18 +11,21 @@ Types of comments removed:
 - Single-line comments (# comment)
 - Inline comments (code  # comment)
 - Multi-line comments using # on each line
+- Multiline comments using triple quotes that are not docstrings
 """
 
 import re
 import sys
 import os
-from typing import List, Tuple
+import ast
+from typing import List, Tuple, Optional, Set
 
 
 class CommentRemover:
     def __init__(self):
         # Regex patterns for different types of strings and comments
         self.string_patterns = [
+            # Fix the escaping in the regex patterns
             r'"""[\s\S]*?"""',  # Triple double quotes (multiline)
             r"'''[\s\S]*?'''",  # Triple single quotes (multiline)
             r'"(?:[^"\\]|\\.)*"',  # Double quoted strings
@@ -36,6 +39,12 @@ class CommentRemover:
         """
         Remove comments using regex while preserving strings and docstrings.
         """
+        # First strip standalone string expression blocks (often used as
+        # multiline comments / file headers) so they are removed before the
+        # line-based comment pass
+        # stand-alone string Expr nodes.
+        source = self._strip_standalone_string_exprs(source)
+
         lines = source.split('\n')
         cleaned_lines = []
         
@@ -53,6 +62,106 @@ class CommentRemover:
                 cleaned_lines.append(cleaned_line)
         
         return '\n'.join(cleaned_lines)
+
+    def _strip_standalone_string_exprs(self, source: str) -> str:
+        """
+        Remove stand-alone string expression nodes (e.g. triple-quoted
+        blocks that appear as bare expressions in the module/class/function
+        body). This will remove header comments like the example in the
+        user's request. We preserve string literals that are assigned or
+        used in expressions.
+        If parsing fails or no candidates are found, return the original
+        source unchanged.
+        """
+        try:
+            tree = ast.parse(source)
+        except Exception:
+            # Can't parse - leave source unchanged
+            return source
+
+        # Collect ranges to remove: (start_lineno, end_lineno, start_col, end_col)
+        removals: List[Tuple[int, int, int, int]] = []
+        
+        # Keep track of docstring nodes to preserve them
+        docstring_nodes: Set[ast.Constant] = set()
+        
+        # Find valid docstrings to exclude them from removal
+        self._mark_docstrings(tree, docstring_nodes)
+
+        # Examine top-level body and nested bodies (class/function) as they
+        # may contain stand-alone string expressions as comments.
+        def collect_from(body):
+            for node in body:
+                # Stand-alone string expression
+                if isinstance(node, ast.Expr) and isinstance(getattr(node, 'value', None), ast.Constant) and isinstance(node.value.value, str):
+                    # Skip if it's a docstring we want to preserve
+                    if node.value in docstring_nodes:
+                        continue
+                        
+                    if hasattr(node, 'lineno') and hasattr(node, 'end_lineno'):
+                        removals.append((node.lineno, node.end_lineno, node.col_offset, node.end_col_offset))
+                # Recurse into class or function bodies
+                elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    collect_from(node.body)
+                # Check for other block structures that might contain string expressions
+                elif hasattr(node, 'body') and isinstance(node.body, list):
+                    collect_from(node.body)
+                # Handle if/else blocks
+                if hasattr(node, 'orelse') and isinstance(node.orelse, list):
+                    collect_from(node.orelse)
+
+        collect_from(tree.body)
+
+        if not removals:
+            return source
+
+        # Split source into lines preserving line endings so we can remove by line/column
+        lines = source.splitlines(keepends=True)
+
+        # Remove ranges in reverse order so line indices remain valid
+        for start_lineno, end_lineno, start_col, end_col in sorted(removals, reverse=True):
+            # clamp indices
+            start_idx = max(0, start_lineno - 1)
+            end_idx = max(0, end_lineno - 1)
+
+            if start_idx == end_idx:
+                # Remove a slice inside a single line
+                line = lines[start_idx]
+                lines[start_idx] = line[:start_col] + line[end_col:]
+            else:
+                # Trim start line from start_col to end, trim end line from 0 to end_col,
+                # and blank out intermediate lines
+                lines[start_idx] = lines[start_idx][:start_col]
+                lines[end_idx] = lines[end_idx][end_col:]
+                for i in range(start_idx + 1, end_idx):
+                    lines[i] = ''
+
+        result = ''.join(lines)
+
+        # Collapse multiple consecutive blank lines to at most two (optional cleanup)
+        result = re.sub(r"\n{3,}", "\n\n", result)
+        return result
+        
+    def _mark_docstrings(self, tree: ast.AST, docstring_nodes: Set[ast.Constant]) -> None:
+        """
+        Mark nodes that are actual docstrings so they won't be removed.
+        This includes module, class, and function docstrings.
+        """
+        # Module docstring
+        if (tree.body and isinstance(tree.body[0], ast.Expr) and 
+            isinstance(tree.body[0].value, ast.Constant) and 
+            isinstance(tree.body[0].value.value, str)):
+            docstring_nodes.add(tree.body[0].value)
+            
+        # Helper to process bodies of functions and classes
+        def process_body(body):
+            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+                docstring_nodes.add(body[0].value)
+                
+        # Process all nodes in the tree
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                process_body(node.body)
     
     def _update_multiline_state(self, line: str, in_multiline: bool, delimiter: str) -> Tuple[bool, str]:
         """
@@ -150,34 +259,6 @@ class CommentRemover:
         # Remove trailing whitespace but preserve leading whitespace
         result_str = ''.join(result).rstrip()
         return result_str
-    
-    def _is_likely_docstring(self, line: str, previous_lines: List[str]) -> bool:
-        """
-        Heuristic to determine if a triple-quoted string is likely a docstring.
-        """
-        stripped = line.strip()
-        if not (stripped.startswith('"""') or stripped.startswith("'''")):
-            return False
-            
-        # Check if this follows a function/class definition
-        for prev_line in reversed(previous_lines[-5:]):  # Check last 5 lines
-            prev_stripped = prev_line.strip()
-            if prev_stripped:
-                if (prev_stripped.startswith('def ') or 
-                    prev_stripped.startswith('class ') or
-                    prev_stripped.startswith('async def ')):
-                    return True
-                elif prev_stripped.endswith(':'):
-                    return True
-                else:
-                    break
-                    
-        # Check if it's at the beginning of the file (module docstring)
-        non_empty_lines = [l for l in previous_lines if l.strip()]
-        if len(non_empty_lines) == 0:
-            return True
-            
-        return False
     
     def format_file(self, file_path: str) -> str:
         """
@@ -297,9 +378,8 @@ other = 'She said "hi" back'
         # Test case 7: Multiline string with # inside
         '''
 multiline = """
-This is a multiline string
-# This should be preserved
-with multiple lines
+This is a multiline string and should be removed
+# This should be removed
 """
 # This comment should be removed
 ''',
@@ -309,6 +389,34 @@ with multiple lines
 text1 = "String with 'single' quotes"  # Remove this
 text2 = 'String with "double" quotes'  # Remove this too
 text3 = """Triple quoted with # hash"""  # Remove this
+''',
+        
+        # Test case 9: Triple quoted multiline comment vs docstring
+        '''
+"""
+This is a module docstring and should be preserved
+"""
+
+def func():
+    """This is a docstring and should be preserved."""
+    x = 1
+    
+    """
+    This is a multiline comment using triple quotes
+    and should be removed
+    """
+    return x
+''',
+
+        # Test case 10: Triple quoted comment mixed with real strings
+        '''
+message = "Hello world"
+
+"""
+This standalone comment should be removed
+"""
+
+result = calculate(message)  # Keep this code
 ''',
     ]
     

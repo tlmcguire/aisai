@@ -77,11 +77,9 @@ _NetworkDict = TypedDict(
     },
 )
 
-
 logger = logging.getLogger(__name__)
 
 MAX_LOG_LINE_LEN = 131071
-
 
 class Model:
     """Represents the Juju Model as seen from this unit.
@@ -287,12 +285,10 @@ class Model:
         """
         return self._backend.credential_get()
 
-
 if typing.TYPE_CHECKING:
     _WeakCacheType = weakref.WeakValueDictionary[
         Tuple['UnitOrApplicationType', str], Optional[Union['Unit', 'Application']]
     ]
-
 
 class _ModelCache:
     def __init__(self, meta: 'ops.charm.CharmMeta', backend: '_ModelBackend'):
@@ -316,7 +312,6 @@ class _ModelCache:
         self._weakrefs[key] = new_entity
         return new_entity
 
-
 class Application:
     """Represents a named application in the model.
 
@@ -327,9 +322,7 @@ class Application:
     """
 
     name: str
-    """The name of this application (eg, 'mysql'). This name may differ from the name of
-    the charm, if the user has deployed it to a different name.
-    """
+
 
     def __init__(
         self, name: str, meta: 'ops.charm.CharmMeta', backend: '_ModelBackend', cache: _ModelCache
@@ -464,7 +457,6 @@ class Application:
         )
         return Secret(self._backend, id=id, label=label, content=content)
 
-
 def _calculate_expiry(
     expire: Optional[Union[datetime.datetime, datetime.timedelta]],
 ) -> Optional[datetime.datetime]:
@@ -480,7 +472,6 @@ def _calculate_expiry(
             f'not {type(expire).__name__}'
         )
 
-
 class Unit:
     """Represents a named unit in the model.
 
@@ -489,10 +480,10 @@ class Unit:
     """
 
     name: str
-    """Name of the unit, for example "mysql/0"."""
+
 
     app: Application
-    """Application the unit is part of."""
+
 
     def __init__(
         self,
@@ -757,28 +748,19 @@ class Unit:
             raise RuntimeError(f'cannot reboot a remote unit {self}')
         self._backend.reboot(now)
 
-
 @dataclasses.dataclass(frozen=True)
 class Port:
     """Represents a port opened by :meth:`Unit.open_port` or :meth:`Unit.set_ports`."""
 
     protocol: typing.Literal['tcp', 'udp', 'icmp']
-    """The IP protocol."""
+
 
     port: Optional[int]
-    """The port number. Will be ``None`` if protocol is ``'icmp'``."""
 
 
 OpenedPort = Port
-"""Alias to Port for backwards compatibility.
-
-.. deprecated:: 2.7.0
-    Use :class:`Port` instead.
-"""
-
 
 _LazyValueType = typing.TypeVar('_LazyValueType')
-
 
 class _GenericLazyMapping(Mapping[str, _LazyValueType], ABC):
     """Represents a dict that isn't populated until it is accessed.
@@ -818,14 +800,12 @@ class _GenericLazyMapping(Mapping[str, _LazyValueType], ABC):
     def __repr__(self) -> str:
         return repr(self._data)
 
-
 class LazyMapping(_GenericLazyMapping[str]):
     """Represents a dict[str, str] that isn't populated until it is accessed.
 
     Charm authors should generally never need to use this directly, but it forms
     the basis for many of the dicts that the framework tracks.
     """
-
 
 class RelationMapping(Mapping[str, List['Relation']]):
     """Map of relation names to lists of :class:`Relation` instances."""
@@ -910,7 +890,6 @@ class RelationMapping(Mapping[str, List['Relation']]):
         else:
             raise TooManyRelatedAppsError(relation_name, num_related, 1)
 
-
 class BindingMapping(Mapping[str, 'Binding']):
     """Mapping of endpoints to network bindings.
 
@@ -952,12 +931,11 @@ class BindingMapping(Mapping[str, 'Binding']):
     def __len__(self) -> int:
         raise NotImplementedError()
 
-
 class Binding:
     """Binding to a network space."""
 
     name: str
-    """The name of the endpoint this binding represents (eg, 'db')."""
+
 
     def __init__(self, name: str, relation_id: Optional[int], backend: '_ModelBackend'):
         self.name = name
@@ -980,14 +958,12 @@ class Binding:
                 self._network = self._network_get(self.name)
         return self._network
 
-
 def _cast_network_address(raw: str) -> Union[ipaddress.IPv4Address, ipaddress.IPv6Address, str]:
     try:
         return ipaddress.ip_address(raw)
     except ValueError:
         logger.debug('could not cast %s to IPv4/v6 address', raw)
         return raw
-
 
 class Network:
     """Network space details.
@@ -997,25 +973,13 @@ class Network:
     """
 
     interfaces: List['NetworkInterface']
-    """A list of network interface details. This includes the information
-    about how the application should be configured (for example, what IP
-    addresses should be bound to).
 
-    Multiple addresses for a single interface are represented as multiple
-    interfaces, for example::
-
-        [NetworkInfo('ens1', '10.1.1.1/32'), NetworkInfo('ens1', '10.1.2.1/32'])
-    """
 
     ingress_addresses: List[Union[ipaddress.IPv4Address, ipaddress.IPv6Address, str]]
-    """A list of IP addresses that other units should use to get in touch with the charm."""
+
 
     egress_subnets: List[Union[ipaddress.IPv4Network, ipaddress.IPv6Network]]
-    """A list of networks representing the subnets that other units will see
-    the charm connecting from. Due to things like NAT it isn't always possible to
-    narrow it down to a single address, but when it is clear, the CIDRs will
-    be constrained to a single address (for example, 10.0.0.1/32).
-    """
+
 
     def __init__(self, network_info: '_NetworkDict'):
         """Initialize a Network instance.
@@ -1067,7 +1031,6 @@ class Network:
         else:
             return None
 
-
 class NetworkInterface:
     """Represents a single network interface that the charm needs to know about.
 
@@ -1076,15 +1039,13 @@ class NetworkInterface:
     """
 
     name: str
-    """The name of the interface (for example, 'eth0' or 'ens1')."""
+
 
     address: Optional[Union[ipaddress.IPv4Address, ipaddress.IPv6Address, str]]
-    """The address of the network interface."""
+
 
     subnet: Optional[Union[ipaddress.IPv4Network, ipaddress.IPv6Network]]
-    """The subnet of the network interface. This may be a single address
-    (for example, '10.0.1.2/32').
-    """
+
 
     def __init__(self, name: str, address_info: '_AddressDict'):
         self.name = name
@@ -1104,7 +1065,6 @@ class NetworkInterface:
             subnet = None
         self.subnet = subnet
 
-
 class SecretRotate(enum.Enum):
     """Secret rotation policies."""
 
@@ -1115,7 +1075,6 @@ class SecretRotate(enum.Enum):
     MONTHLY = 'monthly'
     QUARTERLY = 'quarterly'
     YEARLY = 'yearly'
-
 
 class SecretInfo:
     """Secret information (metadata)."""
@@ -1164,7 +1123,6 @@ class SecretInfo:
             f'rotation={self.rotation}, '
             f'rotates={self.rotates!r})'
         )
-
 
 class Secret:
     """Represents a single secret in the model.
@@ -1498,7 +1456,6 @@ class Secret:
             self._id = self.get_info().id
         self._backend.secret_remove(typing.cast(str, self.id))
 
-
 class Relation:
     """Represents an established relation between this application and another application.
 
@@ -1508,35 +1465,22 @@ class Relation:
     """
 
     name: str
-    """The name of the local endpoint of the relation (for example, 'db')."""
+
 
     id: int
-    """The identifier for a particular relation."""
+
 
     app: Application
-    """Represents the remote application of this relation.
 
-    For peer relations, this will be the local application.
-    """
 
     units: Set[Unit]
-    """A set of units that have started and joined this relation.
 
-    For subordinate relations, this set will include only one unit: the principal unit.
-    """
 
     data: 'RelationData'
-    """Holds the data buckets for each entity of a relation.
 
-    This is accessed using, for example, ``Relation.data[unit]['foo']``.
-    """
 
     active: bool
-    """Indicates whether this relation is active.
 
-    This is normally ``True``; it will be ``False`` if the current event is a
-    ``relation-broken`` event associated with this relation.
-    """
 
     def __init__(
         self,
@@ -1574,7 +1518,6 @@ class Relation:
 
     def __repr__(self):
         return f'<{type(self).__module__}.{type(self).__name__} {self.name}:{self.id}>'
-
 
 class RelationData(Mapping[Union['Unit', 'Application'], 'RelationDataContent']):
     """Represents the various data buckets of a given relation.
@@ -1620,7 +1563,6 @@ class RelationData(Mapping[Union['Unit', 'Application'], 'RelationDataContent'])
     def __repr__(self):
         return repr(self._data)
 
-
 class RelationDataContent(LazyMapping, MutableMapping[str, str]):
     """Data content of a unit or application in a relation."""
 
@@ -1648,7 +1590,6 @@ class RelationDataContent(LazyMapping, MutableMapping[str, str]):
         if not self._hook_is_running:
             return
 
-
         if not self._is_app:
             return
 
@@ -1663,7 +1604,6 @@ class RelationDataContent(LazyMapping, MutableMapping[str, str]):
 
         if app.name == self._entity.name:
             return
-
 
         if self._backend.app_name == self._entity.name:
             raise RelationDataAccessError(
@@ -1741,7 +1681,6 @@ class RelationDataContent(LazyMapping, MutableMapping[str, str]):
             return '<n/a>'
         return super().__repr__()
 
-
 class ConfigData(_GenericLazyMapping[Union[bool, int, float, str]]):
     """Configuration data.
 
@@ -1753,7 +1692,6 @@ class ConfigData(_GenericLazyMapping[Union[bool, int, float, str]]):
 
     def _load(self) -> Dict[str, Union[bool, int, float, str]]:
         return self._backend.config_get()
-
 
 class StatusBase:
     """Status values specific to applications and units.
@@ -1825,7 +1763,6 @@ class StatusBase:
         """
         return max(statuses, key=lambda status: cls._priorities.get(status.name, 0))
 
-
 @StatusBase.register
 class UnknownStatus(StatusBase):
     """The unit status is unknown.
@@ -1845,7 +1782,6 @@ class UnknownStatus(StatusBase):
     def __repr__(self):
         return 'UnknownStatus()'
 
-
 @StatusBase.register
 class ErrorStatus(StatusBase):
     """The unit status is error.
@@ -1858,7 +1794,6 @@ class ErrorStatus(StatusBase):
     """
 
     name = 'error'
-
 
 @StatusBase.register
 class ActiveStatus(StatusBase):
@@ -1875,7 +1810,6 @@ class ActiveStatus(StatusBase):
     def __init__(self, message: str = ''):
         super().__init__(message)
 
-
 @StatusBase.register
 class BlockedStatus(StatusBase):
     """The unit or application requires manual intervention.
@@ -1885,7 +1819,6 @@ class BlockedStatus(StatusBase):
     """
 
     name = 'blocked'
-
 
 @StatusBase.register
 class MaintenanceStatus(StatusBase):
@@ -1900,7 +1833,6 @@ class MaintenanceStatus(StatusBase):
 
     name = 'maintenance'
 
-
 @StatusBase.register
 class WaitingStatus(StatusBase):
     """The unit or application is waiting on a charm it's integrated with.
@@ -1913,7 +1845,6 @@ class WaitingStatus(StatusBase):
     """
 
     name = 'waiting'
-
 
 class Resources:
     """Object representing resources for the charm."""
@@ -1936,7 +1867,6 @@ class Resources:
         if self._paths[name] is None:
             self._paths[name] = Path(self._backend.resource_get(name))
         return typing.cast(Path, self._paths[name])
-
 
 class Pod:
     """Represents the definition of a pod spec in legacy Kubernetes models.
@@ -1964,7 +1894,6 @@ class Pod:
         if not self._backend.is_leader():
             raise ModelError('cannot set a pod spec as this unit is not a leader')
         self._backend.pod_spec_set(spec, k8s_resources)
-
 
 class StorageMapping(Mapping[str, List['Storage']]):
     """Map of storage names to lists of Storage instances."""
@@ -2018,12 +1947,11 @@ class StorageMapping(Mapping[str, List['Storage']]):
         """
         self._storage_map[storage_name] = None
 
-
 class Storage:
     """Represents a storage as defined in ``metadata.yaml``."""
 
     name: str
-    """Name of the storage."""
+
 
     def __init__(self, storage_name: str, storage_index: int, backend: '_ModelBackend'):
         self.name = storage_name
@@ -2064,7 +1992,6 @@ class Storage:
         """
         self._location = Path(location)
 
-
 class MultiPushPullError(Exception):
     """Aggregates multiple push and pull exceptions into one.
 
@@ -2073,14 +2000,10 @@ class MultiPushPullError(Exception):
     """
 
     message: str
-    """The error message."""
+
 
     errors: List[Tuple[str, Exception]]
-    """The list of errors.
 
-    Each error is represented by a tuple of (<source_path>, <exception>),
-    where source_path is the path being pushed to or pulled from.
-    """
 
     def __init__(self, message: str, errors: List[Tuple[str, Exception]]):
         self.message = message
@@ -2091,7 +2014,6 @@ class MultiPushPullError(Exception):
 
     def __repr__(self):
         return f'MultiPushPullError({self.message!r}, {len(self.errors)} errors)'
-
 
 class Container:
     """Represents a named container in a unit.
@@ -2114,7 +2036,7 @@ class Container:
     """
 
     name: str
-    """The name of the container from ``metadata.yaml``, for example "postgres"."""
+
 
     def __init__(
         self, name: str, backend: '_ModelBackend', pebble_client: Optional[pebble.Client] = None
@@ -2836,7 +2758,6 @@ class Container:
         """The low-level :class:`ops.pebble.Client` instance for this container."""
         return self._pebble
 
-
 class ContainerMapping(Mapping[str, Container]):
     """Map of container names to Container objects.
 
@@ -2858,7 +2779,6 @@ class ContainerMapping(Mapping[str, Container]):
 
     def __repr__(self):
         return repr(self._containers)
-
 
 class ServiceInfoMapping(Mapping[str, pebble.ServiceInfo]):
     """Map of service names to :class:`pebble.ServiceInfo` objects.
@@ -2882,7 +2802,6 @@ class ServiceInfoMapping(Mapping[str, pebble.ServiceInfo]):
     def __repr__(self):
         return repr(self._services)
 
-
 class CheckInfoMapping(Mapping[str, pebble.CheckInfo]):
     """Map of check names to :class:`ops.pebble.CheckInfo` objects.
 
@@ -2905,12 +2824,10 @@ class CheckInfoMapping(Mapping[str, pebble.CheckInfo]):
     def __repr__(self):
         return repr(self._checks)
 
-
 class ModelError(Exception):
     """Base class for exceptions raised when interacting with the Model."""
 
     pass
-
 
 class TooManyRelatedAppsError(ModelError):
     """Raised by :meth:`Model.get_relation` if there is more than one integrated application."""
@@ -2923,7 +2840,6 @@ class TooManyRelatedAppsError(ModelError):
         self.num_related = num_related
         self.max_supported = max_supported
 
-
 class RelationDataError(ModelError):
     """Raised when a relation data read/write is invalid.
 
@@ -2932,10 +2848,8 @@ class RelationDataError(ModelError):
     another application/unit, or setting application data without being the leader.)
     """
 
-
 class RelationDataTypeError(RelationDataError):
     """Raised by ``Relation.data[entity][key] = value`` if `key` or `value` are not strings."""
-
 
 class RelationDataAccessError(RelationDataError):
     """Raised by ``Relation.data[entity][key] = value`` if unable to access.
@@ -2944,21 +2858,16 @@ class RelationDataAccessError(RelationDataError):
     but in some cases it is raised when attempting to read/write from a deceased remote entity.
     """
 
-
 class RelationNotFoundError(ModelError):
     """Raised when querying Juju for a given relation and that relation doesn't exist."""
-
 
 class InvalidStatusError(ModelError):
     """Raised if trying to set an Application or Unit status to something invalid."""
 
-
 class SecretNotFoundError(ModelError):
     """Raised when the specified secret does not exist."""
 
-
 _ACTION_RESULT_KEY_REGEX = re.compile(r'^[a-z0-9](([a-z0-9-.]+)?[a-z0-9])?$')
-
 
 def _format_action_result_dict(
     input: Dict[str, Any],
@@ -3016,7 +2925,6 @@ def _format_action_result_dict(
             output_[key] = value
 
     return output_
-
 
 class _ModelBackend:
     """Represents the connection between the Model representation and talking to Juju.
@@ -3550,7 +3458,6 @@ class _ModelBackend:
         result = self._run('credential-get', return_output=True, use_json=True)
         return CloudSpec.from_dict(typing.cast(Dict[str, Any], result))
 
-
 class _ModelBackendValidator:
     """Provides facilities for validating inputs and formatting them for model backends."""
 
@@ -3591,7 +3498,6 @@ class _ModelBackendValidator:
         v = str(value)
         if re.search('[,=]', v) is not None:
             raise ModelError(f'metric label values must not contain "," or "=": {label}={value!r}')
-
 
 class LazyNotice:
     """Provide lazily-loaded access to a Pebble notice's details.
@@ -3639,7 +3545,6 @@ class LazyNotice:
         assert self._notice.type == self.type
         assert self._notice.key == self.key
 
-
 class LazyCheckInfo:
     """Provide lazily-loaded access to a Pebble check's info.
 
@@ -3672,7 +3577,6 @@ class LazyCheckInfo:
             return
         self._info = self._container.get_check(self.name)
 
-
 @dataclasses.dataclass(frozen=True)
 class CloudCredential:
     """Credentials for cloud.
@@ -3681,18 +3585,13 @@ class CloudCredential:
     """
 
     auth_type: str
-    """Authentication type."""
+
 
     attributes: Dict[str, str] = dataclasses.field(default_factory=dict)
-    """A dictionary containing cloud credentials.
 
-    For example, for AWS, it contains `access-key` and `secret-key`;
-    for Azure, `application-id`, `application-password` and `subscription-id`
-    can be found here.
-    """
 
     redacted: List[str] = dataclasses.field(default_factory=list)
-    """A list of redacted secrets."""
+
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> 'CloudCredential':
@@ -3703,40 +3602,39 @@ class CloudCredential:
             redacted=d.get('redacted') or [],
         )
 
-
 @dataclasses.dataclass(frozen=True)
 class CloudSpec:
     """Cloud specification information (metadata) including credentials."""
 
     type: str
-    """Type of the cloud."""
+
 
     name: str
-    """Juju cloud name."""
+
 
     region: Optional[str] = None
-    """Region of the cloud."""
+
 
     endpoint: Optional[str] = None
-    """Endpoint of the cloud."""
+
 
     identity_endpoint: Optional[str] = None
-    """Identity endpoint of the cloud."""
+
 
     storage_endpoint: Optional[str] = None
-    """Storage endpoint of the cloud."""
+
 
     credential: Optional[CloudCredential] = None
-    """Cloud credentials with key-value attributes."""
+
 
     ca_certificates: List[str] = dataclasses.field(default_factory=list)
-    """A list of CA certificates."""
+
 
     skip_tls_verify: bool = False
-    """Whether to skip TLS verfication."""
+
 
     is_controller_cloud: bool = False
-    """If this is the cloud used by the controller, defaults to False."""
+
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> 'CloudSpec':

@@ -22,21 +22,16 @@ from openssh_key.pascal_style_byte_stream import (FormatInstructionsDict,
                                                   PascalStyleFormatInstruction,
                                                   ValuesDict)
 
-
 class PublicPrivateKeyPair(typing.NamedTuple):
     """
     A public key and its corresponding private key.
     """
 
     public: PublicKey
-    """
-    The public key.
-    """
+
 
     private: PrivateKey
-    """
-    The corresponding private key.
-    """
+
 
     def __eq__(self, other: typing.Any) -> bool:
         return (
@@ -84,12 +79,10 @@ class PublicPrivateKeyPair(typing.NamedTuple):
         )
         return PublicPrivateKeyPair(public_key, private_key)
 
-
 PrivateKeyListTypeVar = typing.TypeVar(
     'PrivateKeyListTypeVar',
     bound='PrivateKeyList'
 )
-
 
 if typing.TYPE_CHECKING:
     BaseList = collections.UserList[
@@ -97,7 +90,6 @@ if typing.TYPE_CHECKING:
     ]
 else:
     BaseList = collections.UserList
-
 
 class PrivateKeyList(BaseList):
     """A container for multiple pairs of :any:`PublicKey` and
@@ -153,9 +145,7 @@ class PrivateKeyList(BaseList):
     HEADER_FORMAT_INSTRUCTIONS_DICT = utils.readonly_static_property(
         get_header_format_instructions_dict
     )
-    """The Pascal-style byte stream format instructions for the encoded
-    header of the key list.
-    """
+
 
     __DECIPHER_BYTES_HEADER_FORMAT_INSTRUCTIONS_DICT: typing.ClassVar[
         FormatInstructionsDict
@@ -176,9 +166,7 @@ class PrivateKeyList(BaseList):
     DECIPHER_BYTES_HEADER_FORMAT_INSTRUCTIONS_DICT = utils.readonly_static_property(
         get_decipher_bytes_header_format_instructions_dict
     )
-    """The Pascal-style byte stream format instructions for the header of
-    the decrypted private byte string.
-    """
+
 
     def __init__(
         self,

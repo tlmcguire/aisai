@@ -44,7 +44,7 @@ class VectorSQLOutputParser(BaseOutputParser[str]):
     def parse(self, text: str) -> str:
         text = text.strip()
         sql_str_compl = text
-        
+
         def replace_neural_array(match):
             entity = match.group(1)
             vecs = self.model.embed_query(entity)
@@ -53,7 +53,7 @@ class VectorSQLOutputParser(BaseOutputParser[str]):
 
         sql_str_compl = re.sub(r"NeuralArray\(([^)]*)\)", replace_neural_array, sql_str_compl)
         sql_str_compl = sql_str_compl.replace("DISTANCE", self.distance_func_name)
-        
+
         if sql_str_compl and sql_str_compl[-1] == ";":
             sql_str_compl = sql_str_compl[:-1]
         return sql_str_compl
@@ -80,7 +80,7 @@ class VectorSQLRetrieveAllOutputParser(VectorSQLOutputParser):
 def get_result_from_sqldb(
     db: SQLDatabase, cmd: str
 ) -> Union[str, List[Dict[str, Any]], Dict[str, Any]]:
-    result = db._execute(cmd, fetch="all")  # type: ignore
+    result = db._execute(cmd, fetch="all")
     return result
 
 
@@ -118,7 +118,6 @@ class VectorSQLDatabaseChain(SQLDatabaseChain):
         _run_manager = run_manager or CallbackManagerForChainRun.get_noop_manager()
         input_text = f"{inputs[self.input_key]}\nSQLQuery:"
         _run_manager.on_text(input_text, verbose=self.verbose)
-        # If not present, then defaults to None which is all tables.
         table_names_to_use = inputs.get("table_names_to_use")
         table_info = self.database.get_table_info(table_names=table_names_to_use)
         llm_inputs = {
@@ -130,7 +129,7 @@ class VectorSQLDatabaseChain(SQLDatabaseChain):
         }
         intermediate_steps: List = []
         try:
-            intermediate_steps.append(llm_inputs)  # input: sql generation
+            intermediate_steps.append(llm_inputs)
             llm_out = self.llm_chain.predict(
                 callbacks=_run_manager.get_child(),
                 **llm_inputs,
@@ -142,10 +141,10 @@ class VectorSQLDatabaseChain(SQLDatabaseChain):
                 _run_manager.on_text(llm_out, color="green", verbose=self.verbose)
                 intermediate_steps.append(
                     llm_out
-                )  # output: sql generation (no checker)
-                intermediate_steps.append({"sql_cmd": llm_out})  # input: sql exec
+                )
+                intermediate_steps.append({"sql_cmd": llm_out})
                 result = get_result_from_sqldb(self.database, sql_cmd)
-                intermediate_steps.append(str(result))  # output: sql exec
+                intermediate_steps.append(str(result))
             else:
                 query_checker_prompt = self.query_checker_prompt or PromptTemplate(
                     template=QUERY_CHECKER, input_variables=["query", "dialect"]
@@ -165,44 +164,39 @@ class VectorSQLDatabaseChain(SQLDatabaseChain):
                 checked_sql_command = self.sql_cmd_parser.parse(checked_llm_out)
                 intermediate_steps.append(
                     checked_llm_out
-                )  # output: sql generation (checker)
+                )
                 _run_manager.on_text(
                     checked_llm_out, color="green", verbose=self.verbose
                 )
                 intermediate_steps.append(
                     {"sql_cmd": checked_llm_out}
-                )  # input: sql exec
+                )
                 result = get_result_from_sqldb(self.database, checked_sql_command)
-                intermediate_steps.append(str(result))  # output: sql exec
+                intermediate_steps.append(str(result))
                 llm_out = checked_llm_out
                 sql_cmd = checked_sql_command
 
             _run_manager.on_text("\nSQLResult: ", verbose=self.verbose)
             _run_manager.on_text(str(result), color="yellow", verbose=self.verbose)
-            # If return direct, we just set the final result equal to
-            # the result of the sql query result, otherwise try to get a human readable
-            # final answer
             if self.return_direct:
                 final_result = result
             else:
                 _run_manager.on_text("\nAnswer:", verbose=self.verbose)
                 input_text += f"{llm_out}\nSQLResult: {result}\nAnswer:"
                 llm_inputs["input"] = input_text
-                intermediate_steps.append(llm_inputs)  # input: final answer
+                intermediate_steps.append(llm_inputs)
                 final_result = self.llm_chain.predict(
                     callbacks=_run_manager.get_child(),
                     **llm_inputs,
                 ).strip()
-                intermediate_steps.append(final_result)  # output: final answer
+                intermediate_steps.append(final_result)
                 _run_manager.on_text(final_result, color="green", verbose=self.verbose)
             chain_result: Dict[str, Any] = {self.output_key: final_result}
             if self.return_intermediate_steps:
                 chain_result[INTERMEDIATE_STEPS_KEY] = intermediate_steps
             return chain_result
         except Exception as exc:
-            # Append intermediate steps to exception, to aid in logging and later
-            # improvement of few shot prompt seeds
-            exc.intermediate_steps = intermediate_steps  # type: ignore
+            exc.intermediate_steps = intermediate_steps
             raise exc
 
     @property
