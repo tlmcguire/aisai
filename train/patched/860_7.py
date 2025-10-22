@@ -13,7 +13,6 @@ from .utils import crypto_required, key_path
 if has_crypto:
     from jwt.algorithms import ECAlgorithm, OKPAlgorithm, RSAAlgorithm, RSAPSSAlgorithm
 
-
 class TestAlgorithms:
     def test_algorithm_should_throw_exception_if_prepare_key_not_impl(self):
         algo = Algorithm()
@@ -533,20 +532,11 @@ class TestAlgorithms:
         result = algo.verify(jwt_message, jwt_pub_key, jwt_sig)
         assert not result
 
-
 class TestAlgorithmsRFC7520:
-    """
-    These test vectors were taken from RFC 7520
-    (https://tools.ietf.org/html/rfc7520)
-    """
+
 
     def test_hmac_verify_should_return_true_for_test_vector(self):
-        """
-        This test verifies that HMAC verification works with a known good
-        signature and key.
 
-        Reference: https://tools.ietf.org/html/rfc7520#section-4.4
-        """
         signing_input = (
             b"eyJhbGciOiJIUzI1NiIsImtpZCI6IjAxOGMwYWU1LTRkOWItNDcxYi1iZmQ2LWVlZ"
             b"jMxNGJjNzAzNyJ9.SXTigJlzIGEgZGFuZ2Vyb3VzIGJ1c2luZXNzLCBGcm9kbywgZ"
@@ -565,12 +555,7 @@ class TestAlgorithmsRFC7520:
 
     @crypto_required
     def test_rsa_verify_should_return_true_for_test_vector(self):
-        """
-        This test verifies that RSA PKCS v1.5 verification works with a known
-        good signature and key.
 
-        Reference: https://tools.ietf.org/html/rfc7520#section-4.1
-        """
         signing_input = (
             b"eyJhbGciOiJSUzI1NiIsImtpZCI6ImJpbGJvLmJhZ2dpbnNAaG9iYml0b24uZXhhb"
             b"XBsZSJ9.SXTigJlzIGEgZGFuZ2Vyb3VzIGJ1c2luZXNzLCBGcm9kbywgZ29pbmcgb"
@@ -596,12 +581,7 @@ class TestAlgorithmsRFC7520:
 
     @crypto_required
     def test_rsapss_verify_should_return_true_for_test_vector(self):
-        """
-        This test verifies that RSA-PSS verification works with a known good
-        signature and key.
 
-        Reference: https://tools.ietf.org/html/rfc7520#section-4.2
-        """
         signing_input = (
             b"eyJhbGciOiJQUzM4NCIsImtpZCI6ImJpbGJvLmJhZ2dpbnNAaG9iYml0b24uZXhhb"
             b"XBsZSJ9.SXTigJlzIGEgZGFuZ2Vyb3VzIGJ1c2luZXNzLCBGcm9kbywgZ29pbmcgb"
@@ -627,12 +607,7 @@ class TestAlgorithmsRFC7520:
 
     @crypto_required
     def test_ec_verify_should_return_true_for_test_vector(self):
-        """
-        This test verifies that ECDSA verification works with a known good
-        signature and key.
 
-        Reference: https://tools.ietf.org/html/rfc7520#section-4.3
-        """
         signing_input = (
             b"eyJhbGciOiJFUzUxMiIsImtpZCI6ImJpbGJvLmJhZ2dpbnNAaG9iYml0b24uZXhhb"
             b"XBsZSJ9.SXTigJlzIGEgZGFuZ2Vyb3VzIGJ1c2luZXNzLCBGcm9kbywgZ29pbmcgb"
@@ -658,7 +633,6 @@ class TestAlgorithmsRFC7520:
 
         result = algo.verify(signing_input, private_key, signature)
         assert result
-
 
 @crypto_required
 class TestOKPAlgorithms:

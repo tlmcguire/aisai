@@ -49,7 +49,7 @@ class StringConverter(UnicodeConverter):
 
 
 def controller_name(
-    cls: Union[Type[object], str],  # FIXME Union[Type[Controller], str] on 3.7+
+    cls: Union[Type[object], str],
     _remove_suffixes: Optional[Union[List[str], Tuple[str, ...]]] = None,
 ) -> str:
     """
@@ -123,14 +123,12 @@ def url_for(endpoint_or_url_or_config_key: Union[str, None],
     """
     what = endpoint_or_url_or_config_key
 
-    # if what is a config key
     if what and what.isupper():
         what = current_app.config.get(what)
 
     if is_local_proxy(what):
         what = what._get_current_object()
 
-    # if we already have a url (or an invalid value, eg None)
     if not what or '/' in what:
         return what
 
@@ -138,20 +136,18 @@ def url_for(endpoint_or_url_or_config_key: Union[str, None],
                                 _external_host=_external_host, _method=_method,
                                 _scheme=_scheme, **values)
 
-    # check if it's a class method name, and try that endpoint
     if _cls and '.' not in what:
         controller_routes = getattr(_cls, CONTROLLER_ROUTES_ATTR)
         method_routes = controller_routes.get(what)
         try:
             return _url_for(method_routes[0].endpoint, **flask_url_for_kwargs)
         except (
-            BuildError,  # url not found
-            IndexError,  # method_routes[0] is out-of-range (no routes on view)
-            TypeError,   # method_routes is None ("what" wasn't a view/method name)
+            BuildError,
+            IndexError,
+            TypeError,
         ):
             pass
 
-    # what must be an endpoint
     return _url_for(what, **flask_url_for_kwargs)
 
 
@@ -184,11 +180,9 @@ def method_name_to_url(method_name) -> str:
 
 
 def encode_non_url_reserved_characters(url):
-    # safe url reserved characters: https://datatracker.ietf.org/doc/html/rfc3986#section-2.2
     return urlquote(url, safe=":/?#[]@!$&'()*+,;=<>")
 
 
-# modified from flask_security.utils.get_post_action_redirect
 def redirect(where: Optional[str] = None,
              default: Optional[str] = None,
              override: Optional[str] = None,
@@ -279,7 +273,7 @@ def _url_for(endpoint: str, **values) -> Union[str, None]:
     if not external_host or not is_external:
         return flask_url_for(endpoint, **values)
 
-    values.pop('_external')  # do custom external host handling instead
+    values.pop('_external')
     scheme = values.pop('_scheme', 'http')
     if '://' not in external_host:
         external_host = f'{scheme}://{external_host}'
@@ -292,29 +286,24 @@ def _url_for(endpoint: str, **values) -> Union[str, None]:
     return f'{external_host}{url}'
 
 
-# modified from flask_security.utils.validate_redirect_url
 def _validate_redirect_url(url, _external_host=None):
     url = (url or '').strip().replace('\\', '/')
 
-    # reject empty urls and urls starting with 3+ slashes or a control character
     if not url or url.startswith('///') or ord(url[0]) <= 32:
         return False
 
     url_next = urlsplit(url)
     url_base = urlsplit(request.host_url)
     if url_next.netloc or url_next.scheme:
-        # require both netloc and scheme
         if not url_next.netloc or not url_next.scheme:
             return False
 
-        # if external host, require same netloc and scheme
         external_host = _external_host or current_app.config.get('EXTERNAL_SERVER_NAME', '')
         if external_host:
             url_external = urlsplit(external_host)
             if url_next.netloc == url_external.netloc and url_next.scheme == url_external.scheme:
                 return True
 
-        # require same netloc and scheme
         if url_next.netloc != url_base.netloc or url_next.scheme != url_base.scheme:
             return False
     return True

@@ -1,17 +1,3 @@
-# Copyright 2017 The TensorFlow Authors. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
 """Tests for SavedModelCLI tool."""
 import contextlib
 import os
@@ -68,7 +54,6 @@ class SavedModelCLITestCase(test.TestCase, parameterized.TestCase):
     with captured_output() as (out, err):
       saved_model_cli.show(args)
     output = out.getvalue().strip()
-    # pylint: disable=line-too-long
     exp_out = """MetaGraphDef with tag-set: 'serve' contains the following SignatureDefs:
 
 signature_def['classify_x2_to_y3']:
@@ -148,8 +133,7 @@ signature_def['serving_default']:
         shape: (-1, 1)
         name: y:0
   Method name is: tensorflow/serving/predict"""
-    # pylint: enable=line-too-long
-    self.maxDiff = None  # Produce a useful error msg if the comparison fails
+    self.maxDiff = None
     self.assertMultiLineEqual(output, exp_out)
     self.assertEqual(err.getvalue().strip(), '')
 
@@ -177,7 +161,6 @@ signature_def['serving_default']:
 
     saved_model_dir = os.path.join(test.get_temp_dir(), 'dummy_model')
     dummy_model = DummyModel()
-    # Call with specific values to create new polymorphic function traces.
     dummy_model.func1(constant_op.constant(5), constant_op.constant(9), True)
     dummy_model(constant_op.constant(5))
     save.save(dummy_model, saved_model_dir)
@@ -237,7 +220,7 @@ Defined Functions:
         Argument #1
           x: TensorSpec(shape=(2, 2), dtype=tf.float32, name='x')
 """.strip()  # pylint: enable=line-too-long
-    self.maxDiff = None  # Produce a useful error msg if the comparison fails
+    self.maxDiff = None
     self.assertMultiLineEqual(output, exp_out)
     self.assertEqual(err.getvalue().strip(), '')
 
@@ -304,7 +287,7 @@ Defined Functions:
         Argument #2
           b: TensorSpec(shape=(), dtype=tf.float32, name='b')
 """.strip()  # pylint: enable=line-too-long
-    self.maxDiff = None  # Produce a useful error msg if the comparison fails
+    self.maxDiff = None
     self.assertMultiLineEqual(output, exp_out)
     self.assertEqual(err.getvalue().strip(), '')
 
@@ -334,7 +317,6 @@ Defined Functions:
         '"classify_x2_to_y3"', '"classify_x_to_y"', '"regress_x2_to_y3"',
         '"regress_x_to_y"', '"regress_x_to_y2"', '"serving_default"'
     ]
-    # Order of signatures does not matter
     self.assertMultiLineEqual(
         output,
         '\n'.join([exp_header] + [exp_start + exp_key for exp_key in exp_keys]))
@@ -781,7 +763,6 @@ Defined Functions:
 
     @def_function.function(input_signature=[
         tensor_spec.TensorSpec(shape=(2, 2), dtype=dtypes.float32),
-        # Test unused inputs.
         tensor_spec.TensorSpec(shape=(), dtype=dtypes.float32),
     ])
     def func2(self, x, y):
@@ -789,7 +770,6 @@ Defined Functions:
       return {'res': x + self.var}
 
     @def_function.function(input_signature=[
-        # Test large inputs.
         tensor_spec.TensorSpec(shape=(2048, 16), dtype=dtypes.float32),
         tensor_spec.TensorSpec(shape=(), dtype=dtypes.float32),
     ])
@@ -832,7 +812,7 @@ Defined Functions:
 
     self.parser = saved_model_cli.create_parser()
     output_prefix = os.path.join(test.get_temp_dir(), 'aot_compile_cpu_dir/out')
-    args = [  # Use the default seving signature_key.
+    args = [
         'aot_compile_cpu', '--dir', saved_model_dir, '--tag_set', 'serve',
         '--signature_def_key', 'func', '--output_prefix', output_prefix,
         '--variables_to_feed', variables_to_feed, '--cpp_class', 'Generated'
@@ -854,14 +834,11 @@ Defined Functions:
     self.assertIn('class Generated', header_contents)
     self.assertIn('arg_feed_x_data', header_contents)
     self.assertIn('result_fetch_res_data', header_contents)
-    # arg_y got filtered out as it's not used by the output.
     self.assertNotIn('arg_feed_y_data', header_contents)
     if variables_to_feed:
-      # Read-only-variables' setters preserve constness.
       self.assertIn('set_var_param_my_var_data(const float', header_contents)
       self.assertNotIn('set_var_param_my_var_data(float', header_contents)
     if func == dummy_model.func_write:
-      # Writeable variables setters do not preserve constness.
       self.assertIn('set_var_param_write_var_data(float', header_contents)
       self.assertNotIn('set_var_param_write_var_data(const float',
                        header_contents)

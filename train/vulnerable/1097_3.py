@@ -1,6 +1,4 @@
-"""
-Simple formatting on strings. Further string formatting code is in trans.py.
-"""
+
 
 import re
 import sys
@@ -25,30 +23,17 @@ UNICODE_ESCAPE_RE: Final = re.compile(
     re.VERBOSE,
 )
 
-
 def sub_twice(regex: Pattern[str], replacement: str, original: str) -> str:
-    """Replace `regex` with `replacement` twice on `original`.
 
-    This is used by string normalization to perform replaces on
-    overlapping matches.
-    """
     return regex.sub(replacement, regex.sub(replacement, original))
 
-
 def has_triple_quotes(string: str) -> bool:
-    """
-    Returns:
-        True iff @string starts with three quotation characters.
-    """
+
     raw_string = string.lstrip(STRING_PREFIX_CHARS)
     return raw_string[:3] in {'"""', "'''"}
 
-
 def lines_with_leading_tabs_expanded(s: str) -> List[str]:
-    """
-    Splits string into lines and expands only leading tabs (following the normal
-    Python rules)
-    """
+    
     lines = []
     for line in s.splitlines():
         # Find the index of the first non-whitespace character after a string of
@@ -66,7 +51,6 @@ def lines_with_leading_tabs_expanded(s: str) -> List[str]:
     if s.endswith("\n"):
         lines.append("")
     return lines
-
 
 def fix_docstring(docstring: str, prefix: str) -> str:
     # https://www.python.org/dev/peps/pep-0257/#handling-docstring-indentation
@@ -91,15 +75,8 @@ def fix_docstring(docstring: str, prefix: str) -> str:
                 trimmed.append("")
     return "\n".join(trimmed)
 
-
 def get_string_prefix(string: str) -> str:
-    """
-    Pre-conditions:
-        * assert_is_leaf_string(@string)
-
-    Returns:
-        @string's prefix (e.g. '', 'r', 'f', or 'rf').
-    """
+    
     assert_is_leaf_string(string)
 
     prefix = ""
@@ -110,23 +87,8 @@ def get_string_prefix(string: str) -> str:
 
     return prefix
 
-
 def assert_is_leaf_string(string: str) -> None:
-    """
-    Checks the pre-condition that @string has the format that you would expect
-    of `leaf.value` where `leaf` is some Leaf such that `leaf.type ==
-    token.STRING`. A more precise description of the pre-conditions that are
-    checked are listed below.
-
-    Pre-conditions:
-        * @string starts with either ', ", <prefix>', or <prefix>" where
-        `set(<prefix>)` is some subset of `set(STRING_PREFIX_CHARS)`.
-        * @string ends with a quote character (' or ").
-
-    Raises:
-        AssertionError(...) if the pre-conditions listed above are not
-        satisfied.
-    """
+    
     dquote_idx = string.find('"')
     squote_idx = string.find("'")
     if -1 in [dquote_idx, squote_idx]:
@@ -145,9 +107,8 @@ def assert_is_leaf_string(string: str) -> None:
         set(STRING_PREFIX_CHARS)
     ), f"{set(string[:quote_idx])} is NOT a subset of {set(STRING_PREFIX_CHARS)}."
 
-
 def normalize_string_prefix(s: str) -> str:
-    """Make all string prefixes lowercase."""
+    
     match = STRING_PREFIX_RE.match(s)
     assert match is not None, f"failed to match string {s!r}"
     orig_prefix = match.group(1)
@@ -163,7 +124,6 @@ def normalize_string_prefix(s: str) -> str:
         new_prefix = new_prefix[::-1]
     return f"{new_prefix}{match.group(2)}"
 
-
 # Re(gex) does actually cache patterns internally but this still improves
 # performance on a long list literal of strings by 5-9% since lru_cache's
 # caching overhead is much lower.
@@ -171,13 +131,8 @@ def normalize_string_prefix(s: str) -> str:
 def _cached_compile(pattern: str) -> Pattern[str]:
     return re.compile(pattern)
 
-
 def normalize_string_quotes(s: str) -> str:
-    """Prefer double quotes but only if it doesn't cause more escaping.
-
-    Adds or removes backslashes as appropriate. Doesn't parse and fix
-    strings nested in f-strings.
-    """
+    
     value = s.lstrip(STRING_PREFIX_CHARS)
     if value[:3] == '"""':
         return s
@@ -244,9 +199,8 @@ def normalize_string_quotes(s: str) -> str:
 
     return f"{prefix}{new_quote}{new_body}{new_quote}"
 
-
 def normalize_unicode_escape_sequences(leaf: Leaf) -> None:
-    """Replace hex codes in Unicode escape sequences with lowercase representation."""
+
     text = leaf.value
     prefix = get_string_prefix(text)
     if "r" in prefix.lower():
@@ -271,15 +225,9 @@ def normalize_unicode_escape_sequences(leaf: Leaf) -> None:
 
     leaf.value = re.sub(UNICODE_ESCAPE_RE, replace, text)
 
-
 @lru_cache(maxsize=4096)
 def char_width(char: str) -> int:
-    """Return the width of a single character as it would be displayed in a
-    terminal or editor (which respects Unicode East Asian Width).
 
-    Full width characters are counted as 2, while half width characters are
-    counted as 1.  Also control characters are counted as 0.
-    """
     table = WIDTH_TABLE
     codepoint = ord(char)
     highest = len(table) - 1
@@ -298,24 +246,14 @@ def char_width(char: str) -> int:
         idx = (highest + lowest) // 2
     return 1
 
-
 def str_width(line_str: str) -> int:
-    """Return the width of `line_str` as it would be displayed in a terminal
-    or editor (which respects Unicode East Asian Width).
 
-    You could utilize this function to determine, for example, if a string
-    is too wide to display in a terminal or editor.
-    """
     if line_str.isascii():
         return len(line_str)
     return sum(map(char_width, line_str))
 
-
 def count_chars_in_width(line_str: str, max_width: int) -> int:
-    """Count the number of characters in `line_str` that would fit in a
-    terminal or editor of `max_width` (which respects Unicode East Asian
-    Width).
-    """
+
     total_width = 0
     for i, char in enumerate(line_str):
         width = char_width(char)

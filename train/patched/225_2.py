@@ -11,69 +11,8 @@ from pyramid.path import caller_package
 from pyramid.response import FileResponse, _guess_type
 from pyramid.traversal import traversal_path_info
 
-
 class static_view:
-    """An instance of this class is a callable which can act as a
-    :app:`Pyramid` :term:`view callable`; this view will serve
-    static files from a directory on disk based on the ``root_dir``
-    you provide to its constructor.
 
-    The directory may contain subdirectories (recursively); the static
-    view implementation will descend into these directories as
-    necessary based on the components of the URL in order to resolve a
-    path into a response.
-
-    You may pass an absolute or relative filesystem path or a
-    :term:`asset specification` representing the directory
-    containing static files as the ``root_dir`` argument to this
-    class' constructor.
-
-    If the ``root_dir`` path is relative, and the ``package_name``
-    argument is ``None``, ``root_dir`` will be considered relative to
-    the directory in which the Python file which *calls* ``static``
-    resides.  If the ``package_name`` name argument is provided, and a
-    relative ``root_dir`` is provided, the ``root_dir`` will be
-    considered relative to the Python :term:`package` specified by
-    ``package_name`` (a dotted path to a Python package).
-
-    ``cache_max_age`` influences the ``Expires`` and ``Max-Age``
-    response headers returned by the view (default is 3600 seconds or
-    one hour).
-
-    ``use_subpath`` influences whether ``request.subpath`` will be used as
-    ``PATH_INFO`` when calling the underlying WSGI application which actually
-    serves the static files.  If it is ``True``, the static application will
-    consider ``request.subpath`` as ``PATH_INFO`` input.  If it is ``False``,
-    the static application will consider request.environ[``PATH_INFO``] as
-    ``PATH_INFO`` input. By default, this is ``False``.
-
-    ``reload`` controls whether a cache of files is maintained or the asset
-    subsystem is queried per-request to determine what files are available.
-    By default, this is ``False`` and new files added while the process is
-    running are not recognized.
-
-    ``content_encodings`` is a list of alternative file encodings supported
-    in the ``Accept-Encoding`` HTTP Header. Alternative files are found using
-    file extensions defined in :attr:`mimetypes.encodings_map`. An encoded
-    asset will be returned with the ``Content-Encoding`` header set to the
-    selected encoding. If the asset contains alternative encodings then the
-    ``Accept-Encoding`` value will be added to the response's ``Vary`` header.
-    By default, the list is empty and no alternatives will be supported.
-
-    .. note::
-
-       If the ``root_dir`` is relative to a :term:`package`, or is a
-       :term:`asset specification` the :app:`Pyramid`
-       :class:`pyramid.config.Configurator` method can be used to override
-       assets within the named ``root_dir`` package-relative directory.
-       However, if the ``root_dir`` is absolute, configuration will not be able
-       to override the assets it contains.
-
-    .. versionchanged:: 2.0
-
-       Added ``reload`` and ``content_encodings`` options.
-
-    """
 
     def __init__(
         self,
@@ -118,12 +57,7 @@ class static_view:
         return response
 
     def get_resource_name(self, request):
-        """
-        Return the computed name of the requested resource.
 
-        The returned file is not guaranteed to exist.
-
-        """
         if self.use_subpath:
             path_tuple = request.subpath
         else:
@@ -153,11 +87,7 @@ class static_view:
         return resource_path
 
     def find_resource_path(self, name):
-        """
-        Return the absolute path to the resource or ``None`` if it doesn't
-        exist.
 
-        """
         if self.package_name:
             if resource_exists(self.package_name, name):
                 return resource_filename(self.package_name, name)
@@ -166,7 +96,7 @@ class static_view:
             return name
 
     def get_possible_files(self, resource_name):
-        """Return a sorted list of ``(size, encoding, path)`` entries."""
+
         result = self.filemap.get(resource_name)
         if result is not None:
             return result
@@ -201,7 +131,7 @@ class static_view:
         return result
 
     def find_best_match(self, request, files):
-        """Return ``(path | None, encoding)``."""
+
         if not request.accept_encoding:
             identity_path = next(
                 (path for path, encoding in files if encoding is None),
@@ -229,19 +159,13 @@ class static_view:
             url = url + '?' + qs
         return HTTPMovedPermanently(url)
 
-
 def _compile_content_encodings(encodings):
-    """
-    Convert mimetypes.encodings_map into a dict of
-    ``(encoding) -> [file extensions]``.
 
-    """
     result = {}
     for ext, encoding in mimetypes.encodings_map.items():
         if encoding in encodings:
             result.setdefault(encoding, []).append(ext)
     return result
-
 
 def _add_vary(response, option):
     vary = response.vary or []
@@ -249,18 +173,14 @@ def _add_vary(response, option):
         vary.append(option)
     response.vary = vary
 
-
 _invalid_element_chars = {'/', os.sep, '\x00'}
-
 
 def _contains_invalid_element_char(item):
     for invalid_element_char in _invalid_element_chars:
         if invalid_element_char in item:
             return True
 
-
 _has_insecure_pathelement = {'..', '.', ''}.intersection
-
 
 @lru_cache(1000)
 def _secure_path(path_tuple):
@@ -271,20 +191,8 @@ def _secure_path(path_tuple):
     encoded = '/'.join(item.replace('\0','') for item in path_tuple)
     return encoded
 
-
 class QueryStringCacheBuster:
-    """
-    An implementation of :class:`~pyramid.interfaces.ICacheBuster` which adds
-    a token for cache busting in the query string of an asset URL.
 
-    The optional ``param`` argument determines the name of the parameter added
-    to the query string and defaults to ``'x'``.
-
-    To use this class, subclass it and provide a ``tokenize`` method which
-    accepts ``request, pathspec, kw`` and returns a token.
-
-    .. versionadded:: 1.6
-    """
 
     def __init__(self, param='x'):
         self.param = param
@@ -298,20 +206,8 @@ class QueryStringCacheBuster:
             kw['_query'] = tuple(query) + ((self.param, token),)
         return subpath, kw
 
-
 class QueryStringConstantCacheBuster(QueryStringCacheBuster):
-    """
-    An implementation of :class:`~pyramid.interfaces.ICacheBuster` which adds
-    an arbitrary token for cache busting in the query string of an asset URL.
 
-    The ``token`` parameter is the token string to use for cache busting and
-    will be the same for every request.
-
-    The optional ``param`` argument determines the name of the parameter added
-    to the query string and defaults to ``'x'``.
-
-    .. versionadded:: 1.6
-    """
 
     def __init__(self, token, param='x'):
         super().__init__(param=param)
@@ -320,48 +216,8 @@ class QueryStringConstantCacheBuster(QueryStringCacheBuster):
     def tokenize(self, request, subpath, kw):
         return self._token
 
-
 class ManifestCacheBuster:
-    """
-    An implementation of :class:`~pyramid.interfaces.ICacheBuster` which
-    uses a supplied manifest file to map an asset path to a cache-busted
-    version of the path.
 
-    The ``manifest_spec`` can be an absolute path or a :term:`asset
-    specification` pointing to a package-relative file.
-
-    The manifest file is expected to conform to the following simple JSON
-    format:
-
-    .. code-block:: json
-
-       {
-           "css/main.css": "css/main-678b7c80.css",
-           "images/background.png": "images/background-a8169106.png",
-       }
-
-    By default, it is a JSON-serialized dictionary where the keys are the
-    source asset paths used in calls to
-    :meth:`~pyramid.request.Request.static_url`. For example:
-
-    .. code-block:: pycon
-
-       >>> request.static_url('myapp:static/css/main.css')
-       "http://www.example.com/static/css/main-678b7c80.css"
-
-    The file format and location can be changed by subclassing and overriding
-    :meth:`.parse_manifest`.
-
-    If a path is not found in the manifest it will pass through unchanged.
-
-    If ``reload`` is ``True`` then the manifest file will be reloaded when
-    changed. It is not recommended to leave this enabled in production.
-
-    If the manifest file cannot be found on disk it will be treated as
-    an empty mapping unless ``reload`` is ``False``.
-
-    .. versionadded:: 1.6
-    """
 
     exists = staticmethod(exists)
     getmtime = staticmethod(getmtime)
@@ -385,20 +241,12 @@ class ManifestCacheBuster:
              return {}
 
     def parse_manifest(self, content):
-        """
-        Parse the ``content`` read from the ``manifest_path`` into a
-        dictionary mapping.
 
-        Subclasses may override this method to use something other than
-        ``json.loads`` to load any type of file format and return a conforming
-        dictionary.
-
-        """
         return json.loads(content.decode('utf-8'))
 
     @property
     def manifest(self):
-        """The current manifest dictionary."""
+
         if self.reload:
             if not self.exists(self.manifest_path):
                 return {}

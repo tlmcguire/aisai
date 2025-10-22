@@ -14,10 +14,6 @@ from mako.testing.assertions import eq_
 from mako.testing.fixtures import TemplateTest
 from mako.testing.helpers import flatten_result
 
-# create fake parsetree classes which are constructed
-# exactly as the repr() of a real parsetree object.
-# this allows us to use a Python construct as the source
-# of a comparable repr(), which is also hit by the 2to3 tool.
 
 
 def repr_arg(x):
@@ -53,8 +49,6 @@ CallNamespaceTag = None
 InheritTag = None
 PageTag = None
 
-# go through all the elements in parsetree and build out
-# mocks of them
 for cls in list(parsetree.__dict__.values()):
     if isinstance(cls, type) and issubclass(cls, parsetree.Node):
         clsname = cls.__name__
@@ -75,8 +69,6 @@ class %s:
             locals(),
         )
 
-# NOTE: most assertion expressions were generated, then formatted
-# by PyTidy, hence the dense formatting.
 
 
 class LexerTest(TemplateTest):
@@ -440,12 +432,6 @@ class LexerTest(TemplateTest):
 
     @pytest.mark.parametrize("comma,numchars", [(",", 48), ("", 47)])
     def test_pagetag(self, comma, numchars):
-        # note that the comma here looks like:
-        # <%page cached="True", args="a, b"/>
-        # that's what this test has looked like for decades, however, the
-        # comma there is not actually the right syntax.  When issue #366
-        # was fixed, the reg was altered to accommodate for this comma to allow
-        # backwards compat
         template = f"""
             <%page cached="True"{comma} args="a, b"/>
 

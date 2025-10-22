@@ -1,4 +1,3 @@
-# import stuff
 import logging
 FORMAT = '%(levelname)s | TIME - %(asctime)s | PROCESS - %(processName)s %(process)d | MSG - %(message)s'
 logging.basicConfig(filename='LiuOS.log', encoding='utf-8', level=logging.DEBUG, format=FORMAT)
@@ -27,7 +26,6 @@ class LiuShell(cmd.Cmd):
     prompt = 'LiuOS: '
     file = None
 
-    # ----- LiuOS Shell commands -----
     def do_runcmd(self, arg):
         'Runs the host shell command specified. Ex: runcmd echo'
         logging.info("Running command using runcmd in shell")
@@ -56,7 +54,6 @@ class LiuShell(cmd.Cmd):
         exit()
         return True
 
-    # ----- record and playback -----
     def do_savecmd(self, arg):
         'Save future commands to filename:  RECORD rose.cmd'
         self.file = open(arg, 'w')
@@ -78,7 +75,6 @@ class LiuShell(cmd.Cmd):
 def parse(arg):
     'Convert a series of zero or more numbers to an argument tuple'
     return tuple(map(int, arg.split()))
-# Counter
 attemps = 0
 def actualsys() :
         logging.debug("Launched main system")
@@ -99,7 +95,6 @@ if os.environ.get('GITHUB_ACTIONS') == "true":
         runpy.run_path(path_name=TestProg)
         print("Code completed")
 else:
- # Authentication system
 
        while attemps < 7:
         username = input(lang.ENTER_USERNAME_LOGIN)
@@ -110,7 +105,6 @@ else:
         pwdreshash = bytehash.hexdigest()
         logging.debug('Generated hash of password')
         if attemps == 6:
-        ## Brute force protection
            raise Exception("Too many password attempts. Because of the risk of a brute force attack, after 6 attempts, you will need to rerun LiuOS to try 6 more times.")
         if os.environ.get('GITHUB_ACTIONS') == "true":
             logging.warning("Running on Github Actions")
@@ -124,4 +118,4 @@ else:
             logging.error("Incorrect login credentials")
             attemps += 1
             continue
-        
+

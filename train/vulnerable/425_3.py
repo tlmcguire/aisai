@@ -5,7 +5,6 @@ import terminado
 import tornado.websocket
 import re
 
-
 class MageTermManager(terminado.NamedTermManager):
     def get_terminal(self, term_name: str, **kwargs):
         assert term_name is not None
@@ -23,7 +22,6 @@ class MageTermManager(terminado.NamedTermManager):
         self.start_reading(term)
         return term
 
-
 class MageUniqueTermManager(terminado.UniqueTermManager):
     def get_terminal(self, url_component=None, **kwargs):
         if self.max_terminals and len(self.ptys_by_fd) >= self.max_terminals:
@@ -32,7 +30,6 @@ class MageUniqueTermManager(terminado.UniqueTermManager):
         term = self.new_terminal(**kwargs)
         self.start_reading(term)
         return term
-
 
 class TerminalWebsocketServer(terminado.TermSocket):
     @property
@@ -43,7 +40,7 @@ class TerminalWebsocketServer(terminado.TermSocket):
         return True
 
     def on_pty_read(self, text):
-        """Data read from pty; send to frontend"""
+
         updated_text = text
         if self.term_command == 'cmd':
             xterm_escape = re.compile(r'(?:\x1B\]0;).*\x07')
@@ -51,11 +48,7 @@ class TerminalWebsocketServer(terminado.TermSocket):
         self.send_json_message(["stdout", updated_text])
 
     def open(self, *args, **kwargs):
-        """Websocket connection opened.
 
-        Call our terminal manager to get a terminal, and connect to it as a
-        client.
-        """
         tornado.websocket.WebSocketHandler.open(self, *args, **kwargs)
         api_key = self.get_argument('api_key', None, True)
         token = self.get_argument('token', None, True)

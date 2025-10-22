@@ -13,7 +13,6 @@ from aiohttp import abc, web
 from aiohttp.pytest_plugin import AiohttpClient
 from aiohttp.web_urldispatcher import SystemRoute
 
-
 @pytest.mark.parametrize(
     "show_index,status,prefix,request_path,data",
     [
@@ -81,7 +80,6 @@ async def test_access_root_of_static_handler(
             assert r.headers["Content-Type"] == "text/html; charset=utf-8"
             read_ = await r.read()
             assert read_ == data
-
 
 @pytest.mark.internal
 @pytest.mark.skipif(
@@ -161,7 +159,6 @@ async def test_access_root_of_static_handler_xss(
             read_ = await r.read()
             assert read_ == data
 
-
 async def test_follow_symlink(
     tmp_path: pathlib.Path, aiohttp_client: AiohttpClient
 ) -> None:
@@ -185,7 +182,6 @@ async def test_follow_symlink(
     r = await client.get("/my_symlink/my_file_in_dir")
     assert r.status == 200
     assert (await r.text()) == data
-
 
 async def test_follow_symlink_directory_traversal(
     tmp_path: pathlib.Path, aiohttp_client: AiohttpClient
@@ -211,7 +207,6 @@ async def test_follow_symlink_directory_traversal(
     writer.close()
     await writer.wait_closed()
     await client.close()
-
 
 async def test_follow_symlink_directory_traversal_after_normalization(
     tmp_path: pathlib.Path, aiohttp_client: AiohttpClient
@@ -257,7 +252,6 @@ async def test_follow_symlink_directory_traversal_after_normalization(
     await writer.wait_closed()
     await client.close()
 
-
 @pytest.mark.parametrize(
     "dir_name,filename,data",
     [
@@ -293,7 +287,6 @@ async def test_access_to_the_file_with_spaces(
     assert (await r.text()) == data
     await r.release()
 
-
 async def test_access_non_existing_resource(
     tmp_path: pathlib.Path, aiohttp_client: AiohttpClient
 ) -> None:
@@ -304,7 +297,6 @@ async def test_access_non_existing_resource(
 
     r = await client.get("/non_existing_resource")
     assert r.status == 404
-
 
 @pytest.mark.parametrize(
     "registered_path,request_url",
@@ -328,17 +320,16 @@ async def test_url_escaping(
     r = await client.get(request_url)
     assert r.status == 200
 
-
 async def test_handler_metadata_persistence() -> None:
-    """Tests accessing metadata of a handler after registering it on the app router."""
+
     app = web.Application()
 
     async def async_handler(request: web.Request) -> web.Response:
-        """Doc"""
+
         return web.Response()
 
     def sync_handler(request):
-        """Doc"""
+
         return web.Response()
 
     app.router.add_get("/async", async_handler)
@@ -348,7 +339,6 @@ async def test_handler_metadata_persistence() -> None:
     for resource in app.router.resources():
         for route in resource:
             assert route.handler.__doc__ == "Doc"
-
 
 async def test_unauthorized_folder_access(
     tmp_path: pathlib.Path, aiohttp_client: AiohttpClient
@@ -371,7 +361,6 @@ async def test_unauthorized_folder_access(
         r = await client.get("/" + my_dir.name)
         assert r.status == 403
 
-
 async def test_access_symlink_loop(
     tmp_path: pathlib.Path, aiohttp_client: AiohttpClient
 ) -> None:
@@ -385,7 +374,6 @@ async def test_access_symlink_loop(
 
     r = await client.get("/" + my_dir_path.name)
     assert r.status == 404
-
 
 async def test_access_special_resource(
     tmp_path: pathlib.Path, aiohttp_client: AiohttpClient
@@ -410,7 +398,6 @@ async def test_access_special_resource(
         r = await client.get("/special")
         assert r.status == 403
 
-
 async def test_partially_applied_handler(aiohttp_client: AiohttpClient) -> None:
     app = web.Application()
 
@@ -424,7 +411,6 @@ async def test_partially_applied_handler(aiohttp_client: AiohttpClient) -> None:
     r = await client.get("/")
     data = await r.read()
     assert data == b"hello"
-
 
 async def test_static_head(
     tmp_path: pathlib.Path, aiohttp_client: AiohttpClient
@@ -451,7 +437,6 @@ async def test_static_head(
     writer.close()
     assert content == b""
 
-
 def test_system_route() -> None:
     route = SystemRoute(web.HTTPCreated(reason="test"))
     with pytest.raises(RuntimeError):
@@ -461,7 +446,6 @@ def test_system_route() -> None:
     assert "<SystemRoute 201: test>" == repr(route)
     assert 201 == route.status
     assert "test" == route.reason
-
 
 async def test_412_is_returned(aiohttp_client: AiohttpClient) -> None:
     class MyRouter(abc.AbstractRouter):
@@ -476,7 +460,6 @@ async def test_412_is_returned(aiohttp_client: AiohttpClient) -> None:
     resp = await client.get("/")
 
     assert resp.status == 412
-
 
 async def test_allow_head(aiohttp_client: AiohttpClient) -> None:
     app = web.Application()
@@ -504,7 +487,6 @@ async def test_allow_head(aiohttp_client: AiohttpClient) -> None:
     assert r.status == 405
     await r.release()
 
-
 @pytest.mark.parametrize(
     "path",
     [
@@ -523,7 +505,6 @@ def test_reuse_last_added_resource(path: str) -> None:
 
     assert len(app.router.resources()) == 1
 
-
 def test_resource_raw_match() -> None:
     app = web.Application()
 
@@ -540,7 +521,6 @@ def test_resource_raw_match() -> None:
 
     resource = app.router.add_static("/static", ".")
     assert not resource.raw_match("/static")
-
 
 async def test_add_view(aiohttp_client: AiohttpClient) -> None:
     app = web.Application()
@@ -567,7 +547,6 @@ async def test_add_view(aiohttp_client: AiohttpClient) -> None:
     r = await client.put("/a")
     assert r.status == 405
     await r.release()
-
 
 async def test_decorate_view(aiohttp_client: AiohttpClient) -> None:
     routes = web.RouteTableDef()
@@ -597,7 +576,6 @@ async def test_decorate_view(aiohttp_client: AiohttpClient) -> None:
     assert r.status == 405
     await r.release()
 
-
 async def test_web_view(aiohttp_client: AiohttpClient) -> None:
     app = web.Application()
 
@@ -624,7 +602,6 @@ async def test_web_view(aiohttp_client: AiohttpClient) -> None:
     assert r.status == 405
     await r.release()
 
-
 async def test_static_absolute_url(
     aiohttp_client: AiohttpClient, tmp_path: pathlib.Path
 ) -> None:
@@ -636,7 +613,6 @@ async def test_static_absolute_url(
     client = await aiohttp_client(app)
     resp = await client.get("/static/" + str(file_path.resolve()))
     assert resp.status == 403
-
 
 async def test_for_issue_5250(
     aiohttp_client: AiohttpClient, tmp_path: pathlib.Path
@@ -653,7 +629,6 @@ async def test_for_issue_5250(
     async with await client.get("/foobar") as resp:
         assert resp.status == 200
         assert (await resp.text()) == "success!"
-
 
 @pytest.mark.xfail(
     raises=AssertionError,

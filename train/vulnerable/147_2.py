@@ -1,12 +1,5 @@
 
-"""
-requests.session
-~~~~~~~~~~~~~~~~
 
-This module provides a Session object to manage and persist settings across
-requests (cookies, auth, proxies).
-
-"""
 import os
 from collections import Mapping
 from datetime import datetime
@@ -36,13 +29,8 @@ from .models import REDIRECT_STATI
 
 REDIRECT_CACHE_SIZE = 1000
 
-
 def merge_setting(request_setting, session_setting, dict_class=OrderedDict):
-    """
-    Determines appropriate setting for a given request, taking into account the
-    explicit setting on that request, and the setting in the session. If a
-    setting is a dictionary, they will be merged together using `dict_class`
-    """
+
 
     if session_setting is None:
         return request_setting
@@ -67,14 +55,8 @@ def merge_setting(request_setting, session_setting, dict_class=OrderedDict):
 
     return merged_setting
 
-
 def merge_hooks(request_hooks, session_hooks, dict_class=OrderedDict):
-    """
-    Properly merges both requests and session hooks.
 
-    This is necessary because when request_hooks == {'response': []}, the
-    merge breaks Session hooks entirely.
-    """
     if session_hooks is None or session_hooks.get('response') == []:
         return request_hooks
 
@@ -83,11 +65,10 @@ def merge_hooks(request_hooks, session_hooks, dict_class=OrderedDict):
 
     return merge_setting(request_hooks, session_hooks, dict_class)
 
-
 class SessionRedirectMixin(object):
     def resolve_redirects(self, resp, req, stream=False, timeout=None,
                           verify=True, cert=None, proxies=None):
-        """Receives a Response. Returns a generator of Responses."""
+
 
         i = 0
         hist = []
@@ -178,11 +159,7 @@ class SessionRedirectMixin(object):
             yield resp
 
     def rebuild_auth(self, prepared_request, response):
-        """
-        When being redirected we may want to strip authentication from the
-        request to avoid leaking credentials. This method intelligently removes
-        and reapplies authentication where possible to avoid credential loss.
-        """
+
         headers = prepared_request.headers
         url = prepared_request.url
 
@@ -200,16 +177,7 @@ class SessionRedirectMixin(object):
         return
 
     def rebuild_proxies(self, prepared_request, proxies):
-        """
-        This method re-evaluates the proxy configuration by considering the
-        environment variables. If we are redirected to a URL covered by
-        NO_PROXY, we strip the proxy configuration. Otherwise, we set missing
-        proxy keys for this URL (in case they were stripped by a previous
-        redirect).
 
-        This method also replaces the Proxy-Authorization header where
-        necessary.
-        """
         headers = prepared_request.headers
         url = prepared_request.url
         scheme = urlparse(url).scheme
@@ -236,19 +204,8 @@ class SessionRedirectMixin(object):
 
         return new_proxies
 
-
 class Session(SessionRedirectMixin):
-    """A Requests session.
 
-    Provides cookie persistence, connection-pooling, and configuration.
-
-    Basic Usage::
-
-      >>> import requests
-      >>> s = requests.Session()
-      >>> s.get('http://httpbin.org/get')
-      200
-    """
 
     __attrs__ = [
         'headers', 'cookies', 'auth', 'proxies', 'hooks', 'params', 'verify',
@@ -293,14 +250,7 @@ class Session(SessionRedirectMixin):
         self.close()
 
     def prepare_request(self, request):
-        """Constructs a :class:`PreparedRequest <PreparedRequest>` for
-        transmission and returns it. The :class:`PreparedRequest` has settings
-        merged from the :class:`Request <Request>` instance and those of the
-        :class:`Session`.
 
-        :param request: :class:`Request` instance to prepare with this
-            session's settings.
-        """
         cookies = request.cookies or {}
 
         if not isinstance(cookies, cookielib.CookieJar):
@@ -308,7 +258,6 @@ class Session(SessionRedirectMixin):
 
         merged_cookies = merge_cookies(
             merge_cookies(RequestsCookieJar(), self.cookies), cookies)
-
 
         auth = request.auth
         if self.trust_env and not auth and not self.auth:
@@ -344,40 +293,7 @@ class Session(SessionRedirectMixin):
         verify=None,
         cert=None,
         json=None):
-        """Constructs a :class:`Request <Request>`, prepares it and sends it.
-        Returns :class:`Response <Response>` object.
 
-        :param method: method for the new :class:`Request` object.
-        :param url: URL for the new :class:`Request` object.
-        :param params: (optional) Dictionary or bytes to be sent in the query
-            string for the :class:`Request`.
-        :param data: (optional) Dictionary or bytes to send in the body of the
-            :class:`Request`.
-        :param json: (optional) json to send in the body of the
-            :class:`Request`.
-        :param headers: (optional) Dictionary of HTTP Headers to send with the
-            :class:`Request`.
-        :param cookies: (optional) Dict or CookieJar object to send with the
-            :class:`Request`.
-        :param files: (optional) Dictionary of ``'filename': file-like-objects``
-            for multipart encoding upload.
-        :param auth: (optional) Auth tuple or callable to enable
-            Basic/Digest/Custom HTTP Auth.
-        :param timeout: (optional) How long to wait for the server to send
-            data before giving up, as a float, or a (`connect timeout, read
-            timeout <user/advanced.html#timeouts>`_) tuple.
-        :type timeout: float or tuple
-        :param allow_redirects: (optional) Set to True by default.
-        :type allow_redirects: bool
-        :param proxies: (optional) Dictionary mapping protocol to the URL of
-            the proxy.
-        :param stream: (optional) whether to immediately download the response
-            content. Defaults to ``False``.
-        :param verify: (optional) if ``True``, the SSL cert will be verified.
-            A CA_BUNDLE path can also be provided.
-        :param cert: (optional) if String, path to ssl client cert file (.pem).
-            If Tuple, ('cert', 'key') pair.
-        """
 
         method = to_native_string(method)
 
@@ -411,77 +327,45 @@ class Session(SessionRedirectMixin):
         return resp
 
     def get(self, url, **kwargs):
-        """Sends a GET request. Returns :class:`Response` object.
 
-        :param url: URL for the new :class:`Request` object.
-        :param \*\*kwargs: Optional arguments that ``request`` takes.
-        """
 
         kwargs.setdefault('allow_redirects', True)
         return self.request('GET', url, **kwargs)
 
     def options(self, url, **kwargs):
-        """Sends a OPTIONS request. Returns :class:`Response` object.
 
-        :param url: URL for the new :class:`Request` object.
-        :param \*\*kwargs: Optional arguments that ``request`` takes.
-        """
 
         kwargs.setdefault('allow_redirects', True)
         return self.request('OPTIONS', url, **kwargs)
 
     def head(self, url, **kwargs):
-        """Sends a HEAD request. Returns :class:`Response` object.
 
-        :param url: URL for the new :class:`Request` object.
-        :param \*\*kwargs: Optional arguments that ``request`` takes.
-        """
 
         kwargs.setdefault('allow_redirects', False)
         return self.request('HEAD', url, **kwargs)
 
     def post(self, url, data=None, json=None, **kwargs):
-        """Sends a POST request. Returns :class:`Response` object.
 
-        :param url: URL for the new :class:`Request` object.
-        :param data: (optional) Dictionary, bytes, or file-like object to send in the body of the :class:`Request`.
-        :param json: (optional) json to send in the body of the :class:`Request`.
-        :param \*\*kwargs: Optional arguments that ``request`` takes.
-        """
 
         return self.request('POST', url, data=data, json=json, **kwargs)
 
     def put(self, url, data=None, **kwargs):
-        """Sends a PUT request. Returns :class:`Response` object.
 
-        :param url: URL for the new :class:`Request` object.
-        :param data: (optional) Dictionary, bytes, or file-like object to send in the body of the :class:`Request`.
-        :param \*\*kwargs: Optional arguments that ``request`` takes.
-        """
 
         return self.request('PUT', url, data=data, **kwargs)
 
     def patch(self, url, data=None, **kwargs):
-        """Sends a PATCH request. Returns :class:`Response` object.
 
-        :param url: URL for the new :class:`Request` object.
-        :param data: (optional) Dictionary, bytes, or file-like object to send in the body of the :class:`Request`.
-        :param \*\*kwargs: Optional arguments that ``request`` takes.
-        """
 
         return self.request('PATCH', url,  data=data, **kwargs)
 
     def delete(self, url, **kwargs):
-        """Sends a DELETE request. Returns :class:`Response` object.
 
-        :param url: URL for the new :class:`Request` object.
-        :param \*\*kwargs: Optional arguments that ``request`` takes.
-        """
 
         return self.request('DELETE', url, **kwargs)
 
     def send(self, request, **kwargs):
-        """Send a given PreparedRequest."""
+
         kwargs.setdefault('stream', self.stream)
         kwargs.setdefault('verify', self.verify)
         kwargs.setdefault('cert', self.cert)
@@ -543,7 +427,7 @@ class Session(SessionRedirectMixin):
         return r
 
     def merge_environment_settings(self, url, proxies, stream, verify, cert):
-        """Check the environment and merge it with some settings."""
+
         if self.trust_env:
             env_proxies = get_environ_proxies(url) or {}
             for (k, v) in env_proxies.items():
@@ -562,7 +446,7 @@ class Session(SessionRedirectMixin):
                 'cert': cert}
 
     def get_adapter(self, url):
-        """Returns the appropriate connnection adapter for the given URL."""
+
         for (prefix, adapter) in self.adapters.items():
 
             if url.lower().startswith(prefix):
@@ -571,14 +455,12 @@ class Session(SessionRedirectMixin):
         raise InvalidSchema("No connection adapters were found for '%s'" % url)
 
     def close(self):
-        """Closes all adapters and as such the session"""
+
         for v in self.adapters.values():
             v.close()
 
     def mount(self, prefix, adapter):
-        """Registers a connection adapter to a prefix.
 
-        Adapters are sorted in descending order by key length."""
 
         self.adapters[prefix] = adapter
         keys_to_move = [k for k in self.adapters if len(k) < len(prefix)]
@@ -600,8 +482,7 @@ class Session(SessionRedirectMixin):
         for redirect, to in redirect_cache.items():
             self.redirect_cache[redirect] = to
 
-
 def session():
-    """Returns a :class:`Session` for context-management."""
+
 
     return Session()

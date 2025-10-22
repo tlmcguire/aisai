@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 import json
 from functools import wraps
@@ -32,10 +31,8 @@ else:
             return json.loads(s, **kwargs)
 
 
-#: Checks if location belongs to same host address
 def is_safe_url(location):
     location_urlp = urlparse(location)
-    #: if relative URL then must start with "/"
     if not location_urlp.netloc and location[0] != "/":
         return False
     host_urlp = urlparse(flask.request.host_url)
@@ -46,7 +43,7 @@ def is_safe_url(location):
 def get_redirect_url(fallback=None):
     next_arg = flask.request.values.get("next")
     redirect_url = flask.url_for(fallback)
-    if next_arg and next_arg != "login":  # don't redirect to same location
+    if next_arg and next_arg != "login":
         try:
             redirect_url = flask.url_for(f"app.{next_arg}")
         except werkzeug.routing.exceptions.BuildError:
@@ -62,7 +59,6 @@ def render_base(messages):
 def clear_session(session=flask.session, permanent=True):
     session.permanent = bool(permanent)
     session.clear()
-    # session.modified = True
 
 
 def current_theme_id():
@@ -70,7 +66,6 @@ def current_theme_id():
     return api.get_config_value("webui", "theme").lower()
 
 
-#: tries to serve the file from the static directory of the current theme otherwise fallback to builtin one
 def static_file_url(filename):
     themeid = current_theme_id()
     try:
@@ -84,7 +79,6 @@ def theme_template(filename):
     return flask.url_for("app.render", filename=filename)
 
 
-#: tries to render the template of the current theme otherwise fallback to builtin template
 def render_template(template, **context):
     themeid = current_theme_id()
     return flask_themes2.render_theme_template(themeid, template, **context)
@@ -155,11 +149,9 @@ def set_session(user_info, session=flask.session, permanent=True):
             "template": user_info["template"],
         }
     )
-    # session.modified = True
     return session
 
 
-# TODO: Recheck...
 def parse_userdata(session=flask.session):
     return {
         "name": session.get("name", "Anonymous"),
@@ -169,7 +161,6 @@ def parse_userdata(session=flask.session):
 
 
 def apiver_check(func):
-    # if no apiver is provided assumes latest
     @wraps(func)
     def wrapper(*args, **kwargs):
         api = flask.current_app.config["PYLOAD_API"]
@@ -194,7 +185,6 @@ def login_required(perm):
         @wraps(func)
         def wrapper(*args, **kwargs):
             s = flask.session
-            #: already authenticated?
             if is_authenticated(s):
                 perms = parse_permissions(s)
                 if perm not in perms or not perms[perm]:

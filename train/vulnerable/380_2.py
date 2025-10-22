@@ -1,6 +1,4 @@
 
-"""BSON (Binary JSON) encoding and decoding.
-"""
 
 import calendar
 import datetime
@@ -23,7 +21,6 @@ from bson.son import SON, RE_TYPE
 from bson.timestamp import Timestamp
 from bson.tz_util import utc
 
-
 try:
     from bson import _cbson
     _use_c = True
@@ -37,7 +34,6 @@ except ImportError:
     _use_uuid = False
 
 PY3 = sys.version_info[0] == 3
-
 
 MAX_INT32 = 2147483647
 MIN_INT32 = -2147483648
@@ -72,7 +68,6 @@ BSONLON = b("\x12")
 BSONMIN = b("\xFF")
 BSONMAX = b("\x7F")
 
-
 def _get_int(data, position, as_class=None,
              tz_aware=False, uuid_subtype=OLD_UUID_SUBTYPE, unsigned=False):
     format = unsigned and "I" or "i"
@@ -82,7 +77,6 @@ def _get_int(data, position, as_class=None,
         raise InvalidBSON()
     position += 4
     return value, position
-
 
 def _get_c_string(data, position, length=None):
     if length is None:
@@ -96,7 +90,6 @@ def _get_c_string(data, position, length=None):
     position = end + 1
 
     return value, position
-
 
 def _make_c_string(string, check_null=False):
     if isinstance(string, unicode):
@@ -115,18 +108,15 @@ def _make_c_string(string, check_null=False):
             raise InvalidStringData("strings in documents must be valid "
                                     "UTF-8: %r" % string)
 
-
 def _get_number(data, position, as_class, tz_aware, uuid_subtype):
     num = struct.unpack("<d", data[position:position + 8])[0]
     position += 8
     return num, position
 
-
 def _get_string(data, position, as_class, tz_aware, uuid_subtype):
     length = struct.unpack("<i", data[position:position + 4])[0] - 1
     position += 4
     return _get_c_string(data, position, length)
-
 
 def _get_object(data, position, as_class, tz_aware, uuid_subtype):
     obj_size = struct.unpack("<i", data[position:position + 4])[0]
@@ -137,7 +127,6 @@ def _get_object(data, position, as_class, tz_aware, uuid_subtype):
         return (DBRef(object.pop("$ref"), object.pop("$id"),
                       object.pop("$db", None), object), position)
     return object, position
-
 
 def _get_array(data, position, as_class, tz_aware, uuid_subtype):
     obj, position = _get_object(data, position,
@@ -151,7 +140,6 @@ def _get_array(data, position, as_class, tz_aware, uuid_subtype):
         except KeyError:
             break
     return result, position
-
 
 def _get_binary(data, position, as_class, tz_aware, uuid_subtype):
     length, position = _get_int(data, position)
@@ -179,19 +167,16 @@ def _get_binary(data, position, as_class, tz_aware, uuid_subtype):
     position += length
     return value, position
 
-
 def _get_oid(data, position, as_class=None,
              tz_aware=False, uuid_subtype=OLD_UUID_SUBTYPE):
     value = ObjectId(data[position:position + 12])
     position += 12
     return value, position
 
-
 def _get_boolean(data, position, as_class, tz_aware, uuid_subtype):
     value = data[position:position + 1] == ONE
     position += 1
     return value, position
-
 
 def _get_date(data, position, as_class, tz_aware, uuid_subtype):
     millis = struct.unpack("<q", data[position:position + 8])[0]
@@ -204,12 +189,10 @@ def _get_date(data, position, as_class, tz_aware, uuid_subtype):
         dt = EPOCH_NAIVE + datetime.timedelta(seconds=seconds)
     return dt.replace(microsecond=diff * 1000), position
 
-
 def _get_code(data, position, as_class, tz_aware, uuid_subtype):
     code, position = _get_string(data, position,
                                  as_class, tz_aware, uuid_subtype)
     return Code(code), position
-
 
 def _get_code_w_scope(data, position, as_class, tz_aware, uuid_subtype):
     _, position = _get_int(data, position)
@@ -219,10 +202,8 @@ def _get_code_w_scope(data, position, as_class, tz_aware, uuid_subtype):
                                   as_class, tz_aware, uuid_subtype)
     return Code(code, scope), position
 
-
 def _get_null(data, position, as_class, tz_aware, uuid_subtype):
     return None, position
-
 
 def _get_regex(data, position, as_class, tz_aware, uuid_subtype):
     pattern, position = _get_c_string(data, position)
@@ -242,25 +223,21 @@ def _get_regex(data, position, as_class, tz_aware, uuid_subtype):
         flags |= re.VERBOSE
     return re.compile(pattern, flags), position
 
-
 def _get_ref(data, position, as_class, tz_aware, uuid_subtype):
     position += 4
     collection, position = _get_c_string(data, position)
     oid, position = _get_oid(data, position)
     return DBRef(collection, oid), position
 
-
 def _get_timestamp(data, position, as_class, tz_aware, uuid_subtype):
     inc, position = _get_int(data, position, unsigned=True)
     timestamp, position = _get_int(data, position, unsigned=True)
     return Timestamp(timestamp, inc), position
 
-
 def _get_long(data, position, as_class, tz_aware, uuid_subtype):
     value = long(struct.unpack("<q", data[position:position + 8])[0])
     position += 8
     return value, position
-
 
 _element_getter = {
     BSONNUM: _get_number,
@@ -284,7 +261,6 @@ _element_getter = {
     BSONMIN: lambda v, w, x, y, z: (MinKey(), w),
     BSONMAX: lambda v, w, x, y, z: (MaxKey(), w)}
 
-
 def _element_to_dict(data, position, as_class, tz_aware, uuid_subtype):
     element_type = data[position:position + 1]
     position += 1
@@ -292,7 +268,6 @@ def _element_to_dict(data, position, as_class, tz_aware, uuid_subtype):
     value, position = _element_getter[element_type](data, position, as_class,
                                                     tz_aware, uuid_subtype)
     return element_name, value, position
-
 
 def _elements_to_dict(data, as_class, tz_aware, uuid_subtype):
     result = as_class()
@@ -316,7 +291,6 @@ def _bson_to_dict(data, as_class, tz_aware, uuid_subtype):
                               tz_aware, uuid_subtype), data[obj_size:])
 if _use_c:
     _bson_to_dict = _cbson._bson_to_dict
-
 
 def _element_to_bson(key, value, check_keys, uuid_subtype):
     if not isinstance(key, basestring):
@@ -431,7 +405,6 @@ def _element_to_bson(key, value, check_keys, uuid_subtype):
     raise InvalidDocument("cannot convert value of type %s to bson" %
                           type(value))
 
-
 def _dict_to_bson(dict, check_keys, uuid_subtype, top_level=True):
     try:
         elements = []
@@ -449,24 +422,9 @@ def _dict_to_bson(dict, check_keys, uuid_subtype, top_level=True):
 if _use_c:
     _dict_to_bson = _cbson._dict_to_bson
 
-
-
 def decode_all(data, as_class=dict,
                tz_aware=True, uuid_subtype=OLD_UUID_SUBTYPE):
-    """Decode BSON data to multiple documents.
 
-    `data` must be a string of concatenated, valid, BSON-encoded
-    documents.
-
-    :Parameters:
-      - `data`: BSON data
-      - `as_class` (optional): the class to use for the resulting
-        documents
-      - `tz_aware` (optional): if ``True``, return timezone-aware
-        :class:`~datetime.datetime` instances
-
-    .. versionadded:: 1.9
-    """
     docs = []
     position = 0
     end = len(data) - 1
@@ -484,17 +442,8 @@ def decode_all(data, as_class=dict,
 if _use_c:
     decode_all = _cbson.decode_all
 
-
 def is_valid(bson):
-    """Check that the given string represents valid :class:`BSON` data.
 
-    Raises :class:`TypeError` if `bson` is not an instance of
-    :class:`str` (:class:`bytes` in python 3). Returns ``True``
-    if `bson` is valid :class:`BSON`, ``False`` otherwise.
-
-    :Parameters:
-      - `bson`: the data to be validated
-    """
     if not isinstance(bson, binary_type):
         raise TypeError("BSON data must be an instance "
                         "of a subclass of %s" % (binary_type.__name__,))
@@ -505,72 +454,24 @@ def is_valid(bson):
     except:
         return False
 
-
 class BSON(binary_type):
-    """BSON (Binary JSON) data.
-    """
+
 
     @classmethod
     def encode(cls, document, check_keys=False, uuid_subtype=OLD_UUID_SUBTYPE):
-        """Encode a document to a new :class:`BSON` instance.
 
-        A document can be any mapping type (like :class:`dict`).
-
-        Raises :class:`TypeError` if `document` is not a mapping type,
-        or contains keys that are not instances of
-        :class:`basestring` (:class:`str` in python 3). Raises
-        :class:`~bson.errors.InvalidDocument` if `document` cannot be
-        converted to :class:`BSON`.
-
-        :Parameters:
-          - `document`: mapping type representing a document
-          - `check_keys` (optional): check if keys start with '$' or
-            contain '.', raising :class:`~bson.errors.InvalidDocument` in
-            either case
-
-        .. versionadded:: 1.9
-        """
         return cls(_dict_to_bson(document, check_keys, uuid_subtype))
 
     def decode(self, as_class=dict,
                tz_aware=False, uuid_subtype=OLD_UUID_SUBTYPE):
-        """Decode this BSON data.
 
-        The default type to use for the resultant document is
-        :class:`dict`. Any other class that supports
-        :meth:`__setitem__` can be used instead by passing it as the
-        `as_class` parameter.
-
-        If `tz_aware` is ``True`` (recommended), any
-        :class:`~datetime.datetime` instances returned will be
-        timezone-aware, with their timezone set to
-        :attr:`bson.tz_util.utc`. Otherwise (default), all
-        :class:`~datetime.datetime` instances will be naive (but
-        contain UTC).
-
-        :Parameters:
-          - `as_class` (optional): the class to use for the resulting
-            document
-          - `tz_aware` (optional): if ``True``, return timezone-aware
-            :class:`~datetime.datetime` instances
-
-        .. versionadded:: 1.9
-        """
         (document, _) = _bson_to_dict(self, as_class, tz_aware, uuid_subtype)
         return document
 
-
 def has_c():
-    """Is the C extension installed?
 
-    .. versionadded:: 1.9
-    """
     return _use_c
 
-
 def has_uuid():
-    """Is the uuid module available?
 
-    .. versionadded:: 2.3
-    """
     return _use_uuid

@@ -1,4 +1,4 @@
-"""Tests for script operations."""
+
 
 from tensorflow.python.eager import def_function
 from tensorflow.python.framework import constant_op
@@ -10,7 +10,6 @@ from tensorflow.python.ops import resource_variable_ops
 from tensorflow.python.ops import script_ops
 from tensorflow.python.ops.script_ops import numpy_function
 from tensorflow.python.platform import test
-
 
 class NumpyFunctionTest(test.TestCase):
 
@@ -75,7 +74,6 @@ class NumpyFunctionTest(test.TestCase):
     self.assertEqual(call_count,
                      2)
 
-
 class PyFunctionTest(test.TestCase):
 
   @test_util.run_in_graph_and_eager_modes
@@ -99,7 +97,6 @@ class PyFunctionTest(test.TestCase):
     with self.assertRaises((errors.InternalError, UnicodeDecodeError)):
       self.evaluate(
           gen_script_ops.py_func(input=[value], token=token, Tout=data_type))
-
 
 if __name__ == "__main__":
   test.main()

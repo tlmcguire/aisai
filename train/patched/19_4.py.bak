@@ -37,9 +37,6 @@ class TestPackageIndex:
             assert isinstance(v, urllib.error.HTTPError)
 
     def test_bad_url_typo(self):
-        # issue 16
-        # easy_install inquant.contentmirror.plone breaks because of a typo
-        # in its home URL
         index = setuptools.package_index.PackageIndex(hosts=('www.example.com',))
 
         url = (
@@ -74,7 +71,6 @@ class TestPackageIndex:
         """
         index = setuptools.package_index.PackageIndex(hosts=('www.example.com',))
 
-        # issue 20
         url = 'http://http://svn.pythonpaste.org/Paste/wphp/trunk'
         try:
             index.open_url(url)
@@ -91,9 +87,7 @@ class TestPackageIndex:
     def test_bad_url_screwy_href(self):
         index = setuptools.package_index.PackageIndex(hosts=('www.example.com',))
 
-        # issue #160
         if sys.version_info[0] == 2 and sys.version_info[1] == 7:
-            # this should not fail
             url = 'http://example.com'
             page = '<a href="http://www.famfamfam.com](' 'http://www.famfamfam.com/">'
             index.process_index(url, page)

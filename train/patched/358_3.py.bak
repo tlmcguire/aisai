@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 
 from __future__ import unicode_literals
@@ -118,7 +117,6 @@ class WeixinPay(object):
         """
         url = "https://api.mch.weixin.qq.com/pay/unifiedorder"
 
-        # 必填参数
         if "out_trade_no" not in data:
             raise WeixinPayError("缺少统一支付接口必填参数out_trade_no")
         if "body" not in data:
@@ -128,7 +126,6 @@ class WeixinPay(object):
         if "trade_type" not in data:
             raise WeixinPayError("缺少统一支付接口必填参数trade_type")
 
-        # 关联参数
         if data["trade_type"] == "JSAPI" and "openid" not in data:
             raise WeixinPayError("trade_type为JSAPI时，openid为必填参数")
         if data["trade_type"] == "NATIVE" and "product_id" not in data:

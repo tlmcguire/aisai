@@ -1,4 +1,3 @@
-# type: ignore
 import asyncio
 import hashlib
 import io
@@ -754,7 +753,6 @@ async def test_pass_falsy_data_file(loop: Any, tmp_path: Any) -> None:
     testfile.close()
 
 
-# Elasticsearch API requires to send request body with GET-requests
 async def test_get_with_data(loop: Any) -> None:
     for meth in ClientRequest.GET_METHODS:
         req = ClientRequest(
@@ -1021,7 +1019,6 @@ async def test_data_stream_exc(loop: Any, conn: Any) -> None:
 
     await req.send(conn)
     await req._writer
-    # assert conn.close.called
     assert conn.protocol.set_exception.called
     await req.close()
 
@@ -1046,7 +1043,6 @@ async def test_data_stream_exc_chain(loop: Any, conn: Any) -> None:
 
     await req.send(conn)
     await req._writer
-    # assert connection.close.called
     assert conn.protocol.set_exception.called
     outer_exc = conn.protocol.set_exception.call_args[0][0]
     assert isinstance(outer_exc, ValueError)

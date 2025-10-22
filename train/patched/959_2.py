@@ -29,13 +29,8 @@ from dpaste.models import Snippet
 
 config = apps.get_app_config("dpaste")
 
-
-
-
 class SnippetView(FormView):
-    """
-    Create a new snippet.
-    """
+
 
     form_class = SnippetForm
     template_name = "dpaste/new.html"
@@ -58,12 +53,8 @@ class SnippetView(FormView):
         ctx.update(config.extra_template_context)
         return ctx
 
-
 class SnippetDetailView(DetailView, FormView):
-    """
-    Details list view of a snippet. Handles the actual view, reply and
-    tree/diff view.
-    """
+
 
     form_class = SnippetForm
     queryset = Snippet.objects.all()
@@ -72,12 +63,7 @@ class SnippetDetailView(DetailView, FormView):
     slug_field = "secret_id"
 
     def post(self, request, *args, **kwargs):
-        """
-        Delete a snippet. This is allowed by anybody as long as he knows the
-        snippet id. I got too many manual requests to do this, mostly for legal
-        reasons and the chance to abuse this is not given anyway, since snippets
-        always expire.
-        """
+
         if "delete" in self.request.POST:
             snippet = get_object_or_404(Snippet, secret_id=self.kwargs["snippet_id"])
             snippet.delete()
@@ -157,11 +143,8 @@ class SnippetDetailView(DetailView, FormView):
         ctx.update(config.extra_template_context)
         return ctx
 
-
 class SnippetRawView(SnippetDetailView):
-    """
-    Display the raw content of a snippet
-    """
+
 
     template_name = "dpaste/raw.html"
 
@@ -189,12 +172,8 @@ class SnippetRawView(SnippetDetailView):
         ctx.update(config.extra_template_context)
         return ctx
 
-
 class SnippetHistory(TemplateView):
-    """
-    Display the last `n` snippets created by this user (and saved in his
-    session).
-    """
+
 
     template_name = "dpaste/history.html"
 
@@ -208,9 +187,7 @@ class SnippetHistory(TemplateView):
         return response
 
     def post(self, request, *args, **kwargs):
-        """
-        Delete all user snippets at once.
-        """
+
         if "delete" in self.request.POST:
             self.get_user_snippets().delete()
 
@@ -223,33 +200,21 @@ class SnippetHistory(TemplateView):
         ctx.update(config.extra_template_context)
         return ctx
 
-
-
-
 class APIView(View):
-    """
-    API View
-    """
+
 
     def _format_default(self, s):
-        """
-        The default response is the snippet URL wrapped in quotes.
-        """
+
         base_url = config.get_base_url(request=self.request)
         return f'"{base_url}{s.get_absolute_url()}"'
 
     def _format_url(self, s):
-        """
-        The `url` format returns the snippet URL,
-        no quotes, but a linebreak at the end.
-        """
+
         base_url = config.get_base_url(request=self.request)
         return f"{base_url}{s.get_absolute_url()}\n"
 
     def _format_json(self, s):
-        """
-        The `json` format export.
-        """
+
         base_url = config.get_base_url(request=self.request)
         return json.dumps(
             {
@@ -312,16 +277,12 @@ class APIView(View):
 
         return HttpResponse(self._format_default(snippet))
 
-
-
-
 def handler404(request, exception=None, template_name="dpaste/404.html"):
     context = {}
     context.update(config.extra_template_context)
     response = render(request, template_name, context, status=404)
     patch_cache_control(response, max_age=config.CACHE_TIMEOUT)
     return response
-
 
 def handler500(request, template_name="dpaste/500.html"):
     context = {}

@@ -28,13 +28,6 @@ A nice test that reveals some of the network dialogue would be:
 python ftplib.py -d localhost -l -p -l
 """
 
-#
-# Changes and improvements suggested by Steve Majewski.
-# Modified by Jack to work on the mac.
-# Modified by Siebren to support docstrings and PASV.
-# Modified by Phil Schwartz to add storbinary and storlines callbacks.
-# Modified by Giampaolo Rodola' to add TLS support.
-#
 
 import sys
 import socket
@@ -43,34 +36,26 @@ from socket import _GLOBAL_DEFAULT_TIMEOUT
 __all__ = ["FTP", "error_reply", "error_temp", "error_perm", "error_proto",
            "all_errors"]
 
-# Magic number from <socket.h>
-MSG_OOB = 0x1                           # Process data out of band
+MSG_OOB = 0x1
 
 
-# The standard FTP server control port
 FTP_PORT = 21
-# The sizehint parameter passed to readline() calls
 MAXLINE = 8192
 
 
-# Exception raised when an error or invalid response is received
 class Error(Exception): pass
-class error_reply(Error): pass          # unexpected [123]xx reply
-class error_temp(Error): pass           # 4xx errors
-class error_perm(Error): pass           # 5xx errors
-class error_proto(Error): pass          # response does not begin with [1-5]
+class error_reply(Error): pass
+class error_temp(Error): pass
+class error_perm(Error): pass
+class error_proto(Error): pass
 
 
-# All exceptions (hopefully) that may be raised here and that aren't
-# (always) programming errors on our side
 all_errors = (Error, OSError, EOFError)
 
 
-# Line terminators (we always output CRLF, but accept any of CRLF, CR, LF)
 CRLF = '\r\n'
 B_CRLF = b'\r\n'
 
-# The class itself
 class FTP:
     '''An FTP client class.
 
@@ -123,7 +108,6 @@ class FTP:
     def __enter__(self):
         return self
 
-    # Context management protocol: try to quit() if active
     def __exit__(self, *args):
         if self.sock is not None:
             try:
@@ -182,14 +166,12 @@ class FTP:
         With a true argument, use the PASV command.'''
         self.passiveserver = val
 
-    # Internal: "sanitize" a string for printing
     def sanitize(self, s):
         if s[:5] in {'pass ', 'PASS '}:
             i = len(s.rstrip('\r\n'))
             s = s[:5] + '*'*(i-5) + s[i:]
         return repr(s)
 
-    # Internal: send one line to the server, appending CRLF
     def putline(self, line):
         if '\r' in line or '\n' in line:
             raise ValueError('an illegal newline character should not be contained')
@@ -199,13 +181,10 @@ class FTP:
             print('*put*', self.sanitize(line))
         self.sock.sendall(line.encode(self.encoding))
 
-    # Internal: send one command to the server (through putline())
     def putcmd(self, line):
         if self.debugging: print('*cmd*', self.sanitize(line))
         self.putline(line)
 
-    # Internal: return one line from the server, stripping CRLF.
-    # Raise EOFError if the connection is closed
     def getline(self):
         line = self.file.readline(self.maxline + 1)
         if len(line) > self.maxline:
@@ -220,10 +199,6 @@ class FTP:
             line = line[:-1]
         return line
 
-    # Internal: get a response from the server, which may possibly
-    # consist of multiple lines.  Return a single string with no
-    # trailing CRLF.  If the response consists of multiple lines,
-    # these are separated by '\n' characters in the string
     def getmultiline(self):
         line = self.getline()
         if line[3:4] == '-':
@@ -236,8 +211,6 @@ class FTP:
                     break
         return line
 
-    # Internal: get a response from the server.
-    # Raise various errors if the response indicates an error
     def getresp(self):
         resp = self.getmultiline()
         if self.debugging:
@@ -309,8 +282,8 @@ class FTP:
     def makeport(self):
         '''Create a new socket and send a PORT command for it.'''
         sock = socket.create_server(("", 0), family=self.af, backlog=1)
-        port = sock.getsockname()[1] # Get proper port
-        host = self.sock.getsockname()[0] # Get proper host
+        port = sock.getsockname()[1]
+        host = self.sock.getsockname()[0]
         if self.af == socket.AF_INET:
             resp = self.sendport(host, port)
         else:
@@ -350,12 +323,6 @@ class FTP:
                 if rest is not None:
                     self.sendcmd("REST %s" % rest)
                 resp = self.sendcmd(cmd)
-                # Some servers apparently send a 200 reply to
-                # a LIST or STOR command, before the 150 reply
-                # (and way before the 226 reply). This seems to
-                # be in violation of the protocol (which only allows
-                # 1xx or error messages for LIST), so we just discard
-                # this response.
                 if resp[0] == '2':
                     resp = self.getresp()
                 if resp[0] != '1':
@@ -368,7 +335,6 @@ class FTP:
                 if rest is not None:
                     self.sendcmd("REST %s" % rest)
                 resp = self.sendcmd(cmd)
-                # See above.
                 if resp[0] == '2':
                     resp = self.getresp()
                 if resp[0] != '1':
@@ -377,7 +343,6 @@ class FTP:
                 if self.timeout is not _GLOBAL_DEFAULT_TIMEOUT:
                     conn.settimeout(self.timeout)
         if resp[:3] == '150':
-            # this is conditional in case we received a 125
             size = parse150(resp)
         return conn, size
 
@@ -394,13 +359,6 @@ class FTP:
         if not acct:
             acct = ''
         if user == 'anonymous' and passwd in {'', '-'}:
-            # If there is no anonymous ftp password specified
-            # then we'll just use anonymous@
-            # We don't send any other thing because:
-            # - We want to remain anonymous
-            # - We want to stop SPAM
-            # - We don't want to let ftp sites to discriminate by the user,
-            #   host or country.
             passwd = passwd + 'anonymous@'
         resp = self.sendcmd('USER ' + user)
         if resp[0] == '3':
@@ -432,7 +390,6 @@ class FTP:
                 if not data:
                     break
                 callback(data)
-            # shutdown ssl layer
             if _SSLSocket is not None and isinstance(conn, _SSLSocket):
                 conn.unwrap()
         return self.voidresp()
@@ -467,7 +424,6 @@ class FTP:
                 elif line[-1:] == '\n':
                     line = line[:-1]
                 callback(line)
-            # shutdown ssl layer
             if _SSLSocket is not None and isinstance(conn, _SSLSocket):
                 conn.unwrap()
         return self.voidresp()
@@ -496,7 +452,6 @@ class FTP:
                 conn.sendall(buf)
                 if callback:
                     callback(buf)
-            # shutdown ssl layer
             if _SSLSocket is not None and isinstance(conn, _SSLSocket):
                 conn.unwrap()
         return self.voidresp()
@@ -527,7 +482,6 @@ class FTP:
                 conn.sendall(buf)
                 if callback:
                     callback(buf)
-            # shutdown ssl layer
             if _SSLSocket is not None and isinstance(conn, _SSLSocket):
                 conn.unwrap()
         return self.voidresp()
@@ -613,13 +567,12 @@ class FTP:
                 if msg.args[0][:3] != '500':
                     raise
         elif dirname == '':
-            dirname = '.'  # does nothing, but could return error
+            dirname = '.'
         cmd = 'CWD ' + dirname
         return self.voidcmd(cmd)
 
     def size(self, filename):
         '''Retrieve the size of a file.'''
-        # The SIZE command is defined in RFC-3659
         resp = self.sendcmd('SIZE ' + filename)
         if resp[:3] == '213':
             s = resp[3:].strip()
@@ -628,8 +581,6 @@ class FTP:
     def mkd(self, dirname):
         '''Make a directory, return its full pathname.'''
         resp = self.voidcmd('MKD ' + dirname)
-        # fix around non-compliant implementations such as IIS shipped
-        # with Windows server 2003
         if not resp.startswith('257'):
             return ''
         return parse257(resp)
@@ -641,8 +592,6 @@ class FTP:
     def pwd(self):
         '''Return current working directory.'''
         resp = self.voidcmd('PWD')
-        # fix around non-compliant implementations such as IIS shipped
-        # with Windows server 2003
         if not resp.startswith('257'):
             return ''
         return parse257(resp)
@@ -760,15 +709,6 @@ else:
 
         def prot_p(self):
             '''Set up secure data connection.'''
-            # PROT defines whether or not the data channel is to be protected.
-            # Though RFC-2228 defines four possible protection levels,
-            # RFC-4217 only recommends two, Clear and Private.
-            # Clear (PROT C) means that no security is to be used on the
-            # data-channel, Private (PROT P) means that the data-channel
-            # should be protected by TLS.
-            # PBSZ command MUST still be issued, but must have a parameter of
-            # '0' to indicate that no buffering is taking place and the data
-            # connection should not be encapsulated.
             self.voidcmd('PBSZ 0')
             resp = self.voidcmd('PROT P')
             self._prot_p = True
@@ -780,7 +720,6 @@ else:
             self._prot_p = False
             return resp
 
-        # --- Overridden FTP methods
 
         def ntransfercmd(self, cmd, rest=None):
             conn, size = super().ntransfercmd(cmd, rest)
@@ -790,7 +729,6 @@ else:
             return conn, size
 
         def abort(self):
-            # overridden as we can't pass MSG_OOB flag to sendall()
             line = b'ABOR' + B_CRLF
             self.sock.sendall(line)
             resp = self.getmultiline()
@@ -853,7 +791,7 @@ def parse229(resp, peer):
     if left < 0: raise error_proto(resp)
     right = resp.find(')', left + 1)
     if right < 0:
-        raise error_proto(resp) # should contain '(|||port|)'
+        raise error_proto(resp)
     if resp[left + 1] != resp[right - 1]:
         raise error_proto(resp)
     parts = resp[left + 1:right].split(resp[left+1])
@@ -871,7 +809,7 @@ def parse257(resp):
     if resp[:3] != '257':
         raise error_reply(resp)
     if resp[3:5] != ' "':
-        return '' # Not compliant to RFC 959, but UNIX ftpd does this
+        return ''
     dirname = ''
     i = 5
     n = len(resp)
@@ -900,15 +838,12 @@ def ftpcp(source, sourcename, target, targetname = '', type = 'I'):
     target.voidcmd(type)
     sourcehost, sourceport = parse227(source.sendcmd('PASV'))
     target.sendport(sourcehost, sourceport)
-    # RFC 959: the user must "listen" [...] BEFORE sending the
-    # transfer request.
-    # So: STOR before RETR, because here the target is a "user".
     treply = target.sendcmd('STOR ' + targetname)
     if treply[:3] not in {'125', '150'}:
-        raise error_proto  # RFC 959
+        raise error_proto
     sreply = source.sendcmd('RETR ' + sourcename)
     if sreply[:3] not in {'125', '150'}:
-        raise error_proto  # RFC 959
+        raise error_proto
     source.voidresp()
     target.voidresp()
 
@@ -934,7 +869,6 @@ def test():
         debugging = debugging+1
         del sys.argv[1]
     if sys.argv[1][:2] == '-r':
-        # get name of alternate ~/.netrc file:
         rcfile = sys.argv[1][2:]
         del sys.argv[1]
     host = sys.argv[1]
@@ -951,7 +885,6 @@ def test():
         try:
             userid, acct, passwd = netrcobj.authenticators(host)
         except KeyError:
-            # no account for host
             sys.stderr.write(
                     "No account -- using anonymous login.")
     ftp.login(userid, passwd, acct)

@@ -1,10 +1,5 @@
 def set_property_value(self, name, value):
-    """
-    Sets the value of a property on the component.
 
-    This version includes a safelist of allowed property names
-    to prevent arbitrary attribute modification.
-    """
 
     allowed_properties = ["name", "message", "count", "items"]
 

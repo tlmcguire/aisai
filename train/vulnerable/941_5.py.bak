@@ -1,29 +1,3 @@
-#
-# The Python Imaging Library.
-# $Id$
-#
-# PIL raster font management
-#
-# History:
-# 1996-08-07 fl   created (experimental)
-# 1997-08-25 fl   minor adjustments to handle fonts from pilfont 0.3
-# 1999-02-06 fl   rewrote most font management stuff in C
-# 1999-03-17 fl   take pth files into account in load_path (from Richard Jones)
-# 2001-02-17 fl   added freetype support
-# 2001-05-09 fl   added TransposedFont wrapper class
-# 2002-03-04 fl   make sure we have a "L" or "1" font
-# 2002-12-04 fl   skip non-directory entries in the system path
-# 2003-04-29 fl   add embedded default font
-# 2003-09-27 fl   added support for truetype charmap encodings
-#
-# Todo:
-# Adapt to PILFONT2 format (16-bit fonts, compressed, single file)
-#
-# Copyright (c) 1997-2003 by Secret Labs AB
-# Copyright (c) 1996-2003 by Fredrik Lundh
-#
-# See the README file for information on usage and redistribution.
-#
 
 import base64
 import os
@@ -49,20 +23,7 @@ except ImportError as ex:
     core = DeferredError(ex)
 
 
-# FIXME: add support for pilfont2 format (see FontFile.py)
 
-# --------------------------------------------------------------------
-# Font metrics format:
-#       "PILfont" LF
-#       fontdescriptor LF
-#       (optional) key=value... LF
-#       "DATA" LF
-#       binary data: 256*10*2 bytes (dx, dy, dstbox, srcbox)
-#
-# To place a character, cut out srcbox and paste at dstbox,
-# relative to the character position.  Then move the character
-# position according to dx, dy.
-# --------------------------------------------------------------------
 
 
 class ImageFont:
@@ -94,22 +55,19 @@ class ImageFont:
             image.close()
 
     def _load_pilfont_data(self, file, image):
-        # read PILfont header
         if file.readline() != b"PILfont\n":
             msg = "Not a PILfont file"
             raise SyntaxError(msg)
         file.readline().split(b";")
-        self.info = []  # FIXME: should be a dictionary
+        self.info = []
         while True:
             s = file.readline()
             if not s or s == b"DATA\n":
                 break
             self.info.append(s)
 
-        # read PILfont metrics
         data = file.read(256 * 20)
 
-        # check image
         if image.mode not in ("1", "L"):
             msg = "invalid font image mode"
             raise TypeError(msg)
@@ -166,16 +124,12 @@ class ImageFont:
         return width
 
 
-##
-# Wrapper for FreeType fonts.  Application code should use the
-# <b>truetype</b> factory function to create font objects.
 
 
 class FreeTypeFont:
     """FreeType font wrapper (requires _imagingft service)"""
 
     def __init__(self, font=None, size=10, index=0, encoding="", layout_engine=None):
-        # FIXME: use service provider instead
 
         self.path = font
         self.size = size
@@ -207,8 +161,6 @@ class FreeTypeFont:
                 try:
                     font_bytes_path.decode("ascii")
                 except UnicodeDecodeError:
-                    # FreeType cannot load fonts with non-ASCII characters on Windows
-                    # So load it into memory first
                     with open(font, "rb") as f:
                         load_from_bytes(f)
                     return
@@ -613,9 +565,6 @@ class FreeTypeFont:
         index = names.index(name) + 1
 
         if index == getattr(self, "_last_variation_index", None):
-            # When the same name is set twice in a row,
-            # there is an 'unknown freetype error'
-            # https://savannah.nongnu.org/bugs/?56186
             return
         self._last_variation_index = index
 
@@ -662,7 +611,7 @@ class TransposedFont:
             Image.Transpose.ROTATE_270.
         """
         self.font = font
-        self.orientation = orientation  # any 'transpose' argument, or None
+        self.orientation = orientation
 
     def getmask(self, text, mode="", *args, **kwargs):
         im = self.font.getmask(text, mode, *args, **kwargs)
@@ -671,8 +620,6 @@ class TransposedFont:
         return im
 
     def getbbox(self, text, *args, **kwargs):
-        # TransposedFont doesn't support getmask2, move top-left point to (0, 0)
-        # this has no effect on ImageFont and simulates anchor="lt" for FreeTypeFont
         left, top, right, bottom = self.font.getbbox(text, *args, **kwargs)
         width = right - left
         height = bottom - top
@@ -773,17 +720,12 @@ def truetype(font=None, size=10, index=0, encoding="", layout_engine=None):
 
         dirs = []
         if sys.platform == "win32":
-            # check the windows font repository
-            # NOTE: must use uppercase WINDIR, to work around bugs in
-            # 1.5.2's os.environ.get()
             windir = os.environ.get("WINDIR")
             if windir:
                 dirs.append(os.path.join(windir, "fonts"))
         elif sys.platform in ("linux", "linux2"):
             lindirs = os.environ.get("XDG_DATA_DIRS")
             if not lindirs:
-                # According to the freedesktop spec, XDG_DATA_DIRS should
-                # default to /usr/share
                 lindirs = "/usr/share"
             dirs += [os.path.join(lindir, "fonts") for lindir in lindirs.split(":")]
         elif sys.platform == "darwin":
@@ -841,7 +783,6 @@ def load_default():
     """
     f = ImageFont()
     f._load_pilfont_data(
-        # courB08
         BytesIO(
             base64.b64decode(
                 b"""

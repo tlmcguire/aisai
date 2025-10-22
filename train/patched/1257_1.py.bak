@@ -22,17 +22,12 @@ def connect_to_db(host, user, password, database, allow_unsafe_options=False):
         'database': database,
     }
 
-    # CVE-2025-21548 mitigates against insecure handling of connection options
-    # by strictly filtering and validating them.  This is simulated by rejecting
-    # any additional options beyond a safe set if allow_unsafe_options is False.
     if not allow_unsafe_options:
-        
-        # Only allow these options
+
         safe_options = ['host', 'user', 'password', 'database']
-        
-        # filter out unsafe options from configuration object
+
         config = {key: value for key, value in config.items() if key in safe_options}
-            
+
 
     try:
         cnx = mysql.connector.connect(**config)
@@ -48,24 +43,12 @@ def connect_to_db(host, user, password, database, allow_unsafe_options=False):
 
 
 if __name__ == '__main__':
-    # Example usage (replace with your actual credentials)
     host = "your_mysql_host"
     user = "your_mysql_user"
     password = "your_mysql_password"
     database = "your_mysql_database"
-    
-    # Vulnerable Example Usage (removed to mitigate potential exploitation.)
-    # This vulnerability allows malicious users to inject arbitrary connection options
-    # that the user is not aware of, resulting in potentially dangerous server operations.
-    # For example an attacker could inject ssl certs, or set an option which would cause a denial of service.
-    #
-    # malicious_options = {
-    #     'option_name1': 'evil_value1',
-    #     'option_name2': 'evil_value2',
-    #    }
-    #cnx_vulnerable = connect_to_db(host, user, password, database, **malicious_options)
-    
-    # Fixed Example Usage
+
+
     cnx_fixed = connect_to_db(host, user, password, database)
 
     if cnx_fixed:

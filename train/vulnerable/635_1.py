@@ -12,17 +12,12 @@ SECRET_KEY = secrets.token_urlsafe(32)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SECRET_KEY'] = SECRET_KEY
 
-
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def is_safe_pickle(data):
-    """
-    This is a placeholder for a real safety check.
-    In a production environment, you should use a more robust method, 
-    such as restricting unpickling to allowed classes or using a safer serialization method.
-    """
+
     try:
         if isinstance(data, (dict, list, str, int, float, tuple)):
             return True
@@ -67,7 +62,6 @@ def upload_backup():
             return f"Error loading pickle file: {e}", 500
     else:
          return 'Invalid file format', 400
-
 
 if __name__ == '__main__':
     app.run(debug=True)

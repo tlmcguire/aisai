@@ -50,7 +50,7 @@ class Hashing():
             salts.append(str(data).split("'")[1])
             salts.append(str(hashlib.sha256(salt).digest()).split("'")[1])
             return base64.standard_b64encode(bytes((str(base64.urlsafe_b64encode(bytes(''.join(salts).encode()))).split("'")[1]+str(base64.urlsafe_b64encode(base64.standard_b64encode((bytes(''.join(salts).encode()))))).split("'")[1]).encode()))
-        
+
     def SHA256(self,data:str):
         sha = hashlib.sha256(bytes(data.encode()))
         hash = sha.digest()
@@ -80,4 +80,3 @@ class Hashing():
         a = hashes.Hash(hashes.BLAKE2s(32))
         a.update(data)
         return self.__Salt(a.finalize(),salt=self.salt)
-        

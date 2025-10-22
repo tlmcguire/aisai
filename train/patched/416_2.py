@@ -1083,7 +1083,7 @@ class TestJit(JitTestCase):
 
     @unittest.skip("Need to be adjusted to Graph Executor")
     def test_arg_configurations(self):
-        """Different arg configurations should trigger different traces"""
+
         x = Variable(torch.FloatTensor(4, 4).uniform_())
         x_double = Variable(x.data.double())
         x_grad = Variable(x.data.clone(), requires_grad=True)
@@ -2902,10 +2902,7 @@ class TestScript(JitTestCase):
         FileCheck().check("interpolate").run(foo.code)
 
     def test_inlined_graph(self):
-        """
-        Check that the `inlined_graph` property correctly returns an inlined
-        graph, both through function calls and method calls.
-        """
+
         @torch.jit.script
         def foo(x):
             return torch.add(x, x)
@@ -2934,9 +2931,7 @@ class TestScript(JitTestCase):
             .run(m.inlined_graph)
 
     def test_static_method_on_module(self):
-        """
-        Check that the `@staticmethod` annotation on a function on a module works.
-        """
+
         class MyCell(torch.nn.Module):
             def __init__(self):
                 super(MyCell, self).__init__()
@@ -2958,10 +2953,7 @@ class TestScript(JitTestCase):
         self.assertEqual(jitted_cell, non_jitted_cell)
 
     def test_code_with_constants(self):
-        """
-        Check that the `code_with_constants` property correctly returns graph CONSTANTS in the
-        CONSTANTS.cN format used in the output of the `code` property.
-        """
+
         @torch.jit.script
         def foo(x=torch.ones(1)):
             return x
@@ -2980,9 +2972,7 @@ class TestScript(JitTestCase):
         self.assertEqual(src, m.code)
 
     def test_code_with_constants_restore(self):
-        """
-        Check that the `code_with_constants` property correctly works on restoration after save() + load()
-        """
+
         @torch.jit.script
         def foo(x=torch.ones(1)):
             return x
@@ -4388,9 +4378,7 @@ def foo(xyz):
                 self.assertNotEqual(source_range, source_range2)
 
     def test_circular_dependency(self):
-        """
-        https://github.com/pytorch/pytorch/issues/25871
-        """
+
         class A(torch.jit.ScriptModule):
             def __init__(self):
                 super(A, self).__init__()
@@ -7778,7 +7766,7 @@ dedent """
     def test_script_docstring(self):
         @torch.jit.script
         def with_docstring(x):
-            """test str"""
+
             y = x
 
             return y
@@ -7788,7 +7776,7 @@ dedent """
         class A(torch.jit.ScriptModule):
             @torch.jit.script_method
             def with_docstring(self, x):
-                """test str"""
+
                 y = x
 
                 return y
@@ -9833,9 +9821,7 @@ dedent """
             ModuleDefault()
 
     def test_type_inferred_from_empty_annotation(self):
-        """
-        Test that the type inferred from an empty or missing annotation is Torch.Tensor wtih `inferred=true`
-        """
+
         @torch.jit.script
         def fn(x):
             return x
@@ -10367,20 +10353,7 @@ dedent """
         self.assertEqual(modelB(), 9)
 
     def test_addmm_grad(self):
-        """ This test checks several things:
-            1. An expand node was inserted before the addmm operating on the
-               bias term.
-            2. The fused form of addmm appears in the ultimate graph that's
-               executed.
-            3. A sum op was emitted for accumulating gradients along the 0th
-               (expanded) dimension of the bias term.
-            4. The correct symbolic representation for the backward pass of the
-               mm operator was emitted (x.t() -> mm)
 
-            TODO: we should actually check these conditions once we have a way
-            to dump the GraphExecutor state. Namely the processed forward graph
-            and the backward graph.
-        """
         @torch.jit.script
         def addmm_grad_test(b, x, w):
             return torch.addmm(b, x, w)
@@ -15061,10 +15034,7 @@ dedent """
             torch.jit.script(another_fn)
 
     def test_inferred_error_msg(self):
-        """
-        Test that when we get a type mismatch on a function where we inferred
-        the type to be tensor, a good error message is given.
-        """
+
         @torch.jit.script
         def foo(a):
             return a
@@ -15373,7 +15343,7 @@ def add_nn_module_test(*args, **kwargs):
             constructor_args = kwargs.get('constructor_args', ())
 
         def create_script_module(*args, **kwargs):
-            """Construct a script module that passes arguments through to self.submodule"""
+
             formals, tensors, actuals = get_script_args(args)
 
             method_args = ', '.join(['self'] + actuals)

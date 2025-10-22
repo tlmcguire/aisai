@@ -3,9 +3,7 @@ import pandas as pd
 from snowflake.connector.pandas_tools import write_pandas
 
 def vulnerable_write_to_snowflake(conn, table_name, df):
-    """
-    This function is vulnerable to SQL injection.
-    """
+
     escaped_table_name = table_name
 
     success, nchunks, nrows, _ = write_pandas(conn,
@@ -14,7 +12,6 @@ def vulnerable_write_to_snowflake(conn, table_name, df):
             auto_create_table=True,
             table_type=None,
             overwrite=False)
-
 
 if __name__ == '__main__':
     conn = snowflake.connector.connect(

@@ -1,12 +1,5 @@
 def safe_mcopy(src, dest, max_length):
-    """
-    Safely copy a string from src to dest with a maximum length restriction.
-    
-    Args:
-        src (str): The source string to copy from.
-        dest (list): The destination list to copy to (simulating a buffer).
-        max_length (int): The maximum allowed length to copy.
-    """
+
     if not isinstance(src, str):
         raise ValueError("Source must be a string.")
 

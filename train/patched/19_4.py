@@ -12,7 +12,6 @@ import pytest
 import setuptools.package_index
 from .textwrap import DALS
 
-
 class TestPackageIndex:
     def test_regex(self):
         hash_url = 'http://other_url?:action=show_md5&amp;'
@@ -66,9 +65,7 @@ class TestPackageIndex:
             raise AssertionError('Should have raise here!')
 
     def test_bad_url_double_scheme(self):
-        """
-        A bad URL with a double scheme should raise a DistutilsError.
-        """
+
         index = setuptools.package_index.PackageIndex(hosts=('www.example.com',))
 
         url = 'http://http://svn.pythonpaste.org/Paste/wphp/trunk'
@@ -117,18 +114,14 @@ class TestPackageIndex:
         assert actual == expected
 
     def test__vcs_split_rev_from_url(self):
-        """
-        Test the basic usage of _vcs_split_rev_from_url
-        """
+
         vsrfu = setuptools.package_index.PackageIndex._vcs_split_rev_from_url
         url, rev = vsrfu('https://example.com/bar@2995')
         assert url == 'https://example.com/bar'
         assert rev == '2995'
 
     def test_local_index(self, tmpdir):
-        """
-        local_open should be able to read an index from the file system.
-        """
+
         index_file = tmpdir / 'index.html'
         with index_file.open('w') as f:
             f.write('<div>content</div>')
@@ -137,9 +130,7 @@ class TestPackageIndex:
         assert 'content' in res.read()
 
     def test_egg_fragment(self):
-        """
-        EGG fragments must comply to PEP 440
-        """
+
         epoch = [
             '',
             '1!',
@@ -232,7 +223,6 @@ class TestPackageIndex:
         ).format(**locals())
         os_system_mock.assert_called_once_with(expected)
 
-
 class TestContentCheckers:
     def test_md5(self):
         checker = setuptools.package_index.HashChecker.from_url(
@@ -243,7 +233,7 @@ class TestContentCheckers:
         assert checker.is_valid()
 
     def test_other_fragment(self):
-        "Content checks should succeed silently if no hash is present"
+
         checker = setuptools.package_index.HashChecker.from_url(
             'http://foo/bar#something%20completely%20different'
         )
@@ -251,7 +241,7 @@ class TestContentCheckers:
         assert checker.is_valid()
 
     def test_blank_md5(self):
-        "Content checks should succeed if a hash is empty"
+
         checker = setuptools.package_index.HashChecker.from_url('http://foo/bar#md5=')
         checker.feed('anything'.encode('ascii'))
         assert checker.is_valid()
@@ -269,7 +259,6 @@ class TestContentCheckers:
         rep = checker.report(lambda x: x, 'My message about %s')
         assert rep == 'My message about md5'
 
-
 @pytest.fixture
 def temp_home(tmpdir, monkeypatch):
     key = (
@@ -280,7 +269,6 @@ def temp_home(tmpdir, monkeypatch):
 
     monkeypatch.setitem(os.environ, key, str(tmpdir))
     return tmpdir
-
 
 class TestPyPIConfig:
     def test_percent_in_password(self, temp_home):
@@ -300,10 +288,7 @@ class TestPyPIConfig:
         assert cred.username == 'jaraco'
         assert cred.password == 'pity%'
 
-
 @pytest.mark.timeout(1)
 def test_REL_DoS():
-    """
-    REL should not hang on a contrived attack string.
-    """
+
     setuptools.package_index.REL.search('< rel=' + ' ' * 2**12)

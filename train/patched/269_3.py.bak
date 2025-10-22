@@ -1,22 +1,3 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (C) 2008-2012  Red Hat, Inc.
-# Copyright (C) 2008  Ricky Zhou
-# This file is part of python-fedora
-#
-# python-fedora is free software; you can redistribute it and/or
-# modify it under the terms of the GNU Lesser General Public
-# License as published by the Free Software Foundation; either
-# version 2.1 of the License, or (at your option) any later version.
-#
-# python-fedora is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public
-# License along with python-fedora; if not, see <http://www.gnu.org/licenses/>
-#
 '''
 Miscellaneous functions of use on a TurboGears Server
 
@@ -49,7 +30,6 @@ import six
 from six.moves.urllib.parse import urlencode, urlparse, urlunparse
 
 
-# Save this for people who need the original url() function
 tg_url = turbogears.url
 
 
@@ -82,9 +62,6 @@ def url(tgpath, tgparams=None, **kwargs):
     if not isinstance(tgpath, six.string_types):
         tgpath = '/'.join(list(tgpath))
     if not tgpath.startswith('/'):
-        # Do not allow the url() function to be used for external urls.
-        # This function is primarily used in redirect() calls, so this prevents
-        # covert redirects and thus CSRF leaking.
         return '/'
     if tgpath.startswith('/'):
         webpath = (config.get('server.webpath') or '').rstrip('/')
@@ -93,9 +70,7 @@ def url(tgpath, tgparams=None, **kwargs):
             tgpath = request.app_root + tgpath
             try:
                 webpath += request.wsgi_environ['SCRIPT_NAME'].rstrip('/')
-            except (AttributeError, KeyError):  # pylint: disable-msg=W0704
-                # :W0704: Lack of wsgi environ is fine... we still have
-                # server.webpath
+            except (AttributeError, KeyError):
                 pass
         tgpath = webpath + tgpath
     if tgparams is None:
@@ -108,16 +83,12 @@ def url(tgpath, tgparams=None, **kwargs):
             raise TypeError(
                 'url() expects a dictionary for query parameters')
     args = []
-    # Add the _csrf_token
     try:
         if identity.current.csrf_token:
             tgparams.update({'_csrf_token': identity.current.csrf_token})
-    except RequestRequiredException:  # pylint: disable-msg=W0704
-        # :W0704: If we are outside of a request (called from non-controller
-        # methods/ templates) just don't set the _csrf_token.
+    except RequestRequiredException:
         pass
 
-    # Check for query params in the current url
     query_params = six.iteritems(tgparams)
     scheme, netloc, path, params, query_s, fragment = urlparse(tgpath)
     if query_s:
@@ -142,7 +113,6 @@ def url(tgpath, tgparams=None, **kwargs):
     return tgpath
 
 
-# this is taken from turbogears 1.1 branch
 def _get_server_name():
     """Return name of the server this application runs on.
 
@@ -163,7 +133,6 @@ def _get_server_name():
     return host
 
 
-# this is taken from turbogears 1.1 branch
 def tg_absolute_url(tgpath='/', params=None, **kw):
     """Return absolute URL (including schema and host to this server).
 
@@ -257,19 +226,14 @@ def enable_csrf():
     .. versionadded:: 0.3.10
        Added to enable :ref:`CSRF-Protection`
     '''
-    # Override the turbogears.url function with our own
-    # Note, this also changes turbogears.absolute_url since that calls
-    # turbogears.url
     turbogears.url = url
     turbogears.controllers.url = url
 
-    # Ignore the _csrf_token parameter
     ignore = config.get('tg.ignore_parameters', [])
     if '_csrf_token' not in ignore:
         ignore.append('_csrf_token')
         config.update({'tg.ignore_parameters': ignore})
 
-    # Add a function to the template tg stdvars that looks up a template.
     turbogears.view.variable_providers.append(add_custom_stdvars)
 
 
@@ -291,10 +255,6 @@ def request_format():
     '''
     output_format = cherrypy.request.params.get('tg_format', '').lower()
     if not output_format:
-        ### TODO: Two problems with this:
-        # 1) TG lets this be extended via as_format and accept_format.  We need
-        #    tie into that as well somehow.
-        # 2) Decide whether to standardize on "json" or "application/json"
         accept = tg_util.simplify_http_accept_header(
             request.headers.get('Accept', 'default').lower())
         if accept in ('text/javascript', 'application/json'):
@@ -344,12 +304,10 @@ def jsonify_validation_errors():
         return from the controller.  The error message is set in tg_flash
         whether :term:`JSON` was requested or not.
     '''
-    # Check for validation errors
     errors = getattr(cherrypy.request, 'validation_errors', None)
     if not errors:
         return None
 
-    # Set the message for both html and json output
     message = u'\n'.join([u'%s: %s' % (param, msg) for param, msg in
                           errors.items()])
     format = request_format()
@@ -357,10 +315,7 @@ def jsonify_validation_errors():
         message = message.replace('\n', '<br />\n')
     flash(message)
 
-    # If json, return additional information to make this an exception
     if format == 'json':
-        # Note: explicit setting of tg_template is needed in TG < 1.0.4.4
-        # A fix has been applied for TG-1.0.4.5
         return dict(exc='Invalid', tg_template='json')
     return None
 
@@ -423,8 +378,6 @@ def fedora_template(template, template_type='genshi'):
         Defaults to 'genshi'
     :returns: filesystem path to the template
     '''
-    # :E1101: pkg_resources does have resource_filename
-    # pylint: disable-msg=E1101
     return pkg_resources.resource_filename(
         'fedora', os.path.join('tg',
                                'templates', template_type, template))

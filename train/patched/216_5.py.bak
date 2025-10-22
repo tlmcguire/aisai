@@ -118,7 +118,7 @@ def test_defaults_tests_test_defaults_post(
     json_date_prop = date_prop.isoformat() if date_prop else None
 
     json_list_prop = [list_prop_item.value for list_prop_item in list_prop] if list_prop else None
-    
+
 
     if union_prop is None:
         json_union_prop: Optional[Union[Optional[float], Optional[str]]] = None

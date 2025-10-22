@@ -376,8 +376,6 @@ class TestDeleteSaaSConfig:
         api_client: TestClient,
         generate_auth_header,
     ) -> None:
-        # Create a new connection config so we don't run into issues trying to clean up an
-        # already deleted fixture
         fides_key = "saas_config_for_deletion_test"
         saas_example_config["fides_key"] = fides_key
         config_to_delete = ConnectionConfig.create(
@@ -784,7 +782,7 @@ class TestRegisterConnectorTemplate:
     )
     @mock.patch(
         "fides.api.service.connectors.saas.connector_registry_service.register_custom_functions"
-    )  # prevent functions from being registered to avoid test conflicts
+    )
     def test_register_connector_template_allow_custom_connector_functions(
         self,
         mock_register_custom_functions: MagicMock,

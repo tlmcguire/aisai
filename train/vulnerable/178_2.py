@@ -1,4 +1,4 @@
-"""Encryption module that uses pycryptopp or pycrypto"""
+
 try:
     from pycryptopp.cipher import aes
 

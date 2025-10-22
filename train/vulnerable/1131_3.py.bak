@@ -13,109 +13,49 @@ from ansys.geometry.core.logger import LOG
 if TYPE_CHECKING:
     from ansys.geometry.core.modeler import Modeler
 
-
 WINDOWS_GEOMETRY_SERVICE_FOLDER = "GeometryService"
-"""Default Geometry Service's folder name into the unified installer."""
 
 DISCOVERY_FOLDER = "Discovery"
-"""Default Discovery's folder name into the unified installer."""
 
 SPACECLAIM_FOLDER = "scdm"
-"""Default SpaceClaim's folder name into the unified installer."""
 
 ADDINS_SUBFOLDER = "Addins"
-"""Default global Addins's folder name into the unified installer."""
 
 BACKEND_SUBFOLDER = "ApiServer"
-"""Default backend's folder name into the ``ADDINS_SUBFOLDER`` folder."""
 
 MANIFEST_FILENAME = "Presentation.ApiServerAddIn.Manifest.xml"
-"""
-Default backend's addin filename.
-
-To be used only for local start of Ansys Discovery or Ansys SpaceClaim.
-"""
 
 GEOMETRY_SERVICE_EXE = "Presentation.ApiServerDMS.exe"
-"""The Windows Geometry Service's filename."""
 
 DISCOVERY_EXE = "Discovery.exe"
-"""The Ansys Discovery's filename."""
 
 SPACECLAIM_EXE = "SpaceClaim.exe"
-"""The Ansys SpaceClaim's filename."""
 
 BACKEND_LOG_LEVEL_VARIABLE = "LOG_LEVEL"
-"""The backend's log level environment variable for local start."""
 
 BACKEND_TRACE_VARIABLE = "ENABLE_TRACE"
-"""The backend's enable trace environment variable for local start."""
 
 BACKEND_HOST_VARIABLE = "API_ADDRESS"
-"""The backend's ip address environment variable for local start."""
 
 BACKEND_PORT_VARIABLE = "API_PORT"
-"""The backend's port number environment variable for local start."""
 
 BACKEND_LOGS_FOLDER_VARIABLE = "ANS_DSCO_REMOTE_LOGS_FOLDER"
-"""The backend's logs folder path to be used."""
 
 BACKEND_API_VERSION_VARIABLE = "API_VERSION"
-"""
-The backend's api version environment variable for local start.
-
-To be used only with Ansys Discovery and Ansys SpaceClaim.
-"""
 
 BACKEND_SPACECLAIM_OPTIONS = "--spaceclaim-options"
-"""
-The additional argument for local Ansys Discovery start.
-
-To be used only with Ansys Discovery.
-"""
 
 BACKEND_ADDIN_MANIFEST_ARGUMENT = "/ADDINMANIFESTFILE="
-"""
-The argument to specify the backend's addin manifest file's path.
-
-To be used only with Ansys Discovery and Ansys SpaceClaim.
-"""
 
 BACKEND_SPACECLAIM_HIDDEN = "/Headless=True"
-"""
-The argument to hide SpaceClaim's UI on the backend.
-
-To be used only with Ansys SpaceClaim.
-"""
 
 BACKEND_SPACECLAIM_HIDDEN_ENVVAR_KEY = "SPACECLAIM_MODE"
-"""
-SpaceClaim hidden backend's environment variable key.
-
-To be used only with Ansys SpaceClaim.
-"""
 
 BACKEND_SPACECLAIM_HIDDEN_ENVVAR_VALUE = "2"
-"""
-SpaceClaim hidden backend's environment variable value.
-
-To be used only with Ansys SpaceClaim.
-"""
 
 BACKEND_DISCOVERY_HIDDEN = "--hidden"
-"""
-The argument to hide Discovery's UI on the backend.
-
-To be used only with Ansys Discovery.
-"""
 
 BACKEND_SPLASH_OFF = "/Splash=False"
-"""
-The argument to specify the backend's addin manifest file's path.
-
-To be used only with Ansys Discovery and Ansys SpaceClaim.
-"""
-
 
 class ProductInstance:
     """
@@ -144,7 +84,6 @@ class ProductInstance:
             return False
 
         return True
-
 
 def prepare_and_start_backend(
     backend_type: BackendType,
@@ -289,7 +228,6 @@ def prepare_and_start_backend(
         host=host, port=port, timeout=timeout, product_instance=instance, backend_type=backend_type
     )
 
-
 def get_available_port() -> int:
     """
     Return an available port to be used.
@@ -304,7 +242,6 @@ def get_available_port() -> int:
     port = sock.getsockname()[1]
     sock.close()
     return port
-
 
 def _wait_for_backend(host: str, port: int, timeout: int):
     """
@@ -333,7 +270,6 @@ def _wait_for_backend(host: str, port: int, timeout: int):
 
     raise ConnectionError("Timeout while waiting for backend to be ready.")
 
-
 def _is_port_available(port: int, host: str = "localhost") -> bool:
     """
     Check whether the argument port is available or not.
@@ -348,7 +284,6 @@ def _is_port_available(port: int, host: str = "localhost") -> bool:
                 return True
             except:
                 return False
-
 
 def _manifest_path_provider(
     version: int, available_installations: Dict, manifest_path: str = None
@@ -377,7 +312,6 @@ def _manifest_path_provider(
         LOG.error(msg)
         raise RuntimeError(msg)
 
-
 def _start_program(args: List[str], local_env: Dict[str, str]) -> subprocess.Popen:
     """
     Start the program where the path is the first item of the ``args`` array argument.
@@ -403,7 +337,6 @@ def _start_program(args: List[str], local_env: Dict[str, str]) -> subprocess.Pop
         env=local_env,
     )
 
-
 def _check_minimal_versions(latest_installed_version: int) -> None:
     """
     Check client is compatible with Ansys Products starting from 2023.2.1 version.
@@ -417,7 +350,6 @@ def _check_minimal_versions(latest_installed_version: int) -> None:
         )
         raise SystemError(msg)
 
-
 def _check_version_is_available(version: int, installations: Dict[int, str]) -> None:
     """Check that the requested version for launcher is installed on the system."""
     if version not in installations:
@@ -426,7 +358,6 @@ def _check_version_is_available(version: int, installations: Dict[int, str]) -> 
             + "please specify a different version."
         )
         raise SystemError(msg)
-
 
 def _check_port_or_get_one(port: int) -> int:
     """
@@ -444,7 +375,6 @@ def _check_port_or_get_one(port: int) -> int:
             raise ConnectionError(msg)
     else:
         return get_available_port()
-
 
 def _get_common_env(
     host: str,

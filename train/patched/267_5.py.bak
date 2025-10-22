@@ -76,7 +76,6 @@ def test_solid_mem(tmp_path):
 
 @pytest.mark.files
 def test_empty():
-    # decompress empty archive
     with open(testdata_path.joinpath("empty.7z"), mode="rb") as fp:
         archive = py7zr.SevenZipFile(fp)
         assert archive.getnames() == []
@@ -119,25 +118,21 @@ def _test_umlaut_archive(filename: str, target: pathlib.Path, return_dict: bool)
 
 @pytest.mark.files
 def test_non_solid_umlaut(tmp_path):
-    # test loading of a non-solid archive containing files with umlauts
     _test_umlaut_archive("umlaut-non_solid.7z", tmp_path, False)
 
 
 @pytest.mark.files
 def test_non_solid_umlaut_mem(tmp_path):
-    # test loading of a non-solid archive containing files with umlauts
     _test_umlaut_archive("umlaut-non_solid.7z", tmp_path, True)
 
 
 @pytest.mark.files
 def test_solid_umlaut(tmp_path):
-    # test loading of a solid archive containing files with umlauts
     _test_umlaut_archive("umlaut-solid.7z", tmp_path, False)
 
 
 @pytest.mark.files
 def test_solid_umlaut_mem(tmp_path):
-    # test loading of a solid archive containing files with umlauts
     _test_umlaut_archive("umlaut-solid.7z", tmp_path, True)
 
 
@@ -472,7 +467,7 @@ def test_extract_symlink_with_relative_target_path(tmp_path):
     with open(testdata_path.joinpath("symlink.7z"), mode="rb") as fp:
         archive = py7zr.SevenZipFile(fp)
         os.chdir(str(tmp_path))
-        os.makedirs(str(tmp_path.joinpath("target")))  # py35 need str() against pathlib.Path
+        os.makedirs(str(tmp_path.joinpath("target")))
         archive.extractall(path="target")
         assert os.readlink(str(tmp_path.joinpath("target/lib/libabc.so.1.2"))) == "libabc.so.1.2.3"
         archive.close()
@@ -502,7 +497,7 @@ def test_extract_longpath_file(tmp_path):
 )
 def test_extract_symlink_overwrite(tmp_path):
     os.chdir(str(tmp_path))
-    os.makedirs(str(tmp_path.joinpath("target")))  # py35 need str() against pathlib.Path
+    os.makedirs(str(tmp_path.joinpath("target")))
     with open(testdata_path.joinpath("symlink.7z"), mode="rb") as fp:
         with py7zr.SevenZipFile(fp) as archive:
             archive.extractall(path="target")
@@ -540,7 +535,6 @@ def test_decompress_small_files(tmp_path):
     if result.returncode != 0:
         print(result.stdout)
         pytest.fail("7z command report error")
-    #
     with py7zr.SevenZipFile(tmp_path / "target.7z", "r") as arc:
         arc.testzip()
 

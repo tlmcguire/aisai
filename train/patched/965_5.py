@@ -36,7 +36,6 @@ from nautobot.extras.registry import registry
 from nautobot.extras.forms import GraphQLQueryForm
 from django.utils.safestring import mark_safe
 
-
 class HomeView(AccessMixin, TemplateView):
     template_name = "home.html"
     use_new_ui = True
@@ -54,7 +53,6 @@ class HomeView(AccessMixin, TemplateView):
 
         with open(path, "r", encoding="utf-8") as f:
             html = f.read()
-
 
         template = loader.get_template_from_string(html)
 
@@ -107,7 +105,6 @@ class HomeView(AccessMixin, TemplateView):
                                 )
 
         return self.render_to_response(context)
-
 
 class SearchView(AccessMixin, View):
     def get(self, request):
@@ -169,15 +166,11 @@ class SearchView(AccessMixin, View):
             },
         )
 
-
 class StaticMediaFailureView(View):
-    """
-    Display a user-friendly error message with troubleshooting tips when a static media file fails to load.
-    """
+
 
     def get(self, request):
         return render(request, "media_failure.html", {"filename": request.GET.get("filename")})
-
 
 def resource_not_found(request, exception):
     if request.path.startswith("/api/"):
@@ -185,12 +178,9 @@ def resource_not_found(request, exception):
     else:
         return page_not_found(request, exception, "404.html")
 
-
 @requires_csrf_token
 def server_error(request, template_name=ERROR_500_TEMPLATE_NAME):
-    """
-    Custom 500 handler to provide additional context when rendering 500.html.
-    """
+
     try:
         template = loader.get_template(template_name)
     except TemplateDoesNotExist:
@@ -205,14 +195,8 @@ def server_error(request, template_name=ERROR_500_TEMPLATE_NAME):
 
     return HttpResponseServerError(template.render(context, request))
 
-
 def csrf_failure(request, reason="", template_name="403_csrf_failure.html"):
-    """Custom 403 CSRF failure handler to account for additional context.
 
-    If Nautobot is set to DEBUG the default view for csrf_failure.
-    `403_csrf_failure.html` template name is used over `403_csrf.html` to account for
-    additional context that is required to render the inherited templates.
-    """
     if settings.DEBUG:
         return _csrf_failure(request, reason=reason)
     t = loader.get_template(template_name)
@@ -223,7 +207,6 @@ def csrf_failure(request, reason="", template_name="403_csrf_failure.html"):
         "python_version": platform.python_version(),
     }
     return HttpResponseForbidden(t.render(context), content_type="text/html")
-
 
 class CustomGraphQLView(GraphQLView):
     def render_graphiql(self, request, **data):
@@ -239,14 +222,11 @@ class CustomGraphQLView(GraphQLView):
         data["form"] = GraphQLQueryForm
         return render(request, self.graphiql_template, data)
 
-
 class NautobotAppMetricsCollector(Collector):
-    """Custom Nautobot metrics collector.
 
-    Metric collector that reads from registry["plugin_metrics"] and yields any metrics registered there."""
 
     def collect(self):
-        """Collect metrics from plugins."""
+
         start = time.time()
         for metric_generator in registry["app_metrics"]:
             yield from metric_generator()
@@ -255,14 +235,8 @@ class NautobotAppMetricsCollector(Collector):
         gauge.add_metric([], format(duration * 1000, ".5f"))
         yield gauge
 
-
 def nautobot_metrics_view(request):
-    """Exports /metrics.
 
-    This overwrites the default django_prometheus view to inject metrics from Nautobot apps.
-
-    Note that we cannot use `prometheus_django.ExportToDjangoView`, as that is a simple function, and we need access to
-    the `prometheus_registry` variable that is defined inside of it."""
     if "PROMETHEUS_MULTIPROC_DIR" in os.environ or "prometheus_multiproc_dir" in os.environ:
         prometheus_registry = prometheus_client.CollectorRegistry()
         multiprocess.MultiProcessCollector(prometheus_registry)
@@ -276,10 +250,9 @@ def nautobot_metrics_view(request):
     metrics_page = prometheus_client.generate_latest(prometheus_registry)
     return HttpResponse(metrics_page, content_type=prometheus_client.CONTENT_TYPE_LATEST)
 
-
 @permission_required(get_permission_for_model(FileProxy, "view"), raise_exception=True)
 def get_file_with_authorization(request, *args, **kwargs):
-    """Patch db_file_storage view with authentication."""
+
     queryset = FileProxy.objects.restrict(request.user, "view")
     get_object_or_404(queryset, file=request.GET.get("name"))
 

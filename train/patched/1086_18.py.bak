@@ -1,4 +1,3 @@
-# Autodetecting setup.py script for building the Python extensions
 
 import argparse
 import importlib._bootstrap
@@ -18,13 +17,6 @@ try:
     del subprocess
     SUBPROCESS_BOOTSTRAP = False
 except ImportError:
-    # Bootstrap Python: distutils.spawn uses subprocess to build C extensions,
-    # subprocess requires C extensions built by setup.py like _posixsubprocess.
-    #
-    # Use _bootsubprocess which only uses the os module.
-    #
-    # It is dropped from sys.modules as soon as all C extension modules
-    # are built.
     import _bootsubprocess
     sys.modules['subprocess'] = _bootsubprocess
     del _bootsubprocess
@@ -32,7 +24,6 @@ except ImportError:
 
 
 with warnings.catch_warnings():
-    # bpo-41282 (PEP 632) deprecated distutils but setup.py still uses it
     warnings.filterwarnings("ignore", "The distutils package is deprecated",
                             DeprecationWarning)
 
@@ -46,22 +37,17 @@ with warnings.catch_warnings():
     from distutils.spawn import find_executable
 
 
-# Compile extensions used to test Python?
 TEST_EXTENSIONS = (sysconfig.get_config_var('TEST_MODULES') == 'yes')
 
-# This global variable is used to hold the list of modules to be disabled.
 DISABLED_MODULE_LIST = []
 
-# --list-module-names option used by Tools/scripts/generate_module_names.py
 LIST_MODULE_NAMES = False
 
 
 def get_platform():
-    # Cross compiling
     if "_PYTHON_HOST_PLATFORM" in os.environ:
         return os.environ["_PYTHON_HOST_PLATFORM"]
 
-    # Get value of sys.platform
     if sys.platform.startswith('osf1'):
         return 'osf1'
     return sys.platform
@@ -110,9 +96,6 @@ def run_command(cmd):
     return os.waitstatus_to_exitcode(status)
 
 
-# Set common compiler and linker flags derived from the Makefile,
-# reserved for building the interpreter and the stdlib modules.
-# See bpo-21121 and bpo-35257
 def set_compiler_flags(compiler_flags, compiler_py_flags_nodist):
     flags = sysconfig.get_config_var(compiler_flags)
     py_flags_nodist = sysconfig.get_config_var(compiler_py_flags_nodist)
@@ -178,7 +161,6 @@ def macosx_sdk_root():
     """
     global MACOS_SDK_ROOT, MACOS_SDK_SPECIFIED
 
-    # If already called, return cached result.
     if MACOS_SDK_ROOT:
         return MACOS_SDK_ROOT
 
@@ -208,11 +190,9 @@ def macosx_sdk_specified():
     """
     global MACOS_SDK_SPECIFIED
 
-    # If already called, return cached result.
     if MACOS_SDK_SPECIFIED:
         return MACOS_SDK_SPECIFIED
 
-    # Find the sdk root and set MACOS_SDK_SPECIFIED
     macosx_sdk_root()
     return MACOS_SDK_SPECIFIED
 
@@ -248,12 +228,8 @@ def find_file(filename, std_dirs, paths):
         found in one of them, the resulting list will contain the directory.
     """
     if MACOS:
-        # Honor the MacOSX SDK setting when one was specified.
-        # An SDK is a directory with the same structure as a real
-        # system, but with only header files and libraries.
         sysroot = macosx_sdk_root()
 
-    # Check the standard locations
     for dir in std_dirs:
         f = os.path.join(dir, filename)
 
@@ -262,7 +238,6 @@ def find_file(filename, std_dirs, paths):
 
         if os.path.exists(f): return []
 
-    # Check the additional directories
     for dir in paths:
         f = os.path.join(dir, filename)
 
@@ -272,7 +247,6 @@ def find_file(filename, std_dirs, paths):
         if os.path.exists(f):
             return [dir]
 
-    # Not found anywhere
     return None
 
 
@@ -284,39 +258,18 @@ def find_library_file(compiler, libname, std_dirs, paths):
     if MACOS:
         sysroot = macosx_sdk_root()
 
-    # Check whether the found file is in one of the standard directories
     dirname = os.path.dirname(result)
     for p in std_dirs:
-        # Ensure path doesn't end with path separator
         p = p.rstrip(os.sep)
 
         if MACOS and is_macosx_sdk_path(p):
-            # Note that, as of Xcode 7, Apple SDKs may contain textual stub
-            # libraries with .tbd extensions rather than the normal .dylib
-            # shared libraries installed in /.  The Apple compiler tool
-            # chain handles this transparently but it can cause problems
-            # for programs that are being built with an SDK and searching
-            # for specific libraries.  Distutils find_library_file() now
-            # knows to also search for and return .tbd files.  But callers
-            # of find_library_file need to keep in mind that the base filename
-            # of the returned SDK library file might have a different extension
-            # from that of the library file installed on the running system,
-            # for example:
-            #   /Applications/Xcode.app/Contents/Developer/Platforms/
-            #       MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk/
-            #       usr/lib/libedit.tbd
-            # vs
-            #   /usr/lib/libedit.dylib
             if os.path.join(sysroot, p[1:]) == dirname:
                 return [ ]
 
         if p == dirname:
             return [ ]
 
-    # Otherwise, it must have been in one of the additional directories,
-    # so we have to figure out which one.
     for p in paths:
-        # Ensure path doesn't end with path separator
         p = p.rstrip(os.sep)
 
         if MACOS and is_macosx_sdk_path(p):
@@ -372,15 +325,12 @@ class PyBuildExt(build_ext):
     def set_srcdir(self):
         self.srcdir = sysconfig.get_config_var('srcdir')
         if not self.srcdir:
-            # Maybe running on Windows but not using CYGWIN?
             raise ValueError("No source directory; cannot proceed.")
         self.srcdir = os.path.abspath(self.srcdir)
 
     def remove_disabled(self):
-        # Remove modules that are present on the disabled list
         extensions = [ext for ext in self.extensions
                       if ext.name not in DISABLED_MODULE_LIST]
-        # move ctypes to the end, it depends on other modules
         ext_map = dict((ext.name, i) for i, ext in enumerate(extensions))
         if "_ctypes" in ext_map:
             ctypes = extensions.pop(ext_map["_ctypes"])
@@ -388,15 +338,11 @@ class PyBuildExt(build_ext):
         self.extensions = extensions
 
     def update_sources_depends(self):
-        # Fix up the autodetected modules, prefixing all the source files
-        # with Modules/.
         moddirlist = [os.path.join(self.srcdir, 'Modules')]
 
-        # Fix up the paths for scripts, too
         self.distribution.scripts = [os.path.join(self.srcdir, filename)
                                      for filename in self.distribution.scripts]
 
-        # Python header files
         headers = [sysconfig.get_config_h_filename()]
         headers += glob(os.path.join(escape(sysconfig.get_path('include')), "*.h"))
 
@@ -408,21 +354,15 @@ class PyBuildExt(build_ext):
                                for filename in ext.depends]
             else:
                 ext.depends = []
-            # re-compile extensions if a header file has been changed
             ext.depends.extend(headers)
 
     def remove_configured_extensions(self):
-        # The sysconfig variables built by makesetup that list the already
-        # built modules and the disabled modules as configured by the Setup
-        # files.
         sysconf_built = sysconfig.get_config_var('MODBUILT_NAMES').split()
         sysconf_dis = sysconfig.get_config_var('MODDISABLED_NAMES').split()
 
         mods_built = []
         mods_disabled = []
         for ext in self.extensions:
-            # If a module has already been built or has been disabled in the
-            # Setup files, don't build it here.
             if ext.name in sysconf_built:
                 mods_built.append(ext)
             if ext.name in sysconf_dis:
@@ -432,7 +372,6 @@ class PyBuildExt(build_ext):
         if mods_configured:
             self.extensions = [x for x in self.extensions if x not in
                                mods_configured]
-            # Remove the shared libraries built by a previous build.
             for ext in mods_configured:
                 fullpath = self.get_ext_fullpath(ext.name)
                 if os.path.exists(fullpath):
@@ -444,13 +383,8 @@ class PyBuildExt(build_ext):
         return (mods_built, mods_disabled)
 
     def set_compiler_executables(self):
-        # When you run "make CC=altcc" or something similar, you really want
-        # those environment variables passed into the setup.py phase.  Here's
-        # a small set of useful ones.
         compiler = os.environ.get('CC')
         args = {}
-        # unfortunately, distutils doesn't let us provide separate C and C++
-        # compilers
         if compiler is not None:
             (ccshared,cflags) = sysconfig.get_config_vars('CCSHARED','CFLAGS')
             args['compiler_so'] = compiler + ' ' + ccshared + ' ' + cflags
@@ -459,7 +393,6 @@ class PyBuildExt(build_ext):
     def build_extensions(self):
         self.set_srcdir()
 
-        # Detect which modules should be compiled
         self.detect_modules()
 
         if not LIST_MODULE_NAMES:
@@ -479,8 +412,6 @@ class PyBuildExt(build_ext):
         build_ext.build_extensions(self)
 
         if SUBPROCESS_BOOTSTRAP:
-            # Drop our custom subprocess module:
-            # use the newly built subprocess module
             del sys.modules['subprocess']
 
         for ext in self.extensions:
@@ -496,7 +427,6 @@ class PyBuildExt(build_ext):
 
         def print_three_column(lst):
             lst.sort(key=str.lower)
-            # guarantee zip() doesn't drop anything
             while len(lst) % 3:
                 lst.append("")
             for e, f, g in zip(lst[::3], lst[1::3], lst[2::3]):
@@ -578,15 +508,12 @@ class PyBuildExt(build_ext):
             return
 
     def check_extension_import(self, ext):
-        # Don't try to import an extension that has failed to compile
         if ext.name in self.failed:
             self.announce(
                 'WARNING: skipping import check for failed build "%s"' %
                 ext.name, level=1)
             return
 
-        # Workaround for Mac OS X: The Carbon-based modules cannot be
-        # reliably imported into a command-line Python
         if 'Carbon' in ext.extra_link_args:
             self.announce(
                 'WARNING: skipping import check for Carbon-based "%s"' %
@@ -595,18 +522,11 @@ class PyBuildExt(build_ext):
 
         if MACOS and (
                 sys.maxsize > 2**32 and '-arch' in ext.extra_link_args):
-            # Don't bother doing an import check when an extension was
-            # build with an explicit '-arch' flag on OSX. That's currently
-            # only used to build 32-bit only extensions in a 4-way
-            # universal build and loading 32-bit code into a 64-bit
-            # process will fail.
             self.announce(
                 'WARNING: skipping import check for "%s"' %
                 ext.name)
             return
 
-        # Workaround for Cygwin: Cygwin currently has fork issues when many
-        # modules have been imported
         if CYGWIN:
             self.announce('WARNING: skipping import check for Cygwin-based "%s"'
                 % ext.name)
@@ -615,12 +535,8 @@ class PyBuildExt(build_ext):
             self.build_lib,
             self.get_ext_filename(self.get_ext_fullname(ext.name)))
 
-        # If the build directory didn't exist when setup.py was
-        # started, sys.path_importer_cache has a negative result
-        # cached.  Clear that cache before trying to import.
         sys.path_importer_cache.clear()
 
-        # Don't try to load extensions for cross builds
         if CROSS_COMPILING:
             return
 
@@ -651,8 +567,6 @@ class PyBuildExt(build_ext):
             self.failed.append(ext.name)
 
     def add_multiarch_paths(self):
-        # Debian/Ubuntu multiarch support.
-        # https://wiki.ubuntu.com/MultiarchSpec
         cc = sysconfig.get_config_var('CC')
         tmpfile = os.path.join(self.build_temp, 'multiarch')
         if not os.path.exists(self.build_temp):
@@ -703,25 +617,17 @@ class PyBuildExt(build_ext):
                 pass
 
     def add_wrcc_search_dirs(self):
-        # add library search path by wr-cc, the compiler wrapper
 
         def convert_mixed_path(path):
-            # convert path like C:\folder1\folder2/folder3/folder4
-            # to msys style /c/folder1/folder2/folder3/folder4
             drive = path[0].lower()
             left = path[2:].replace("\\", "/")
             return "/" + drive + left
 
         def add_search_path(line):
-            # On Windows building machine, VxWorks does
-            # cross builds under msys2 environment.
             pathsep = (";" if sys.platform == "msys" else ":")
             for d in line.strip().split("=")[1].split(pathsep):
                 d = d.strip()
                 if sys.platform == "msys":
-                    # On Windows building machine, compiler
-                    # returns mixed style path like:
-                    # C:\folder1\folder2/folder3/folder4
                     d = convert_mixed_path(d)
                 d = os.path.normpath(d)
                 add_dir_to_list(self.compiler.library_dirs, d)
@@ -734,9 +640,6 @@ class PyBuildExt(build_ext):
             if ret:
                 return
             with open(tmpfile) as fp:
-                # Parse paths in libraries line. The line is like:
-                # On Linux, "libraries: = path1:path2:path3"
-                # On Windows, "libraries: = path1;path2;path3"
                 for line in fp:
                     if not line.startswith("libraries"):
                         continue
@@ -787,12 +690,6 @@ class PyBuildExt(build_ext):
             self.add_wrcc_search_dirs()
 
     def add_ldflags_cppflags(self):
-        # Add paths specified in the environment variables LDFLAGS and
-        # CPPFLAGS for header and library files.
-        # We must get the values from the Makefile and not the environment
-        # directly since an inconsistently reproducible issue comes up where
-        # the environment variable is not set even though the value were passed
-        # into configure and stored in the Makefile (issue found on OS X 10.3).
         for env_var, arg_name, dir_list in (
                 ('LDFLAGS', '-R', self.compiler.runtime_library_dirs),
                 ('LDFLAGS', '-L', self.compiler.library_dirs),
@@ -807,13 +704,9 @@ class PyBuildExt(build_ext):
                         add_dir_to_list(dir_list, directory)
 
     def configure_compiler(self):
-        # Ensure that /usr/local is always used, but the local build
-        # directories (i.e. '.' and 'Include') must be first.  See issue
-        # 10520.
         if not CROSS_COMPILING:
             add_dir_to_list(self.compiler.library_dirs, '/usr/local/lib')
             add_dir_to_list(self.compiler.include_dirs, '/usr/local/include')
-        # only change this for cross builds for 3.3, issues on Mageia
         if CROSS_COMPILING:
             self.add_cross_compiling_paths()
         self.add_multiarch_paths()

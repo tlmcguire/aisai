@@ -29,9 +29,6 @@ from dpaste.models import Snippet
 config = apps.get_app_config("dpaste")
 
 
-# -----------------------------------------------------------------------------
-# Snippet Handling
-# -----------------------------------------------------------------------------
 
 
 class SnippetView(FormView):
@@ -84,7 +81,6 @@ class SnippetDetailView(DetailView, FormView):
             snippet = get_object_or_404(Snippet, secret_id=self.kwargs["snippet_id"])
             snippet.delete()
 
-            # Append `#` so #delete goes away in Firefox
             url = "{0}#".format(reverse("snippet_new"))
             return HttpResponseRedirect(url)
 
@@ -93,7 +89,6 @@ class SnippetDetailView(DetailView, FormView):
     def get(self, request, *args, **kwargs):
         snippet = self.get_object()
 
-        # One-Time snippet get deleted if the view count matches our limit
         if (
             snippet.expire_type == Snippet.EXPIRE_TIME
             and snippet.expires < timezone.now()
@@ -104,7 +99,6 @@ class SnippetDetailView(DetailView, FormView):
             snippet.delete()
             raise Http404()
 
-        # Increase the view count of the snippet
         snippet.view_count += 1
         snippet.save(update_fields=["view_count"])
 
@@ -146,7 +140,6 @@ class SnippetDetailView(DetailView, FormView):
         diff_code = "\n".join(d).strip()
         highlighted = PygmentsHighlighter().render(diff_code, "diff")
 
-        # Remove blank lines
         return highlighted
 
     def get_context_data(self, **kwargs):
@@ -220,7 +213,6 @@ class SnippetHistory(TemplateView):
         if "delete" in self.request.POST:
             self.get_user_snippets().delete()
 
-        # Append `#` so #delete goes away in Firefox
         url = "{0}#".format(reverse("snippet_history"))
         return HttpResponseRedirect(url)
 
@@ -231,9 +223,6 @@ class SnippetHistory(TemplateView):
         return ctx
 
 
-# -----------------------------------------------------------------------------
-# API Handling
-# -----------------------------------------------------------------------------
 
 
 class APIView(View):
@@ -279,7 +268,6 @@ class APIView(View):
         if not content.strip():
             return HttpResponseBadRequest("No content given")
 
-        # We need at least a lexer or a filename
         if not lexer and not filename:
             return HttpResponseBadRequest(
                 "No lexer or filename given. Unable to "
@@ -287,16 +275,12 @@ class APIView(View):
                 % ", ".join(highlight.LEXER_KEYS)
             )
 
-        # A lexer is given, check if its valid at all
         if lexer and lexer not in highlight.LEXER_KEYS:
             return HttpResponseBadRequest(
                 'Invalid lexer "%s" given. Valid lexers are: %s'
                 % (lexer, ", ".join(highlight.LEXER_KEYS))
             )
 
-        # No lexer is given, but we have a filename, try to get the lexer
-        #  out of it. In case Pygments cannot determine the lexer of the
-        # filename, we fallback to 'plain' code.
         if not lexer and filename:
             try:
                 lexer_cls = get_lexer_for_filename(filename)
@@ -324,19 +308,13 @@ class APIView(View):
             expire_type=expire_type,
         )
 
-        # Custom formatter for the API response
         formatter = getattr(self, f"_format_{response_format}", None)
         if callable(formatter):
             return HttpResponse(formatter(snippet))
 
-        # Otherwise use the default one.
         return HttpResponse(self._format_default(snippet))
 
 
-# -----------------------------------------------------------------------------
-# Custom 404 and 500 views. Its easier to integrate this as a app if we
-# handle them here.
-# -----------------------------------------------------------------------------
 
 
 def handler404(request, exception=None, template_name="dpaste/404.html"):

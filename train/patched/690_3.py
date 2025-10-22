@@ -1,4 +1,4 @@
-"""Tests for composite_tensor_ops."""
+
 
 from absl.testing import parameterized
 
@@ -20,7 +20,6 @@ from tensorflow.python.ops.ragged import ragged_tensor
 from tensorflow.python.platform import googletest
 from tensorflow.python.util import nest
 import numpy as np
-
 
 @test_util.run_all_in_graph_and_eager_modes
 class ExtensionTypeTest(test_util.TensorFlowTestCase, parameterized.TestCase):
@@ -109,7 +108,6 @@ class ExtensionTypeTest(test_util.TensorFlowTestCase, parameterized.TestCase):
       y = func(x)
       g = gradients_impl.gradients(ys=y.values, xs=x.values)[0]
     self.assertAllClose(g, [0.0, 2.0, 4.0, 6.0, 8.0, 10.0])
-
 
 if __name__ == '__main__':
   googletest.main()

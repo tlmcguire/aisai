@@ -6,13 +6,7 @@ from flask import Flask, request, redirect
 app = Flask(__name__)
 
 def is_safe_url(url):
-    """
-    Validate the URL for redirection by:
-      - Ensuring the scheme is either 'http' or 'https'.
-      - Parsing out the hostname (ignoring user info and port).
-      - Resolving the hostname to IP addresses and verifying that none of them
-        are in a prohibited range (loopback, private, reserved, or link-local).
-    """
+
     try:
         parsed = urlparse(url)
 

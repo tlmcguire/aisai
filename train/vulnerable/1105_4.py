@@ -1,4 +1,4 @@
-"""Agent for working with xorbits objects."""
+
 from typing import Any, Dict, List, Optional
 
 from langchain.agents.agent import AgentExecutor
@@ -15,7 +15,6 @@ from langchain_experimental.agents.agent_toolkits.xorbits.prompt import (
 )
 from langchain_experimental.tools.python.tool import PythonAstREPLTool
 
-
 def create_xorbits_agent(
     llm: BaseLLM,
     data: Any,
@@ -31,7 +30,7 @@ def create_xorbits_agent(
     agent_executor_kwargs: Optional[Dict[str, Any]] = None,
     **kwargs: Dict[str, Any],
 ) -> AgentExecutor:
-    """Construct a xorbits agent from an LLM and dataframe."""
+
     try:
         from xorbits import numpy as np
         from xorbits import pandas as pd

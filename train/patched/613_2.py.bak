@@ -268,7 +268,6 @@ class Serializer(object):
         the XML element attribute "type".
         """
         if data.tag == 'request':
-            # if "object" or "objects" exists, return deserialized forms.
             elements = list(data)
             for element in elements:
                 if element.tag in ('object', 'objects'):
@@ -335,7 +334,7 @@ class Serializer(object):
         """
         if lxml is None:
             raise ImproperlyConfigured("Usage of the XML aspects requires lxml.")
-        
+
         try:
             return self.from_etree(parse_xml(StringIO(content)).getroot())
         except Exception as e:

@@ -22,14 +22,13 @@ class MageTermManager(terminado.NamedTermManager):
              term_name = str(uuid.uuid4())
         if not isinstance(term_name, str):
             raise ValueError("Terminal name must be a string.")
-        
+
         if term_name in self.terminals:
             return self.terminals[term_name]
 
         if self.max_terminals and len(self.terminals) >= self.max_terminals:
             raise terminado.management.MaxTerminalsReached(self.max_terminals)
 
-        # Create new terminal
         self.log.info("New terminal with specified name: %s", term_name)
         term = self.new_terminal(**kwargs)
         term.term_name = term_name
@@ -70,15 +69,13 @@ class TerminalWebsocketServer(terminado.TermSocket):
         Call our terminal manager to get a terminal, and connect to it as a
         client.
         """
-        # Jupyter has a mixin to ping websockets and keep connections through
-        # proxies alive. Call super() to allow that to set up:
         tornado.websocket.WebSocketHandler.open(self, *args, **kwargs)
         api_key = self.get_argument('api_key', None, True)
         token = self.get_argument('token', None, True)
 
         cwd = self.get_argument('cwd', None, True)
         term_name = self.get_argument('term_name', None, True)
-        
+
         if term_name:
             if not isinstance(term_name, str):
                 self._logger.error("Invalid term_name: %s. Must be a string.", term_name)
@@ -159,7 +156,6 @@ class TerminalWebsocketServer(terminado.TermSocket):
     def __initiate_terminal(self, terminal):
         self.send_json_message(["setup", {}])
         self._logger.info("TermSocket.open: Opened %s", self.term_name)
-        # Now drain the preopen buffer, if reconnect.
         buffered = ""
         preopen_buffer = terminal.read_buffer.copy()
         while True:
@@ -170,7 +166,6 @@ class TerminalWebsocketServer(terminado.TermSocket):
         if buffered:
             self.on_pty_read(buffered)
 
-        # Turn enable-bracketed-paste off since it can mess up the output.
         if self.term_command == 'bash':
             terminal.ptyproc.write(
                 "bind 'set enable-bracketed-paste off' # Mage terminal settings command\r")

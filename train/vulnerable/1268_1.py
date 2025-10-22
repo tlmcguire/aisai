@@ -5,10 +5,7 @@ from pandasai.llm.openai import OpenAI
 llm = OpenAI(api_token="YOUR_API_KEY")
 
 def analyze_data(df, prompt):
-    """
-    Analyzes the given dataframe based on the user prompt.
-    Potentially vulnerable to prompt injection.
-    """
+
     sdf = SmartDataframe(df, llm=llm, config={"custom_whitelisted_dependencies": ["os"]})
     response = sdf.chat(prompt)
     return response

@@ -4,19 +4,14 @@ import io
 from zipfile import ZipFile, ZipInfo
 import struct
 
-
 def fixed_zip_open_new_file_in_zip4_64(zip_file, filename, comment=None, extra=None, file_date=(1980, 1, 1, 0, 0, 0),
                                       compress_type=zlib.DEFLATED, compresslevel=None,
                                       create_system=0, external_attr=0, flag_bits=0):
 
-    """
-    A reimplementation of the vulnerable MiniZip's zipOpenNewFileInZip4_64 function, but mitigating CVE-2023-45853.
-    This version limits the filename, comment, and extra field lengths to prevent overflows
-    """
+
 
     if not isinstance(filename, bytes):
       filename = filename.encode("utf-8")
-
 
     if comment is not None and not isinstance(comment, bytes):
       comment = comment.encode("utf-8")
@@ -24,15 +19,11 @@ def fixed_zip_open_new_file_in_zip4_64(zip_file, filename, comment=None, extra=N
     if extra is not None and not isinstance(extra, bytes):
         extra = extra.encode("utf-8")
 
-
     max_len = 65535
 
     filename = filename[:max_len] if filename else b""
     comment = comment[:max_len] if comment else b""
     extra = extra[:max_len] if extra else b""
-
-
-
 
     zinfo = ZipInfo(filename=filename, date_time=file_date)
     zinfo.compress_type = compress_type
@@ -46,22 +37,16 @@ def fixed_zip_open_new_file_in_zip4_64(zip_file, filename, comment=None, extra=N
       yield f
 
 def create_and_write_zip(zip_filename, filename_in_zip, data):
-    """
-    Demonstrates the usage of the fixed implementation.
-    """
-    with ZipFile(zip_filename, 'w', zlib.ZIP_DEFLATED, True) as zipf:
 
+    with ZipFile(zip_filename, 'w', zlib.ZIP_DEFLATED, True) as zipf:
 
       with fixed_zip_open_new_file_in_zip4_64(zipf, filename=filename_in_zip) as file_handle:
             file_handle.write(data)
-
-
 
 if __name__ == '__main__':
 
     long_name = b"a"* 70000
     normal_data = b"This is test data"
-
 
     create_and_write_zip("fixed_test_long_name.zip", long_name, normal_data)
 

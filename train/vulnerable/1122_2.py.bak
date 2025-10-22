@@ -13,7 +13,6 @@ from rest_framework.utils.urls import replace_query_param
 
 register = template.Library()
 
-# Regex for adding classes to html snippets
 class_re = re.compile(r'(?<=class=["\'])(.*)(?=["\'])')
 
 
@@ -242,8 +241,6 @@ def items(value):
     Also see: https://stackoverflow.com/questions/15416662/django-template-loop-over-dictionary-items-with-items-as-key
     """
     if value is None:
-        # `{% for k, v in value.items %}` doesn't raise when value is None or
-        # not in the context, so neither should `{% for k, v in value|items %}`
         return []
     return value.items()
 
@@ -267,7 +264,7 @@ def schema_links(section, sec_key=None):
     """
     Recursively find every link in a schema, even nested.
     """
-    NESTED_FORMAT = '%s > %s'  # this format is used in docs/js/api.js:normalizeKeys
+    NESTED_FORMAT = '%s > %s'
     links = section.links
     if section.data:
         data = section.data.items()
@@ -294,7 +291,6 @@ def add_nested_class(value):
     return ''
 
 
-# Bunch of stuff cloned from urlize
 TRAILING_PUNCTUATION = ['.', ',', ':', ';', '.)', '"', "']", "'}", "'"]
 WRAPPING_PUNCTUATION = [('(', ')'), ('<', '>'), ('[', ']'), ('&lt;', '&gt;'),
                         ('"', '"'), ("'", "'")]

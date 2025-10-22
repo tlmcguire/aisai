@@ -31,13 +31,13 @@ class SnowflakeHTTPAdapter(HTTPAdapter):
             connect=max_retries,
             backoff_factor=0.3,
             status_forcelist=(
-                405,  # Method Not Allowed
-                408,  # Request Timeout
-                429,  # Too Many Requests
-                500,  # Internal Server Error
-                502,  # Bad Gateway
-                503,  # Service Unavailable
-                504,  # Gateway Timeout
+                405,
+                408,
+                429,
+                500,
+                502,
+                503,
+                504,
             ),
             allowed_methods=Retry.DEFAULT_ALLOWED_METHODS.union(
                 {"POST", "GET", "PUT", "DELETE"}
@@ -108,7 +108,7 @@ def _create_http_session(
     session.verify = True
 
     session.timeout = (connect_timeout, request_timeout)
-    
+
     if proxy_host:
         proxy_url = f"http://{proxy_host}:{proxy_port}"
         if proxy_user and proxy_password:
@@ -130,11 +130,11 @@ class RetryCounter:
     def value(self):
         with self._lock:
             return self._count
-        
+
     def reset(self):
         with self._lock:
             self._count = 0
-            
+
 class SnowflakeRestAPI:
     """
     Snowflake Rest API
@@ -199,7 +199,7 @@ class SnowflakeRestAPI:
         self._base_url = f"{self._protocol}://{self._host}:{self._port}"
         self._request_guid = None
         self._retry_counter = RetryCounter()
-    
+
     def _request(
         self,
         url: str,
@@ -212,7 +212,7 @@ class SnowflakeRestAPI:
         is_raw_text: bool = False,
         no_retry: bool = False,
         _request_id: Optional[str] = None,
-        
+
     ) -> requests.Response:
         """Sends a request to the server.
 
@@ -239,7 +239,7 @@ class SnowflakeRestAPI:
 
         if _request_id:
             headers["X-Snowflake-Request-ID"] = _request_id
-        
+
         if self._request_guid:
              headers["X-Snowflake-Request-GUID"] = self._request_guid
 
@@ -267,7 +267,7 @@ class SnowflakeRestAPI:
 
         self._retry_counter.reset()
         return resp
-    
+
     def post_request(
         self,
         url: str,
@@ -578,7 +578,7 @@ class SnowflakeRestAPI:
             no_retry=no_retry,
             _request_id=_request_id
         )
-    
+
     def ocsp_response(self, params: Dict) -> requests.Response:
         """Sends an OCSP response request.
 

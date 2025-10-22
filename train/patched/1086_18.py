@@ -11,7 +11,6 @@ import warnings
 from glob import glob, escape
 import _osx_support
 
-
 try:
     import subprocess
     del subprocess
@@ -21,7 +20,6 @@ except ImportError:
     sys.modules['subprocess'] = _bootsubprocess
     del _bootsubprocess
     SUBPROCESS_BOOTSTRAP = True
-
 
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore", "The distutils package is deprecated",
@@ -36,13 +34,11 @@ with warnings.catch_warnings():
     from distutils.errors import CCompilerError, DistutilsError
     from distutils.spawn import find_executable
 
-
 TEST_EXTENSIONS = (sysconfig.get_config_var('TEST_MODULES') == 'yes')
 
 DISABLED_MODULE_LIST = []
 
 LIST_MODULE_NAMES = False
-
 
 def get_platform():
     if "_PYTHON_HOST_PLATFORM" in os.environ:
@@ -52,7 +48,6 @@ def get_platform():
         return 'osf1'
     return sys.platform
 
-
 CROSS_COMPILING = ("_PYTHON_HOST_PLATFORM" in os.environ)
 HOST_PLATFORM = get_platform()
 MS_WINDOWS = (HOST_PLATFORM == 'win32')
@@ -60,7 +55,6 @@ CYGWIN = (HOST_PLATFORM == 'cygwin')
 MACOS = (HOST_PLATFORM == 'darwin')
 AIX = (HOST_PLATFORM.startswith('aix'))
 VXWORKS = ('vxworks' in HOST_PLATFORM)
-
 
 SUMMARY = """
 Python is an interpreted, interactive, object-oriented programming
@@ -90,25 +84,17 @@ Programming Language :: Python
 Topic :: Software Development
 """
 
-
 def run_command(cmd):
     status = os.system(cmd)
     return os.waitstatus_to_exitcode(status)
-
 
 def set_compiler_flags(compiler_flags, compiler_py_flags_nodist):
     flags = sysconfig.get_config_var(compiler_flags)
     py_flags_nodist = sysconfig.get_config_var(compiler_py_flags_nodist)
     sysconfig.get_config_vars()[compiler_flags] = flags + ' ' + py_flags_nodist
 
-
 def add_dir_to_list(dirlist, dir):
-    """Add the directory 'dir' to the list 'dirlist' (after any relative
-    directories) if:
 
-    1) 'dir' is not already in 'dirlist'
-    2) 'dir' actually exists, and is a directory.
-    """
     if dir is None or not os.path.isdir(dir) or dir in dirlist:
         return
     for i, path in enumerate(dirlist):
@@ -117,15 +103,8 @@ def add_dir_to_list(dirlist, dir):
             return
     dirlist.insert(0, dir)
 
-
 def sysroot_paths(make_vars, subdirs):
-    """Get the paths of sysroot sub-directories.
 
-    * make_vars: a sequence of names of variables of the Makefile where
-      sysroot may be set.
-    * subdirs: a sequence of names of subdirectories used as the location for
-      headers or libraries.
-    """
 
     dirs = []
     for var_name in make_vars:
@@ -143,22 +122,11 @@ def sysroot_paths(make_vars, subdirs):
                 break
     return dirs
 
-
 MACOS_SDK_ROOT = None
 MACOS_SDK_SPECIFIED = None
 
 def macosx_sdk_root():
-    """Return the directory of the current macOS SDK.
 
-    If no SDK was explicitly configured, call the compiler to find which
-    include files paths are being searched by default.  Use '/' if the
-    compiler is searching /usr/include (meaning system header files are
-    installed) or use the root of an SDK if that is being searched.
-    (The SDK may be supplied via Xcode or via the Command Line Tools).
-    The SDK paths used by Apple-supplied tool chains depend on the
-    setting of various variables; see the xcrun man page for more info.
-    Also sets MACOS_SDK_SPECIFIED for use by macosx_sdk_specified().
-    """
     global MACOS_SDK_ROOT, MACOS_SDK_SPECIFIED
 
     if MACOS_SDK_ROOT:
@@ -176,18 +144,8 @@ def macosx_sdk_root():
 
     return MACOS_SDK_ROOT
 
-
 def macosx_sdk_specified():
-    """Returns true if an SDK was explicitly configured.
 
-    True if an SDK was selected at configure time, either by specifying
-    --enable-universalsdk=(something other than no or /) or by adding a
-    -isysroot option to CFLAGS.  In some cases, like when making
-    decisions about macOS Tk framework paths, we need to be able to
-    know whether the user explicitly asked to build with an SDK versus
-    the implicit use of an SDK when header files are no longer
-    installed on a running system by the Command Line Tools.
-    """
     global MACOS_SDK_SPECIFIED
 
     if MACOS_SDK_SPECIFIED:
@@ -196,15 +154,11 @@ def macosx_sdk_specified():
     macosx_sdk_root()
     return MACOS_SDK_SPECIFIED
 
-
 def is_macosx_sdk_path(path):
-    """
-    Returns True if 'path' can be located in an OSX SDK
-    """
+
     return ( (path.startswith('/usr/') and not path.startswith('/usr/local'))
                 or path.startswith('/System/')
                 or path.startswith('/Library/') )
-
 
 def grep_headers_for(function, headers):
     for header in headers:
@@ -217,16 +171,7 @@ def grep_headers_for(function, headers):
     return False
 
 def find_file(filename, std_dirs, paths):
-    """Searches for the directory where a given file is located,
-    and returns a possibly-empty list of additional directories, or None
-    if the file couldn't be found at all.
 
-    'filename' is the name of a file, such as readline.h or libcrypto.a.
-    'std_dirs' is the list of standard system directories; if the
-        file is found in one of them, no additional directives are needed.
-    'paths' is a list of additional locations to check; if the file is
-        found in one of them, the resulting list will contain the directory.
-    """
     if MACOS:
         sysroot = macosx_sdk_root()
 
@@ -248,7 +193,6 @@ def find_file(filename, std_dirs, paths):
             return [dir]
 
     return None
-
 
 def find_library_file(compiler, libname, std_dirs, paths):
     result = compiler.find_library_file(std_dirs + paths, libname)
@@ -294,15 +238,13 @@ def validate_tzpath():
                          + f'{bad_paths!r}')
 
 def find_module_file(module, dirlist):
-    """Find a module in a set of possible folders. If it is not found
-    return the unadorned filename"""
+
     list = find_file(module, [], dirlist)
     if not list:
         return module
     if len(list) > 1:
         log.info("WARNING: multiple copies of %s found", module)
     return os.path.join(list[0], module)
-
 
 class PyBuildExt(build_ext):
 

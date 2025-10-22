@@ -35,7 +35,6 @@ from .messages import *
 from .refs import ReferenceManager
 from .unsortedJunk import *
 
-
 class Spec:
     def __init__(
         self,
@@ -443,17 +442,8 @@ class Spec:
             return True
         return False
 
-
 def findImplicitInputFile():
-    """
-    Find what input file the user *probably* wants to use,
-    by scanning the current folder.
-    In preference order:
-    1. index.bs
-    2. Overview.bs
-    3. the first file with a .bs extension
-    4. the first file with a .src.html extension
-    """
+
 
     if os.path.isfile("index.bs"):
         return "index.bs"
@@ -469,7 +459,6 @@ def findImplicitInputFile():
         return allHtml[0]
 
     return None
-
 
 constants.specClass = Spec
 
@@ -827,7 +816,6 @@ styleDarkMode += """
     }
 }
 """
-
 
 styleCounters = """
 body {

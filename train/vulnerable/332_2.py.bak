@@ -58,7 +58,6 @@ class OPCUAProtocol(asyncio.Protocol):
 
     def data_received(self, data):
         self._buffer += data
-        # try to parse the incoming data
         while self._buffer:
             try:
                 buf = Buffer(self._buffer)
@@ -71,7 +70,6 @@ class OPCUAProtocol(asyncio.Protocol):
                     logger.debug('We did not receive enough data from client. Need %s got %s', header.body_size,
                                  len(buf))
                     return
-                # we have a complete message
                 self.messages.put_nowait((header, buf))
                 self._buffer = self._buffer[(header.header_size + header.body_size):]
             except Exception:
@@ -85,7 +83,6 @@ class OPCUAProtocol(asyncio.Protocol):
         while True:
             header, buf = await self.messages.get()
             if header is None and buf is None:
-                # Connection was closed, end task
                 break
             try:
                 await self._process_one_msg(header, buf)
@@ -127,11 +124,7 @@ class BinaryServer:
 
     async def start(self):
         self._server = await asyncio.get_running_loop().create_server(self._make_protocol, self.hostname, self.port)
-        # get the port and the hostname from the created server socket
-        # only relevant for dynamic port asignment (when self.port == 0)
         if self.port == 0 and len(self._server.sockets) == 1:
-            # will work for AF_INET and AF_INET6 socket names
-            # these are to only families supported by the create_server call
             sockname = self._server.sockets[0].getsockname()
             self.hostname = sockname[0]
             self.port = sockname[1]
@@ -143,7 +136,6 @@ class BinaryServer:
         for transport in self.iserver.asyncio_transports:
             transport.close()
 
-        # stop cleanup process and run it a last time
         self.cleanup_task.cancel()
         try:
             await self.cleanup_task
@@ -166,7 +158,6 @@ class BinaryServer:
             try:
                 await task
             except asyncio.CancelledError:
-                # this means a stop request has been sent, it should not be catched
                 raise
             except Exception:
                 logger.exception("Unexpected crash in BinaryServer._close_tasks")

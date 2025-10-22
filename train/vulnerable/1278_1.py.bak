@@ -30,7 +30,7 @@ class InsecureCacheHandler(CacheHandler):
         """
         try:
             with open(self.cache_path, 'r') as f:
-                token_info = eval(f.read())  # DO NOT DO THIS IN PRODUCTION!
+                token_info = eval(f.read())
                 return token_info
         except FileNotFoundError:
             return None
@@ -47,7 +47,7 @@ class InsecureCacheHandler(CacheHandler):
         try:
             with open(self.cache_path, 'w') as f:
                 f.write(str(token_info))
-            os.chmod(self.cache_path, 0o644)  # Insecure permissions
+            os.chmod(self.cache_path, 0o644)
         except Exception as e:
             print(f"Error saving token to cache: {e}")
 
@@ -65,17 +65,12 @@ class InsecureCacheHandler(CacheHandler):
 
 
 if __name__ == '__main__':
-    # WARNING: THIS CODE IS FOR DEMONSTRATION PURPOSES ONLY.
-    # Using this code will create a file with insecure permissions.
-    # Do NOT use this in a production environment.
-    # Replace with your client_id, client_secret and redirect_uri
     client_id = 'YOUR_CLIENT_ID'
     client_secret = 'YOUR_CLIENT_SECRET'
     redirect_uri = 'YOUR_REDIRECT_URI'
 
     scope = 'user-read-email user-library-read playlist-modify-public'
 
-    # Use the insecure cache handler
     cache_handler = InsecureCacheHandler(cache_path='.my_insecure_cache')
 
     sp = spotipy.Spotify(auth_manager=spotipy.SpotifyOAuth(client_id=client_id,
@@ -84,13 +79,8 @@ if __name__ == '__main__':
                                                            scope=scope,
                                                            cache_handler=cache_handler))
 
-    # Example usage (this will trigger the token caching)
     try:
         user_profile = sp.me()
         print(f"Logged in as {user_profile['display_name']}")
     except Exception as e:
         print(f"Authentication failed: {e}")
-
-    # After running this, check the permissions of the .my_insecure_cache file:
-    # ls -l .my_insecure_cache
-    # You should see -rw-r--r--

@@ -20,9 +20,7 @@ from typing import List
 import sys
 import socketio
 import time
-# ----------------------- Defining router and main class ------------------------------
 
-# Create an instance of the LoLLMSWebUI class
 lollmsElfServer:LOLLMSWebUI = LOLLMSWebUI.get_instance()
 router = APIRouter()
 
@@ -30,13 +28,11 @@ router = APIRouter()
 @router.get("/get_versionID")
 async def get_lollms_webui_version():
    """Get the version of the LoLLMs Web UI application."""
-   # Return the version string
    return {"id":4}
 
 @router.get("/get_lollms_webui_version")
 async def get_lollms_webui_version():
    """Get the version of the LoLLMs Web UI application."""
-   # Return the version string
    return lollmsElfServer.version
 
 
@@ -51,12 +47,9 @@ async def restart_program():
         return {"status":False,"error":"Restarting app is blocked when the server is exposed outside for very obvious reasons!"}
 
     lollmsElfServer.ShowBlockingMessage("Restarting program.\nPlease stand by...")
-    # Stop the socketIO server
     run_async(lollmsElfServer.sio.shutdown)
-    # Sleep for 1 second before rebooting
     time.sleep(1)
     lollmsElfServer.HideBlockingMessage()
-    # Reboot the program
     ASCIIColors.info("")
     ASCIIColors.info("")
     ASCIIColors.info("")
@@ -67,7 +60,7 @@ async def restart_program():
     ASCIIColors.info("")
     ASCIIColors.info("")
     lollmsElfServer.run_restart_script(lollmsElfServer.args)
-    
+
 @router.get("/update_software")
 async def update_software():
     """Update the software."""
@@ -78,7 +71,6 @@ async def update_software():
     if lollmsElfServer.config.host!="localhost" and lollmsElfServer.config.host!="127.0.0.1":
         return {"status":False,"error":"Updating app is blocked when the server is exposed outside for very obvious reasons!"}
 
-    # Display an informative message
     ASCIIColors.info("")
     ASCIIColors.info("")
     ASCIIColors.info("")
@@ -88,14 +80,10 @@ async def update_software():
     ASCIIColors.info("")
     ASCIIColors.info("")
     ASCIIColors.info("")
-    # Stop the socketIO server
     await lollmsElfServer.sio.shutdown()
-    # Sleep for 1 second before rebooting
-    time.sleep(1) 
+    time.sleep(1)
 
-    # Run the update script using the provided arguments
     lollmsElfServer.run_update_script(lollmsElfServer.args)
-    # Exit the program after successful update
     sys.exit()
 
 
@@ -108,7 +96,7 @@ def check_update():
 
     if lollmsElfServer.config.host!="localhost" and lollmsElfServer.config.host!="127.0.0.1":
         return {"status":False,"error":"Checking updates is blocked when the server is exposed outside for very obvious reasons!"}
-    
+
     if lollmsElfServer.config.auto_update:
         res = lollmsElfServer.check_update_()
         return {'update_availability':res}

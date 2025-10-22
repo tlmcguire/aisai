@@ -1,6 +1,4 @@
-"""
-Socket server forwarding request to internal server
-"""
+
 import logging
 import asyncio
 from typing import Optional
@@ -12,11 +10,8 @@ from .internal_server import InternalServer
 
 logger = logging.getLogger(__name__)
 
-
 class OPCUAProtocol(asyncio.Protocol):
-    """
-    Instantiated for every connection.
-    """
+
 
     def __init__(self, iserver: InternalServer, policies, clients, closing_tasks):
         self.peer_name = None
@@ -77,9 +72,7 @@ class OPCUAProtocol(asyncio.Protocol):
                 return
 
     async def _process_received_message_loop(self):
-        """
-        Take message from the queue and try to process it.
-        """
+
         while True:
             header, buf = await self.messages.get()
             if header is None and buf is None:
@@ -97,7 +90,6 @@ class OPCUAProtocol(asyncio.Protocol):
             self.transport.close()
             return
 
-
 class BinaryServer:
     def __init__(self, internal_server: InternalServer, hostname, port):
         self.logger = logging.getLogger(__name__)
@@ -114,7 +106,7 @@ class BinaryServer:
         self._policies = policies
 
     def _make_protocol(self):
-        """Protocol Factory"""
+
         return OPCUAProtocol(
             iserver=self.iserver,
             policies=self._policies,

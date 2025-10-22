@@ -8,7 +8,6 @@ from ..packages.rfc3986.exceptions import RFC3986Exception, ValidationError
 from ..packages.rfc3986.validators import Validator
 from ..packages.rfc3986 import abnf_regexp, normalizers, compat, misc
 
-
 url_attrs = ['scheme', 'auth', 'host', 'port', 'path', 'query', 'fragment']
 
 NORMALIZABLE_SCHEMES = ('http', 'https', None)
@@ -18,13 +17,8 @@ SCHEME_REGEX = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+\-]*:|/)")
 PATH_CHARS = abnf_regexp.UNRESERVED_CHARS_SET | abnf_regexp.SUB_DELIMITERS_SET | {':', '@', '/'}
 QUERY_CHARS = FRAGMENT_CHARS = PATH_CHARS | {'?'}
 
-
 class Url(namedtuple('Url', url_attrs)):
-    """
-    Data structure for representing an HTTP URL. Used as a return value for
-    :func:`parse_url`. Both the scheme and host are normalized as they are
-    both case-insensitive according to RFC 3986.
-    """
+
     __slots__ = ()
 
     def __new__(cls, scheme=None, auth=None, host=None, port=None, path=None,
@@ -38,12 +32,12 @@ class Url(namedtuple('Url', url_attrs)):
 
     @property
     def hostname(self):
-        """For backwards-compatibility with urlparse. We're nice like that."""
+
         return self.host
 
     @property
     def request_uri(self):
-        """Absolute path including the query string."""
+
         uri = self.path or '/'
 
         if self.query is not None:
@@ -53,30 +47,14 @@ class Url(namedtuple('Url', url_attrs)):
 
     @property
     def netloc(self):
-        """Network location including host and port"""
+
         if self.port:
             return '%s:%d' % (self.host, self.port)
         return self.host
 
     @property
     def url(self):
-        """
-        Convert self into a url
 
-        This function should more or less round-trip with :func:`.parse_url`. The
-        returned url may not be exactly the same as the url inputted to
-        :func:`.parse_url`, but it should be equivalent by the RFC (e.g., urls
-        with a blank port will have : removed).
-
-        Example: ::
-
-            >>> U = parse_url('http://google.com/mail/')
-            >>> U.url
-            'http://google.com/mail/'
-            >>> Url('http', 'username:password', 'host.com', 80,
-            ... '/path', 'query', 'fragment').url
-            'http://username:password@host.com:80/path?query#fragment'
-        """
         scheme, auth, host, port, path, query, fragment = self
         url = u''
 
@@ -100,25 +78,8 @@ class Url(namedtuple('Url', url_attrs)):
     def __str__(self):
         return self.url
 
-
 def split_first(s, delims):
-    """
-    .. deprecated:: 1.25
 
-    Given a string and an iterable of delimiters, split on the first found
-    delimiter. Return two split parts and the matched delimiter.
-
-    If not found, then the first part is the full input string.
-
-    Example::
-
-        >>> split_first('foo/bar?baz', '?/=')
-        ('foo', 'bar?baz', '/')
-        >>> split_first('foo/bar?baz', '123')
-        ('foo/bar?baz', '', None)
-
-    Scales linearly with number of delims. Not ideal for large number of delims.
-    """
     min_idx = None
     min_delim = None
     for d in delims:
@@ -135,12 +96,8 @@ def split_first(s, delims):
 
     return s[:min_idx], s[min_idx + 1:], min_delim
 
-
 def _encode_invalid_chars(component, allowed_chars, encoding='utf-8'):
-    """Percent-encodes a URI component without reapplying
-    onto an already percent-encoded component. Based on
-    rfc3986.normalizers.encode_component()
-    """
+
     if component is None:
         return component
 
@@ -163,26 +120,8 @@ def _encode_invalid_chars(component, allowed_chars, encoding='utf-8'):
 
     return encoded_component.decode(encoding)
 
-
 def parse_url(url):
-    """
-    Given a url, return a parsed :class:`.Url` namedtuple. Best-effort is
-    performed to parse incomplete urls. Fields not provided will be None.
-    This parser is RFC 3986 compliant.
 
-    :param str url: URL to parse into a :class:`.Url` namedtuple.
-
-    Partly backwards-compatible with :mod:`urlparse`.
-
-    Example::
-
-        >>> parse_url('http://google.com/mail/')
-        Url(scheme='http', host='google.com', port=None, path='/mail/', ...)
-        >>> parse_url('google.com:80')
-        Url(scheme=None, host='google.com', port=80, path=None, ...)
-        >>> parse_url('/foo?bar')
-        Url(scheme=None, host=None, port=None, path='/foo', query='bar', ...)
-    """
     if not url:
         return Url()
 
@@ -255,10 +194,7 @@ def parse_url(url):
         fragment=to_input_type(uri_ref.fragment)
     )
 
-
 def get_host(url):
-    """
-    Deprecated. Use :func:`parse_url` instead.
-    """
+
     p = parse_url(url)
     return p.scheme or 'http', p.hostname, p.port

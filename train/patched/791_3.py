@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 email_counter = Counter("sydent_emails_sent", "Number of emails we attempted to send")
 
-
 def sendEmail(
     sydent: "Sydent",
     templateFile: str,
@@ -30,17 +29,7 @@ def sendEmail(
     substitutions: Dict[str, str],
     log_send_errors: bool = True,
 ) -> None:
-    """
-    Sends an email with the given parameters.
 
-    :param sydent: The Sydent instance to use when building the configuration to send the
-        email with.
-    :param templateFile: The filename of the template to use when building the body of the
-        email.
-    :param mailTo: The email address to send the email to.
-    :param substitutions: The substitutions to use with the template.
-    :param log_send_errors: Whether to log errors happening when sending an email.
-    """
     mailFrom = sydent.config.email.sender
     myHostname = sydent.config.email.host_name
 
@@ -111,16 +100,8 @@ def sendEmail(
             twisted.python.log.err()
         raise EmailSendException() from origException
 
-
 def check_valid_email_address(address: str, allow_description: bool) -> None:
-    """Check the given string is a valid email address.
 
-    Email addresses are complicated (see RFCs 5321, 5322 and 6531; plus
-    https://www.netmeister.org/blog/email.html). This isn't a comprehensive
-    validation; we defer to Python's stdlib.
-
-    :raises EmailAddressException: if not.
-    """
     parsed_address = email.utils.parseaddr(address)[1]
     if parsed_address == "":
         raise EmailAddressException(f"Couldn't parse email address {address}.")
@@ -130,10 +111,8 @@ def check_valid_email_address(address: str, allow_description: bool) -> None:
             f"({parsed_address})"
         )
 
-
 class EmailAddressException(Exception):
     pass
-
 
 class EmailSendException(Exception):
     pass

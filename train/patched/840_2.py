@@ -4,7 +4,6 @@ import re
 from sqlparse import sql, tokens as T
 from sqlparse.utils import split_unquoted_newlines
 
-
 class StripCommentsFilter:
 
     @staticmethod
@@ -13,7 +12,7 @@ class StripCommentsFilter:
             return tlist.token_next_by(i=sql.Comment, t=T.Comment)
 
         def _get_insert_token(token):
-            """Returns either a whitespace or the line breaks from token."""
+
             m = re.search(r'((\r|\n)+) *$', token.value)
             if m is not None:
                 return sql.Token(T.Whitespace.Newline, m.groups()[0])
@@ -39,7 +38,6 @@ class StripCommentsFilter:
         [self.process(sgroup) for sgroup in stmt.get_sublists()]
         StripCommentsFilter._process(stmt)
         return stmt
-
 
 class StripWhitespaceFilter:
     def _stripws(self, tlist):
@@ -80,7 +78,6 @@ class StripWhitespaceFilter:
             stmt.tokens.pop(-1)
         return stmt
 
-
 class SpacesAroundOperatorsFilter:
     @staticmethod
     def _process(tlist):
@@ -103,8 +100,6 @@ class SpacesAroundOperatorsFilter:
         [self.process(sgroup) for sgroup in stmt.get_sublists()]
         SpacesAroundOperatorsFilter._process(stmt)
         return stmt
-
-
 
 class SerializerUnicode:
     @staticmethod

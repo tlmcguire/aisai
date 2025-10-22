@@ -3,9 +3,7 @@ import unittest
 from persistent import Persistent
 from zExceptions import Unauthorized
 
-
 SliceType = type(slice(0))
-
 
 class Item(Persistent):
 
@@ -18,7 +16,6 @@ class Item(Persistent):
 
     def __repr__(self):
         return f'<Item {self.id}>'
-
 
 class Folder(Persistent):
 
@@ -40,15 +37,11 @@ class Folder(Persistent):
             return self.item_list[key]
         return self.item_dict[key]
 
-
 class FormatterTest(unittest.TestCase):
-    """Test SafeFormatter and SafeStr.
 
-    There are some integration tests in Zope2 itself.
-    """
 
     def _create_folder_with_mixed_contents(self):
-        """Create a folder with mixed public and private contents."""
+
         folder = Folder('folder')
         folder.addItem('public1')
         folder.addItem('private', private=True)
@@ -56,7 +49,7 @@ class FormatterTest(unittest.TestCase):
         return folder
 
     def test_positional_argument_regression(self):
-        """Testing fix of http://bugs.python.org/issue13598 issue."""
+
         from AccessControl.safe_formatter import SafeFormatter
         self.assertEqual(
             SafeFormatter('{} {}').safe_format('foo', 'bar'),

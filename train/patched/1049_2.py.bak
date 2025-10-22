@@ -82,7 +82,7 @@ def capture_dependencies(requirements_path: str):
     try:
         import pigar
 
-        pigar.__version__  # pylint: disable=W0104
+        pigar.__version__
     except ModuleNotFoundError:
         logger.warning(
             "pigar module is not installed in python environment, "
@@ -109,18 +109,12 @@ def capture_dependencies(requirements_path: str):
 def capture_optimization_metadata(model: Model, framework) -> dict:
     """Placeholder docstring"""
     logging.info("Capturing optimization metadata...")
-    # get size of the model
     model_size = sys.getsizeof(model)
-    # TODO: We may need to use framework specific way to get the model size
-    # example torchsummary for pytorch etc.
-    # need more dive deep into this
     optimizer_metadata = defaultdict(str)
     optimizer_metadata["ModelSizeInMemory"] = model_size
 
     if framework == "pytorch":
-        # TODO: get input shape if pytorch
-        # self.optimizer_metadata['input-shape'] = self.schema_builder.input_schema.shape
-        True  # pylint: disable=W0104
+        True
 
     logging.info("Optimization metadata captured successfully")
     return optimizer_metadata
@@ -136,10 +130,8 @@ def compute_hash(buffer: bytes, secret_key: str) -> str:
     return hmac.new(secret_key.encode(), msg=buffer, digestmod=hashlib.sha256).hexdigest()
 
 
-def perform_integrity_check(buffer: bytes):  # pylint: disable=W0613
+def perform_integrity_check(buffer: bytes):
     """Placeholder docstring"""
-    # TODO: performing integrity check is
-    # specific to the framework with will be coming soon
 
 
 def detect_framework_and_its_versions(model: object) -> bool:

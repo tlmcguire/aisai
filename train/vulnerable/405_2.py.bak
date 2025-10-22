@@ -30,9 +30,9 @@ import traceback
 from werkzeug.security import safe_join
 
 INITIAL_PORT_VALUE = int(os.getenv(
-    'GRADIO_SERVER_PORT', "7860"))  # The http server will try to open on port 7860. If not available, 7861, 7862, etc.
+    'GRADIO_SERVER_PORT', "7860"))
 TRY_NUM_PORTS = int(os.getenv(
-    'GRADIO_NUM_PORTS', "100"))  # Number of ports to try before giving up and throwing an exception.
+    'GRADIO_NUM_PORTS', "100"))
 LOCALHOST_NAME = os.getenv(
     'GRADIO_SERVER_NAME', "127.0.0.1")
 GRADIO_API_SERVER = "https://api.gradio.app/v1/tunnel-request"
@@ -60,7 +60,6 @@ login_manager = LoginManager()
 login_manager.login_view = 'login'
 login_manager.init_app(app)
 
-# Hide Flask default message
 cli = sys.modules['flask.cli']
 cli.show_server_banner = lambda *x: None
 
@@ -115,8 +114,8 @@ def get_first_available_port(initial, final):
     """
     for port in range(initial, final):
         try:
-            s = socket.socket()  # create a socket object
-            s.bind((LOCALHOST_NAME, port))  # Bind to the port
+            s = socket.socket()
+            s.bind((LOCALHOST_NAME, port))
             s.close()
             return port
         except OSError:
@@ -143,7 +142,6 @@ def static_resource(path):
         return send_file(safe_join(STATIC_PATH_LIB, path))
 
 
-# TODO(@aliabid94): this throws a 500 error if app.auth is None (should probalbly just redirect to '/')
 @app.route('/login', methods=["GET", "POST"])
 def login():
     if request.method == "GET":
@@ -190,7 +188,6 @@ def shutdown():
 @login_check
 def predict():
     raw_input = request.json["data"]
-    # Capture any errors made and pipe to front end
     if app.interface.show_error:
         try:
             prediction, durations = app.interface.process(raw_input)
@@ -203,14 +200,14 @@ def predict():
     for i, duration in enumerate(durations):
         app.interface.predict_durations[i][0] += duration
         app.interface.predict_durations[i][1] += 1
-        avg_durations.append(app.interface.predict_durations[i][0] 
+        avg_durations.append(app.interface.predict_durations[i][0]
             / app.interface.predict_durations[i][1])
     app.interface.config["avg_durations"] = avg_durations
     output = {"data": prediction, "durations": durations, "avg_durations": avg_durations}
     if app.interface.allow_flagging == "auto":
         try:
-            flag_index = flag_data(raw_input, prediction, 
-                flag_option=(None if app.interface.flagging_options is None else ""), 
+            flag_index = flag_data(raw_input, prediction,
+                flag_option=(None if app.interface.flagging_options is None else ""),
                 username=current_user.id if current_user.is_authenticated else None)
             output["flag_index"] = flag_index
         except Exception as e:
@@ -270,7 +267,7 @@ def log_feature_analytics(feature):
                               'ip_address': IP_ADDRESS,
                               'feature': feature}, timeout=3)
         except (requests.ConnectionError, requests.exceptions.ReadTimeout):
-            pass  # do not push analytics if no network
+            pass
 
 
 def flag_data(input_data, output_data, flag_option=None, flag_index=None, username=None, flag_path=None):
@@ -345,7 +342,7 @@ def flag_data(input_data, output_data, flag_option=None, flag_index=None, userna
             with open(log_fp) as csvfile:
                 file_content = csvfile.read()
                 file_content = replace_flag_at_index(file_content)
-            with open(log_fp, "w", newline="") as csvfile:  # newline parameter needed for Windows
+            with open(log_fp, "w", newline="") as csvfile:
                 csvfile.write(file_content)
     with open(log_fp, "r") as csvfile:
         line_count = len([None for row in csv.reader(csvfile)]) - 1
@@ -356,7 +353,7 @@ def flag_data(input_data, output_data, flag_option=None, flag_index=None, userna
 def flag():
     log_feature_analytics('flag')
     data = request.json['data']
-    flag_data(data['input_data'], data['output_data'], data.get("flag_option"), data.get("flag_index"), 
+    flag_data(data['input_data'], data['output_data'], data.get("flag_option"), data.get("flag_index"),
         current_user.id if current_user.is_authenticated else None)
     return jsonify(success=True)
 
@@ -502,7 +499,7 @@ def url_ok(url):
         for _ in range(5):
             time.sleep(.500)
             r = requests.head(url, timeout=3)
-            if r.status_code in (200, 401, 302):  # 401 or 302 if auth is set
+            if r.status_code in (200, 401, 302):
                 return True
     except (ConnectionError, requests.exceptions.ConnectionError):
         return False

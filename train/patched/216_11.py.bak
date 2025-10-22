@@ -249,7 +249,7 @@ class ListProperty(Property, Generic[InnerProp]):
             raise ValidationError(f"Expected list, got {type(default)}")
 
         default = list(map(self.inner_property._validate_default, default))
-        if isinstance(self.inner_property, RefProperty):  # Fix enums to use the actual value
+        if isinstance(self.inner_property, RefProperty):
             default = str(default).replace("'", "")
 
         return f"field(default_factory=lambda: cast({self.get_type_string()}, {default}))"
@@ -306,13 +306,13 @@ class EnumProperty(Property):
 
     template: ClassVar[str] = "enum_property.pyi"
 
-    def __post_init__(self, title: str) -> None:  # type: ignore
+    def __post_init__(self, title: str) -> None:
         reference = Reference.from_ref(title)
         dedup_counter = 0
         while reference.class_name in _existing_enums:
             existing = _existing_enums[reference.class_name]
             if self.values == existing.values:
-                break  # This is the same Enum, we're good
+                break
             dedup_counter += 1
             reference = Reference.from_ref(f"{reference.class_name}{dedup_counter}")
 
@@ -384,7 +384,7 @@ class RefProperty(Property):
     reference: Reference
 
     @property
-    def template(self) -> str:  # type: ignore
+    def template(self) -> str:
         enum = EnumProperty.get_enum(self.reference.class_name)
         if enum:
             return "enum_property.pyi"

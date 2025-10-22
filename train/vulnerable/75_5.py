@@ -47,7 +47,6 @@ from test import onlyPy3, onlyPy2, onlyBrotlipy, notBrotlipy
 
 TIMEOUT_EPOCH = 1000
 
-
 class TestUtil(object):
 
     url_host_map = [
@@ -141,7 +140,7 @@ class TestUtil(object):
         ('[::Ff%etH0%Ff]/%ab%Af', '[::ff%25etH0%Ff]/%AB%AF'),
     ])
     def test_parse_url_normalization(self, url, expected_normalized_url):
-        """Assert parse_url normalizes the scheme/host, and only the scheme/host"""
+
         actual_normalized_url = parse_url(url).url
         assert actual_normalized_url == expected_normalized_url
 
@@ -437,7 +436,7 @@ class TestUtil(object):
             assert len(w) == 1
 
     def _make_time_pass(self, seconds, timeout, time_mock):
-        """ Make some time pass for the timeout object """
+
         time_mock.return_value = TIMEOUT_EPOCH
         timeout.start_connect()
         time_mock.return_value = TIMEOUT_EPOCH + seconds

@@ -13,7 +13,6 @@ from PIL import Image, ImageCms
 
 from gradio import processing_utils, utils
 
-
 class TestTempFileManagement:
     def test_hash_file(self):
         h1 = processing_utils.hash_file("gradio/test_data/cheetah1.jpg")
@@ -101,7 +100,6 @@ class TestTempFileManagement:
         url = "https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/bread_small.png"
         processing_utils.save_url_to_cache(url, cache_dir=gradio_temp_dir)
         assert len([f for f in gradio_temp_dir.glob("**/*") if f.is_file()]) == 1
-
 
 class TestImagePreprocessing:
     def test_encode_plot_to_base64(self):
@@ -191,7 +189,6 @@ class TestImagePreprocessing:
                 **{"img": img, "size": (20, 20), "crop_type": "test"}
             )
 
-
 class TestAudioPreprocessing:
     def test_audio_from_file(self):
         audio = processing_utils.audio_from_file("gradio/test_data/test_audio.wav")
@@ -223,7 +220,6 @@ class TestAudioPreprocessing:
         assert np.allclose(audio, audio_)
         assert audio_.dtype == "int16"
 
-
 class TestOutputPreprocessing:
     float_dtype_list = [
         float,
@@ -237,7 +233,7 @@ class TestOutputPreprocessing:
     ]
 
     def test_float_conversion_dtype(self):
-        """Test any conversion from a float dtype to an other."""
+
 
         x = np.array([-1, 1])
         dtype_combin = np.array(
@@ -253,13 +249,12 @@ class TestOutputPreprocessing:
             assert y.dtype == np.dtype(dtype_out)
 
     def test_subclass_conversion(self):
-        """Check subclass conversion behavior"""
+
         x = np.array([-1, 1])
         for dtype in TestOutputPreprocessing.float_dtype_list:
             x = x.astype(dtype)
             y = processing_utils._convert(x, np.floating)
             assert y.dtype == x.dtype
-
 
 class TestVideoProcessing:
     def test_video_has_playable_codecs(self, test_file_dir):
@@ -325,7 +320,6 @@ class TestVideoProcessing:
             )
             assert Path(playable_vid).suffix == ".avi"
 
-
 def test_add_root_url():
     data = {
         "file": {
@@ -369,7 +363,6 @@ def test_add_root_url():
     assert (
         processing_utils.add_root_url(expected, new_root_url, root_url) == new_expected
     )
-
 
 def test_hash_url_encodes_url():
     assert processing_utils.hash_url(

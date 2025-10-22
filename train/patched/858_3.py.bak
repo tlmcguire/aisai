@@ -1,17 +1,3 @@
-# Copyright 2015, 2016 OpenMarket Ltd
-# Copyright 2017 New Vector Ltd
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 import logging
 import re
@@ -106,8 +92,6 @@ def tweaks_for_actions(actions: List[Union[str, Dict]]) -> Dict[str, Any]:
         if not isinstance(a, dict):
             continue
         if "set_tweak" in a:
-            # value is allowed to be absent in which case the value assumed
-            # should be True.
             tweaks[a["set_tweak"]] = a.get("value", True)
     return tweaks
 
@@ -125,7 +109,6 @@ class PushRuleEvaluatorForEvent:
         self._sender_power_level = sender_power_level
         self._power_levels = power_levels
 
-        # Maps strings of e.g. 'content.body' -> event["content"]["body"]
         self._value_cache = _flatten_dict(event)
 
     def matches(
@@ -158,7 +141,6 @@ class PushRuleEvaluatorForEvent:
             logger.warning("event_match condition with no pattern")
             return False
 
-        # XXX: optimisation: cache our pattern regexps
         if condition["key"] == "content.body":
             body = self._event.content.get("body", None)
             if not isinstance(body, str):
@@ -182,7 +164,6 @@ class PushRuleEvaluatorForEvent:
         if not isinstance(body, str):
             return False
 
-        # Similar to _glob_matches, but do not treat display_name as a glob.
         r = regex_cache.get((display_name, False, True), None)
         if not r:
             r1 = re.escape(display_name)
@@ -196,10 +177,9 @@ class PushRuleEvaluatorForEvent:
         return self._value_cache.get(dotted_key, None)
 
 
-# Caches (string, is_glob, word_boundary) -> regex for push. See _glob_matches
 regex_cache = LruCache(
     50000, "regex_push_cache"
-)  # type: LruCache[Tuple[str, bool, bool], Pattern]
+)
 
 
 def _glob_matches(glob: str, value: str, word_boundary: bool = False) -> bool:

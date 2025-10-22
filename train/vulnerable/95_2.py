@@ -8,7 +8,6 @@ RFC2396_BASE = "http://a/b/c/d;p?q"
 RFC3986_BASE = 'http://a/b/c/d;p?q'
 SIMPLE_BASE  = 'http://a/b/c/d'
 
-
 parse_qsl_test_cases = [
     ("", []),
     ("&", []),
@@ -41,7 +40,6 @@ parse_qsl_test_cases = [
     (b"a=a+b;b=b+c", [(b'a', b'a b'), (b'b', b'b c')]),
     (b"a=1;a=2", [(b'a', b'1'), (b'a', b'2')]),
 ]
-
 
 parse_qs_test_cases = [
     ("", {}),
@@ -261,9 +259,6 @@ class UrlParseTestCase(unittest.TestCase):
         self.checkJoin(RFC1808_BASE, 'g/./h', 'http://a/b/c/g/h')
         self.checkJoin(RFC1808_BASE, 'g/../h', 'http://a/b/c/h')
 
-
-
-
     def test_RFC2368(self):
         self.assertEqual(urllib.parse.urlparse('mailto:1337@example.org'),
                 ('mailto', '', '1337@example.org', '', '', ''))
@@ -306,7 +301,6 @@ class UrlParseTestCase(unittest.TestCase):
         self.checkJoin(RFC2396_BASE, 'g#s/./x', 'http://a/b/c/g#s/./x')
         self.checkJoin(RFC2396_BASE, 'g#s/../x', 'http://a/b/c/g#s/../x')
 
-
     def test_RFC3986(self):
         self.checkJoin(RFC3986_BASE, '?y','http://a/b/c/d;p?y')
         self.checkJoin(RFC3986_BASE, ';x', 'http://a/b/c/;x')
@@ -334,8 +328,6 @@ class UrlParseTestCase(unittest.TestCase):
         self.checkJoin(RFC3986_BASE, '../../','http://a/')
         self.checkJoin(RFC3986_BASE, '../../g','http://a/g')
         self.checkJoin(RFC3986_BASE, '../../../g', 'http://a/g')
-
-
 
         self.checkJoin(RFC3986_BASE, '../../../g','http://a/g')
         self.checkJoin(RFC3986_BASE, '../../../../g','http://a/g')
@@ -394,7 +386,6 @@ class UrlParseTestCase(unittest.TestCase):
         self.checkJoin('svn+ssh://pathtorepo/dir1', 'dir2', 'svn+ssh://pathtorepo/dir2')
         self.checkJoin('ws://a/b','g','ws://a/g')
         self.checkJoin('wss://a/b','g','wss://a/g')
-
 
         self.checkJoin(SIMPLE_BASE + '/', 'foo', SIMPLE_BASE + '/foo')
 
@@ -516,7 +507,6 @@ class UrlParseTestCase(unittest.TestCase):
         self.assertEqual(p.port, 80)
         self.assertEqual(p.geturl(), url)
 
-
         url = "http://User@example.com:Pass@www.python.org:080/doc/?query=yes#frag"
         p = urllib.parse.urlsplit(url)
         self.assertEqual(p.scheme, "http")
@@ -575,7 +565,7 @@ class UrlParseTestCase(unittest.TestCase):
             p.port
 
     def test_attributes_bad_port(self):
-        """Check handling of invalid ports."""
+
         for bytes in (False, True):
             for parse in (urllib.parse.urlsplit, urllib.parse.urlparse):
                 for port in ("foo", "1.5", "-1", "0x10"):
@@ -943,7 +933,7 @@ class UrlParseTestCase(unittest.TestCase):
                         urllib.parse.urlsplit(url)
 
 class Utility_Tests(unittest.TestCase):
-    """Testcase to test the various utility functions in the urllib."""
+
 
     def test_splittype(self):
         splittype = urllib.parse._splittype
@@ -1082,7 +1072,6 @@ class Utility_Tests(unittest.TestCase):
             url = urllib.parse.unwrap(wrapped_url)
             self.assertEqual(url, 'scheme://host/path')
 
-
 class DeprecationTest(unittest.TestCase):
 
     def test_splittype_deprecation(self):
@@ -1160,7 +1149,6 @@ class DeprecationTest(unittest.TestCase):
             urllib.parse.to_bytes('')
         self.assertEqual(str(cm.warning),
                          'urllib.parse.to_bytes() is deprecated as of 3.8')
-
 
 if __name__ == "__main__":
     unittest.main()

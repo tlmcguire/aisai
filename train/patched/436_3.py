@@ -14,7 +14,6 @@ from ...utils.convert import to_bytes, to_str
 from ..exceptions import Abort
 from .exceptions import BadHeader
 
-
 if not hasattr(pycurl, 'PROXYTYPE_HTTPS'):
     pycurl.PROXYTYPE_HTTPS = 2
 
@@ -24,7 +23,6 @@ def myquote(url):
     except AttributeError:
         pass
     return quote(url, safe="%/:=&?~#+!$,;'@()*[]")
-
 
 def myurlencode(data):
     data = dict(data)
@@ -39,11 +37,9 @@ def myurlencode(data):
         }
     )
 
-
 BAD_STATUS_CODES = tuple(
     chain(range(400, 404), range(405, 418), range(500, 506))
 )
-
 
 class FormFile:
     def __init__(self, filename, data=None, mimetype=None):
@@ -54,7 +50,6 @@ class FormFile:
 
     def __repr__(self):
         return f"FormFile <'{os.path.basename(self.filename)}'>"
-
 
 class HTTPRequest:
     def __init__(self, cookies=None, options=None, limit=2_000_000):
@@ -92,9 +87,7 @@ class HTTPRequest:
         self.close()
 
     def init_handle(self):
-        """
-        sets common options to curl handle.
-        """
+
         self.c.setopt(pycurl.FOLLOWLOCATION, 1)
         self.c.setopt(pycurl.MAXREDIRS, 10)
         self.c.setopt(pycurl.CONNECTTIMEOUT, 30)
@@ -107,7 +100,6 @@ class HTTPRequest:
         self.c.setopt(pycurl.LOW_SPEED_LIMIT, 5)
         if hasattr(pycurl, "USE_SSL"):
             self.c.setopt(pycurl.USE_SSL, pycurl.USESSL_TRY)
-
 
         self.c.setopt(
             pycurl.USERAGENT,
@@ -175,16 +167,12 @@ class HTTPRequest:
             self.c.setopt(pycurl.SSL_VERIFYPEER, 1 if options["ssl_verify"] else 0)
 
     def add_cookies(self):
-        """
-        put cookies from curl handle to cj.
-        """
+
         if self.cj:
             self.cj.add_cookies(self.c.getinfo(pycurl.INFO_COOKIELIST))
 
     def get_cookies(self):
-        """
-        add cookies from cj to curl handle.
-        """
+
         if self.cj:
             for c in self.cj.get_cookies():
                 self.c.setopt(pycurl.COOKIELIST, c)
@@ -194,9 +182,7 @@ class HTTPRequest:
         self.c.setopt(pycurl.COOKIELIST, "")
 
     def set_request_context(self, url, get, post, referer, cookies, multipart=False, decode=True):
-        """
-        sets everything needed for the request.
-        """
+
         self.rep = io.BytesIO()
 
         self.exception = None
@@ -274,9 +260,7 @@ class HTTPRequest:
         follow_location=True,
         save_cookies=True,
     ):
-        """
-        load and returns a given page.
-        """
+
         self.set_request_context(url, get, post, referer, cookies, multipart, decode)
 
         self.response_header = b""
@@ -322,9 +306,7 @@ class HTTPRequest:
         return ret
 
     def verify_header(self):
-        """
-        raise an exceptions on bad headers.
-        """
+
         code = int(self.c.getinfo(pycurl.RESPONSE_CODE))
         if code in BAD_STATUS_CODES:
             response = self.decode_response(self.get_response()) if self.decode else self.get_response()
@@ -341,24 +323,18 @@ class HTTPRequest:
         return code
 
     def check_header(self):
-        """
-        check if header indicates failure.
-        """
+
         return int(self.c.getinfo(pycurl.RESPONSE_CODE)) not in BAD_STATUS_CODES
 
     def get_response(self):
-        """
-        retrieve response from bytes io.
-        """
+
         if self.rep is None:
             return b""
         else:
             return self.rep.getvalue()
 
     def decode_response(self, response):
-        """
-        decode with correct encoding, relies on header.
-        """
+
         header = self.response_header.splitlines()
         encoding = "utf-8"
 
@@ -382,7 +358,6 @@ class HTTPRequest:
             decoder = codecs.getincrementaldecoder(encoding)("replace")
             response = decoder.decode(response, True)
 
-
         except LookupError:
             self.log.debug(f"No Decoder found for {encoding}")
 
@@ -392,9 +367,7 @@ class HTTPRequest:
         return response
 
     def write_body(self, buf):
-        """
-        writes response.
-        """
+
         if self.abort:
             self.exception = Abort()
             return pycurl.E_WRITE_ERROR
@@ -411,9 +384,7 @@ class HTTPRequest:
         return None
 
     def write_header(self, buf):
-        """
-        writes header.
-        """
+
         self.response_header += buf
 
     def put_header(self, name, value):
@@ -423,9 +394,7 @@ class HTTPRequest:
         self.request_headers = []
 
     def close(self):
-        """
-        cleanup, unusable after this.
-        """
+
         if self.rep:
             self.rep.close()
             del self.rep

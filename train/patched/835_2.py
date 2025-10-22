@@ -2,18 +2,7 @@ import re
 from typing import List, Tuple
 
 def _normalize_ip_address(ip_address: str) -> Tuple[int, int, int, int]:
-    """
-    Converts an IP address string to a tuple of 4 integers.
 
-    Args:
-        ip_address: The IP address string to convert
-
-    Returns:
-        A tuple of 4 integers, or an empty tuple if the IP address is invalid
-
-    Raises:
-        None
-    """
     match = re.match(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$", ip_address)
     if not match:
         return ()
@@ -25,21 +14,8 @@ def _normalize_ip_address(ip_address: str) -> Tuple[int, int, int, int]:
 
     return tuple(parts)
 
-
 def _ip_address_in_range(ip_address: str, ip_range: str) -> bool:
-    """
-    Checks if an IP address is within an IP range
 
-    Args:
-        ip_address: The IP address to check
-        ip_range: The IP range to check against, as a string of the form "192.168.1.0/24"
-
-    Returns:
-         True if the IP address is within the range, False otherwise.
-
-    Raises:
-        None
-    """
     addr_parts = _normalize_ip_address(ip_address)
     if not addr_parts:
         return False
@@ -65,24 +41,10 @@ def _ip_address_in_range(ip_address: str, ip_range: str) -> bool:
 
     return (addr_int & mask) == (range_int & mask)
 
-
 def is_ip_allowed(
     ip_address: str, ip_range_blacklist: List[str], ip_range_whitelist: List[str]
 ) -> bool:
-    """
-    Checks if an IP address is allowed given a blacklist and whitelist of IP ranges
 
-    Args:
-        ip_address: The IP address to check.
-        ip_range_blacklist: The blacklist of IP ranges
-        ip_range_whitelist: The whitelist of IP ranges
-
-    Returns:
-        True if the IP address is allowed, False otherwise.
-        IP addresses that are not explicitly allowed are denied.
-    Raises:
-        None
-    """
 
     if not ip_address:
         return False

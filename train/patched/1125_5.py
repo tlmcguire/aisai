@@ -29,7 +29,6 @@ try:
 except ImportError:
     brotli = None
 
-
 REQUEST_PARSERS: Any = [HttpRequestParserPy]
 RESPONSE_PARSERS: Any = [HttpResponseParserPy]
 
@@ -41,18 +40,15 @@ try:
 except ImportError:
     pass
 
-
 @pytest.fixture
 def protocol():
     return mock.Mock()
-
 
 def _gen_ids(parsers: List[Any]) -> List[str]:
     return [
         "py-parser" if parser.__module__ == "aiohttp.http_parser" else "c-parser"
         for parser in parsers
     ]
-
 
 @pytest.fixture(params=REQUEST_PARSERS, ids=_gen_ids(REQUEST_PARSERS))
 def parser(loop: Any, protocol: Any, request: Any):
@@ -64,11 +60,9 @@ def parser(loop: Any, protocol: Any, request: Any):
         max_field_size=8190,
     )
 
-
 @pytest.fixture(params=REQUEST_PARSERS, ids=_gen_ids(REQUEST_PARSERS))
 def request_cls(request: Any):
     return request.param
-
 
 @pytest.fixture(params=RESPONSE_PARSERS, ids=_gen_ids(RESPONSE_PARSERS))
 def response(loop: Any, protocol: Any, request: Any):
@@ -80,16 +74,13 @@ def response(loop: Any, protocol: Any, request: Any):
         max_field_size=8190,
     )
 
-
 @pytest.fixture(params=RESPONSE_PARSERS, ids=_gen_ids(RESPONSE_PARSERS))
 def response_cls(request: Any):
     return request.param
 
-
 @pytest.fixture
 def stream():
     return mock.Mock()
-
 
 @pytest.mark.skipif(NO_EXTENSIONS, reason="Extensions available but not imported")
 def test_c_parser_loaded():
@@ -97,7 +88,6 @@ def test_c_parser_loaded():
     assert "HttpResponseParserC" in dir(aiohttp.http_parser)
     assert "RawRequestMessageC" in dir(aiohttp.http_parser)
     assert "RawResponseMessageC" in dir(aiohttp.http_parser)
-
 
 def test_parse_headers(parser: Any) -> None:
     text = b"""GET /test HTTP/1.1\r
@@ -115,7 +105,6 @@ test2: data\r
     assert not msg.should_close
     assert msg.compression is None
     assert not msg.upgrade
-
 
 @pytest.mark.skipif(NO_EXTENSIONS, reason="Only tests C parser.")
 def test_invalid_character(loop: Any, protocol: Any, request: Any) -> None:
@@ -136,7 +125,6 @@ def test_invalid_character(loop: Any, protocol: Any, request: Any) -> None:
     with pytest.raises(http_exceptions.BadHttpMessage, match=error_detail):
         parser.feed_data(text)
 
-
 @pytest.mark.skipif(NO_EXTENSIONS, reason="Only tests C parser.")
 def test_invalid_linebreak(loop: Any, protocol: Any, request: Any) -> None:
     parser = HttpRequestParserC(
@@ -156,12 +144,10 @@ def test_invalid_linebreak(loop: Any, protocol: Any, request: Any) -> None:
     with pytest.raises(http_exceptions.BadHttpMessage, match=error_detail):
         parser.feed_data(text)
 
-
 def test_cve_2023_37276(parser: Any) -> None:
     text = b"""POST / HTTP/1.1\r\nHost: localhost:8080\r\nX-Abc: \rxTransfer-Encoding: chunked\r\n\r\n"""
     with pytest.raises(http_exceptions.BadHttpMessage):
         parser.feed_data(text)
-
 
 @pytest.mark.parametrize(
     "rfc9110_5_6_2_token_delim",
@@ -174,7 +160,6 @@ def test_bad_header_name(parser: Any, rfc9110_5_6_2_token_delim: str) -> None:
         expectation = nullcontext()
     with expectation:
         parser.feed_data(text)
-
 
 @pytest.mark.parametrize(
     "hdr",
@@ -196,7 +181,6 @@ def test_bad_headers(parser: Any, hdr: str) -> None:
     with pytest.raises(http_exceptions.BadHttpMessage):
         parser.feed_data(text)
 
-
 def test_unpaired_surrogate_in_header_py(loop: Any, protocol: Any) -> None:
     parser = HttpRequestParserPy(
         protocol,
@@ -213,7 +197,6 @@ def test_unpaired_surrogate_in_header_py(loop: Any, protocol: Any) -> None:
         message = e.message.encode("utf-8")
     assert message is not None
 
-
 def test_content_length_transfer_encoding(parser: Any) -> None:
     text = (
         b"GET / HTTP/1.1\r\nHost: a\r\nContent-Length: 5\r\nTransfer-Encoding: a\r\n\r\n"
@@ -222,9 +205,8 @@ def test_content_length_transfer_encoding(parser: Any) -> None:
     with pytest.raises(http_exceptions.BadHttpMessage):
         parser.feed_data(text)
 
-
 def test_bad_chunked_py(loop: Any, protocol: Any) -> None:
-    """Test that invalid chunked encoding doesn't allow content-length to be used."""
+
     parser = HttpRequestParserPy(
         protocol,
         loop,
@@ -239,13 +221,12 @@ def test_bad_chunked_py(loop: Any, protocol: Any) -> None:
     messages, upgrade, tail = parser.feed_data(text)
     assert isinstance(messages[0][1].exception(), http_exceptions.TransferEncodingError)
 
-
 @pytest.mark.skipif(
     "HttpRequestParserC" not in dir(aiohttp.http_parser),
     reason="C based HTTP parser not available",
 )
 def test_bad_chunked_c(loop: Any, protocol: Any) -> None:
-    """C parser behaves differently. Maybe we should align them later."""
+
     parser = HttpRequestParserC(
         protocol,
         loop,
@@ -260,12 +241,10 @@ def test_bad_chunked_c(loop: Any, protocol: Any) -> None:
     with pytest.raises(http_exceptions.BadHttpMessage):
         parser.feed_data(text)
 
-
 def test_whitespace_before_header(parser: Any) -> None:
     text = b"GET / HTTP/1.1\r\n\tContent-Length: 1\r\n\r\nX"
     with pytest.raises(http_exceptions.BadHttpMessage):
         parser.feed_data(text)
-
 
 def test_parse_headers_longline(parser: Any) -> None:
     invalid_unicode_byte = b"\xd9"
@@ -273,7 +252,6 @@ def test_parse_headers_longline(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" + header_name + b": test\r\n" + b"\r\n" + b"\r\n"
     with pytest.raises((http_exceptions.LineTooLong, http_exceptions.BadHttpMessage)):
         parser.feed_data(text)
-
 
 def test_parse_unusual_request_line(parser: Any) -> None:
     if not isinstance(response, HttpResponseParserPy):
@@ -288,7 +266,6 @@ def test_parse_unusual_request_line(parser: Any) -> None:
     assert msg.path == "//a"
     assert msg.version == (1, 3)
 
-
 def test_parse(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n\r\n"
     messages, upgrade, tail = parser.feed_data(text)
@@ -300,7 +277,6 @@ def test_parse(parser: Any) -> None:
     assert msg.path == "/test"
     assert msg.version == (1, 1)
 
-
 async def test_parse_body(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody"
     messages, upgrade, tail = parser.feed_data(text)
@@ -309,7 +285,6 @@ async def test_parse_body(parser: Any) -> None:
     body = await payload.read(4)
     assert body == b"body"
 
-
 async def test_parse_body_with_CRLF(parser: Any) -> None:
     text = b"\r\nGET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody"
     messages, upgrade, tail = parser.feed_data(text)
@@ -317,7 +292,6 @@ async def test_parse_body_with_CRLF(parser: Any) -> None:
     _, payload = messages[0]
     body = await payload.read(4)
     assert body == b"body"
-
 
 def test_parse_delayed(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n"
@@ -329,7 +303,6 @@ def test_parse_delayed(parser: Any) -> None:
     assert len(messages) == 1
     msg = messages[0][0]
     assert msg.method == "GET"
-
 
 def test_headers_multi_feed(parser: Any) -> None:
     text1 = b"GET /test HTTP/1.1\r\n"
@@ -352,7 +325,6 @@ def test_headers_multi_feed(parser: Any) -> None:
     assert msg.compression is None
     assert not msg.upgrade
 
-
 def test_headers_split_field(parser: Any) -> None:
     text1 = b"GET /test HTTP/1.1\r\n"
     text2 = b"t"
@@ -372,7 +344,6 @@ def test_headers_split_field(parser: Any) -> None:
     assert not msg.should_close
     assert msg.compression is None
     assert not msg.upgrade
-
 
 def test_parse_headers_multi(parser: Any) -> None:
     text = (
@@ -396,13 +367,11 @@ def test_parse_headers_multi(parser: Any) -> None:
     assert not msg.should_close
     assert msg.compression is None
 
-
 def test_conn_default_1_0(parser: Any) -> None:
     text = b"GET /test HTTP/1.0\r\n\r\n"
     messages, upgrade, tail = parser.feed_data(text)
     msg = messages[0][0]
     assert msg.should_close
-
 
 def test_conn_default_1_1(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n\r\n"
@@ -410,13 +379,11 @@ def test_conn_default_1_1(parser: Any) -> None:
     msg = messages[0][0]
     assert not msg.should_close
 
-
 def test_conn_close(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"connection: close\r\n\r\n"
     messages, upgrade, tail = parser.feed_data(text)
     msg = messages[0][0]
     assert msg.should_close
-
 
 def test_conn_close_1_0(parser: Any) -> None:
     text = b"GET /test HTTP/1.0\r\n" b"connection: close\r\n\r\n"
@@ -424,13 +391,11 @@ def test_conn_close_1_0(parser: Any) -> None:
     msg = messages[0][0]
     assert msg.should_close
 
-
 def test_conn_keep_alive_1_0(parser: Any) -> None:
     text = b"GET /test HTTP/1.0\r\n" b"connection: keep-alive\r\n\r\n"
     messages, upgrade, tail = parser.feed_data(text)
     msg = messages[0][0]
     assert not msg.should_close
-
 
 def test_conn_keep_alive_1_1(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"connection: keep-alive\r\n\r\n"
@@ -438,20 +403,17 @@ def test_conn_keep_alive_1_1(parser: Any) -> None:
     msg = messages[0][0]
     assert not msg.should_close
 
-
 def test_conn_other_1_0(parser: Any) -> None:
     text = b"GET /test HTTP/1.0\r\n" b"connection: test\r\n\r\n"
     messages, upgrade, tail = parser.feed_data(text)
     msg = messages[0][0]
     assert msg.should_close
 
-
 def test_conn_other_1_1(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"connection: test\r\n\r\n"
     messages, upgrade, tail = parser.feed_data(text)
     msg = messages[0][0]
     assert not msg.should_close
-
 
 def test_request_chunked(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"transfer-encoding: chunked\r\n\r\n"
@@ -460,7 +422,6 @@ def test_request_chunked(parser: Any) -> None:
     assert msg.chunked
     assert not upgrade
     assert isinstance(payload, streams.StreamReader)
-
 
 def test_request_te_chunked_with_content_length(parser: Any) -> None:
     text = (
@@ -474,7 +435,6 @@ def test_request_te_chunked_with_content_length(parser: Any) -> None:
     ):
         parser.feed_data(text)
 
-
 def test_request_te_chunked123(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"transfer-encoding: chunked123\r\n\r\n"
     with pytest.raises(
@@ -482,7 +442,6 @@ def test_request_te_chunked123(parser: Any) -> None:
         match="Request has invalid `Transfer-Encoding`",
     ):
         parser.feed_data(text)
-
 
 def test_conn_upgrade(parser: Any) -> None:
     text = (
@@ -496,15 +455,13 @@ def test_conn_upgrade(parser: Any) -> None:
     assert msg.upgrade
     assert upgrade
 
-
 def test_bad_upgrade(parser: Any) -> None:
-    """Test not upgraded if missing Upgrade header."""
+
     text = b"GET /test HTTP/1.1\r\nconnection: upgrade\r\n\r\n"
     messages, upgrade, tail = parser.feed_data(text)
     msg = messages[0][0]
     assert not msg.upgrade
     assert not upgrade
-
 
 def test_compression_empty(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"content-encoding: \r\n\r\n"
@@ -512,20 +469,17 @@ def test_compression_empty(parser: Any) -> None:
     msg = messages[0][0]
     assert msg.compression is None
 
-
 def test_compression_deflate(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"content-encoding: deflate\r\n\r\n"
     messages, upgrade, tail = parser.feed_data(text)
     msg = messages[0][0]
     assert msg.compression == "deflate"
 
-
 def test_compression_gzip(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"content-encoding: gzip\r\n\r\n"
     messages, upgrade, tail = parser.feed_data(text)
     msg = messages[0][0]
     assert msg.compression == "gzip"
-
 
 @pytest.mark.skipif(brotli is None, reason="brotli is not installed")
 def test_compression_brotli(parser: Any) -> None:
@@ -534,13 +488,11 @@ def test_compression_brotli(parser: Any) -> None:
     msg = messages[0][0]
     assert msg.compression == "br"
 
-
 def test_compression_unknown(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"content-encoding: compress\r\n\r\n"
     messages, upgrade, tail = parser.feed_data(text)
     msg = messages[0][0]
     assert msg.compression is None
-
 
 def test_url_connect(parser: Any) -> None:
     text = b"CONNECT www.google.com HTTP/1.1\r\n" b"content-length: 0\r\n\r\n"
@@ -549,14 +501,12 @@ def test_url_connect(parser: Any) -> None:
     assert upgrade
     assert msg.url == URL.build(authority="www.google.com")
 
-
 def test_headers_connect(parser: Any) -> None:
     text = b"CONNECT www.google.com HTTP/1.1\r\n" b"content-length: 0\r\n\r\n"
     messages, upgrade, tail = parser.feed_data(text)
     msg, payload = messages[0]
     assert upgrade
     assert isinstance(payload, streams.StreamReader)
-
 
 def test_url_absolute(parser: Any) -> None:
     text = (
@@ -569,13 +519,11 @@ def test_url_absolute(parser: Any) -> None:
     assert msg.method == "GET"
     assert msg.url == URL("https://www.google.com/path/to.html")
 
-
 def test_headers_old_websocket_key1(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"SEC-WEBSOCKET-KEY1: line\r\n\r\n"
 
     with pytest.raises(http_exceptions.BadHttpMessage):
         parser.feed_data(text)
-
 
 def test_headers_content_length_err_1(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"content-length: line\r\n\r\n"
@@ -583,13 +531,11 @@ def test_headers_content_length_err_1(parser: Any) -> None:
     with pytest.raises(http_exceptions.BadHttpMessage):
         parser.feed_data(text)
 
-
 def test_headers_content_length_err_2(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"content-length: -1\r\n\r\n"
 
     with pytest.raises(http_exceptions.BadHttpMessage):
         parser.feed_data(text)
-
 
 _pad: Dict[bytes, str] = {
     b"": "empty",
@@ -600,7 +546,6 @@ _pad: Dict[bytes, str] = {
     b"\xa0": "NBSP",
     b"\t ": "TABSP",
 }
-
 
 @pytest.mark.parametrize("hdr", [b"", b"foo"], ids=["name-empty", "with-name"])
 @pytest.mark.parametrize("pad2", _pad.keys(), ids=["post-" + n for n in _pad.values()])
@@ -618,7 +563,6 @@ def test_invalid_header_spacing(
     with expectation:
         parser.feed_data(text)
 
-
 def test_empty_header_name(parser: Any) -> None:
     if not isinstance(response, HttpResponseParserPy):
         pytest.xfail("Regression test for Py parser. May match C behaviour later.")
@@ -626,19 +570,16 @@ def test_empty_header_name(parser: Any) -> None:
     with pytest.raises(http_exceptions.BadHttpMessage):
         parser.feed_data(text)
 
-
 def test_invalid_header(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"test line\r\n\r\n"
     with pytest.raises(http_exceptions.BadHttpMessage):
         parser.feed_data(text)
-
 
 def test_invalid_name(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"test[]: line\r\n\r\n"
 
     with pytest.raises(http_exceptions.BadHttpMessage):
         parser.feed_data(text)
-
 
 @pytest.mark.parametrize("size", [40960, 8191])
 def test_max_header_field_size(parser: Any, size: Any) -> None:
@@ -648,7 +589,6 @@ def test_max_header_field_size(parser: Any, size: Any) -> None:
     match = f"400, message:\n  Got more than 8190 bytes \\({size}\\) when reading"
     with pytest.raises(http_exceptions.LineTooLong, match=match):
         parser.feed_data(text)
-
 
 def test_max_header_field_size_under_limit(parser: Any) -> None:
     name = b"t" * 8190
@@ -667,7 +607,6 @@ def test_max_header_field_size_under_limit(parser: Any) -> None:
     assert not msg.chunked
     assert msg.url == URL("/test")
 
-
 @pytest.mark.parametrize("size", [40960, 8191])
 def test_max_header_value_size(parser: Any, size: Any) -> None:
     name = b"t" * size
@@ -676,7 +615,6 @@ def test_max_header_value_size(parser: Any, size: Any) -> None:
     match = f"400, message:\n  Got more than 8190 bytes \\({size}\\) when reading"
     with pytest.raises(http_exceptions.LineTooLong, match=match):
         parser.feed_data(text)
-
 
 def test_max_header_value_size_under_limit(parser: Any) -> None:
     value = b"A" * 8190
@@ -695,7 +633,6 @@ def test_max_header_value_size_under_limit(parser: Any) -> None:
     assert not msg.chunked
     assert msg.url == URL("/test")
 
-
 @pytest.mark.parametrize("size", [40965, 8191])
 def test_max_header_value_size_continuation(parser: Any, size: Any) -> None:
     name = b"T" * (size - 5)
@@ -704,7 +641,6 @@ def test_max_header_value_size_continuation(parser: Any, size: Any) -> None:
     match = f"400, message:\n  Got more than 8190 bytes \\({size}\\) when reading"
     with pytest.raises(http_exceptions.LineTooLong, match=match):
         parser.feed_data(text)
-
 
 def test_max_header_value_size_continuation_under_limit(parser: Any) -> None:
     value = b"A" * 8185
@@ -723,7 +659,6 @@ def test_max_header_value_size_continuation_under_limit(parser: Any) -> None:
     assert not msg.chunked
     assert msg.url == URL("/test")
 
-
 def test_http_request_parser(parser: Any) -> None:
     text = b"GET /path HTTP/1.1\r\n\r\n"
     messages, upgrade, tail = parser.feed_data(text)
@@ -740,20 +675,17 @@ def test_http_request_parser(parser: Any) -> None:
     assert not msg.chunked
     assert msg.url == URL("/path")
 
-
 def test_http_request_bad_status_line(parser: Any) -> None:
     text = b"getpath \r\n\r\n"
     with pytest.raises(http_exceptions.BadStatusLine) as exc_info:
         parser.feed_data(text)
     assert r"\n" not in exc_info.value.message
 
-
 _num: Dict[bytes, str] = {
     "\N{mathematical double-struck digit one}".encode(): "utf8digit",
     "\N{superscript one}".encode(): "utf8number",
     "\N{superscript one}".encode("latin-1"): "latin1number",
 }
-
 
 @pytest.mark.parametrize("nonascii_digit", _num.keys(), ids=_num.values())
 def test_http_request_bad_status_line_number(
@@ -763,19 +695,16 @@ def test_http_request_bad_status_line_number(
     with pytest.raises(http_exceptions.BadStatusLine):
         parser.feed_data(text)
 
-
 def test_http_request_bad_status_line_separator(parser: Any) -> None:
     utf8sep = "\N{arabic ligature sallallahou alayhe wasallam}".encode()
     text = b"GET /ligature HTTP/1" + utf8sep + b"1\r\n\r\n"
     with pytest.raises(http_exceptions.BadStatusLine):
         parser.feed_data(text)
 
-
 def test_http_request_bad_status_line_whitespace(parser: Any) -> None:
     text = b"GET\n/path\fHTTP/1.1\r\n\r\n"
     with pytest.raises(http_exceptions.BadStatusLine):
         parser.feed_data(text)
-
 
 def test_http_request_upgrade(parser: Any) -> None:
     text = (
@@ -790,7 +719,6 @@ def test_http_request_upgrade(parser: Any) -> None:
     assert msg.upgrade
     assert upgrade
     assert tail == b"some raw data"
-
 
 def test_http_request_parser_utf8_request_line(parser: Any) -> None:
     if not isinstance(response, HttpResponseParserPy):
@@ -813,7 +741,6 @@ def test_http_request_parser_utf8_request_line(parser: Any) -> None:
     assert not msg.chunked
     assert msg.url.path == URL("/P%C3%BCnktchen\udca0\udcef\udcb7").path
 
-
 def test_http_request_parser_utf8(parser: Any) -> None:
     text = "GET /path HTTP/1.1\r\nx-test:тест\r\n\r\n".encode()
     messages, upgrade, tail = parser.feed_data(text)
@@ -829,7 +756,6 @@ def test_http_request_parser_utf8(parser: Any) -> None:
     assert not msg.upgrade
     assert not msg.chunked
     assert msg.url == URL("/path")
-
 
 def test_http_request_parser_non_utf8(parser: Any) -> None:
     text = "GET /path HTTP/1.1\r\nx-test:тест\r\n\r\n".encode("cp1251")
@@ -848,7 +774,6 @@ def test_http_request_parser_non_utf8(parser: Any) -> None:
     assert not msg.chunked
     assert msg.url == URL("/path")
 
-
 def test_http_request_parser_two_slashes(parser: Any) -> None:
     text = b"GET //path HTTP/1.1\r\n\r\n"
     msg = parser.feed_data(text)[0][0][0]
@@ -862,7 +787,6 @@ def test_http_request_parser_two_slashes(parser: Any) -> None:
     assert not msg.upgrade
     assert not msg.chunked
 
-
 @pytest.mark.parametrize(
     "rfc9110_5_6_2_token_delim",
     [bytes([i]) for i in rb'"(),/:;<=>?@[\]{}'],
@@ -873,26 +797,21 @@ def test_http_request_parser_bad_method(
     with pytest.raises(http_exceptions.BadStatusLine):
         parser.feed_data(rfc9110_5_6_2_token_delim + b'ET" /get HTTP/1.1\r\n\r\n')
 
-
 def test_http_request_parser_bad_version(parser: Any) -> None:
     with pytest.raises(http_exceptions.BadHttpMessage):
         parser.feed_data(b"GET //get HT/11\r\n\r\n")
-
 
 def test_http_request_parser_bad_version_number(parser: Any) -> None:
     with pytest.raises(http_exceptions.BadHttpMessage):
         parser.feed_data(b"GET /test HTTP/1.32\r\n\r\n")
 
-
 def test_http_request_parser_bad_ascii_uri(parser: Any) -> None:
     with pytest.raises(http_exceptions.InvalidURLError):
         parser.feed_data(b"GET ! HTTP/1.1\r\n\r\n")
 
-
 def test_http_request_parser_bad_nonascii_uri(parser: Any) -> None:
     with pytest.raises(http_exceptions.InvalidURLError):
         parser.feed_data(b"GET \xff HTTP/1.1\r\n\r\n")
-
 
 @pytest.mark.parametrize("size", [40965, 8191])
 def test_http_request_max_status_line(parser: Any, size: Any) -> None:
@@ -900,7 +819,6 @@ def test_http_request_max_status_line(parser: Any, size: Any) -> None:
     match = f"400, message:\n  Got more than 8190 bytes \\({size}\\) when reading"
     with pytest.raises(http_exceptions.LineTooLong, match=match):
         parser.feed_data(b"GET /path" + path + b" HTTP/1.1\r\n\r\n")
-
 
 def test_http_request_max_status_line_under_limit(parser: Any) -> None:
     path = b"t" * (8190 - 5)
@@ -920,7 +838,6 @@ def test_http_request_max_status_line_under_limit(parser: Any) -> None:
     assert not msg.chunked
     assert msg.url == URL("/path" + path.decode())
 
-
 def test_http_response_parser_utf8(response: Any) -> None:
     text = "HTTP/1.1 200 Ok\r\nx-test:тест\r\n\r\n".encode()
 
@@ -935,7 +852,6 @@ def test_http_response_parser_utf8(response: Any) -> None:
     assert msg.raw_headers == ((b"x-test", "тест".encode()),)
     assert not upgraded
     assert not tail
-
 
 def test_http_response_parser_utf8_without_reason(response: Any) -> None:
     text = "HTTP/1.1 200 \r\nx-test:тест\r\n\r\n".encode()
@@ -952,7 +868,6 @@ def test_http_response_parser_utf8_without_reason(response: Any) -> None:
     assert not upgraded
     assert not tail
 
-
 @pytest.mark.parametrize("size", [40962, 8191])
 def test_http_response_parser_bad_status_line_too_long(
     response: Any, size: Any
@@ -961,7 +876,6 @@ def test_http_response_parser_bad_status_line_too_long(
     match = f"400, message:\n  Got more than 8190 bytes \\({size}\\) when reading"
     with pytest.raises(http_exceptions.LineTooLong, match=match):
         response.feed_data(b"HTTP/1.1 200 Ok" + reason + b"\r\n\r\n")
-
 
 def test_http_response_parser_status_line_under_limit(response: Any) -> None:
     reason = b"O" * 8190
@@ -973,16 +887,13 @@ def test_http_response_parser_status_line_under_limit(response: Any) -> None:
     assert msg.code == 200
     assert msg.reason == reason.decode()
 
-
 def test_http_response_parser_bad_version(response: Any) -> None:
     with pytest.raises(http_exceptions.BadHttpMessage):
         response.feed_data(b"HT/11 200 Ok\r\n\r\n")
 
-
 def test_http_response_parser_bad_version_number(response: Any) -> None:
     with pytest.raises(http_exceptions.BadHttpMessage):
         response.feed_data(b"HTTP/12.3 200 Ok\r\n\r\n")
-
 
 def test_http_response_parser_no_reason(response: Any) -> None:
     msg = response.feed_data(b"HTTP/1.1 200\r\n\r\n")[0][0][0]
@@ -990,7 +901,6 @@ def test_http_response_parser_no_reason(response: Any) -> None:
     assert msg.version == (1, 1)
     assert msg.code == 200
     assert msg.reason == ""
-
 
 def test_http_response_parser_lenient_headers(response: Any) -> None:
     messages, upgrade, tail = response.feed_data(
@@ -1000,7 +910,6 @@ def test_http_response_parser_lenient_headers(response: Any) -> None:
 
     assert msg.headers["Foo"] == "abc\x01def"
 
-
 @pytest.mark.dev_mode
 def test_http_response_parser_strict_headers(response: Any) -> None:
     if isinstance(response, HttpResponseParserPy):
@@ -1008,9 +917,8 @@ def test_http_response_parser_strict_headers(response: Any) -> None:
     with pytest.raises(http_exceptions.BadHttpMessage):
         response.feed_data(b"HTTP/1.1 200 test\r\nFoo: abc\x01def\r\n\r\n")
 
-
 def test_http_response_parser_bad_crlf(response: Any) -> None:
-    """Still a lot of dodgy servers sending bad requests like this."""
+
     messages, upgrade, tail = response.feed_data(
         b"HTTP/1.0 200 OK\nFoo: abc\nBar: def\n\nBODY\n"
     )
@@ -1019,7 +927,6 @@ def test_http_response_parser_bad_crlf(response: Any) -> None:
     assert msg.headers["Foo"] == "abc"
     assert msg.headers["Bar"] == "def"
 
-
 async def test_http_response_parser_bad_chunked_lax(response: Any) -> None:
     text = (
         b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5 \r\nabcde\r\n0\r\n\r\n"
@@ -1027,7 +934,6 @@ async def test_http_response_parser_bad_chunked_lax(response: Any) -> None:
     messages, upgrade, tail = response.feed_data(text)
 
     assert await messages[0][1].read(5) == b"abcde"
-
 
 @pytest.mark.dev_mode
 async def test_http_response_parser_bad_chunked_strict_py(
@@ -1045,7 +951,6 @@ async def test_http_response_parser_bad_chunked_strict_py(
     )
     messages, upgrade, tail = response.feed_data(text)
     assert isinstance(messages[0][1].exception(), http_exceptions.TransferEncodingError)
-
 
 @pytest.mark.dev_mode
 @pytest.mark.skipif(
@@ -1068,26 +973,21 @@ async def test_http_response_parser_bad_chunked_strict_c(
     with pytest.raises(http_exceptions.BadHttpMessage):
         response.feed_data(text)
 
-
 def test_http_response_parser_bad(response: Any) -> None:
     with pytest.raises(http_exceptions.BadHttpMessage):
         response.feed_data(b"HTT/1\r\n\r\n")
-
 
 def test_http_response_parser_code_under_100(response: Any) -> None:
     with pytest.raises(http_exceptions.BadStatusLine):
         response.feed_data(b"HTTP/1.1 99 test\r\n\r\n")
 
-
 def test_http_response_parser_code_above_999(response: Any) -> None:
     with pytest.raises(http_exceptions.BadStatusLine):
         response.feed_data(b"HTTP/1.1 9999 test\r\n\r\n")
 
-
 def test_http_response_parser_code_not_int(response: Any) -> None:
     with pytest.raises(http_exceptions.BadStatusLine):
         response.feed_data(b"HTTP/1.1 ttt test\r\n\r\n")
-
 
 @pytest.mark.parametrize("nonascii_digit", _num.keys(), ids=_num.values())
 def test_http_response_parser_code_not_ascii(
@@ -1095,7 +995,6 @@ def test_http_response_parser_code_not_ascii(
 ) -> None:
     with pytest.raises(http_exceptions.BadStatusLine):
         response.feed_data(b"HTTP/1.1 20" + nonascii_digit + b" test\r\n\r\n")
-
 
 def test_http_request_chunked_payload(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"transfer-encoding: chunked\r\n\r\n"
@@ -1110,7 +1009,6 @@ def test_http_request_chunked_payload(parser: Any) -> None:
     assert b"dataline" == b"".join(d for d in payload._buffer)
     assert [4, 8] == payload._http_chunk_splits
     assert payload.is_eof()
-
 
 def test_http_request_chunked_payload_and_next_message(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"transfer-encoding: chunked\r\n\r\n"
@@ -1133,7 +1031,6 @@ def test_http_request_chunked_payload_and_next_message(parser: Any) -> None:
     assert msg2.chunked
     assert not payload2.is_eof()
 
-
 def test_http_request_chunked_payload_chunks(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"transfer-encoding: chunked\r\n\r\n"
     msg, payload = parser.feed_data(text)[0][0]
@@ -1155,7 +1052,6 @@ def test_http_request_chunked_payload_chunks(parser: Any) -> None:
     assert [4, 8] == payload._http_chunk_splits
     assert payload.is_eof()
 
-
 def test_parse_chunked_payload_chunk_extension(parser: Any) -> None:
     text = b"GET /test HTTP/1.1\r\n" b"transfer-encoding: chunked\r\n\r\n"
     msg, payload = parser.feed_data(text)[0][0]
@@ -1166,14 +1062,12 @@ def test_parse_chunked_payload_chunk_extension(parser: Any) -> None:
     assert [4, 8] == payload._http_chunk_splits
     assert payload.is_eof()
 
-
 def _test_parse_no_length_or_te_on_post(loop, protocol, request_cls):
     parser = request_cls(protocol, loop, readall=True)
     text = b"POST /test HTTP/1.1\r\n\r\n"
     msg, payload = parser.feed_data(text)[0][0]
 
     assert payload.is_eof()
-
 
 def test_parse_payload_response_without_body(
     loop: Any, protocol: Any, response_cls: Any
@@ -1183,7 +1077,6 @@ def test_parse_payload_response_without_body(
     msg, payload = parser.feed_data(text)[0][0]
 
     assert payload.is_eof()
-
 
 def test_parse_length_payload(response: Any) -> None:
     text = b"HTTP/1.1 200 Ok\r\n" b"content-length: 4\r\n\r\n"
@@ -1197,12 +1090,10 @@ def test_parse_length_payload(response: Any) -> None:
     assert payload.is_eof()
     assert b"data" == b"".join(d for d in payload._buffer)
 
-
 def test_parse_no_length_payload(parser: Any) -> None:
     text = b"PUT / HTTP/1.1\r\n\r\n"
     msg, payload = parser.feed_data(text)[0][0]
     assert payload.is_eof()
-
 
 def test_parse_content_length_payload_multiple(response: Any) -> None:
     text = b"HTTP/1.1 200 OK\r\ncontent-length: 5\r\n\r\nfirst"
@@ -1240,7 +1131,6 @@ def test_parse_content_length_payload_multiple(response: Any) -> None:
     assert not msg.chunked
     assert payload.is_eof()
     assert b"second" == b"".join(d for d in payload._buffer)
-
 
 def test_parse_content_length_than_chunked_payload(response: Any) -> None:
     text = b"HTTP/1.1 200 OK\r\ncontent-length: 5\r\n\r\nfirst"
@@ -1282,7 +1172,6 @@ def test_parse_content_length_than_chunked_payload(response: Any) -> None:
     assert msg.chunked
     assert payload.is_eof()
     assert b"second" == b"".join(d for d in payload._buffer)
-
 
 @pytest.mark.parametrize("code", (204, 304, 101, 102))
 def test_parse_chunked_payload_empty_body_than_another_chunked(
@@ -1328,7 +1217,6 @@ def test_parse_chunked_payload_empty_body_than_another_chunked(
     assert payload.is_eof()
     assert b"second" == b"".join(d for d in payload._buffer)
 
-
 def test_partial_url(parser: Any) -> None:
     messages, upgrade, tail = parser.feed_data(b"GET /te")
     assert len(messages) == 0
@@ -1341,7 +1229,6 @@ def test_partial_url(parser: Any) -> None:
     assert msg.path == "/test"
     assert msg.version == (1, 1)
     assert payload.is_eof()
-
 
 @pytest.mark.parametrize(
     ("uri", "path", "query", "fragment"),
@@ -1367,7 +1254,6 @@ def test_parse_uri_percent_encoded(
     assert msg.url.query == query
     assert msg.url.fragment == fragment
 
-
 def test_parse_uri_utf8(parser: Any) -> None:
     if not isinstance(parser, HttpRequestParserPy):
         pytest.xfail("Not valid HTTP. Maybe update py-parser to reject later.")
@@ -1379,7 +1265,6 @@ def test_parse_uri_utf8(parser: Any) -> None:
     assert msg.url.path == "/путь"
     assert msg.url.query == {"ключ": "знач"}
     assert msg.url.fragment == "фраг"
-
 
 def test_parse_uri_utf8_percent_encoded(parser: Any) -> None:
     text = (
@@ -1393,7 +1278,6 @@ def test_parse_uri_utf8_percent_encoded(parser: Any) -> None:
     assert msg.url.path == "/путь"
     assert msg.url.query == {"ключ": "знач"}
     assert msg.url.fragment == "фраг"
-
 
 @pytest.mark.skipif(
     "HttpRequestParserC" not in dir(aiohttp.http_parser),
@@ -1411,7 +1295,6 @@ def test_parse_bad_method_for_c_parser_raises(loop: Any, protocol: Any) -> None:
 
     with pytest.raises(aiohttp.http_exceptions.BadStatusLine):
         messages, upgrade, tail = parser.feed_data(payload)
-
 
 class TestParsePayload:
     async def test_parse_eof_payload(self, stream: Any) -> None:
@@ -1542,7 +1425,7 @@ class TestParsePayload:
         assert out.is_eof()
 
     async def test_http_payload_parser_deflate_no_hdrs(self, stream: Any) -> None:
-        """Tests incorrectly formed data (no zlib headers)."""
+
         COMPRESSED = b"KI,I\x04\x00"
 
         length = len(COMPRESSED)
@@ -1604,7 +1487,6 @@ class TestParsePayload:
         p.feed_data(compressed)
         assert b"brotli data" == b"".join(d for d, _ in out._buffer)
         assert out.is_eof()
-
 
 class TestDeflateBuffer:
     async def test_feed_data(self, stream: Any) -> None:

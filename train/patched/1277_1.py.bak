@@ -20,17 +20,15 @@ def fix_address_folding(header_value, charset='utf-8'):
   for name, addr in addresses:
     if name:
       h = email.header.Header(name, charset)
-      encoded_name = str(h)  # Force encoding of the name part
+      encoded_name = str(h)
       encoded_address = email.utils.formataddr((encoded_name, addr))
     else:
       encoded_address = addr
     encoded_addresses.append(encoded_address)
 
-  # Join the encoded addresses with a plain comma and space
   return ', '.join(encoded_addresses)
 
 if __name__ == '__main__':
-  # Example usage demonstrating the fix.
   header_value_with_unicode = "Björn <bjorn@example.com>, test@example.com"
   fixed_header = fix_address_folding(header_value_with_unicode)
   print(f"Original header: {header_value_with_unicode}")

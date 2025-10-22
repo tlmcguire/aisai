@@ -1,6 +1,3 @@
-# -*- test-case-name: twisted.web.test.test_webclient,twisted.web.test.test_agent -*-
-# Copyright (c) Twisted Matrix Laboratories.
-# See LICENSE for details.
 
 """
 HTTP client.
@@ -103,7 +100,6 @@ class HTTPPageGetter(http.HTTPClient):
         cookieData = []
         for (key, value) in self.factory.headers.items():
             if key.lower() not in self._specialHeaders:
-                # we calculated it on our own
                 self.sendHeader(key, value)
             if key.lower() == b'cookie':
                 cookieData.append(value)
@@ -223,9 +219,6 @@ class HTTPPageGetter(http.HTTPClient):
             http.HTTPClient.connectionLost(self, reason)
             self.factory.noPage(reason)
         if self._completelyDone:
-            # Only if we think we're completely done do we tell the factory that
-            # we're "disconnected".  This way when we're following redirects,
-            # only the last protocol used will fire the _disconnectedDeferred.
             self.factory._disconnectedDeferred.callback(None)
 
 
@@ -238,17 +231,12 @@ class HTTPPageGetter(http.HTTPClient):
                     error.Error(
                         self.status, self.message, response)))
         if self.factory.method == b'HEAD':
-            # Callback with empty string, since there is never a response
-            # body for HEAD requests.
             self.factory.page(b'')
         elif self.length != None and self.length != 0:
             self.factory.noPage(Failure(
                 PartialDownloadError(self.status, self.message, response)))
         else:
             self.factory.page(response)
-        # server might be stupid and not close connection. admittedly
-        # the fact we do only one request per connection is also
-        # stupid...
         self.transport.loseConnection()
 
     def timeout(self):
@@ -364,7 +352,6 @@ class HTTPClientFactory(protocol.ClientFactory):
         if postdata is not None:
             self.headers.setdefault(b'Content-Length',
                                     intToBytes(len(postdata)))
-            # just in case a broken http/1.1 decides to keep connection alive
             self.headers.setdefault(b"connection", b"close")
         self.postdata = postdata
         self.method = _ensureValidMethod(method)
@@ -374,8 +361,6 @@ class HTTPClientFactory(protocol.ClientFactory):
         self.waiting = 1
         self._disconnectedDeferred = defer.Deferred()
         self.deferred = defer.Deferred()
-        # Make sure the first callback on the result Deferred pauses the
-        # callback chain until the request connection is closed.
         self.deferred.addBoth(self._waitForDisconnect)
         self.response_headers = None
 
@@ -466,8 +451,6 @@ class HTTPClientFactory(protocol.ClientFactory):
         """
         if self.waiting:
             self.waiting = 0
-            # If the connection attempt failed, there is nothing more to
-            # disconnect, so just fire that Deferred now.
             self._disconnectedDeferred.callback(None)
             self.deferred.errback(reason)
 
@@ -511,12 +494,10 @@ class HTTPDownloader(HTTPClientFactory):
         if self.requestedPartial:
             contentRange = headers.get(b"content-range", None)
             if not contentRange:
-                # server doesn't support partial requests, oh well
                 self.requestedPartial = 0
                 return
             start, end, realLength = http.parseContentRange(contentRange[0])
             if start != self.requestedPartial:
-                # server is acting weirdly
                 self.requestedPartial = 0
 
 
@@ -540,7 +521,6 @@ class HTTPDownloader(HTTPClientFactory):
                 if not self.file:
                     self.file = self.openFile(partialContent)
             except IOError:
-                #raise
                 self.deferred.errback(Failure())
 
     def pagePart(self, data):
@@ -549,7 +529,6 @@ class HTTPDownloader(HTTPClientFactory):
         try:
             self.file.write(data)
         except IOError:
-            #raise
             self.file = None
             self.deferred.errback(Failure())
 
@@ -684,8 +663,6 @@ class URI(object):
         @return: The absolute path in original form.
         @rtype: L{bytes}
         """
-        # The HTTP bis draft says the origin form should not include the
-        # fragment.
         path = urlunparse(
             (b'', b'', self.path, self.params, self.query, b''))
         if path == b'':
@@ -814,9 +791,6 @@ def downloadPage(url, file, contextFactory=None, *args, **kwargs):
         *args, **kwargs).deferred
 
 
-# The code which follows is based on the new HTTP client implementation.  It
-# should be significantly better than anything above, though it is not yet
-# feature equivalent.
 
 from twisted.web.error import SchemeNotSupported
 from twisted.web._newclient import (
@@ -1172,8 +1146,6 @@ class FileBodyProducer(object):
         self._task = self._cooperate(self._writeloop(consumer))
         d = self._task.whenDone()
         def maybeStopped(reason):
-            # IBodyProducer.startProducing's Deferred isn't support to fire if
-            # stopProducing is called.
             reason.trap(task.TaskStopped)
             return defer.Deferred()
         d.addCallbacks(lambda ignored: None, maybeStopped)
@@ -1377,11 +1349,9 @@ class HTTPConnectionPool(object):
         @return: A C{Deferred} that will fire with a L{HTTP11ClientProtocol}
            (or a wrapper) that can be used to send a single HTTP request.
         """
-        # Try to get cached version:
         connections = self._connections.get(key)
         while connections:
             connection = connections.pop(0)
-            # Cancel timeout:
             self._timeouts[connection].cancel()
             del self._timeouts[connection]
             if connection.state == "QUIESCENT":
@@ -1421,7 +1391,6 @@ class HTTPConnectionPool(object):
         L{HTTP11ClientProtocol} when the connection becomes quiescent.
         """
         if connection.state != "QUIESCENT":
-            # Log with traceback for debugging purposes:
             try:
                 raise RuntimeError(
                     "BUG: Non-quiescent protocol added to connection pool.")
@@ -1502,7 +1471,6 @@ class _AgentBase(object):
 
         method = _ensureValidMethod(method)
 
-        # Create minimal headers, if necessary:
         if headers is None:
             headers = Headers()
         if not headers.hasHeader(b'host'):
@@ -1762,13 +1730,8 @@ class ProxyAgent(_AgentBase):
         """
         uri = _ensureValidURI(uri.strip())
 
-        # Cache *all* connections under the same key, since we are only
-        # connecting to a single destination, the proxy:
         key = ("http-proxy", self._proxyEndpoint)
 
-        # To support proxying HTTPS via CONNECT, we will use key
-        # ("http-proxy-CONNECT", scheme, host, port), and an endpoint that
-        # wraps _proxyEndpoint with an additional callback to do the CONNECT.
         return self._requestWithEndpoint(key, self._proxyEndpoint, method,
                                          URI.fromBytes(uri), headers,
                                          bodyProducer, uri)
@@ -1810,7 +1773,6 @@ class _FakeUrllib2Request(object):
         self.host = nativeString(_uri.host)
 
         if (_uri.scheme, _uri.port) not in ((b'http', 80), (b'https', 443)):
-            # If it's not a schema on the regular port, add the port.
             self.host += ":" + str(_uri.port)
 
         if _PY3:
@@ -1847,7 +1809,6 @@ class _FakeUrllib2Request(object):
 
 
     def is_unverifiable(self):
-        # In theory this shouldn't be hardcoded.
         return False
 
 
@@ -1868,11 +1829,9 @@ class _FakeUrllib2Response(object):
     def info(self):
         class _Meta(object):
             def getheaders(zelf, name):
-                # PY2
                 headers = self.response.headers.getRawHeaders(name, [])
                 return headers
             def get_all(zelf, name, default):
-                # PY3
                 headers = self.response.headers.getRawHeaders(
                     networkString(name), default)
                 h = [nativeString(x) for x in headers]
@@ -1921,8 +1880,6 @@ class CookieAgent(object):
         if headers is None:
             headers = Headers()
         lastRequest = _FakeUrllib2Request(uri)
-        # Setting a cookie header explicitly will disable automatic request
-        # cookies.
         if not headers.hasHeader(b'cookie'):
             self.cookieJar.add_cookie_header(lastRequest)
             cookieHeader = lastRequest.get_header('Cookie', None)
@@ -2072,7 +2029,6 @@ class ContentDecoderAgent(object):
             if decoder is not None:
                 response = decoder(response)
             else:
-                # Add it back
                 contentEncodingHeaders.append(name)
                 break
         if contentEncodingHeaders:

@@ -1,18 +1,3 @@
-# -*- coding: utf-8 -*-
-# Copyright 2014-2016 OpenMarket Ltd
-# Copyright 2018 New Vector Ltd
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 import errno
 import logging
@@ -86,8 +71,6 @@ class MediaRepository:
 
         self.federation_domain_whitelist = hs.config.federation_domain_whitelist
 
-        # List of StorageProviders where we should search for media and
-        # potentially upload to.
         storage_providers = []
 
         for clz, provider_config, wrapper_config in hs.config.media_storage_providers:
@@ -235,15 +218,12 @@ class MediaRepository:
 
         self.mark_recently_accessed(server_name, media_id)
 
-        # We linearize here to ensure that we don't try and download remote
-        # media multiple times concurrently
         key = (server_name, media_id)
         with (await self.remote_media_linearizer.queue(key)):
             responder, media_info = await self._get_remote_media_impl(
                 server_name, media_id
             )
 
-        # We deliberately stream the file outside the lock
         if responder:
             media_type = media_info["media_type"]
             media_length = media_info["media_length"]
@@ -271,15 +251,12 @@ class MediaRepository:
         ):
             raise FederationDeniedError(server_name)
 
-        # We linearize here to ensure that we don't try and download remote
-        # media multiple times concurrently
         key = (server_name, media_id)
         with (await self.remote_media_linearizer.queue(key)):
             responder, media_info = await self._get_remote_media_impl(
                 server_name, media_id
             )
 
-        # Ensure we actually use the responder so that it releases resources
         if responder:
             with responder:
                 pass
@@ -302,11 +279,7 @@ class MediaRepository:
         """
         media_info = await self.store.get_cached_remote_media(server_name, media_id)
 
-        # file_id is the ID we use to track the file locally. If we've already
-        # seen the file then reuse the existing ID, otherwise genereate a new
-        # one.
 
-        # If we have an entry in the DB, try and look for it
         if media_info:
             file_id = media_info["filesystem_id"]
             file_info = FileInfo(server_name, file_id)
@@ -319,15 +292,12 @@ class MediaRepository:
             if responder:
                 return responder, media_info
 
-        # Failed to find the file anywhere, lets download it.
 
         try:
             media_info = await self._download_remote_file(server_name, media_id,)
         except SynapseError:
             raise
         except Exception as e:
-            # An exception may be because we downloaded media in another
-            # process, so let's check if we magically have the media.
             media_info = await self.store.get_cached_remote_media(server_name, media_id)
             if not media_info:
                 raise e
@@ -335,12 +305,6 @@ class MediaRepository:
         file_id = media_info["filesystem_id"]
         file_info = FileInfo(server_name, file_id)
 
-        # We generate thumbnails even if another process downloaded the media
-        # as a) it's conceivable that the other download request dies before it
-        # generates thumbnails, but mainly b) we want to be sure the thumbnails
-        # have finished being generated before responding to the client,
-        # otherwise they'll request thumbnails and get a 404 if they're not
-        # ready yet.
         await self._generate_thumbnails(
             server_name, media_id, file_id, media_info["media_type"]
         )
@@ -378,9 +342,6 @@ class MediaRepository:
                     output_stream=f,
                     max_size=self.max_upload_size,
                     args={
-                        # tell the remote server to 404 if it doesn't
-                        # recognise the server_name, to make sure we don't
-                        # end up with a routing loop.
                         "allow_remote": "false"
                     },
                 )
@@ -424,16 +385,6 @@ class MediaRepository:
             upload_name = get_filename_from_headers(headers)
             time_now_ms = self.clock.time_msec()
 
-            # Multiple remote media download requests can race (when using
-            # multiple media repos), so this may throw a violation constraint
-            # exception. If it does we'll delete the newly downloaded file from
-            # disk (as we're in the ctx manager).
-            #
-            # However: we've already called `finish()` so we may have also
-            # written to the storage providers. This is preferable to the
-            # alternative where we call `finish()` *after* this, where we could
-            # end up having an entry in the DB but fail to write the files to
-            # the storage providers.
             await self.store.store_cached_remote_media(
                 origin=server_name,
                 media_id=media_id,
@@ -551,7 +502,6 @@ class MediaRepository:
 
             return output_path
 
-        # Could not generate thumbnail.
         return None
 
     async def generate_remote_exact_thumbnail(
@@ -626,7 +576,6 @@ class MediaRepository:
 
             return output_path
 
-        # Could not generate thumbnail.
         return None
 
     async def _generate_thumbnails(
@@ -689,9 +638,7 @@ class MediaRepository:
                 self.hs.get_reactor(), thumbnailer.transpose
             )
 
-        # We deduplicate the thumbnail sizes by ignoring the cropped versions if
-        # they have the same dimensions of a scaled one.
-        thumbnails = {}  # type: Dict[Tuple[int, int, str], str]
+        thumbnails = {}
         for r_width, r_height, r_method, r_type in requirements:
             if r_method == "crop":
                 thumbnails.setdefault((r_width, r_height, r_type), r_method)
@@ -701,9 +648,7 @@ class MediaRepository:
                 t_height = min(m_height, t_height)
                 thumbnails[(t_width, t_height, r_type)] = r_method
 
-        # Now we generate the thumbnails for each dimension, store it
         for (t_width, t_height, t_type), t_method in thumbnails.items():
-            # Generate the thumbnail
             if t_method == "crop":
                 t_byte_source = await defer_to_thread(
                     self.hs.get_reactor(), thumbnailer.crop, t_width, t_height, t_type
@@ -739,19 +684,7 @@ class MediaRepository:
 
                 t_len = os.path.getsize(fname)
 
-                # Write to database
                 if server_name:
-                    # Multiple remote media download requests can race (when
-                    # using multiple media repos), so this may throw a violation
-                    # constraint exception. If it does we'll delete the newly
-                    # generated thumbnail from disk (as we're in the ctx
-                    # manager).
-                    #
-                    # However: we've already called `finish()` so we may have
-                    # also written to the storage providers. This is preferable
-                    # to the alternative where we call `finish()` *after* this,
-                    # where we could end up having an entry in the DB but fail
-                    # to write the files to the storage providers.
                     try:
                         await self.store.store_remote_media_thumbnail(
                             server_name,
@@ -789,7 +722,6 @@ class MediaRepository:
 
             logger.info("Deleting: %r", key)
 
-            # TODO: Should we delete from the backup store
 
             with (await self.remote_media_linearizer.queue(key)):
                 full_path = self.filepaths.remote_media_filepath(origin, file_id)
@@ -929,7 +861,6 @@ class MediaRepositoryResource(Resource):
     """
 
     def __init__(self, hs):
-        # If we're not configured to use it, raise if we somehow got here.
         if not hs.config.can_load_media_repo:
             raise ConfigError("Synapse is not configured to use a media repo.")
 

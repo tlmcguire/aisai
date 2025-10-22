@@ -1,20 +1,7 @@
 import cbor2
 
 def decode_with_limit(data, max_size=1024 * 1024):
-    """
-    Decodes CBOR data with a size limit to mitigate potential DoS.
 
-    Args:
-        data: The CBOR encoded bytes.
-        max_size: The maximum allowed size of the decoded object (in bytes).
-
-    Returns:
-        The decoded Python object.
-
-    Raises:
-        ValueError: If the decoded object exceeds the maximum size.
-        cbor2.CBORDecodeError: If there's an issue decoding the data.
-    """
     try:
         if len(data) > max_size * 2:
             raise ValueError("CBOR data size exceeds the maximum allowed size.")
@@ -29,8 +16,6 @@ def decode_with_limit(data, max_size=1024 * 1024):
       raise  cbor2.CBORDecodeError(f"Error Decoding CBOR data: {e}")
     except Exception as e:
        raise ValueError(f"Error during decoding, possible data corruption: {e}")
-
-
 
 if __name__ == '__main__':
     try:

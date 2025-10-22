@@ -60,14 +60,11 @@ __name__ = __name__.rsplit('.', 1)[0]
 
 compiled_regex_type = type(re.compile(''))
 
-
 class NO_DEFAULT:
     pass
 
-
 def IDENTITY(x):
     return x
-
 
 ENGLISH_MONTH_NAMES = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -166,14 +163,9 @@ JSON_LD_RE = r'(?is)<script[^>]+type=(["\']?)application/ld\+json\1[^>]*>\s*(?P<
 
 NUMBER_RE = r'\d+(?:\.\d+)?'
 
-
 @functools.cache
 def preferredencoding():
-    """Get preferred encoding.
 
-    Returns the best encoding scheme for the system, based on
-    locale.getpreferredencoding() and some further tweaks.
-    """
     try:
         pref = locale.getpreferredencoding()
         'TEST'.encode(pref)
@@ -182,9 +174,8 @@ def preferredencoding():
 
     return pref
 
-
 def write_json_file(obj, fn):
-    """ Encode obj as JSON and write it to fn, atomically if possible """
+
 
     tf = tempfile.NamedTemporaryFile(
         prefix=f'{os.path.basename(fn)}.', dir=os.path.dirname(fn),
@@ -206,14 +197,11 @@ def write_json_file(obj, fn):
             os.remove(tf.name)
         raise
 
-
 def find_xpath_attr(node, xpath, key, val=None):
-    """ Find the xpath xpath[@key=val] """
+
     assert re.match(r'^[a-zA-Z_-]+$', key)
     expr = xpath + ('[@%s]' % key if val is None else f"[@{key}='{val}']")
     return node.find(expr)
-
-
 
 def xpath_with_ns(path, ns_map):
     components = [c.split(':') for c in path.split('/')]
@@ -225,7 +213,6 @@ def xpath_with_ns(path, ns_map):
             ns, tag = c
             replaced.append('{%s}%s' % (ns_map[ns], tag))
     return '/'.join(replaced)
-
 
 def xpath_element(node, xpath, name=None, fatal=False, default=NO_DEFAULT):
     def _find_xpath(xpath):
@@ -249,7 +236,6 @@ def xpath_element(node, xpath, name=None, fatal=False, default=NO_DEFAULT):
             return None
     return n
 
-
 def xpath_text(node, xpath, name=None, fatal=False, default=NO_DEFAULT):
     n = xpath_element(node, xpath, name, fatal=fatal, default=default)
     if n is None or n == default:
@@ -264,7 +250,6 @@ def xpath_text(node, xpath, name=None, fatal=False, default=NO_DEFAULT):
             return None
     return n.text
 
-
 def xpath_attr(node, xpath, key, name=None, fatal=False, default=NO_DEFAULT):
     n = find_xpath_attr(node, xpath, key)
     if n is None:
@@ -277,68 +262,54 @@ def xpath_attr(node, xpath, key, name=None, fatal=False, default=NO_DEFAULT):
             return None
     return n.attrib[key]
 
-
 def get_element_by_id(id, html, **kwargs):
-    """Return the content of the tag with the specified ID in the passed HTML document"""
+
     return get_element_by_attribute('id', id, html, **kwargs)
 
-
 def get_element_html_by_id(id, html, **kwargs):
-    """Return the html of the tag with the specified ID in the passed HTML document"""
+
     return get_element_html_by_attribute('id', id, html, **kwargs)
 
-
 def get_element_by_class(class_name, html):
-    """Return the content of the first tag with the specified class in the passed HTML document"""
+
     retval = get_elements_by_class(class_name, html)
     return retval[0] if retval else None
 
-
 def get_element_html_by_class(class_name, html):
-    """Return the html of the first tag with the specified class in the passed HTML document"""
+
     retval = get_elements_html_by_class(class_name, html)
     return retval[0] if retval else None
-
 
 def get_element_by_attribute(attribute, value, html, **kwargs):
     retval = get_elements_by_attribute(attribute, value, html, **kwargs)
     return retval[0] if retval else None
 
-
 def get_element_html_by_attribute(attribute, value, html, **kargs):
     retval = get_elements_html_by_attribute(attribute, value, html, **kargs)
     return retval[0] if retval else None
 
-
 def get_elements_by_class(class_name, html, **kargs):
-    """Return the content of all tags with the specified class in the passed HTML document as a list"""
+
     return get_elements_by_attribute(
         'class', r'[^\'"]*(?<=[\'"\s])%s(?=[\'"\s])[^\'"]*' % re.escape(class_name),
         html, escape_value=False)
 
-
 def get_elements_html_by_class(class_name, html):
-    """Return the html of all tags with the specified class in the passed HTML document as a list"""
+
     return get_elements_html_by_attribute(
         'class', r'[^\'"]*(?<=[\'"\s])%s(?=[\'"\s])[^\'"]*' % re.escape(class_name),
         html, escape_value=False)
 
-
 def get_elements_by_attribute(*args, **kwargs):
-    """Return the content of the tag with the specified attribute in the passed HTML document"""
+
     return [content for content, _ in get_elements_text_and_html_by_attribute(*args, **kwargs)]
 
-
 def get_elements_html_by_attribute(*args, **kwargs):
-    """Return the html of the tag with the specified attribute in the passed HTML document"""
+
     return [whole for _, whole in get_elements_text_and_html_by_attribute(*args, **kwargs)]
 
-
 def get_elements_text_and_html_by_attribute(attribute, value, html, *, tag=r'[\w:.-]+', escape_value=True):
-    """
-    Return the text (content) and the html (whole) of the tag with the specified
-    attribute in the passed HTML document
-    """
+
     if not value:
         return
 
@@ -360,13 +331,8 @@ def get_elements_text_and_html_by_attribute(attribute, value, html, *, tag=r'[\w
             whole
         )
 
-
 class HTMLBreakOnClosingTagParser(html.parser.HTMLParser):
-    """
-    HTML parser which raises HTMLBreakOnClosingTagException upon reaching the
-    closing tag for the first opening tag it has encountered, and can be used
-    as a context manager
-    """
+
 
     class HTMLBreakOnClosingTagException(Exception):
         pass
@@ -399,12 +365,8 @@ class HTMLBreakOnClosingTagParser(html.parser.HTMLParser):
         if not self.tagstack:
             raise self.HTMLBreakOnClosingTagException()
 
-
 def get_element_text_and_html_by_tag(tag, html):
-    """
-    For the first element with the specified tag in the passed HTML document
-    return its' content (text) and the whole element (html)
-    """
+
     def find_or_raise(haystack, needle, exc):
         try:
             return haystack.index(needle)
@@ -434,9 +396,8 @@ def get_element_text_and_html_by_tag(tag, html):
                     html[whole_start:offset + next_closing_tag_end]
         raise compat_HTMLParseError('unexpected end of html')
 
-
 class HTMLAttributeParser(html.parser.HTMLParser):
-    """Trivial HTML parser to gather the attributes for a single element"""
+
 
     def __init__(self):
         self.attrs = {}
@@ -446,9 +407,8 @@ class HTMLAttributeParser(html.parser.HTMLParser):
         self.attrs = dict(attrs)
         raise compat_HTMLParseError('done')
 
-
 class HTMLListAttrsParser(html.parser.HTMLParser):
-    """HTML parser to gather the attributes for the elements of a list"""
+
 
     def __init__(self):
         html.parser.HTMLParser.__init__(self)
@@ -463,39 +423,23 @@ class HTMLListAttrsParser(html.parser.HTMLParser):
     def handle_endtag(self, tag):
         self._level -= 1
 
-
 def extract_attributes(html_element):
-    """Given a string for an HTML element such as
-    <el
-         a="foo" B="bar" c="&98;az" d=boz
-         empty= noval entity="&amp;"
-         sq='"' dq="'"
-    >
-    Decode and return a dictionary of attributes.
-    {
-        'a': 'foo', 'b': 'bar', c: 'baz', d: 'boz',
-        'empty': '', 'noval': None, 'entity': '&',
-        'sq': '"', 'dq': '\''
-    }.
-    """
+
     parser = HTMLAttributeParser()
     with contextlib.suppress(compat_HTMLParseError):
         parser.feed(html_element)
         parser.close()
     return parser.attrs
 
-
 def parse_list(webpage):
-    """Given a string for an series of HTML <li> elements,
-    return a dictionary of their attributes"""
+
     parser = HTMLListAttrsParser()
     parser.feed(webpage)
     parser.close()
     return parser.items
 
-
 def clean_html(html):
-    """Clean an HTML snippet into a readable string"""
+
 
     if html is None:
         return html
@@ -506,7 +450,6 @@ def clean_html(html):
     html = re.sub('<.*?>', '', html)
     html = unescapeHTML(html)
     return html.strip()
-
 
 class LenientJSONDecoder(json.JSONDecoder):
     def __init__(self, *args, transform_source=None, ignore_extra=False, close_objects=0, **kwargs):
@@ -545,17 +488,8 @@ class LenientJSONDecoder(json.JSONDecoder):
                 raise type(e)(f'{e.msg} in {s[e.pos-10:e.pos+10]!r}', s, e.pos)
         assert False, 'Too many attempts to decode JSON'
 
-
 def sanitize_open(filename, open_mode):
-    """Try to open the given filename, and slightly tweak it if this fails.
 
-    Attempts to open the given filename. If this fails, it tries to change
-    the filename slightly, step by step, until it's either able to open it
-    or it fails and raises a final exception, like the standard open()
-    function.
-
-    It returns the tuple (stream, definitive_file_name).
-    """
     if filename == '-':
         if sys.platform == 'win32':
             import msvcrt
@@ -580,22 +514,16 @@ def sanitize_open(filename, open_mode):
             if old_filename == filename:
                 raise
 
-
 def timeconvert(timestr):
-    """Convert RFC 2822 defined time string into system timestamp"""
+
     timestamp = None
     timetuple = email.utils.parsedate_tz(timestr)
     if timetuple is not None:
         timestamp = email.utils.mktime_tz(timetuple)
     return timestamp
 
-
 def sanitize_filename(s, restricted=False, is_id=NO_DEFAULT):
-    """Sanitizes a string so it could be used as part of a filename.
-    @param restricted   Use a stricter subset of allowed characters
-    @param is_id        Whether this is an ID that should be kept unchanged if possible.
-                        If unset, yt-dlp's new sanitization rules are in effect
-    """
+
     if s == '':
         return ''
 
@@ -641,9 +569,8 @@ def sanitize_filename(s, restricted=False, is_id=NO_DEFAULT):
             result = '_'
     return result
 
-
 def sanitize_path(s, force=False):
-    """Sanitizes and normalizes path on Windows"""
+
     if sys.platform == 'win32':
         force = False
         drive_or_unc, _ = os.path.splitdrive(s)
@@ -664,7 +591,6 @@ def sanitize_path(s, force=False):
         sanitized_path.insert(0, os.path.sep)
     return os.path.normpath(os.path.join(*sanitized_path))
 
-
 def sanitize_url(url, *, scheme='http'):
     if url is None:
         return
@@ -679,7 +605,6 @@ def sanitize_url(url, *, scheme='http'):
             return re.sub(mistake, fixup, url)
     return url
 
-
 def extract_basic_auth(url):
     parts = urllib.parse.urlsplit(url)
     if parts.username is None:
@@ -691,14 +616,12 @@ def extract_basic_auth(url):
         ('%s:%s' % (parts.username, parts.password or '')).encode())
     return url, f'Basic {auth_payload.decode()}'
 
-
 def expand_path(s):
-    """Expand shell variables and ~"""
+
     return os.path.expandvars(compat_expanduser(s))
 
-
 def orderedSet(iterable, *, lazy=False):
-    """Remove all duplicates from the input iterable"""
+
     def _iter():
         seen = []
         for x in iterable:
@@ -708,9 +631,8 @@ def orderedSet(iterable, *, lazy=False):
 
     return _iter() if lazy else list(_iter())
 
-
 def _htmlentity_transform(entity_with_semicolon):
-    """Transforms an HTML entity to a character."""
+
     entity = entity_with_semicolon[:-1]
 
     if entity in html.entities.name2codepoint:
@@ -732,7 +654,6 @@ def _htmlentity_transform(entity_with_semicolon):
 
     return '&%s;' % entity
 
-
 def unescapeHTML(s):
     if s is None:
         return None
@@ -740,7 +661,6 @@ def unescapeHTML(s):
 
     return re.sub(
         r'&([^&;]+;)', lambda m: _htmlentity_transform(m.group(1)), s)
-
 
 def escapeHTML(text):
     return (
@@ -752,13 +672,11 @@ def escapeHTML(text):
         .replace("'", '&#39;')
     )
 
-
 class netrc_from_content(netrc.netrc):
     def __init__(self, content):
         self.hosts, self.macros = {}, {}
         with io.StringIO(content) as stream:
             self._parse('-', stream, False)
-
 
 class Popen(subprocess.Popen):
     if sys.platform == 'win32':
@@ -769,10 +687,7 @@ class Popen(subprocess.Popen):
 
     @staticmethod
     def _fix_pyinstaller_ld_path(env):
-        """Restore LD_LIBRARY_PATH when using PyInstaller
-            Ref: https://github.com/pyinstaller/pyinstaller/blob/develop/doc/runtime-information.rst#ld_library_path--libpath-considerations
-                 https://github.com/yt-dlp/yt-dlp/issues/4573
-        """
+
         if not hasattr(sys, '_MEIPASS'):
             return
 
@@ -817,20 +732,16 @@ class Popen(subprocess.Popen):
             stdout, stderr = proc.communicate_or_kill(timeout=timeout)
             return stdout or default, stderr or default, proc.returncode
 
-
 def encodeArgument(s):
     return s if isinstance(s, str) else s.decode('ascii')
 
-
 _timetuple = collections.namedtuple('Time', ('hours', 'minutes', 'seconds', 'milliseconds'))
-
 
 def timetuple_from_msec(msec):
     secs, msec = divmod(msec, 1000)
     mins, secs = divmod(secs, 60)
     hrs, mins = divmod(mins, 60)
     return _timetuple(hrs, mins, secs, msec)
-
 
 def formatSeconds(secs, delim=':', msec=False):
     time = timetuple_from_msec(secs * 1000)
@@ -841,7 +752,6 @@ def formatSeconds(secs, delim=':', msec=False):
     else:
         ret = '%d' % time.seconds
     return '%s.%03d' % (ret, time.milliseconds) if msec else ret
-
 
 def bug_reports_message(before=';'):
     from ..update import REPOSITORY
@@ -855,9 +765,8 @@ def bug_reports_message(before=';'):
 
     return (before + ' ' if before else '') + msg
 
-
 class YoutubeDLError(Exception):
-    """Base exception for YoutubeDL errors."""
+
     msg = None
 
     def __init__(self, msg=None):
@@ -867,14 +776,11 @@ class YoutubeDLError(Exception):
             self.msg = type(self).__name__
         super().__init__(self.msg)
 
-
 class ExtractorError(YoutubeDLError):
-    """Error during info extraction."""
+
 
     def __init__(self, msg, tb=None, expected=False, cause=None, video_id=None, ie=None):
-        """ tb, if given, is the original traceback (so that it can be printed out).
-        If expected is set, this is a normal error message and most likely not a bug in yt-dlp.
-        """
+
         from ..networking.exceptions import network_exceptions
         if sys.exc_info()[0] in network_exceptions:
             expected = True
@@ -911,69 +817,45 @@ class ExtractorError(YoutubeDLError):
             self.msg = self.__msg or type(self).__name__
             self.args = (self.msg, )
 
-
 class UnsupportedError(ExtractorError):
     def __init__(self, url):
         super().__init__(
             'Unsupported URL: %s' % url, expected=True)
         self.url = url
 
-
 class RegexNotFoundError(ExtractorError):
-    """Error when a regex didn't match"""
+
     pass
 
-
 class GeoRestrictedError(ExtractorError):
-    """Geographic restriction Error exception.
 
-    This exception may be thrown when a video is not available from your
-    geographic location due to geographic restrictions imposed by a website.
-    """
 
     def __init__(self, msg, countries=None, **kwargs):
         kwargs['expected'] = True
         super().__init__(msg, **kwargs)
         self.countries = countries
 
-
 class UserNotLive(ExtractorError):
-    """Error when a channel/user is not live"""
+
 
     def __init__(self, msg=None, **kwargs):
         kwargs['expected'] = True
         super().__init__(msg or 'The channel is not currently live', **kwargs)
 
-
 class DownloadError(YoutubeDLError):
-    """Download Error exception.
 
-    This exception may be thrown by FileDownloader objects if they are not
-    configured to continue on errors. They will contain the appropriate
-    error message.
-    """
 
     def __init__(self, msg, exc_info=None):
-        """ exc_info, if given, is the original exception that caused the trouble (as returned by sys.exc_info()). """
+
         super().__init__(msg)
         self.exc_info = exc_info
 
-
 class EntryNotInPlaylist(YoutubeDLError):
-    """Entry not in playlist exception.
 
-    This exception will be thrown by YoutubeDL when a requested entry
-    is not found in the playlist info_dict
-    """
     msg = 'Entry not found in info'
 
-
 class SameFileError(YoutubeDLError):
-    """Same File exception.
 
-    This exception will be thrown by FileDownloader objects if they detect
-    multiple files would have to be downloaded to the same file on disk.
-    """
     msg = 'Fixed output name but more than one file to download'
 
     def __init__(self, filename=None):
@@ -981,57 +863,41 @@ class SameFileError(YoutubeDLError):
             self.msg += f': {filename}'
         super().__init__(self.msg)
 
-
 class PostProcessingError(YoutubeDLError):
-    """Post Processing exception.
-
-    This exception may be raised by PostProcessor's .run() method to
-    indicate an error in the postprocessing task.
-    """
 
 
 class DownloadCancelled(YoutubeDLError):
-    """ Exception raised when the download queue should be interrupted """
+
     msg = 'The download was cancelled'
 
-
 class ExistingVideoReached(DownloadCancelled):
-    """ --break-on-existing triggered """
+
     msg = 'Encountered a video that is already in the archive, stopping due to --break-on-existing'
 
-
 class RejectedVideoReached(DownloadCancelled):
-    """ --break-match-filter triggered """
+
     msg = 'Encountered a video that did not match filter, stopping due to --break-match-filter'
 
-
 class MaxDownloadsReached(DownloadCancelled):
-    """ --max-downloads limit has been reached. """
+
     msg = 'Maximum number of downloads reached, stopping due to --max-downloads'
 
-
 class ReExtractInfo(YoutubeDLError):
-    """ Video info needs to be re-extracted. """
+
 
     def __init__(self, msg, expected=False):
         super().__init__(msg)
         self.expected = expected
 
-
 class ThrottledDownload(ReExtractInfo):
-    """ Download speed below --throttled-rate. """
+
     msg = 'The download speed is below throttle limit'
 
     def __init__(self):
         super().__init__(self.msg, expected=False)
 
-
 class UnavailableVideoError(YoutubeDLError):
-    """Unavailable Format exception.
 
-    This exception will be thrown when a video is requested
-    in a format that is not available for that video.
-    """
     msg = 'Unable to download video'
 
     def __init__(self, err=None):
@@ -1039,20 +905,13 @@ class UnavailableVideoError(YoutubeDLError):
             self.msg += f': {err}'
         super().__init__(self.msg)
 
-
 class ContentTooShortError(YoutubeDLError):
-    """Content Too Short exception.
 
-    This exception may be raised by FileDownloader objects when a file they
-    download is too small for what the server announced first, indicating
-    the connection was probably interrupted.
-    """
 
     def __init__(self, downloaded, expected):
         super().__init__(f'Downloaded {downloaded} bytes, expected {expected} bytes')
         self.downloaded = downloaded
         self.expected = expected
-
 
 class XAttrMetadataError(YoutubeDLError):
     def __init__(self, code=None, msg='Unknown error'):
@@ -1068,14 +927,11 @@ class XAttrMetadataError(YoutubeDLError):
         else:
             self.reason = 'NOT_SUPPORTED'
 
-
 class XAttrUnavailableError(YoutubeDLError):
     pass
 
-
 def is_path_like(f):
     return isinstance(f, (str, bytes, os.PathLike))
-
 
 def extract_timezone(date_str):
     m = re.search(
@@ -1106,9 +962,8 @@ def extract_timezone(date_str):
                 minutes=sign * int(m.group('minutes')))
     return timezone, date_str
 
-
 def parse_iso8601(date_str, delimiter='T', timezone=None):
-    """ Return a UNIX timestamp from the given date """
+
 
     if date_str is None:
         return None
@@ -1123,13 +978,11 @@ def parse_iso8601(date_str, delimiter='T', timezone=None):
         dt = datetime.datetime.strptime(date_str, date_format) - timezone
         return calendar.timegm(dt.timetuple())
 
-
 def date_formats(day_first=True):
     return DATE_FORMATS_DAY_FIRST if day_first else DATE_FORMATS_MONTH_FIRST
 
-
 def unified_strdate(date_str, day_first=True):
-    """Return a string with the date in the format YYYYMMDD"""
+
 
     if date_str is None:
         return None
@@ -1148,7 +1001,6 @@ def unified_strdate(date_str, day_first=True):
                 upload_date = datetime.datetime(*timetuple[:6]).strftime('%Y%m%d')
     if upload_date is not None:
         return str(upload_date)
-
 
 def unified_timestamp(date_str, day_first=True):
     if not isinstance(date_str, str):
@@ -1179,7 +1031,6 @@ def unified_timestamp(date_str, day_first=True):
     if timetuple:
         return calendar.timegm(timetuple) + pm_delta * 3600 - timezone.total_seconds()
 
-
 def determine_ext(url, default_ext='unknown_video'):
     if url is None or '.' not in url:
         return default_ext
@@ -1191,21 +1042,11 @@ def determine_ext(url, default_ext='unknown_video'):
     else:
         return default_ext
 
-
 def subtitles_filename(filename, sub_lang, sub_format, expected_real_ext=None):
     return replace_extension(filename, sub_lang + '.' + sub_format, expected_real_ext)
 
-
 def datetime_from_str(date_str, precision='auto', format='%Y%m%d'):
-    R"""
-    Return a datetime object from a string.
-    Supported format:
-        (now|today|yesterday|DATE)([+-]\d+(microsecond|second|minute|hour|day|week|month|year)s?)?
 
-    @param format       strftime format of DATE
-    @param precision    Round the datetime object: auto|microsecond|second|minute|hour|day
-                        auto: round to the unit provided in date_str (if applicable).
-    """
     auto_precision = False
     if precision == 'auto':
         auto_precision = True
@@ -1237,32 +1078,22 @@ def datetime_from_str(date_str, precision='auto', format='%Y%m%d'):
 
     return datetime_round(datetime.datetime.strptime(date_str, format), precision)
 
-
 def date_from_str(date_str, format='%Y%m%d', strict=False):
-    R"""
-    Return a date object from a string using datetime_from_str
 
-    @param strict  Restrict allowed patterns to "YYYYMMDD" and
-                   (now|today|yesterday)(-\d+(day|week|month|year)s?)?
-    """
     if strict and not re.fullmatch(r'\d{8}|(now|today|yesterday)(-\d+(day|week|month|year)s?)?', date_str):
         raise ValueError(f'Invalid date format "{date_str}"')
     return datetime_from_str(date_str, precision='microsecond', format=format).date()
 
-
 def datetime_add_months(dt, months):
-    """Increment/Decrement a datetime object by months."""
+
     month = dt.month + months - 1
     year = dt.year + month // 12
     month = month % 12 + 1
     day = min(dt.day, calendar.monthrange(year, month)[1])
     return dt.replace(year, month, day)
 
-
 def datetime_round(dt, precision='day'):
-    """
-    Round a datetime object's time to a specific precision
-    """
+
     if precision == 'microsecond':
         return dt
 
@@ -1276,22 +1107,19 @@ def datetime_round(dt, precision='day'):
     timestamp = roundto(calendar.timegm(dt.timetuple()), unit_seconds[precision])
     return datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc)
 
-
 def hyphenate_date(date_str):
-    """
-    Convert a date in 'YYYYMMDD' format to 'YYYY-MM-DD' format"""
+
     match = re.match(r'^(\d\d\d\d)(\d\d)(\d\d)$', date_str)
     if match is not None:
         return '-'.join(match.groups())
     else:
         return date_str
 
-
 class DateRange:
-    """Represents a time interval between two dates"""
+
 
     def __init__(self, start=None, end=None):
-        """start and end must be strings in the format accepted by date"""
+
         if start is not None:
             self.start = date_from_str(start, strict=True)
         else:
@@ -1305,11 +1133,11 @@ class DateRange:
 
     @classmethod
     def day(cls, day):
-        """Returns a range that only contains the given day"""
+
         return cls(day, day)
 
     def __contains__(self, date):
-        """Check if the date is in the range"""
+
         if not isinstance(date, datetime.date):
             date = date_from_str(date)
         return self.start <= date <= self.end
@@ -1320,7 +1148,6 @@ class DateRange:
     def __eq__(self, other):
         return (isinstance(other, DateRange)
                 and self.start == other.start and self.end == other.end)
-
 
 @functools.cache
 def system_identifier():
@@ -1341,15 +1168,13 @@ def system_identifier():
         format_field(join_nonempty(*libc_ver, delim=' '), None, ', %s'),
     )
 
-
 @functools.cache
 def get_windows_version():
-    ''' Get Windows version. returns () if it's not running on Windows '''
+
     if compat_os_name == 'nt':
         return version_tuple(platform.win32_ver()[1])
     else:
         return ()
-
 
 def write_string(s, out=None, encoding=None):
     assert isinstance(s, str)
@@ -1370,7 +1195,6 @@ def write_string(s, out=None, encoding=None):
     buffer.write(s.encode(enc, 'ignore') if enc else s)
     out.flush()
 
-
 def deprecation_warning(msg, *, printer=None, stacklevel=0, **kwargs):
     from .. import _IN_CLI
     if _IN_CLI:
@@ -1384,9 +1208,7 @@ def deprecation_warning(msg, *, printer=None, stacklevel=0, **kwargs):
         import warnings
         warnings.warn(DeprecationWarning(msg), stacklevel=stacklevel + 3)
 
-
 deprecation_warning._cache = set()
-
 
 def bytes_to_intlist(bs):
     if not bs:
@@ -1396,19 +1218,16 @@ def bytes_to_intlist(bs):
     else:
         return [ord(c) for c in bs]
 
-
 def intlist_to_bytes(xs):
     if not xs:
         return b''
     return struct.pack('%dB' % len(xs), *xs)
-
 
 class LockingUnsupportedError(OSError):
     msg = 'File locking is not supported'
 
     def __init__(self):
         super().__init__(self.msg)
-
 
 if sys.platform == 'win32':
     import ctypes
@@ -1495,7 +1314,6 @@ else:
         def _unlock_file(f):
             raise LockingUnsupportedError()
 
-
 class locked_file:
     locked = False
 
@@ -1560,12 +1378,10 @@ class locked_file:
     def __iter__(self):
         return iter(self.f)
 
-
 @functools.cache
 def get_filesystem_encoding():
     encoding = sys.getfilesystemencoding()
     return encoding if encoding is not None else 'utf-8'
-
 
 def shell_quote(args):
     quoted_args = []
@@ -1576,16 +1392,14 @@ def shell_quote(args):
         quoted_args.append(compat_shlex_quote(a))
     return ' '.join(quoted_args)
 
-
 def smuggle_url(url, data):
-    """ Pass additional data in a URL for internal use. """
+
 
     url, idata = unsmuggle_url(url, {})
     data.update(idata)
     sdata = urllib.parse.urlencode(
         {'__youtubedl_smuggle': json.dumps(data)})
     return url + '#' + sdata
-
 
 def unsmuggle_url(smug_url, default=None):
     if '#__youtubedl_smuggle' not in smug_url:
@@ -1595,9 +1409,8 @@ def unsmuggle_url(smug_url, default=None):
     data = json.loads(jsond)
     return url, data
 
-
 def format_decimal_suffix(num, fmt='%d%s', *, factor=1000):
-    """ Formats numbers with decimal sufixes like K, M, etc """
+
     num, factor = float_or_none(num), float(factor)
     if num is None or num < 0:
         return None
@@ -1609,10 +1422,8 @@ def format_decimal_suffix(num, fmt='%d%s', *, factor=1000):
     converted = num / (factor ** exponent)
     return fmt % (converted, suffix)
 
-
 def format_bytes(bytes):
     return format_decimal_suffix(bytes, '%.2f%sB', factor=1024) or 'N/A'
-
 
 def lookup_unit_table(unit_table, s, strict=False):
     num_re = NUMBER_RE if strict else NUMBER_RE.replace(R'\.', '[,.]')
@@ -1626,13 +1437,11 @@ def lookup_unit_table(unit_table, s, strict=False):
     mult = unit_table[m.group('unit')]
     return round(num * mult)
 
-
 def parse_bytes(s):
-    """Parse a string indicating a byte quantity into an integer"""
+
     return lookup_unit_table(
         {u: 1024**i for i, u in enumerate(['', *'KMGTPEZY'])},
         s.upper(), strict=True)
-
 
 def parse_filesize(s):
     if s is None:
@@ -1702,7 +1511,6 @@ def parse_filesize(s):
 
     return lookup_unit_table(_UNIT_TABLE, s)
 
-
 def parse_count(s):
     if s is None:
         return None
@@ -1731,7 +1539,6 @@ def parse_count(s):
     if mobj:
         return str_to_int(mobj.group(1))
 
-
 def parse_resolution(s, *, lenient=False):
     if s is None:
         return {}
@@ -1756,7 +1563,6 @@ def parse_resolution(s, *, lenient=False):
 
     return {}
 
-
 def parse_bitrate(s):
     if not isinstance(s, str):
         return
@@ -1764,9 +1570,8 @@ def parse_bitrate(s):
     if mobj:
         return int(mobj.group(1))
 
-
 def month_by_name(name, lang='en'):
-    """ Return the number of a month by (locale-independently) English name """
+
 
     month_names = MONTH_NAMES.get(lang, MONTH_NAMES['en'])
 
@@ -1775,24 +1580,20 @@ def month_by_name(name, lang='en'):
     except ValueError:
         return None
 
-
 def month_by_abbreviation(abbrev):
-    """ Return the number of a month by (locale-independently) English
-        abbreviations """
+
 
     try:
         return [s[:3] for s in ENGLISH_MONTH_NAMES].index(abbrev) + 1
     except ValueError:
         return None
 
-
 def fix_xml_ampersands(xml_str):
-    """Replace all the '&' by '&amp;' in XML"""
+
     return re.sub(
         r'&(?!amp;|lt;|gt;|apos;|quot;|#x[0-9a-fA-F]{,4};|#[0-9]{,4};)',
         '&amp;',
         xml_str)
-
 
 def setproctitle(title):
     assert isinstance(title, str)
@@ -1816,14 +1617,11 @@ def setproctitle(title):
     except AttributeError:
         return
 
-
 def remove_start(s, start):
     return s[len(start):] if s is not None and s.startswith(start) else s
 
-
 def remove_end(s, end):
     return s[:-len(end)] if s is not None and s.endswith(end) else s
-
 
 def remove_quotes(s):
     if s is None or len(s) < 2:
@@ -1833,23 +1631,16 @@ def remove_quotes(s):
             return s[1:-1]
     return s
 
-
 def get_domain(url):
-    """
-    This implementation is inconsistent, but is kept for compatibility.
-    Use this only for "webpage_url_domain"
-    """
-    return remove_start(urllib.parse.urlparse(url).netloc, 'www.') or None
 
+    return remove_start(urllib.parse.urlparse(url).netloc, 'www.') or None
 
 def url_basename(url):
     path = urllib.parse.urlparse(url).path
     return path.strip('/').split('/')[-1]
 
-
 def base_url(url):
     return re.match(r'https?://[^?#]+/', url).group()
-
 
 def urljoin(base, path):
     if isinstance(path, bytes):
@@ -1865,7 +1656,6 @@ def urljoin(base, path):
         return None
     return urllib.parse.urljoin(base, path)
 
-
 def int_or_none(v, scale=1, default=None, get_attr=None, invscale=1):
     if get_attr and v is not None:
         v = getattr(v, get_attr, None)
@@ -1874,19 +1664,16 @@ def int_or_none(v, scale=1, default=None, get_attr=None, invscale=1):
     except (ValueError, TypeError, OverflowError):
         return default
 
-
 def str_or_none(v, default=None):
     return default if v is None else str(v)
 
-
 def str_to_int(int_str):
-    """ A more relaxed version of int_or_none """
+
     if isinstance(int_str, int):
         return int_str
     elif isinstance(int_str, str):
         int_str = re.sub(r'[,\.\+]', '', int_str)
         return int_or_none(int_str)
-
 
 def float_or_none(v, scale=1, invscale=1, default=None):
     if v is None:
@@ -1896,21 +1683,17 @@ def float_or_none(v, scale=1, invscale=1, default=None):
     except (ValueError, TypeError):
         return default
 
-
 def bool_or_none(v, default=None):
     return v if isinstance(v, bool) else default
 
-
 def strip_or_none(v, default=None):
     return v.strip() if isinstance(v, str) else default
-
 
 def url_or_none(url):
     if not url or not isinstance(url, str):
         return None
     url = url.strip()
     return url if re.match(r'^(?:(?:https?|rt(?:m(?:pt?[es]?|fp)|sp[su]?)|mms|ftps?):)?//', url) else None
-
 
 def strftime_or_none(timestamp, date_format='%Y%m%d', default=None):
     datetime_object = None
@@ -1925,7 +1708,6 @@ def strftime_or_none(timestamp, date_format='%Y%m%d', default=None):
         return datetime_object.strftime(date_format)
     except (ValueError, TypeError, AttributeError):
         return default
-
 
 def parse_duration(s):
     if not isinstance(s, str):
@@ -1982,7 +1764,6 @@ def parse_duration(s):
     return sum(float(part or 0) * mult for part, mult in (
         (days, 86400), (hours, 3600), (mins, 60), (secs, 1), (ms, 1)))
 
-
 def prepend_extension(filename, ext, expected_real_ext=None):
     name, real_ext = os.path.splitext(filename)
     return (
@@ -1990,23 +1771,19 @@ def prepend_extension(filename, ext, expected_real_ext=None):
         if not expected_real_ext or real_ext[1:] == expected_real_ext
         else f'{filename}.{ext}')
 
-
 def replace_extension(filename, ext, expected_real_ext=None):
     name, real_ext = os.path.splitext(filename)
     return '{}.{}'.format(
         name if not expected_real_ext or real_ext[1:] == expected_real_ext else filename,
         ext)
 
-
 def check_executable(exe, args=[]):
-    """ Checks if the given binary is installed somewhere in PATH, and returns its name.
-    args can be a list of arguments for a short output (like -version) """
+
     try:
         Popen.run([exe] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     except OSError:
         return False
     return exe
-
 
 def _get_exe_version_output(exe, args):
     try:
@@ -2018,7 +1795,6 @@ def _get_exe_version_output(exe, args):
         return False
     return stdout
 
-
 def detect_exe_version(output, version_re=None, unrecognized='present'):
     assert isinstance(output, str)
     if version_re is None:
@@ -2029,11 +1805,9 @@ def detect_exe_version(output, version_re=None, unrecognized='present'):
     else:
         return unrecognized
 
-
 def get_exe_version(exe, args=['--version'],
                     version_re=None, unrecognized=('present', 'broken')):
-    """ Returns the version of the specified executable,
-    or False if the executable is not present """
+
     unrecognized = variadic(unrecognized)
     assert len(unrecognized) in (1, 2)
     out = _get_exe_version_output(exe, args)
@@ -2041,9 +1815,8 @@ def get_exe_version(exe, args=['--version'],
         return unrecognized[-1]
     return out and detect_exe_version(out, version_re, unrecognized[0])
 
-
 def frange(start=0, stop=None, step=1):
-    """Float range"""
+
     if stop is None:
         start, stop = 0, start
     sign = [-1, 1][step > 0] if step else 0
@@ -2051,10 +1824,8 @@ def frange(start=0, stop=None, step=1):
         yield start
         start += step
 
-
 class LazyList(collections.abc.Sequence):
-    """Lazy immutable list from an iterable
-    Note that slices of a LazyList are lists and not LazyList"""
+
 
     class IndexError(IndexError):
         pass
@@ -2079,7 +1850,7 @@ class LazyList(collections.abc.Sequence):
         return self._cache
 
     def exhaust(self):
-        """Evaluate the entire iterable"""
+
         return self._exhaust()[::-1 if self._reversed else 1]
 
     @staticmethod
@@ -2136,7 +1907,6 @@ class LazyList(collections.abc.Sequence):
     def __str__(self):
         return repr(self.exhaust())
 
-
 class PagedList:
 
     class IndexError(IndexError):
@@ -2175,9 +1945,8 @@ class PagedList:
             raise self.IndexError()
         return entries[0]
 
-
 class OnDemandPagedList(PagedList):
-    """Download pages until a page with less than maximum results"""
+
 
     def _getslice(self, start, end):
         for pagenum in itertools.count(start // self._pagesize):
@@ -2210,9 +1979,8 @@ class OnDemandPagedList(PagedList):
             if end == nextfirstid:
                 break
 
-
 class InAdvancePagedList(PagedList):
-    """PagedList with total number of pages known in advance"""
+
 
     def __init__(self, pagefunc, pagecount, pagesize):
         PagedList.__init__(self, pagefunc, pagesize, True)
@@ -2235,7 +2003,6 @@ class InAdvancePagedList(PagedList):
                     yield from page_results[:only_more]
                     break
             yield from page_results
-
 
 class PlaylistEntries:
     MissingEntry = object()
@@ -2366,14 +2133,12 @@ class PlaylistEntries:
     class IndexError(IndexError):
         pass
 
-
 def uppercase_escape(s):
     unicode_escape = codecs.getdecoder('unicode_escape')
     return re.sub(
         r'\\U[0-9a-fA-F]{8}',
         lambda m: unicode_escape(m.group(0))[0],
         s)
-
 
 def lowercase_escape(s):
     unicode_escape = codecs.getdecoder('unicode_escape')
@@ -2382,10 +2147,8 @@ def lowercase_escape(s):
         lambda m: unicode_escape(m.group(0))[0],
         s)
 
-
 def parse_qs(url, **kwargs):
     return urllib.parse.parse_qs(urllib.parse.urlparse(url).query, **kwargs)
-
 
 def read_batch_urls(batch_fd):
     def fixup(url):
@@ -2403,17 +2166,11 @@ def read_batch_urls(batch_fd):
     with contextlib.closing(batch_fd) as fd:
         return [url for url in map(fixup, fd) if url]
 
-
 def urlencode_postdata(*args, **kargs):
     return urllib.parse.urlencode(*args, **kargs).encode('ascii')
 
-
 def update_url(url, *, query_update=None, **kwargs):
-    """Replace URL components specified by kwargs
-       @param url           str or parse url tuple
-       @param query_update  update query
-       @returns             str
-    """
+
     if isinstance(url, str):
         if not kwargs and not query_update:
             return url
@@ -2427,10 +2184,8 @@ def update_url(url, *, query_update=None, **kwargs):
         }, True)
     return urllib.parse.urlunparse(url._replace(**kwargs))
 
-
 def update_url_query(url, query):
     return update_url(url, query_update=query)
-
 
 def _multipart_encode_impl(data, boundary):
     content_type = 'multipart/form-data; boundary=%s' % boundary
@@ -2451,20 +2206,8 @@ def _multipart_encode_impl(data, boundary):
 
     return out, content_type
 
-
 def multipart_encode(data, boundary=None):
-    '''
-    Encode a dict to RFC 7578-compliant form-data
 
-    data:
-        A dict where keys and values can be either Unicode or bytes-like
-        objects.
-    boundary:
-        If specified a Unicode object, it's used as the boundary. Otherwise
-        a random boundary is generated.
-
-    Reference: https://tools.ietf.org/html/rfc7578
-    '''
     has_specified_boundary = boundary is not None
 
     while True:
@@ -2481,19 +2224,16 @@ def multipart_encode(data, boundary=None):
 
     return out, content_type
 
-
 def is_iterable_like(x, allowed_types=collections.abc.Iterable, blocked_types=NO_DEFAULT):
     if blocked_types is NO_DEFAULT:
         blocked_types = (str, bytes, collections.abc.Mapping)
     return isinstance(x, allowed_types) and not isinstance(x, blocked_types)
-
 
 def variadic(x, allowed_types=NO_DEFAULT):
     if not isinstance(allowed_types, (tuple, type)):
         deprecation_warning('allowed_types should be a tuple or a type')
         allowed_types = tuple(allowed_types)
     return x if is_iterable_like(x, blocked_types=allowed_types) else (x, )
-
 
 def try_call(*funcs, expected_type=None, args=[], kwargs={}):
     for f in funcs:
@@ -2505,14 +2245,11 @@ def try_call(*funcs, expected_type=None, args=[], kwargs={}):
             if expected_type is None or isinstance(val, expected_type):
                 return val
 
-
 def try_get(src, getter, expected_type=None):
     return try_call(*variadic(getter), args=(src,), expected_type=expected_type)
 
-
 def filter_dict(dct, cndn=lambda _, v: v is not None):
     return {k: v for k, v in dct.items() if cndn(k, v)}
-
 
 def merge_dicts(*dicts):
     merged = {}
@@ -2523,10 +2260,8 @@ def merge_dicts(*dicts):
                 merged[k] = v
     return merged
 
-
 def encode_compat_str(string, encoding=preferredencoding(), errors='strict'):
     return string if isinstance(string, str) else str(string, encoding, errors)
-
 
 US_RATINGS = {
     'G': 0,
@@ -2536,7 +2271,6 @@ US_RATINGS = {
     'NC': 18,
 }
 
-
 TV_PARENTAL_GUIDELINES = {
     'TV-Y': 0,
     'TV-Y7': 7,
@@ -2545,7 +2279,6 @@ TV_PARENTAL_GUIDELINES = {
     'TV-14': 14,
     'TV-MA': 17,
 }
-
 
 def parse_age_limit(s):
     if type(s) is int:
@@ -2563,7 +2296,6 @@ def parse_age_limit(s):
         return TV_PARENTAL_GUIDELINES['TV-' + m.group(1)]
     return None
 
-
 def strip_jsonp(code):
     return re.sub(
         r'''(?sx)^
@@ -2572,7 +2304,6 @@ def strip_jsonp(code):
             \s*\(\s*(?P<callback_data>.*)\);?
             \s*?(?://[^\n]*)*$''',
         r'\g<callback_data>', code)
-
 
 def js_to_json(code, vars={}, *, strict=False):
     STRING_QUOTES = '\'"`'
@@ -2653,9 +2384,8 @@ def js_to_json(code, vars={}, *, strict=False):
         !+
         ''', fix_kv, code)
 
-
 def qualities(quality_ids):
-    """ Get a numeric quality value out of a list of possible values """
+
     def q(qid):
         try:
             return quality_ids.index(qid)
@@ -2663,9 +2393,7 @@ def qualities(quality_ids):
             return -1
     return q
 
-
 POSTPROCESS_WHEN = ('pre_process', 'after_filter', 'video', 'before_dl', 'post_process', 'after_move', 'after_video', 'playlist')
-
 
 DEFAULT_OUTTMPL = {
     'default': '%(title)s [%(id)s].%(ext)s',
@@ -2698,12 +2426,10 @@ STR_FORMAT_RE_TMPL = r'''(?x)
     )
 '''
 
-
 STR_FORMAT_TYPES = 'diouxXeEfFgGcrsa'
 
-
 def limit_length(s, length):
-    """ Add ellipses to overly long strings """
+
     if s is None:
         return None
     ELLIPSES = '...'
@@ -2711,10 +2437,8 @@ def limit_length(s, length):
         return s[:length - len(ELLIPSES)] + ELLIPSES
     return s
 
-
 def version_tuple(v):
     return tuple(int(e) for e in re.split(r'[-.]', v))
-
 
 def is_outdated_version(version, limit, assume_new=True):
     if not version:
@@ -2724,22 +2448,18 @@ def is_outdated_version(version, limit, assume_new=True):
     except ValueError:
         return not assume_new
 
-
 def ytdl_is_updateable():
-    """ Returns if yt-dlp can be updated with -U """
+
 
     from ..update import is_non_updateable
 
     return not is_non_updateable()
 
-
 def args_to_str(args):
     return ' '.join(compat_shlex_quote(a) for a in args)
 
-
 def error_to_str(err):
     return f'{type(err).__name__}: {err}'
-
 
 def mimetype2ext(mt, default=NO_DEFAULT):
     if not isinstance(mt, str):
@@ -2823,14 +2543,12 @@ def mimetype2ext(mt, default=NO_DEFAULT):
         return default
     return subtype.replace('+', '.')
 
-
 def ext2mimetype(ext_or_url):
     if not ext_or_url:
         return None
     if '.' not in ext_or_url:
         ext_or_url = f'file.{ext_or_url}'
     return mimetypes.guess_type(ext_or_url)[0]
-
 
 def parse_codecs(codecs_str):
     if not codecs_str:
@@ -2872,7 +2590,6 @@ def parse_codecs(codecs_str):
         }
     return {}
 
-
 def get_compatible_ext(*, vcodecs, acodecs, vexts, aexts, preferences=None):
     assert len(vcodecs) == len(vexts) and len(acodecs) == len(aexts)
 
@@ -2912,7 +2629,6 @@ def get_compatible_ext(*, vcodecs, acodecs, vexts, aexts, preferences=None):
             return ext
     return 'mkv' if allow_mkv else preferences[-1]
 
-
 def urlhandle_detect_ext(url_handle, default=NO_DEFAULT):
     getheader = url_handle.headers.get
 
@@ -2932,20 +2648,17 @@ def urlhandle_detect_ext(url_handle, default=NO_DEFAULT):
 
     return mimetype2ext(getheader('Content-Type'), default=default)
 
-
 def encode_data_uri(data, mime_type):
     return 'data:%s;base64,%s' % (mime_type, base64.b64encode(data).decode('ascii'))
 
-
 def age_restricted(content_limit, age_limit):
-    """ Returns True iff the content should be blocked """
+
 
     if age_limit is None:
         return False
     if content_limit is None:
         return False
     return age_limit < content_limit
-
 
 BOMS = [
     (b'\xef\xbb\xbf', 'utf-8'),
@@ -2955,9 +2668,8 @@ BOMS = [
     (b'\xfe\xff', 'utf-16-be'),
 ]
 
-
 def is_html(first_bytes):
-    """ Detect whether a file contains HTML by examining its first bytes. """
+
 
     encoding = 'utf-8'
     for bom, enc in BOMS:
@@ -2965,7 +2677,6 @@ def is_html(first_bytes):
             encoding, first_bytes = enc, first_bytes[len(bom):]
 
     return re.match(r'^\s*<', first_bytes.decode(encoding, 'replace'))
-
 
 def determine_protocol(info_dict):
     protocol = info_dict.get('protocol')
@@ -2988,10 +2699,8 @@ def determine_protocol(info_dict):
 
     return urllib.parse.urlparse(url).scheme
 
-
 def render_table(header_row, data, delim=False, extra_gap=0, hide_empty=False):
-    """ Render a list of rows, each as a list of values.
-    Text after a \t will be right aligned """
+
     def width(string):
         return len(remove_terminal_sequences(string).replace('\t', ''))
 
@@ -3019,7 +2728,6 @@ def render_table(header_row, data, delim=False, extra_gap=0, hide_empty=False):
                 row[pos] = text + ' ' * (max_lens[pos] - width(text) + extra_gap)
     ret = '\n'.join(''.join(row).rstrip() for row in table)
     return ret
-
 
 def _match_one(filter_part, dct, incomplete):
     STRING_OPERATORS = {
@@ -3095,18 +2803,11 @@ def _match_one(filter_part, dct, incomplete):
 
     raise ValueError('Invalid filter part %r' % filter_part)
 
-
 def match_str(filter_str, dct, incomplete=False):
-    """ Filter a dictionary with a simple string syntax.
-    @returns           Whether the filter passes
-    @param incomplete  Set of keys that is expected to be missing from dct.
-                       Can be True/False to indicate all/none of the keys may be missing.
-                       All conditions on incomplete keys pass if the key is missing
-    """
+
     return all(
         _match_one(filter_part.replace(r'\&', '&'), dct, incomplete)
         for filter_part in re.split(r'(?<!\\)&', filter_str))
-
 
 def match_filter_func(filters, breaking_filters=None):
     if not filters and not breaking_filters:
@@ -3130,7 +2831,6 @@ def match_filter_func(filters, breaking_filters=None):
             filter_str = ') | ('.join(map(str.strip, filters))
             return f'{video_title} does not pass filter ({filter_str}), skipping ..'
     return _match_func
-
 
 class download_range_func:
     def __init__(self, chapters, ranges, from_info=False):
@@ -3173,7 +2873,6 @@ class download_range_func:
     def __repr__(self):
         return f'{__name__}.{type(self).__name__}({self.chapters}, {self.ranges})'
 
-
 def parse_dfxp_time_expr(time_expr):
     if not time_expr:
         return
@@ -3186,21 +2885,15 @@ def parse_dfxp_time_expr(time_expr):
     if mobj:
         return 3600 * int(mobj.group(1)) + 60 * int(mobj.group(2)) + float(mobj.group(3).replace(':', '.'))
 
-
 def srt_subtitles_timecode(seconds):
     return '%02d:%02d:%02d,%03d' % timetuple_from_msec(seconds * 1000)
-
 
 def ass_subtitles_timecode(seconds):
     time = timetuple_from_msec(seconds * 1000)
     return '%01d:%02d:%02d.%02d' % (*time[:-1], time.milliseconds / 10)
 
-
 def dfxp2srt(dfxp_data):
-    '''
-    @param dfxp_data A bytes-like object containing DFXP data
-    @returns A unicode object containing converted SRT data
-    '''
+
     LEGACY_NAMESPACES = (
         (b'http://www.w3.org/ns/ttml', [
             b'http://www.w3.org/2004/11/ttaf1',
@@ -3361,23 +3054,19 @@ def dfxp2srt(dfxp_data):
 
     return ''.join(out)
 
-
 def cli_option(params, command_option, param, separator=None):
     param = params.get(param)
     return ([] if param is None
             else [command_option, str(param)] if separator is None
             else [f'{command_option}{separator}{param}'])
 
-
 def cli_bool_option(params, command_option, param, true_value='true', false_value='false', separator=None):
     param = params.get(param)
     assert param in (True, False, None)
     return cli_option({True: true_value, False: false_value}, command_option, param, separator)
 
-
 def cli_valueless_option(params, command_option, param, expected_value=True):
     return [command_option] if params.get(param) == expected_value else []
-
 
 def cli_configuration_args(argdict, keys, default=[], use_compat=True):
     if isinstance(argdict, (list, tuple)):
@@ -3398,7 +3087,6 @@ def cli_configuration_args(argdict, keys, default=[], use_compat=True):
             return [arg for args in arg_list for arg in args]
     return default
 
-
 def _configuration_args(main_key, argdict, exe, keys=None, default=[], use_compat=True):
     main_key, exe = main_key.lower(), exe.lower()
     root_key = exe if main_key == exe else f'{main_key}+{exe}'
@@ -3410,7 +3098,6 @@ def _configuration_args(main_key, argdict, exe, keys=None, default=[], use_compa
     else:
         use_compat = False
     return cli_configuration_args(argdict, keys, default, use_compat)
-
 
 class ISO639Utils:
     _lang_map = {
@@ -3606,16 +3293,15 @@ class ISO639Utils:
 
     @classmethod
     def short2long(cls, code):
-        """Convert language code from ISO 639-1 to ISO 639-2/T"""
+
         return cls._lang_map.get(code[:2])
 
     @classmethod
     def long2short(cls, code):
-        """Convert language code from ISO 639-2/T to ISO 639-1"""
+
         for short_name, long_name in cls._lang_map.items():
             if long_name == code:
                 return short_name
-
 
 class ISO3166Utils:
     _country_map = {
@@ -3874,9 +3560,8 @@ class ISO3166Utils:
 
     @classmethod
     def short2full(cls, code):
-        """Convert an ISO 3166-2 country code to the corresponding full name"""
-        return cls._country_map.get(code.upper())
 
+        return cls._country_map.get(code.upper())
 
 class GeoUtils:
     _country_ip_map = {
@@ -4136,16 +3821,8 @@ class GeoUtils:
         return str(socket.inet_ntoa(
             struct.pack('!L', random.randint(addr_min, addr_max))))
 
-
-
 def long_to_bytes(n, blocksize=0):
-    """long_to_bytes(n:long, blocksize:int) : string
-    Convert a long integer to a byte string.
 
-    If optional blocksize is given and greater than zero, pad the front of the
-    byte string with binary zeros so that the length is a multiple of
-    blocksize.
-    """
     s = b''
     n = int(n)
     while n > 0:
@@ -4162,13 +3839,8 @@ def long_to_bytes(n, blocksize=0):
         s = (blocksize - len(s) % blocksize) * b'\000' + s
     return s
 
-
 def bytes_to_long(s):
-    """bytes_to_long(string) : long
-    Convert a byte string to a long integer.
 
-    This is (essentially) the inverse of long_to_bytes().
-    """
     acc = 0
     length = len(s)
     if length % 4:
@@ -4179,38 +3851,20 @@ def bytes_to_long(s):
         acc = (acc << 32) + struct.unpack('>I', s[i:i + 4])[0]
     return acc
 
-
 def ohdave_rsa_encrypt(data, exponent, modulus):
-    '''
-    Implement OHDave's RSA algorithm. See http://www.ohdave.com/rsa/
 
-    Input:
-        data: data to encrypt, bytes-like object
-        exponent, modulus: parameter e and N of RSA algorithm, both integer
-    Output: hex string of encrypted data
-
-    Limitation: supports one block encryption only
-    '''
 
     payload = int(binascii.hexlify(data[::-1]), 16)
     encrypted = pow(payload, exponent, modulus)
     return '%x' % encrypted
 
-
 def pkcs1pad(data, length):
-    """
-    Padding input data with PKCS#1 scheme
 
-    @param {int[]} data        input data
-    @param {int}   length      target length
-    @returns {int[]}           padded data
-    """
     if len(data) > length - 11:
         raise ValueError('Input data too long for PKCS#1 padding')
 
     pseudo_random = [random.randint(0, 254) for _ in range(length - len(data) - 3)]
     return [0, 2] + pseudo_random + [0] + data
-
 
 def _base_n_table(n, table):
     if not table and not n:
@@ -4221,9 +3875,8 @@ def _base_n_table(n, table):
         raise ValueError(f'base {n} exceeds table length {len(table)}')
     return table
 
-
 def encode_base_n(num, n=None, table=None):
-    """Convert given int to a base-n string"""
+
     table = _base_n_table(n, table)
     if not num:
         return table[0]
@@ -4234,15 +3887,13 @@ def encode_base_n(num, n=None, table=None):
         num = num // base
     return result
 
-
 def decode_base_n(string, n=None, table=None):
-    """Convert given base-n string to int"""
+
     table = {char: index for index, char in enumerate(_base_n_table(n, table))}
     result, base = 0, len(table)
     for char in string:
         result = result * base + table[char]
     return result
-
 
 def decode_packed_codes(code):
     mobj = re.search(PACKED_CODES_RE, code)
@@ -4261,7 +3912,6 @@ def decode_packed_codes(code):
         r'\b(\w+)\b', lambda mobj: symbol_table[mobj.group(0)],
         obfuscated_code)
 
-
 def caesar(s, alphabet, shift):
     if shift == 0:
         return s
@@ -4270,10 +3920,8 @@ def caesar(s, alphabet, shift):
         alphabet[(alphabet.index(c) + shift) % l] if c in alphabet else c
         for c in s)
 
-
 def rot47(s):
     return caesar(s, r'''!"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~''', 47)
-
 
 def parse_m3u8_attributes(attrib):
     info = {}
@@ -4283,10 +3931,8 @@ def parse_m3u8_attributes(attrib):
         info[key] = val
     return info
 
-
 def urshift(val, n):
     return val >> n if val >= 0 else (val + 0x100000000) >> n
-
 
 def write_xattr(path, key, value):
     if compat_os_name == 'nt':
@@ -4299,7 +3945,6 @@ def write_xattr(path, key, value):
         except OSError as e:
             raise XAttrMetadataError(e.errno, e.strerror)
         return
-
 
     setxattr = None
     if getattr(xattr, '_yt_dlp__identifier', None) == 'pyxattr':
@@ -4332,7 +3977,6 @@ def write_xattr(path, key, value):
     if returncode:
         raise XAttrMetadataError(returncode, stderr)
 
-
 def random_birthday(year_field, month_field, day_field):
     start_date = datetime.date(1950, 1, 1)
     end_date = datetime.date(1995, 12, 31)
@@ -4344,7 +3988,6 @@ def random_birthday(year_field, month_field, day_field):
         day_field: str(random_date.day),
     }
 
-
 def find_available_port(interface=''):
     try:
         with socket.socket() as sock:
@@ -4352,7 +3995,6 @@ def find_available_port(interface=''):
             return sock.getsockname()[1]
     except OSError:
         return None
-
 
 DOT_URL_LINK_TEMPLATE = '''\
 [InternetShortcut]
@@ -4385,19 +4027,13 @@ LINK_TEMPLATES = {
     'webloc': DOT_WEBLOC_LINK_TEMPLATE,
 }
 
-
 def iri_to_uri(iri):
-    """
-    Converts an IRI (Internationalized Resource Identifier, allowing Unicode characters) to a URI (Uniform Resource Identifier, ASCII-only).
 
-    The function doesn't add an additional layer of escaping; e.g., it doesn't escape `%3C` as `%253C`. Instead, it percent-escapes characters with an underlying UTF-8 encoding *besides* those already escaped, leaving the URI intact.
-    """
 
     iri_parts = urllib.parse.urlparse(iri)
 
     if '[' in iri_parts.netloc:
         raise ValueError('IPv6 URIs are not, yet, supported.')
-
 
     net_location = ''
     if iri_parts.username:
@@ -4422,21 +4058,17 @@ def iri_to_uri(iri):
 
             urllib.parse.quote_plus(iri_parts.fragment, safe=r"!#$%&'()*+,/:;=?@{|}~")))
 
-
-
 def to_high_limit_path(path):
     if sys.platform in ['win32', 'cygwin']:
         return '\\\\?\\' + os.path.abspath(path)
 
     return path
 
-
 def format_field(obj, field=None, template='%s', ignore=NO_DEFAULT, default='', func=IDENTITY):
     val = traversal.traverse_obj(obj, *variadic(field))
     if not val if ignore is NO_DEFAULT else val in variadic(ignore):
         return default
     return template % func(val)
-
 
 def clean_podcast_url(url):
     url = re.sub(r'''(?x)
@@ -4459,13 +4091,10 @@ def clean_podcast_url(url):
         )/''', '', url)
     return re.sub(r'^\w+://(\w+://)', r'\1', url)
 
-
 _HEX_TABLE = '0123456789abcdef'
-
 
 def random_uuidv4():
     return re.sub(r'[xy]', lambda x: _HEX_TABLE[random.randint(0, 15)], 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx')
-
 
 def make_dir(path, to_screen=None):
     try:
@@ -4478,12 +4107,10 @@ def make_dir(path, to_screen=None):
             to_screen(f'unable to create directory {err}')
         return False
 
-
 def get_executable_path():
     from ..update import _get_variant_and_executable_path
 
     return os.path.dirname(os.path.abspath(_get_variant_and_executable_path()[1]))
-
 
 def get_user_config_dirs(package_name):
     xdg_config_home = os.getenv('XDG_CONFIG_HOME') or compat_expanduser('~/.config')
@@ -4495,17 +4122,12 @@ def get_user_config_dirs(package_name):
 
     yield os.path.join(compat_expanduser('~'), f'.{package_name}')
 
-
 def get_system_config_dirs(package_name):
     yield os.path.join('/etc', package_name)
 
-
 def time_seconds(**kwargs):
-    """
-    Returns TZ-aware time in seconds since the epoch (1970-01-01T00:00:00Z)
-    """
-    return time.time() + datetime.timedelta(**kwargs).total_seconds()
 
+    return time.time() + datetime.timedelta(**kwargs).total_seconds()
 
 def jwt_encode_hs256(payload_data, key, headers={}):
     header_data = {
@@ -4521,15 +4143,12 @@ def jwt_encode_hs256(payload_data, key, headers={}):
     token = header_b64 + b'.' + payload_b64 + b'.' + signature_b64
     return token
 
-
 def jwt_decode_hs256(jwt):
     header_b64, payload_b64, signature_b64 = jwt.split('.')
     payload_data = json.loads(base64.urlsafe_b64decode(f'{payload_b64}==='))
     return payload_data
 
-
 WINDOWS_VT_MODE = False if compat_os_name == 'nt' else None
-
 
 @functools.cache
 def supports_terminal_sequences(stream):
@@ -4543,9 +4162,8 @@ def supports_terminal_sequences(stream):
     except BaseException:
         return False
 
-
 def windows_enable_vt_mode():
-    """Ref: https://bugs.python.org/issue30075 """
+
     if get_windows_version() < (10, 0, 10586):
         return
 
@@ -4575,32 +4193,21 @@ def windows_enable_vt_mode():
     WINDOWS_VT_MODE = True
     supports_terminal_sequences.cache_clear()
 
-
 _terminal_sequences_re = re.compile('\033\\[[^m]+m')
-
 
 def remove_terminal_sequences(string):
     return _terminal_sequences_re.sub('', string)
 
-
 def number_of_digits(number):
     return len('%d' % number)
-
 
 def join_nonempty(*values, delim='-', from_dict=None):
     if from_dict is not None:
         values = (traversal.traverse_obj(from_dict, variadic(v)) for v in values)
     return delim.join(map(str, filter(None, values)))
 
-
 def scale_thumbnails_to_max_format_width(formats, thumbnails, url_width_re):
-    """
-    Find the largest format dimensions in terms of video width and, for each thumbnail:
-    * Modify the URL: Match the width with the provided regex and replace with the former width
-    * Update dimensions
 
-    This function is useful with video services that scale the provided thumbnails on demand
-    """
     _keys = ('width', 'height')
     max_dimensions = max(
         (tuple(format.get(k) or 0 for k in _keys) for format in formats),
@@ -4614,9 +4221,8 @@ def scale_thumbnails_to_max_format_width(formats, thumbnails, url_width_re):
         for thumbnail in thumbnails
     ]
 
-
 def parse_http_range(range):
-    """ Parse value of "Range" or "Content-Range" HTTP header into tuple. """
+
     if not range:
         return None, None, None
     crg = re.search(r'bytes[ =](\d+)-(\d+)?(?:/(\d+))?', range)
@@ -4624,18 +4230,13 @@ def parse_http_range(range):
         return None, None, None
     return int(crg.group(1)), int_or_none(crg.group(2)), int_or_none(crg.group(3))
 
-
 def read_stdin(what):
     eof = 'Ctrl+Z' if compat_os_name == 'nt' else 'Ctrl+D'
     write_string(f'Reading {what} from STDIN - EOF ({eof}) to end:\n')
     return sys.stdin
 
-
 def determine_file_encoding(data):
-    """
-    Detect the text encoding used
-    @returns (encoding, bytes to skip)
-    """
+
 
     for bom, enc in BOMS:
         if data.startswith(bom):
@@ -4644,7 +4245,6 @@ def determine_file_encoding(data):
     data = data.replace(b'\0', b'')
     mobj = re.match(rb'(?m)^#\s*coding\s*:\s*(\S+)\s*$', data)
     return mobj.group(1).decode() if mobj else None, 0
-
 
 class Config:
     own_args = None
@@ -4753,9 +4353,8 @@ class Config:
     def parse_args(self):
         return self.parser.parse_args(self.all_args)
 
-
 class WebSocketsWrapper:
-    """Wraps websockets module to use in non-async scopes"""
+
     pool = None
 
     def __init__(self, url, headers=None, connect=True):
@@ -4820,14 +4419,12 @@ class WebSocketsWrapper:
                     'task': task,
                 })
 
-
 def merge_headers(*dicts):
-    """Merge dicts of http headers case insensitively, prioritizing the latter ones"""
+
     return {k.title(): v for k, v in itertools.chain.from_iterable(map(dict.items, dicts))}
 
-
 def cached_method(f):
-    """Cache a method"""
+
     signature = inspect.signature(f)
 
     @functools.wraps(f)
@@ -4842,9 +4439,8 @@ def cached_method(f):
         return cache[key]
     return wrapper
 
-
 class classproperty:
-    """property access for class methods with optional caching"""
+
     def __new__(cls, func=None, *args, **kwargs):
         if not func:
             return functools.partial(cls, *args, **kwargs)
@@ -4862,7 +4458,6 @@ class classproperty:
             self._cache[cls] = self.func(cls)
         return self._cache[cls]
 
-
 class function_with_repr:
     def __init__(self, func, repr_=None):
         functools.update_wrapper(self, func)
@@ -4876,9 +4471,8 @@ class function_with_repr:
             return self.__repr
         return f'{self.func.__module__}.{self.func.__qualname__}'
 
-
 class Namespace(types.SimpleNamespace):
-    """Immutable namespace"""
+
 
     def __iter__(self):
         return iter(self.__dict__.values())
@@ -4886,7 +4480,6 @@ class Namespace(types.SimpleNamespace):
     @property
     def items_(self):
         return self.__dict__.items()
-
 
 MEDIA_EXTENSIONS = Namespace(
     common_video=('avi', 'flv', 'mkv', 'mov', 'mp4', 'webm'),
@@ -4903,16 +4496,8 @@ MEDIA_EXTENSIONS.audio += MEDIA_EXTENSIONS.common_audio
 
 KNOWN_EXTENSIONS = (*MEDIA_EXTENSIONS.video, *MEDIA_EXTENSIONS.audio, *MEDIA_EXTENSIONS.manifests)
 
-
 class RetryManager:
-    """Usage:
-        for retry in RetryManager(...):
-            try:
-                ...
-            except SomeException as err:
-                retry.error = err
-                continue
-    """
+
     attempt, _error = 0, None
 
     def __init__(self, _retries, _error_callback, **kwargs):
@@ -4942,7 +4527,7 @@ class RetryManager:
 
     @staticmethod
     def report_retry(e, count, retries, *, sleep_func, info, warn, error=None, suffix=None):
-        """Utility function for reporting retries"""
+
         if count > retries:
             if error:
                 return error(f'{e}. Giving up after {count - 1} retries') if count > 1 else error(str(e))
@@ -4959,18 +4544,15 @@ class RetryManager:
             info(f'Sleeping {delay:.2f} seconds ...')
             time.sleep(delay)
 
-
 def make_archive_id(ie, video_id):
     ie_key = ie if isinstance(ie, str) else ie.ie_key()
     return f'{ie_key.lower()} {video_id}'
-
 
 def truncate_string(s, left, right=0):
     assert left > 3 and right >= 0
     if s is None or len(s) <= left + right:
         return s
     return f'{s[:left-3]}...{s[-right:] if right else ""}'
-
 
 def orderedSet_from_options(options, alias_dict, *, use_regex=False, start=None):
     assert 'all' in alias_dict, '"all" alias is required'
@@ -4999,7 +4581,6 @@ def orderedSet_from_options(options, alias_dict, *, use_regex=False, start=None)
             requested.extend(current)
 
     return orderedSet(requested)
-
 
 class FormatSorter:
     regex = r' *((?P<reverse>\+)?(?P<field>[a-zA-Z0-9_]+)((?P<separator>[~:])(?P<limit>.*?))?)? *$'
@@ -5284,7 +4865,6 @@ class FormatSorter:
             format['tbr'] = try_call(lambda: format['vbr'] + format['abr']) or None
 
         return tuple(self._calculate_field_preference(format, field) for field in self._order)
-
 
 class _YDLLogger:
     def __init__(self, ydl=None):

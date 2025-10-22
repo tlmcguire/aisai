@@ -11,7 +11,6 @@ from ..common.utils import ServiceError
 
 _logger = logging.getLogger(__name__)
 
-
 class PublishRequestData:
 
     def __init__(self, requesthdr=None, seqhdr=None):
@@ -19,11 +18,8 @@ class PublishRequestData:
         self.seqhdr = seqhdr
         self.timestamp = time.time()
 
-
 class UaProcessor:
-    """
-    Processor for OPC UA messages. Implements the OPC UA protocol for the server side.
-    """
+
 
     def __init__(self, internal_server: InternalServer, transport):
         self.iserver: InternalServer = internal_server
@@ -57,9 +53,7 @@ class UaProcessor:
         self.send_response(request.RequestHeader.RequestHandle, seqhdr, response, ua.MessageType.SecureOpen)
 
     async def forward_publish_response(self, result: ua.PublishResult):
-        """
-        Try to send a `PublishResponse` with the given `PublishResult`.
-        """
+
         while True:
             if not self._publish_requests:
                 self._publish_results.append(result)
@@ -108,9 +102,7 @@ class UaProcessor:
         return True
 
     async def process_message(self, seqhdr, body):
-        """
-        Process incoming messages.
-        """
+
         typeid = nodeid_from_binary(body)
         requesthdr = struct_from_binary(ua.RequestHeader, body)
         _logger.debug('process_message %r %r', typeid, requesthdr)
@@ -443,10 +435,7 @@ class UaProcessor:
         return True
 
     async def close(self):
-        """
-        to be called when client has disconnected to ensure we really close
-        everything we should
-        """
+
         _logger.info("Cleanup client connection: %s", self.name)
         if self.session:
             await self.session.close_session(True)

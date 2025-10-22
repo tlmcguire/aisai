@@ -15,10 +15,8 @@ try:
 except ImportError:
     parse_options_header = None
 
-
 if typing.TYPE_CHECKING:
     from starlette.routing import Router
-
 
 SERVER_PUSH_HEADERS_TO_COPY = {
     "accept",
@@ -28,19 +26,8 @@ SERVER_PUSH_HEADERS_TO_COPY = {
     "user-agent",
 }
 
-
 def cookie_parser(cookie_string: str) -> typing.Dict[str, str]:
-    """
-    This function parses a ``Cookie`` HTTP header into a dict of key/value pairs.
 
-    It attempts to mimic browser cookie parsing behavior: browsers and web servers
-    frequently disregard the spec (RFC 6265) when setting and reading cookies,
-    so we attempt to suit the common scenarios here.
-
-    This function has been adapted from Django 3.1.0.
-    Note: we are explicitly _NOT_ using `SimpleCookie.load` because it is based
-    on an outdated spec and will fail on lots of input we want to support
-    """
     cookie_dict: typing.Dict[str, str] = {}
     for chunk in cookie_string.split(";"):
         chunk = chunk.strip()
@@ -55,16 +42,11 @@ def cookie_parser(cookie_string: str) -> typing.Dict[str, str]:
             cookie_dict[key] = http_cookies._unquote(val)
     return cookie_dict
 
-
 class ClientDisconnect(Exception):
     pass
 
-
 class HTTPConnection(typing.Mapping[str, typing.Any]):
-    """
-    A base class for incoming HTTP connections, that is used to provide
-    any functionality that is common to both `Request` and `WebSocket`.
-    """
+
 
     def __init__(self, scope: Scope, receive: typing.Optional[Receive] = None) -> None:
         assert scope["type"] in ("http", "websocket")
@@ -171,14 +153,11 @@ class HTTPConnection(typing.Mapping[str, typing.Any]):
         url_path = router.url_path_for(name, **path_params)
         return url_path.make_absolute_url(base_url=self.base_url)
 
-
 async def empty_receive() -> typing.NoReturn:
     raise RuntimeError("Receive channel has not been made available")
 
-
 async def empty_send(message: Message) -> typing.NoReturn:
     raise RuntimeError("Send channel has not been made available")
-
 
 class Request(HTTPConnection):
     _form: typing.Optional[FormData]

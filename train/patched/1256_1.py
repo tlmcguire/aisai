@@ -1,15 +1,5 @@
 def execute_precompile(precompile_id, gas_available, data):
-    """
-    Simulates the execution of a precompile.
 
-    Args:
-        precompile_id: The ID of the precompile (1 for ecrecover, 4 for identity).
-        gas_available: The amount of gas available for the precompile call.
-        data: The data to pass to the precompile.
-
-    Returns:
-        A tuple: (success, gas_used, output)
-    """
 
     if precompile_id == 1:
         if gas_available < 3000:
@@ -29,16 +19,7 @@ def execute_precompile(precompile_id, gas_available, data):
         return False, 0, b''
 
 def execute_contract_code(code, initial_gas, data):
-    """
-    Simulates the execution of smart contract code, including precompile calls
-    Args:
-        code: List of operations to execute, where calls to precompile are included
-        initial_gas: Initial amount of gas
-        data: Initial contract data
 
-    Returns:
-       Tuple: (success, remaining_gas, output)
-    """
     gas = initial_gas
     output = b""
     success = True
@@ -74,7 +55,6 @@ def execute_contract_code(code, initial_gas, data):
         return success, gas, output
 
     return success, gas, output
-
 
 if __name__ == '__main__':
     vulnerable_code = [

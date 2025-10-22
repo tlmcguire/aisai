@@ -1,27 +1,4 @@
-"""
-Snippet ---8<---.
 
-pymdownx.snippet
-Inject snippets
-
-MIT license.
-
-Copyright (c) 2017 Isaac Muse <isaacmuse@gmail.com>
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the Software without restriction, including without limitation
-the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
-CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-"""
 from markdown import Extension
 from markdown.preprocessors import Preprocessor
 import functools
@@ -38,13 +15,11 @@ DEFAULT_URL_SIZE = MI * 32
 DEFAULT_URL_TIMEOUT = 10.0
 DEFAULT_URL_REQUEST_HEADERS = {}
 
-
 class SnippetMissingError(Exception):
-    """Snippet missing exception."""
 
 
 class SnippetPreprocessor(Preprocessor):
-    """Handle snippets in Markdown content."""
+
 
     RE_ALL_SNIPPETS = re.compile(
         r'''(?x)
@@ -78,7 +53,7 @@ class SnippetPreprocessor(Preprocessor):
     RE_SNIPPET_FILE = re.compile(r'(?i)(.*?)(?:(:[0-9]*)?(:[0-9]*)?|(:[a-z][-_0-9a-z]*)?)$')
 
     def __init__(self, config, md):
-        """Initialize."""
+
 
         base = config.get('base_path')
         if isinstance(base, str):
@@ -97,7 +72,7 @@ class SnippetPreprocessor(Preprocessor):
         super(SnippetPreprocessor, self).__init__()
 
     def extract_section(self, section, lines):
-        """Extract the specified section from the lines."""
+
 
         new_lines = []
         start = False
@@ -141,12 +116,12 @@ class SnippetPreprocessor(Preprocessor):
         return self.dedent(new_lines) if self.dedent_subsections else new_lines
 
     def dedent(self, lines):
-        """De-indent lines."""
+
 
         return textwrap.dedent('\n'.join(lines)).split('\n')
 
     def get_snippet_path(self, path):
-        """Get snippet path."""
+
 
         snippet = None
         for base in self.base_path:
@@ -171,11 +146,7 @@ class SnippetPreprocessor(Preprocessor):
 
     @functools.lru_cache()
     def download(self, url):
-        """
-        Actually download the snippet pointed to by the passed URL.
 
-        The most recently used files are kept in a cache until the next reset.
-        """
         try:
             parsed_url = urlparse(url)
             if not parsed_url.scheme or not parsed_url.netloc:
@@ -205,7 +176,7 @@ class SnippetPreprocessor(Preprocessor):
               raise SnippetMissingError(f"Error downloading snippet '{url}': {e}")
 
     def parse_snippets(self, lines, file_name=None, is_url=False):
-        """Parse snippets snippet."""
+
 
         if file_name:
             self.seen.add(file_name)
@@ -328,7 +299,7 @@ class SnippetPreprocessor(Preprocessor):
         return new_lines
 
     def run(self, lines):
-        """Process snippets."""
+
 
         self.seen = set()
         if self.auto_append:
@@ -336,12 +307,11 @@ class SnippetPreprocessor(Preprocessor):
 
         return self.parse_snippets(lines)
 
-
 class SnippetExtension(Extension):
-    """Snippet extension."""
+
 
     def __init__(self, *args, **kwargs):
-        """Initialize."""
+
 
         self.config = {
             'base_path': [["."], "Base path for snippet paths - Default: [\".\"]"],
@@ -365,7 +335,7 @@ class SnippetExtension(Extension):
         super(SnippetExtension, self).__init__(*args, **kwargs)
 
     def extendMarkdown(self, md):
-        """Register the extension."""
+
 
         self.md = md
         md.registerExtension(self)
@@ -374,12 +344,11 @@ class SnippetExtension(Extension):
         md.preprocessors.register(snippet, "snippet", 32)
 
     def reset(self):
-        """Reset."""
+
 
         self.md.preprocessors['snippet'].download.cache_clear()
 
-
 def makeExtension(*args, **kwargs):
-    """Return extension."""
+
 
     return SnippetExtension(*args, **kwargs)

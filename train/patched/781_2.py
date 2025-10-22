@@ -1,9 +1,4 @@
 
-"""A cleanup tool for HTML.
-
-Removes unwanted tags and content.  See the `Cleaner` class for
-details.
-"""
 
 from __future__ import absolute_import
 
@@ -33,11 +28,8 @@ try:
 except NameError:
     basestring = (str, bytes)
 
-
 __all__ = ['clean_html', 'clean', 'Cleaner', 'autolink', 'autolink_html',
            'word_break', 'word_break_html']
-
-
 
 _replace_css_javascript = re.compile(
     r'expression\s*\(.*?\)', re.S|re.I).sub
@@ -79,101 +71,8 @@ _find_external_links = etree.XPath(
      "descendant-or-self::x:a[normalize-space(@href) and substring(normalize-space(@href),1,1) != '#']"),
     namespaces={'x':XHTML_NAMESPACE})
 
-
 class Cleaner(object):
-    """
-    Instances cleans the document of each of the possible offending
-    elements.  The cleaning is controlled by attributes; you can
-    override attributes in a subclass, or set them in the constructor.
 
-    ``scripts``:
-        Removes any ``<script>`` tags.
-
-    ``javascript``:
-        Removes any Javascript, like an ``onclick`` attribute. Also removes stylesheets
-        as they could contain Javascript.
-
-    ``comments``:
-        Removes any comments.
-
-    ``style``:
-        Removes any style tags.
-
-    ``inline_style``
-        Removes any style attributes.  Defaults to the value of the ``style`` option.
-
-    ``links``:
-        Removes any ``<link>`` tags
-
-    ``meta``:
-        Removes any ``<meta>`` tags
-
-    ``page_structure``:
-        Structural parts of a page: ``<head>``, ``<html>``, ``<title>``.
-
-    ``processing_instructions``:
-        Removes any processing instructions.
-
-    ``embedded``:
-        Removes any embedded objects (flash, iframes)
-
-    ``frames``:
-        Removes any frame-related tags
-
-    ``forms``:
-        Removes any form tags
-
-    ``annoying_tags``:
-        Tags that aren't *wrong*, but are annoying.  ``<blink>`` and ``<marquee>``
-
-    ``remove_tags``:
-        A list of tags to remove.  Only the tags will be removed,
-        their content will get pulled up into the parent tag.
-
-    ``kill_tags``:
-        A list of tags to kill.  Killing also removes the tag's content,
-        i.e. the whole subtree, not just the tag itself.
-
-    ``allow_tags``:
-        A list of tags to include (default include all).
-
-    ``remove_unknown_tags``:
-        Remove any tags that aren't standard parts of HTML.
-
-    ``safe_attrs_only``:
-        If true, only include 'safe' attributes (specifically the list
-        from the feedparser HTML sanitisation web site).
-
-    ``safe_attrs``:
-        A set of attribute names to override the default list of attributes
-        considered 'safe' (when safe_attrs_only=True).
-
-    ``add_nofollow``:
-        If true, then any <a> tags will have ``rel="nofollow"`` added to them.
-
-    ``host_whitelist``:
-        A list or set of hosts that you can use for embedded content
-        (for content like ``<object>``, ``<link rel="stylesheet">``, etc).
-        You can also implement/override the method
-        ``allow_embedded_url(el, url)`` or ``allow_element(el)`` to
-        implement more complex rules for what can be embedded.
-        Anything that passes this test will be shown, regardless of
-        the value of (for instance) ``embedded``.
-
-        Note that this parameter might not work as intended if you do not
-        make the links absolute before doing the cleaning.
-
-        Note that you may also need to set ``whitelist_tags``.
-
-    ``whitelist_tags``:
-        A set of tags that can be included with ``host_whitelist``.
-        The default is ``iframe`` and ``embed``; you may wish to
-        include other tags like ``script``, or you may want to
-        implement ``allow_embedded_url`` for more control.  Set to None to
-        include all tags.
-
-    This modifies the document *in place*.
-    """
 
     scripts = True
     javascript = True
@@ -227,9 +126,7 @@ class Cleaner(object):
         )
 
     def __call__(self, doc):
-        """
-        Cleans the document.
-        """
+
         try:
             getroot = doc.getroot
         except AttributeError:
@@ -386,18 +283,11 @@ class Cleaner(object):
                     el.set('rel', rel)
 
     def allow_follow(self, anchor):
-        """
-        Override to suppress rel="nofollow" on some anchors.
-        """
+
         return False
 
     def allow_element(self, el):
-        """
-        Decide whether an element is configured to be accepted or rejected.
 
-        :param el: an element.
-        :return: true to accept the element or false to reject/discard it.
-        """
         if el.tag not in self._tag_link_attrs:
             return False
         attr = self._tag_link_attrs[el.tag]
@@ -416,14 +306,7 @@ class Cleaner(object):
             return self.allow_embedded_url(el, url)
 
     def allow_embedded_url(self, el, url):
-        """
-        Decide whether a URL that was found in an element's attributes or text
-        if configured to be accepted or rejected.
 
-        :param el: an element.
-        :param url: a URL found on the element.
-        :return: true to accept the URL and false to reject it.
-        """
         if self.whitelist_tags is not None and el.tag not in self.whitelist_tags:
             return False
         scheme, netloc, path, query, fragment = urlsplit(url)
@@ -435,11 +318,7 @@ class Cleaner(object):
         return False
 
     def kill_conditional_comments(self, doc):
-        """
-        IE conditional comments basically embed HTML that the parser
-        doesn't normally see.  We can't allow anything like that, so
-        we'll kill any comments that could be conditional.
-        """
+
         has_conditional_comment = _conditional_comment_re.search
         self._kill_elements(
             doc, lambda el: has_conditional_comment(el.text),
@@ -462,16 +341,7 @@ class Cleaner(object):
     _substitute_comments = re.compile(r'/\*.*?\*/', re.S).sub
 
     def _has_sneaky_javascript(self, style):
-        """
-        Depending on the browser, stuff like ``e x p r e s s i o n(...)``
-        can get interpreted, or ``expre/* stuff */ssion(...)``.  This
-        checks for attempt to do stuff like this.
 
-        Typically the response will be to kill the entire style; if you
-        have just a bit of Javascript in the style another rule will catch
-        that and remove only the Javascript from the style; this catches
-        more sneaky attempts.
-        """
         style = self._substitute_comments('', style)
         style = style.replace('\\', '')
         style = _substitute_whitespace('', style)
@@ -500,7 +370,6 @@ class Cleaner(object):
 clean = Cleaner()
 clean_html = clean.clean_html
 
-
 _link_regexes = [
     re.compile(r'(?P<body>https?://(?P<host>[a-z0-9._-]+)(?:/[/\-_.,a-z0-9%&?;=~]*)?(?:\([/\-_.,a-z0-9%&?;=~]*\))?)', re.I),
     re.compile(r'mailto:(?P<body>[a-z0-9._-]+@(?P<host>[a-z0-9_.-]+[a-z]))', re.I),
@@ -520,20 +389,7 @@ def autolink(el, link_regexes=_link_regexes,
              avoid_elements=_avoid_elements,
              avoid_hosts=_avoid_hosts,
              avoid_classes=_avoid_classes):
-    """
-    Turn any URLs into links.
 
-    It will search for links identified by the given regular
-    expressions (by default mailto and http(s) links).
-
-    It won't link text in an element in avoid_elements, or an element
-    with a class in avoid_classes.  It won't link to anything with a
-    host that matches one of the regular expressions in avoid_hosts
-    (default localhost and 127.0.0.1).
-
-    If you pass in an element, the element's tail will not be
-    substituted, only the contents of the element.
-    """
     if el.tag in avoid_elements:
         return
     class_name = el.get('class')
@@ -628,7 +484,6 @@ def autolink_html(html, *args, **kw):
 
 autolink_html.__doc__ = autolink.__doc__
 
-
 _avoid_word_break_elements = ['pre', 'textarea', 'code']
 _avoid_word_break_classes = ['nobreak']
 
@@ -636,19 +491,7 @@ def word_break(el, max_width=40,
                avoid_elements=_avoid_word_break_elements,
                avoid_classes=_avoid_word_break_classes,
                break_character=unichr(0x200b)):
-    """
-    Breaks any long words found in the body of the text (not attributes).
 
-    Doesn't effect any of the tags in avoid_elements, by default
-    ``<textarea>`` and ``<pre>``
-
-    Breaks words by inserting &#8203;, which is a unicode character
-    for Zero Width Space character.  This generally takes up no space
-    in rendering, but does copy as a space, and in monospace contexts
-    usually takes up space.
-
-    See http://www.cs.tut.fi/~jkorpela/html/nobr.html for a discussion
-    """
     if el.tag in _avoid_word_break_elements:
         return
     class_name = el.get('class')

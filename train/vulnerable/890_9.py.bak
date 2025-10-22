@@ -1,15 +1,3 @@
-##############################################################################
-#
-# Copyright (c) 2002 Zope Foundation and Contributors.
-#
-# This software is subject to the provisions of the Zope Public License,
-# Version 2.1 (ZPL).  A copy of the ZPL should accompany this distribution.
-# THIS SOFTWARE IS PROVIDED "AS IS" AND ANY AND ALL EXPRESS OR IMPLIED
-# WARRANTIES ARE DISCLAIMED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF TITLE, MERCHANTABILITY, AGAINST INFRINGEMENT, AND FITNESS
-# FOR A PARTICULAR PURPOSE
-#
-##############################################################################
 
 import unittest
 
@@ -44,7 +32,6 @@ class UnitTestSecurityPolicy:
     """
         Stub out the existing security policy for unit testing purposes.
     """
-    # Standard SecurityPolicy interface
     def validate(self,
                  accessed=None,
                  container=None,
@@ -75,12 +62,12 @@ class HTMLTests(zope.component.testing.PlacelessSetup, unittest.TestCase):
         f.t = AqPageTemplate()
         self.policy = UnitTestSecurityPolicy()
         self.oldPolicy = SecurityManager.setSecurityPolicy(self.policy)
-        noSecurityManager()  # Use the new policy.
+        noSecurityManager()
 
     def tearDown(self):
         super().tearDown()
         SecurityManager.setSecurityPolicy(self.oldPolicy)
-        noSecurityManager()  # Reset to old policy.
+        noSecurityManager()
 
     def assert_expected(self, t, fname, *args, **kwargs):
         t.write(util.read_input(fname))
@@ -171,20 +158,12 @@ class HTMLTests(zope.component.testing.PlacelessSetup, unittest.TestCase):
         self.assert_expected(self.folder.t, 'RepeatVariable.html')
 
     def testBooleanAttributes(self):
-        # Test rendering an attribute that should be empty or left out
-        # if the value is non-True
         self.assert_expected(self.folder.t, 'BooleanAttributes.html')
 
     def testBooleanAttributesAndDefault(self):
-        # Zope 2.9 and below support the semantics that an HTML
-        # "boolean" attribute (e.g. 'selected', 'disabled', etc.) can
-        # be used together with 'default'.
         self.assert_expected(self.folder.t, 'BooleanAttributesAndDefault.html')
 
     def testInterpolationInContent(self):
-        # the chameleon template engine supports ``${path}``
-        # interpolations not only as part of ``string`` expressions
-        # but globally
         self.assert_expected(self.folder.t, 'InterpolationInContent.html')
 
     def testBadExpression(self):
@@ -203,7 +182,6 @@ class HTMLTests(zope.component.testing.PlacelessSetup, unittest.TestCase):
         self.assert_expected(self.folder.t, 'switch.html')
 
     def test_unicode_conflict_resolution(self):
-        # override with the more "demanding" resolver
         provideUtility(PreferredCharsetResolver)
         t = PageTemplate()
         self.assert_expected(t, 'UnicodeResolution.html')

@@ -70,7 +70,6 @@ class HomeViewTestCase(TestCase):
         url = reverse("home")
         response = self.client.get(url)
 
-        # Search bar in nav
         nav_search_bar_pattern = re.compile(
             '<nav.*<form action="/search/" method="get" class="navbar-form navbar-right" id="navbar_search" role="search">.*</form>.*</nav>'
         )
@@ -78,7 +77,6 @@ class HomeViewTestCase(TestCase):
             response.content.decode(response.charset).replace("\n", "")
         )
 
-        # Global search bar in body/container-fluid wrapper
         body_search_bar_pattern = re.compile(
             '<div class="container-fluid wrapper">.*<form action="/search/" method="get" class="form-inline">.*</form>.*</div>'
         )
@@ -106,13 +104,11 @@ class HomeViewTestCase(TestCase):
 
     @override_settings(HIDE_RESTRICTED_UI=False)
     def test_search_bar_visible_if_hide_restricted_ui_False(self):
-        # Assert if user is authenticated
         nav_search_bar_result, body_search_bar_result = self.make_request()
 
         self.assertIsNotNone(nav_search_bar_result)
         self.assertIsNotNone(body_search_bar_result)
 
-        # Assert if user is logout
         self.client.logout()
         nav_search_bar_result, body_search_bar_result = self.make_request()
 
@@ -139,14 +135,11 @@ class SearchFieldsTestCase(TestCase):
     def test_search_bar_redirect_to_login(self):
         self.client.logout()
         response = self.client.get(reverse("search") + "?q=prefix")
-        # Assert that if the user is not logged in
-        # SearchForm will redirect the user to the login Page
         self.assertEqual(response.status_code, 302)
 
     def test_global_and_model_search_bar(self):
         self.add_permissions("dcim.view_location", "dcim.view_device")
 
-        # Assert model search bar present in list UI
         response = self.client.get(reverse("dcim:location_list"))
         self.assertInHTML(
             '<input type="text" name="q" class="form-control" required placeholder="Search Locations" id="id_q">',
@@ -159,7 +152,6 @@ class SearchFieldsTestCase(TestCase):
             response.content.decode(response.charset),
         )
 
-        # Assert global search bar present in UI
         self.assertInHTML(
             '<input type="text" name="q" class="form-control" placeholder="Search Nautobot">',
             response.content.decode(response.charset),
@@ -237,16 +229,9 @@ class ForceScriptNameTestcase(TestCase):
     )
     @override_script_prefix("/nautobot/")
     def test_subdirectory_routes(self):
-        # We must call `set_script_prefix()` to set the URL resolver script prefix outside of the
-        # request/response cycle (e.g. in scripts/tests) to generate correct URLs when `SCRIPT_NAME`
-        # is not `/`.
-        #
-        # We must then call it again to reset the script pefix after we're done because
-        # the state is stored in the thread-local scope and will "infect" other tests.
         prefix = get_script_prefix()
         self.assertEqual(prefix, "/nautobot/")
 
-        # And that routes will start w/ the prefix vs. just "/" (the default).
         routes = ("home", "login", "search", "api-root")
         for route in routes:
             url = reverse(route)
@@ -258,7 +243,7 @@ class NavRestrictedUI(TestCase):
         super().setUp()
 
         self.url = reverse("plugins:plugins_list")
-        self.item_weight = 100  # TODO: not easy to introspect from the nav menu struct, so hard-code it here for now
+        self.item_weight = 100
 
     def make_request(self):
         response = self.client.get(reverse("home"))
@@ -267,7 +252,6 @@ class NavRestrictedUI(TestCase):
     @override_settings(HIDE_RESTRICTED_UI=True)
     def test_installed_apps_visible_to_staff_with_hide_restricted_ui_true(self):
         """The "Installed Apps" menu item should be available to is_staff user regardless of HIDE_RESTRICTED_UI."""
-        # Make user admin
         self.user.is_staff = True
         self.user.save()
 
@@ -285,7 +269,6 @@ class NavRestrictedUI(TestCase):
     @override_settings(HIDE_RESTRICTED_UI=False)
     def test_installed_apps_visible_to_staff_with_hide_restricted_ui_false(self):
         """The "Installed Apps" menu item should be available to is_staff user regardless of HIDE_RESTRICTED_UI."""
-        # Make user admin
         self.user.is_staff = True
         self.user.save()
 
@@ -312,7 +295,6 @@ class NavRestrictedUI(TestCase):
         """The "Installed Apps" menu item should be disabled for a non-staff user when HIDE_RESTRICTED_UI=False."""
         response_content = self.make_request()
 
-        # print(response_content)
 
         self.assertInHTML(
             f"""
@@ -373,10 +355,8 @@ class LoginUI(TestCase):
             redirect_chain = [(f"/login/?next={url}", 302)]
             self.assertEqual(response.redirect_chain, redirect_chain)
             response_content = response.content.decode(response.charset).replace("\n", "")
-            # Assert Footer items(`self.footer_elements`), Banner and Banner Top is hidden
             for footer_text in self.footer_elements:
                 self.assertNotIn(footer_text, response_content)
-            # Only API Docs implements BANNERS
             if url == urls[0]:
                 self.assertNotIn("Hello, Banner Top", response_content)
                 self.assertNotIn("Hello, Banner Bottom", response_content)
@@ -392,11 +372,9 @@ class LoginUI(TestCase):
             self.assertHttpStatus(response, 200)
             self.assertEqual(response.request["PATH_INFO"], url)
             response_content = response.content.decode(response.charset).replace("\n", "")
-            # Assert Footer items(`self.footer_elements`), Banner and Banner Top is not hidden
             for footer_text in self.footer_elements:
                 self.assertInHTML(footer_text, response_content)
 
-            # Only API Docs implements BANNERS
             if url == urls[0]:
                 self.assertInHTML("Hello, Banner Top", response_content)
                 self.assertInHTML("Hello, Banner Bottom", response_content)
@@ -416,8 +394,6 @@ class MetricsViewTestCase(TestCase):
         metric_names_with_plugin = {metric.name for metric in metrics_with_plugin}
         self.assertIn(test_metric_name, metric_names_with_plugin)
         with override_settings(PLUGINS=[]):
-            # Clear out the app metric registry because it is not updated when settings are changed but Nautobot is not
-            # restarted.
             registry["app_metrics"].clear()
             metrics_without_plugin = self.query_and_parse_metrics()
             metric_names_without_plugin = {metric.name for metric in metrics_without_plugin}

@@ -1,4 +1,3 @@
-# Licensed under a 3-clause BSD style license - see LICENSE.rst
 
 """
 This module contains a general framework for defining graphs of transformations
@@ -84,7 +83,7 @@ class TransformGraph:
 
     def __init__(self):
         self._graph = defaultdict(dict)
-        self.invalidate_cache()  # generates cache entries
+        self.invalidate_cache()
 
     @property
     def _cached_names(self):
@@ -181,9 +180,6 @@ class TransformGraph:
         frame_set.add(fromsys)
         frame_set.add(tosys)
 
-        # Now we check to see if any attributes on the proposed frames override
-        # *any* component names, which we can't allow for some of the logic in
-        # the SkyCoord initializer to work
         attrs = set(frame_attrs_from_set(frame_set).keys())
         comps = frame_comps_from_set(frame_set)
 
@@ -232,7 +228,6 @@ class TransformGraph:
             if transform is None:
                 raise ValueError("cannot give all Nones to remove_transform")
 
-            # search for the requested transform by brute force and remove it
             for a in self._graph:
                 agraph = self._graph[a]
                 for b in agraph:
@@ -241,7 +236,6 @@ class TransformGraph:
                         fromsys = a
                         break
 
-                # If the transform was found, need to break out of the outer for loop too
                 if fromsys:
                     break
             else:
@@ -260,7 +254,6 @@ class TransformGraph:
                         f" {transform}"
                     )
 
-        # Remove the subgraph if it is now empty
         if self._graph[fromsys] == {}:
             self._graph.pop(fromsys)
 
@@ -291,31 +284,23 @@ class TransformGraph:
         """
         inf = float("inf")
 
-        # special-case the 0 or 1-path
         if tosys is fromsys:
             if tosys not in self._graph[fromsys]:
-                # Means there's no transform necessary to go from it to itself.
                 return [tosys], 0
         if tosys in self._graph[fromsys]:
-            # this will also catch the case where tosys is fromsys, but has
-            # a defined transform.
             t = self._graph[fromsys][tosys]
             return [fromsys, tosys], float(t.priority if hasattr(t, "priority") else 1)
 
-        # otherwise, need to construct the path:
 
         if fromsys in self._shortestpaths:
-            # already have a cached result
             fpaths = self._shortestpaths[fromsys]
             if tosys in fpaths:
                 return fpaths[tosys]
             else:
                 return None, inf
 
-        # use Dijkstra's algorithm to find shortest path in all other cases
 
         nodes = []
-        # first make the list of nodes
         for a in self._graph:
             if a not in nodes:
                 nodes.append(a)
@@ -324,36 +309,24 @@ class TransformGraph:
                     nodes.append(b)
 
         if fromsys not in nodes or tosys not in nodes:
-            # fromsys or tosys are isolated or not registered, so there's
-            # certainly no way to get from one to the other
             return None, inf
 
         edgeweights = {}
-        # construct another graph that is a dict of dicts of priorities
-        # (used as edge weights in Dijkstra's algorithm)
         for a in self._graph:
             edgeweights[a] = aew = {}
             agraph = self._graph[a]
             for b in agraph:
                 aew[b] = float(getattr(agraph[b], "priority", 1))
 
-        # entries in q are [distance, count, nodeobj, pathlist]
-        # count is needed because in py 3.x, tie-breaking fails on the nodes.
-        # this way, insertion order is preserved if the weights are the same
         q = [[inf, i, n, []] for i, n in enumerate(nodes) if n is not fromsys]
         q.insert(0, [0, -1, fromsys, []])
 
-        # this dict will store the distance to node from ``fromsys`` and the path
         result = {}
 
-        # definitely starts as a valid heap because of the insert line; from the
-        # node to itself is always the shortest distance
         while len(q) > 0:
             d, orderi, n, path = heapq.heappop(q)
 
             if d == inf:
-                # everything left is unreachable from fromsys, just copy them to
-                # the results and jump out of the loop
                 result[n] = (None, d)
                 for d, orderi, n, path in q:
                     result[n] = (None, d)
@@ -362,11 +335,9 @@ class TransformGraph:
                 result[n] = (path, d)
                 path.append(n)
                 if n not in edgeweights:
-                    # this is a system that can be transformed to, but not from.
                     continue
                 for n2 in edgeweights[n]:
-                    if n2 not in result:  # already visited
-                        # find where n2 is in the heap
+                    if n2 not in result:
                         for i in range(len(q)):
                             if q[i][2] == n2:
                                 break
@@ -381,7 +352,6 @@ class TransformGraph:
                             q[i][3] = list(path)
                             heapq.heapify(q)
 
-        # cache for later use
         self._shortestpaths[fromsys] = result
         return result[tosys]
 
@@ -424,7 +394,7 @@ class TransformGraph:
 
         transforms = []
         currsys = fromsys
-        for p in path[1:]:  # first element is fromsys so we skip it
+        for p in path[1:]:
             transforms.append(self._graph[currsys][p])
             currsys = p
 
@@ -511,7 +481,6 @@ class TransformGraph:
             A string with the DOT format graph.
         """
         nodes = []
-        # find the node names
         for a in self._graph:
             if a not in nodes:
                 nodes.append(a)
@@ -536,7 +505,6 @@ class TransformGraph:
                 nodenames.append(n.__name__ + "[ shape=oval ]")
 
         edgenames = []
-        # Now the edges
         for a in self._graph:
             agraph = self._graph[a]
             for b in agraph:
@@ -545,7 +513,6 @@ class TransformGraph:
                 color = trans_to_color[transform.__class__] if color_edges else "black"
                 edgenames.append((a.__name__, b.__name__, pri, color))
 
-        # generate simple dot format graph
         lines = ["digraph AstropyCoordinateTransformGraph {"]
         lines.append("graph [rankdir=LR]")
         lines.append("; ".join(nodenames) + ";")
@@ -571,7 +538,6 @@ class TransformGraph:
             if savelayout == "plain":
                 with open(savefn, "w") as f:
                     f.write(dotgraph)
-            # Options from https://graphviz.org/docs/layouts/
             elif savelayout in (
                 "dot",
                 "neato",
@@ -623,7 +589,6 @@ class TransformGraph:
 
         nxgraph = nx.Graph()
 
-        # first make the nodes
         for a in self._graph:
             if a not in nxgraph:
                 nxgraph.add_node(a)
@@ -631,7 +596,6 @@ class TransformGraph:
                 if b not in nxgraph:
                     nxgraph.add_node(b)
 
-        # Now the edges
         for a in self._graph:
             agraph = self._graph[a]
             for b in agraph:
@@ -699,9 +663,6 @@ class TransformGraph:
         """
 
         def deco(func):
-            # this doesn't do anything directly with the transform because
-            # ``register_graph=self`` stores it in the transform graph
-            # automatically
             transcls(
                 func, fromsys, tosys, priority=priority, register_graph=self, **kwargs
             )
@@ -806,7 +767,6 @@ class TransformGraph:
                 setattr(*setting)
 
 
-# <-------------------Define the builtin transform classes-------------------->
 
 
 class CoordinateTransform(metaclass=ABCMeta):
@@ -841,7 +801,6 @@ class CoordinateTransform(metaclass=ABCMeta):
         self.priority = float(priority)
 
         if register_graph:
-            # this will do the type-checking when it adds to the graph
             self.register(register_graph)
         else:
             if not inspect.isclass(fromsys) or not inspect.isclass(tosys):
@@ -849,8 +808,6 @@ class CoordinateTransform(metaclass=ABCMeta):
 
         self.overlapping_frame_attr_names = overlap = []
         if hasattr(fromsys, "frame_attributes") and hasattr(tosys, "frame_attributes"):
-            # the if statement is there so that non-frame things might be usable
-            # if it makes sense
             for from_nm in fromsys.frame_attributes:
                 if from_nm in tosys.frame_attributes:
                     overlap.append(from_nm)

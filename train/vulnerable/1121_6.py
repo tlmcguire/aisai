@@ -7,7 +7,6 @@ from typing import Callable, Iterable, Optional
 
 from onnx.onnx_pb import AttributeProto, GraphProto, ModelProto, TensorProto
 
-
 class ExternalDataInfo:
     def __init__(self, tensor: TensorProto) -> None:
         self.location = ""
@@ -25,15 +24,8 @@ class ExternalDataInfo:
         if self.length:
             self.length = int(self.length)
 
-
 def load_external_data_for_tensor(tensor: TensorProto, base_dir: str) -> None:
-    """Loads data from an external file for tensor.
-    Ideally TensorProto should not hold any raw data but if it does it will be ignored.
 
-    Arguments:
-        tensor: a TensorProto object.
-        base_dir: directory that contains the external data.
-    """
     info = ExternalDataInfo(tensor)
     file_location = _sanitize_path(info.location)
     external_data_file_path = os.path.join(base_dir, file_location)
@@ -47,20 +39,13 @@ def load_external_data_for_tensor(tensor: TensorProto, base_dir: str) -> None:
         else:
             tensor.raw_data = data_file.read()
 
-
 def load_external_data_for_model(model: ModelProto, base_dir: str) -> None:
-    """Loads external tensors into model
 
-    Arguments:
-        model: ModelProto to load external data to
-        base_dir: directory that contains external data
-    """
     for tensor in _get_all_tensors(model):
         if uses_external_data(tensor):
             load_external_data_for_tensor(tensor, base_dir)
             tensor.data_location = TensorProto.DEFAULT
             del tensor.external_data[:]
-
 
 def set_external_data(
     tensor: TensorProto,
@@ -91,7 +76,6 @@ def set_external_data(
             entry.key = k
             entry.value = str(v)
 
-
 def convert_model_to_external_data(
     model: ModelProto,
     all_tensors_to_one_file: bool = True,
@@ -99,21 +83,7 @@ def convert_model_to_external_data(
     size_threshold: int = 1024,
     convert_attribute: bool = False,
 ) -> None:
-    """Call to set all tensors with raw data as external data. This call should precede 'save_model'.
-    'save_model' saves all the tensors data as external data after calling this function.
 
-    Arguments:
-        model (ModelProto): Model to be converted.
-        all_tensors_to_one_file (bool): If true, save all tensors to one external file specified by location.
-            If false, save each tensor to a file named with the tensor name.
-        location: specify the external file relative to the model that all tensors to save to.
-            Path is relative to the model path.
-            If not specified, will use the model name.
-        size_threshold: Threshold for size of data. Only when tensor's data is >= the size_threshold
-            it will be converted to external data. To convert every tensor with raw data to external data set size_threshold=0.
-        convert_attribute (bool): If true, convert all tensors to external data
-                       If false, convert only non-attribute tensors to external data
-    """
     tensors = _get_initializer_tensors(model)
     if convert_attribute:
         tensors = _get_all_tensors(model)
@@ -143,15 +113,8 @@ def convert_model_to_external_data(
                     tensor_location = str(uuid.uuid1())
                 set_external_data(tensor, tensor_location)
 
-
 def convert_model_from_external_data(model: ModelProto) -> None:
-    """Call to set all tensors which use external data as embedded data.
-    save_model saves all the tensors data as embedded data after
-    calling this function.
 
-    Arguments:
-        model (ModelProto): Model to be converted.
-    """
     for tensor in _get_all_tensors(model):
         if uses_external_data(tensor):
             if not tensor.HasField("raw_data"):
@@ -159,14 +122,8 @@ def convert_model_from_external_data(model: ModelProto) -> None:
             del tensor.external_data[:]
             tensor.data_location = TensorProto.DEFAULT
 
-
 def save_external_data(tensor: TensorProto, base_path: str) -> None:
-    """Writes tensor data to an external file according to information in the `external_data` field.
 
-    Arguments:
-        tensor (TensorProto): Tensor object to be serialized
-        base_path: System path of a folder where tensor data is to be stored
-    """
     info = ExternalDataInfo(tensor)
     external_data_file_path = os.path.join(base_path, info.location)
 
@@ -189,30 +146,27 @@ def save_external_data(tensor: TensorProto, base_path: str) -> None:
         data_file.write(tensor.raw_data)
         set_external_data(tensor, info.location, offset, data_file.tell() - offset)
 
-
 def _get_all_tensors(onnx_model_proto: ModelProto) -> Iterable[TensorProto]:
-    """Scan an ONNX model for all tensors and return as an iterator."""
+
     return chain(
         _get_initializer_tensors(onnx_model_proto),
         _get_attribute_tensors(onnx_model_proto),
     )
 
-
 def _recursive_attribute_processor(
     attribute: AttributeProto, func: Callable[[GraphProto], Iterable[TensorProto]]
 ) -> Iterable[TensorProto]:
-    """Create an iterator through processing ONNX model attributes with functor."""
+
     if attribute.type == AttributeProto.GRAPH:
         yield from func(attribute.g)
     if attribute.type == AttributeProto.GRAPHS:
         for graph in attribute.graphs:
             yield from func(graph)
 
-
 def _get_initializer_tensors_from_graph(
     onnx_model_proto_graph: GraphProto,
 ) -> Iterable[TensorProto]:
-    """Create an iterator of initializer tensors from ONNX model graph."""
+
     yield from onnx_model_proto_graph.initializer
     for node in onnx_model_proto_graph.node:
         for attribute in node.attribute:
@@ -220,16 +174,14 @@ def _get_initializer_tensors_from_graph(
                 attribute, _get_initializer_tensors_from_graph
             )
 
-
 def _get_initializer_tensors(onnx_model_proto: ModelProto) -> Iterable[TensorProto]:
-    """Create an iterator of initializer tensors from ONNX model."""
-    yield from _get_initializer_tensors_from_graph(onnx_model_proto.graph)
 
+    yield from _get_initializer_tensors_from_graph(onnx_model_proto.graph)
 
 def _get_attribute_tensors_from_graph(
     onnx_model_proto_graph: GraphProto,
 ) -> Iterable[TensorProto]:
-    """Create an iterator of tensors from node attributes of an ONNX model graph."""
+
     for node in onnx_model_proto_graph.node:
         for attribute in node.attribute:
             if attribute.HasField("t"):
@@ -239,61 +191,35 @@ def _get_attribute_tensors_from_graph(
                 attribute, _get_attribute_tensors_from_graph
             )
 
-
 def _get_attribute_tensors(onnx_model_proto: ModelProto) -> Iterable[TensorProto]:
-    """Create an iterator of tensors from node attributes of an ONNX model."""
+
     yield from _get_attribute_tensors_from_graph(onnx_model_proto.graph)
 
-
 def _sanitize_path(path: str) -> str:
-    """Remove path components which would allow traversing up a directory tree from a base path.
 
-    Note: This method is currently very basic and should be expanded.
-    """
     return path.lstrip("/.")
 
-
 def _is_valid_filename(filename: str) -> bool:
-    """Utility to check whether the provided filename is valid."""
+
     exp = re.compile('^[^<>:;,?"*|/]+$')
     match = exp.match(filename)
     return bool(match)
 
-
 def uses_external_data(tensor: TensorProto) -> bool:
-    """Returns true if the tensor stores data in an external location."""
+
     return (
         tensor.HasField("data_location")
         and tensor.data_location == TensorProto.EXTERNAL
     )
 
-
 def remove_external_data_field(tensor: TensorProto, field_key: str) -> None:
-    """Removes a field from a Tensor's external_data key-value store.
 
-    Modifies tensor object in place.
-
-    Arguments:
-        tensor (TensorProto): Tensor object from which value will be removed
-        field_key (string): The key of the field to be removed
-    """
     for i, field in enumerate(tensor.external_data):
         if field.key == field_key:
             del tensor.external_data[i]
 
-
 def write_external_data_tensors(model: ModelProto, filepath: str) -> ModelProto:
-    """Serializes data for all the tensors which have data location set to TensorProto.External.
 
-    Note: This function also strips basepath information from all tensors' external_data fields.
-
-    Arguments:
-        model (ModelProto): Model object which is the source of tensors to serialize.
-        filepath: System path to the directory which should be treated as base path for external data.
-
-    Returns:
-        ModelProto: The modified model object.
-    """
     for tensor in _get_all_tensors(model):
         if uses_external_data(tensor) and tensor.HasField("raw_data"):
             save_external_data(tensor, filepath)

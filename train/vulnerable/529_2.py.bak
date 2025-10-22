@@ -1,13 +1,3 @@
-# confire.conf
-# A simple configuration module for Confire
-#
-# Author:   Benjamin Bengfort <ben@cobrain.com>
-# Created:  Tue May 20 22:19:11 2014 -0400
-#
-# Copyright (C) 2013 Cobrain Company
-# For license information, see LICENSE.txt
-#
-# ID: conf.py [] ben@cobrain.com $
 
 """
 Confire class for specifying Confire specific optional items via a YAML
@@ -34,9 +24,6 @@ however, this is not recommended, and settings should be fetched via the
 dictionary-like access.
 """
 
-##########################################################################
-## Imports
-##########################################################################
 
 import os
 import yaml
@@ -48,9 +35,6 @@ from .paths import Path
 from .descriptors import SettingsMeta
 from .exceptions import ImproperlyConfigured, ConfigurationMissing
 
-##########################################################################
-## Environment helper function
-##########################################################################
 
 def environ_setting(name, default=None, required=True):
     """
@@ -71,9 +55,6 @@ def environ_setting(name, default=None, required=True):
 
     return os.environ.get(name, default)
 
-##########################################################################
-## Paths helper function
-##########################################################################
 
 def path_setting(**kwargs):
     """
@@ -91,9 +72,6 @@ def path_setting(**kwargs):
     """
     return Path(**kwargs)
 
-##########################################################################
-## Configuration Base Class
-##########################################################################
 
 class Configuration(with_metaclass(SettingsMeta, object)):
     """
@@ -127,9 +105,9 @@ class Configuration(with_metaclass(SettingsMeta, object)):
     """
 
     CONF_PATHS = [
-        '/etc/confire.yaml',                    # The global configuration
-        os.path.expanduser('~/.confire.yaml'),  # User specific configuration
-        os.path.abspath('conf/confire.yaml')    # Local directory configuration
+        '/etc/confire.yaml',
+        os.path.expanduser('~/.confire.yaml'),
+        os.path.abspath('conf/confire.yaml')
     ]
 
     @classmethod

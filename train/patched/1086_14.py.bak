@@ -1,4 +1,3 @@
-#!./python
 """Run Python tests against multiple installations of OpenSSL and LibreSSL
 
 The script
@@ -56,7 +55,6 @@ LIBRESSL_OLD_VERSIONS = [
 LIBRESSL_RECENT_VERSIONS = [
 ]
 
-# store files in ../multissl
 HERE = os.path.dirname(os.path.abspath(__file__))
 PYTHONROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 MULTISSL_DIR = os.path.abspath(os.path.join(PYTHONROOT, '..', 'multissl'))
@@ -176,15 +174,12 @@ class AbstractBuilder(object):
     def __init__(self, version, args):
         self.version = version
         self.args = args
-        # installation directory
         self.install_dir = os.path.join(
             os.path.join(args.base_directory, self.library.lower()), version
         )
-        # source file
         self.src_dir = os.path.join(args.base_directory, 'src')
         self.src_file = os.path.join(
             self.src_dir, self.src_template.format(version))
-        # build directory (removed after install)
         self.build_dir = os.path.join(
             self.src_dir, self.build_template.format(version))
         self.system = args.system
@@ -267,7 +262,6 @@ class AbstractBuilder(object):
             log.info("Downloading from {}".format(url))
             try:
                 req = urlopen(url)
-                # KISS, read all, write all
                 data = req.read()
             except HTTPError as e:
                 log.error(
@@ -284,7 +278,6 @@ class AbstractBuilder(object):
 
     def _unpack_src(self):
         """Unpack tar.gz bundle"""
-        # cleanup
         if os.path.isdir(self.build_dir):
             shutil.rmtree(self.build_dir)
         os.makedirs(self.build_dir)
@@ -292,7 +285,6 @@ class AbstractBuilder(object):
         tf = tarfile.open(self.src_file)
         name = self.build_template.format(self.version)
         base = name + '/'
-        # force extraction into build dir
         members = tf.getmembers()
         for member in list(members):
             if member.name == name:
@@ -312,9 +304,7 @@ class AbstractBuilder(object):
             "shared", "--debug",
             "--prefix={}".format(self.install_dir)
         ]
-        # cmd.extend(["no-deprecated", "--api=1.1.0"])
         env = os.environ.copy()
-        # set rpath
         env["LD_RUN_PATH"] = self.lib_dir
         if self.system:
             env['SYSTEM'] = self.system
@@ -349,27 +339,22 @@ class AbstractBuilder(object):
             self._make_install()
         else:
             log.info("Already has installation {}".format(self.install_dir))
-        # validate installation
         version = self.openssl_version
         if self.version not in version:
             raise ValueError(version)
 
     def recompile_pymods(self):
         log.warning("Using build from {}".format(self.build_dir))
-        # force a rebuild of all modules that use OpenSSL APIs
         for fname in self.module_files:
             os.utime(fname, None)
-        # remove all build artefacts
         for root, dirs, files in os.walk('build'):
             for filename in files:
                 if filename.startswith(self.module_libs):
                     os.unlink(os.path.join(root, filename))
 
-        # overwrite header and library search paths
         env = os.environ.copy()
         env["CPPFLAGS"] = "-I{}".format(self.include_dir)
         env["LDFLAGS"] = "-L{}".format(self.lib_dir)
-        # set rpath
         env["LD_RUN_PATH"] = self.lib_dir
 
         log.info("Rebuilding Python modules")
@@ -408,7 +393,6 @@ class BuildOpenSSL(AbstractBuilder):
     )
     src_template = "openssl-{}.tar.gz"
     build_template = "openssl-{}"
-    # only install software, skip docs
     install_target = 'install_sw'
     depend_target = 'depend'
 
@@ -417,13 +401,10 @@ class BuildOpenSSL(AbstractBuilder):
             self._post_install_300()
 
     def _post_install_300(self):
-        # create ssl/ subdir with example configs
         self._subprocess_call(
             ["make", "-j1", "install_ssldirs"],
             cwd=self.build_dir
         )
-        # Install FIPS module
-        # https://wiki.openssl.org/index.php/OpenSSL_3.0#Completing_the_installation_of_the_FIPS_Module
         fipsinstall_cnf = os.path.join(
             self.install_dir, "ssl", "fipsinstall.cnf"
         )
@@ -436,11 +417,6 @@ class BuildOpenSSL(AbstractBuilder):
                 self.openssl_cli, "fipsinstall",
                 "-out", fipsinstall_cnf,
                 "-module", fips_mod,
-                # "-provider_name", "fips",
-                # "-mac_name", "HMAC",
-                # "-macopt", "digest:SHA256",
-                # "-macopt", "hexkey:00",
-                # "-section_name", "fips_sect"
             ]
         )
         with open(openssl_fips_cnf, "w") as f:
@@ -501,10 +477,8 @@ def main():
             parser.error(
                 "Must be executed with ./python from CPython build dir"
             )
-        # check for configure and run make
         configure_make()
 
-    # download and register builder
     builds = []
 
     for version in args.openssl:

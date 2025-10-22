@@ -13,23 +13,20 @@ from .properties import EnumProperty, Property, property_from_data
 from .reference import Reference
 from .responses import ListRefResponse, RefResponse, Response, response_from_data
 
-
 class ParameterLocation(str, Enum):
-    """ The places Parameters can be put when calling an Endpoint """
+
 
     QUERY = "query"
     PATH = "path"
     HEADER = "header"
 
-
 def import_string_from_reference(reference: Reference, prefix: str = "") -> str:
-    """ Create a string which is used to import a reference """
-    return f"from {prefix}.{reference.module_name} import {reference.class_name}"
 
+    return f"from {prefix}.{reference.module_name} import {reference.class_name}"
 
 @dataclass
 class EndpointCollection:
-    """ A bunch of endpoints grouped under a tag that will become a module """
+
 
     tag: str
     endpoints: List[Endpoint] = field(default_factory=list)
@@ -38,7 +35,7 @@ class EndpointCollection:
 
     @staticmethod
     def from_data(*, data: Dict[str, oai.PathItem]) -> Dict[str, EndpointCollection]:
-        """ Parse the openapi paths data to get EndpointCollections by tag """
+
         endpoints_by_tag: Dict[str, EndpointCollection] = {}
 
         methods = ["get", "put", "post", "delete", "options", "head", "patch", "trace"]
@@ -63,12 +60,9 @@ class EndpointCollection:
 
         return endpoints_by_tag
 
-
 @dataclass
 class Endpoint:
-    """
-    Describes a single endpoint on the server
-    """
+
 
     path: str
     method: str
@@ -87,7 +81,7 @@ class Endpoint:
 
     @staticmethod
     def parse_request_form_body(body: oai.RequestBody) -> Optional[Reference]:
-        """ Return form_body_reference """
+
         body_content = body.content
         form_body = body_content.get("application/x-www-form-urlencoded")
         if form_body is not None and isinstance(form_body.media_type_schema, oai.Reference):
@@ -96,7 +90,7 @@ class Endpoint:
 
     @staticmethod
     def parse_multipart_body(body: oai.RequestBody) -> Optional[Reference]:
-        """ Return form_body_reference """
+
         body_content = body.content
         json_body = body_content.get("multipart/form-data")
         if json_body is not None and isinstance(json_body.media_type_schema, oai.Reference):
@@ -105,7 +99,7 @@ class Endpoint:
 
     @staticmethod
     def parse_request_json_body(body: oai.RequestBody) -> Union[Property, PropertyError, None]:
-        """ Return json_body """
+
         body_content = body.content
         json_body = body_content.get("application/json")
         if json_body is not None and json_body.media_type_schema is not None:
@@ -114,7 +108,7 @@ class Endpoint:
 
     @staticmethod
     def _add_body(endpoint: Endpoint, data: oai.Operation) -> Union[ParseError, Endpoint]:
-        """ Adds form or JSON body to Endpoint if included in data """
+
         endpoint = deepcopy(endpoint)
         if data.requestBody is None or isinstance(data.requestBody, oai.Reference):
             return endpoint
@@ -174,7 +168,7 @@ class Endpoint:
 
     @staticmethod
     def from_data(*, data: oai.Operation, path: str, method: str, tag: str) -> Union[Endpoint, ParseError]:
-        """ Construct an endpoint from the OpenAPI data """
+
 
         if data.operationId is None:
             return ParseError(data=data, detail="Path operations with operationId are not yet supported")
@@ -198,14 +192,9 @@ class Endpoint:
 
         return result
 
-
 @dataclass
 class Model:
-    """
-    A data model used by the API- usually a Schema with type "object".
 
-    These will all be converted to dataclasses in the client
-    """
 
     reference: Reference
     required_properties: List[Property]
@@ -215,13 +204,7 @@ class Model:
 
     @staticmethod
     def from_data(*, data: oai.Schema, name: str) -> Union[Model, ParseError]:
-        """ A single Model from its OAI data
 
-        Args:
-            data: Data of a single Schema
-            name: Name by which the schema is referenced, such as a model name.
-                Used to infer the type name if a `title` property is not available.
-        """
         required_set = set(data.required or [])
         required_properties: List[Property] = []
         optional_properties: List[Property] = []
@@ -249,17 +232,16 @@ class Model:
         )
         return model
 
-
 @dataclass
 class Schemas:
-    """ Contains all the Schemas (references) for an OpenAPI document """
+
 
     models: Dict[str, Model] = field(default_factory=dict)
     errors: List[ParseError] = field(default_factory=list)
 
     @staticmethod
     def build(*, schemas: Dict[str, Union[oai.Reference, oai.Schema]]) -> Schemas:
-        """ Get a list of Schemas from an OpenAPI dict """
+
         result = Schemas()
         for name, data in schemas.items():
             if isinstance(data, oai.Reference):
@@ -281,10 +263,9 @@ class Schemas:
                 result.models[s.reference.class_name] = s
         return result
 
-
 @dataclass
 class GeneratorData:
-    """ All the data needed to generate a client """
+
 
     title: str
     description: Optional[str]
@@ -295,7 +276,7 @@ class GeneratorData:
 
     @staticmethod
     def from_dict(d: Dict[str, Dict[str, Any]]) -> Union[GeneratorData, GeneratorError]:
-        """ Create an OpenAPI from dict """
+
         try:
             openapi = oai.OpenAPI.parse_obj(d)
         except ValidationError as e:

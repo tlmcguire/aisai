@@ -1,8 +1,5 @@
 def render_document_tree_macro(params):
-    """
-    Render the document tree macro with potentially unsafe parameters.
-    This function does not escape parameters, leading to a vulnerability.
-    """
+
     output = f"<div class='document-tree'>{params}</div>"
     return output
 

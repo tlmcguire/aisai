@@ -7,7 +7,7 @@ import tempfile
 import webbrowser
 
 import pytest
-import setpath  # noqa:F401, must come before 'import mechanicalsoup'
+import setpath
 from bs4 import BeautifulSoup
 from utils import (mock_get, open_legacy_httpbin, prepare_mock_browser,
                    setup_mock_browser)
@@ -59,7 +59,6 @@ def test_submit_online(httpbin):
     browser["custname"] = "Customer Name Here"
     browser["size"] = "medium"
     browser["topping"] = ("cheese", "bacon")
-    # Change our mind to make sure old boxes are unticked
     browser["topping"] = ("cheese", "onion")
     browser["comments"] = "Some comment here"
     browser.form.set("nosuchfield", "new value", True)
@@ -67,14 +66,13 @@ def test_submit_online(httpbin):
     json = response.json()
     data = json["form"]
     assert data["custname"] == "Customer Name Here"
-    assert data["custtel"] == ""  # web browser submits "" for input left blank
+    assert data["custtel"] == ""
     assert data["size"] == "medium"
     assert set(data["topping"]) == {"cheese", "onion"}
     assert data["comments"] == "Some comment here"
     assert data["nosuchfield"] == "new value"
 
     assert json["headers"]["User-Agent"] == 'testing MechanicalSoup'
-    # Ensure we haven't blown away any regular headers
     expected_headers = ('Content-Length', 'Host', 'Content-Type', 'Connection',
                         'Accept', 'User-Agent', 'Accept-Encoding')
     assert set(expected_headers).issubset(json["headers"].keys())
@@ -101,16 +99,13 @@ def test_user_agent(httpbin):
 
 
 def test_open_relative(httpbin):
-    # Open an arbitrary httpbin page to set the current URL
     browser = mechanicalsoup.StatefulBrowser()
     browser.open(httpbin + "/html")
 
-    # Open a relative page and make sure remote host and browser agree on URL
     resp = browser.open_relative("/get")
     assert resp.json()['url'] == httpbin + "/get"
     assert browser.url == httpbin + "/get"
 
-    # Test passing additional kwargs to the session
     resp = browser.open_relative("/basic-auth/me/123", auth=('me', '123'))
     assert browser.url == httpbin + "/basic-auth/me/123"
     assert resp.json() == {"authenticated": True, "user": "me"}
@@ -123,21 +118,17 @@ def test_links():
     expected = [BeautifulSoup(html, "lxml").a]
     browser.open_fake_page(html)
 
-    # Test StatefulBrowser.links url_regex argument
     assert browser.links(url_regex="bl") == expected
     assert browser.links(url_regex="bluish") == []
 
-    # Test StatefulBrowser.links link_text argument
     assert browser.links(link_text="A Blue Link") == expected
     assert browser.links(link_text="Blue") == []
 
-    # Test StatefulBrowser.links kwargs passed to BeautifulSoup.find_all
     assert browser.links(string=re.compile('Blue')) == expected
     assert browser.links(class_="bluelink") == expected
     assert browser.links(id="blue_link") == expected
     assert browser.links(id="blue") == []
 
-    # Test returning a non-singleton
     two_links = browser.links(id=re.compile('_link'))
     assert len(two_links) == 2
     assert two_links == BeautifulSoup(html, "lxml").find_all('a')
@@ -226,14 +217,12 @@ def test_submit_dont_update_state():
 
 def test_get_set_debug():
     browser = mechanicalsoup.StatefulBrowser()
-    # Debug mode is off by default
     assert not browser.get_debug()
     browser.set_debug(True)
     assert browser.get_debug()
 
 
 def test_list_links(capsys):
-    # capsys is a pytest fixture that allows us to inspect the std{err,out}
     browser = mechanicalsoup.StatefulBrowser()
     links = '''
      <a href="/link1">Link #1</a>
@@ -253,12 +242,10 @@ def test_launch_browser(mocker):
     mocker.patch('webbrowser.open')
     with pytest.raises(mechanicalsoup.LinkNotFoundError):
         browser.follow_link('nosuchlink')
-    # mock.assert_called_once() not available on some versions :-(
     assert webbrowser.open.call_count == 1
     mocker.resetall()
     with pytest.raises(mechanicalsoup.LinkNotFoundError):
         browser.select_form('nosuchlink')
-    # mock.assert_called_once() not available on some versions :-(
     assert webbrowser.open.call_count == 1
 
 
@@ -296,10 +283,9 @@ def test_new_control(httpbin):
     browser.open(httpbin + "/forms/post")
     browser.select_form("form")
     with pytest.raises(mechanicalsoup.LinkNotFoundError):
-        # The control doesn't exist, yet.
         browser["temperature"] = "cold"
-    browser["size"] = "large"  # Existing radio
-    browser["comments"] = "This is a comment"  # Existing textarea
+    browser["size"] = "large"
+    browser["comments"] = "This is a comment"
     browser.new_control("text", "temperature", "warm")
     browser.new_control("textarea", "size", "Sooo big !")
     browser.new_control("text", "comments", "This is an override comment")
@@ -398,7 +384,6 @@ def test_upload_file(httpbin):
     </form>
     """
 
-    # Create two temporary files to upload
     def make_file(content):
         path = tempfile.mkstemp()[1]
         with open(path, "w", encoding="utf-8") as fd:
@@ -412,7 +397,6 @@ def test_upload_file(httpbin):
         browser.open_fake_page(file_input_form)
         browser.select_form()
 
-        # Test filling an existing input and creating a new input
         browser["first"] = value1
         browser.new_control("file", "second", value2)
 
@@ -622,8 +606,6 @@ def test_follow_link_ua(httpbin):
     """Tests passing requests parameters to follow_link() by
     setting the User-Agent field."""
     browser = mechanicalsoup.StatefulBrowser()
-    # html = '<a href="/foo">Bar</a><a href="/get">Link</a>'
-    # browser.open_fake_page(html, httpbin.url)
     open_legacy_httpbin(browser, httpbin)
     bs4_kwargs = {'url_regex': 'user-agent'}
     requests_kwargs = {'headers': {"User-Agent": '007'}}
@@ -656,14 +638,11 @@ def test_download_link(httpbin):
     current_page = browser.page
     response = browser.download_link(file=tmpfile, link='image/png')
 
-    # Check that the browser state has not changed
     assert browser.url == current_url
     assert browser.page == current_page
 
-    # Check that the file was downloaded
     assert os.path.isfile(tmpfile)
     assert file_get_contents(tmpfile) == response.content
-    # Check that we actually downloaded a PNG file
     assert response.content[:4] == b'\x89PNG'
 
 
@@ -675,11 +654,9 @@ def test_download_link_nofile(httpbin):
     current_page = browser.page
     response = browser.download_link(link='image/png')
 
-    # Check that the browser state has not changed
     assert browser.url == current_url
     assert browser.page == current_page
 
-    # Check that we actually downloaded a PNG file
     assert response.content[:4] == b'\x89PNG'
 
 
@@ -691,11 +668,9 @@ def test_download_link_nofile_bs4(httpbin):
     current_page = browser.page
     response = browser.download_link(bs4_kwargs={'url_regex': 'image.png'})
 
-    # Check that the browser state has not changed
     assert browser.url == current_url
     assert browser.page == current_page
 
-    # Check that we actually downloaded a PNG file
     assert response.content[:4] == b'\x89PNG'
 
 
@@ -707,11 +682,9 @@ def test_download_link_nofile_excess(httpbin):
     current_page = browser.page
     response = browser.download_link(url_regex='image.png')
 
-    # Check that the browser state has not changed
     assert browser.url == current_url
     assert browser.page == current_page
 
-    # Check that we actually downloaded a PNG file
     assert response.content[:4] == b'\x89PNG'
 
 
@@ -724,14 +697,11 @@ def test_download_link_nofile_ua(httpbin):
     requests_kwargs = {'headers': {"User-Agent": '007'}}
     response = browser.download_link(link='image/png',
                                      requests_kwargs=requests_kwargs)
-    # Check that the browser state has not changed
     assert browser.url == current_url
     assert browser.page == current_page
 
-    # Check that we actually downloaded a PNG file
     assert response.content[:4] == b'\x89PNG'
 
-    # Check that we actually set the User-agent outbound
     assert response.request.headers['user-agent'] == '007'
 
 
@@ -747,14 +717,11 @@ def test_download_link_to_existing_file(httpbin):
     current_page = browser.page
     response = browser.download_link('image/png', tmpfile)
 
-    # Check that the browser state has not changed
     assert browser.url == current_url
     assert browser.page == current_page
 
-    # Check that the file was downloaded
     assert os.path.isfile(tmpfile)
     assert file_get_contents(tmpfile) == response.content
-    # Check that we actually downloaded a PNG file
     assert response.content[:4] == b'\x89PNG'
 
 
@@ -770,8 +737,5 @@ def test_download_link_404(httpbin):
     with pytest.raises(mechanicalsoup.LinkNotFoundError):
         browser.download_link(file=tmpfile, link_text='Link')
 
-    # Check that the browser state has not changed
     assert browser.url == current_url
     assert browser.page == current_page
-
-    # Check that the file

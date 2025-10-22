@@ -57,7 +57,6 @@ try:
 except ImportError:
     ssl = None
 
-
 HAS_TLS = (ssl is not None) or IS_PYOPENSSL
 
 __all__ = ['get_file_content',
@@ -67,9 +66,7 @@ __all__ = ['get_file_content',
            'unpack_http_url', 'unpack_url',
            'parse_content_disposition', 'sanitize_content_filename']
 
-
 logger = logging.getLogger(__name__)
-
 
 try:
     import keyring
@@ -87,18 +84,12 @@ CI_ENVIRONMENT_VARIABLES = (
     'PIP_IS_CI',
 )
 
-
 def looks_like_ci():
-    """
-    Return whether it looks like pip is running under CI.
-    """
+
     return any(name in os.environ for name in CI_ENVIRONMENT_VARIABLES)
 
-
 def user_agent():
-    """
-    Return a string representing the user agent.
-    """
+
     data = {
         "installer": {"name": "pip", "version": pip.__version__},
         "python": platform.python_version(),
@@ -167,9 +158,8 @@ def user_agent():
         json=json.dumps(data, separators=(",", ":"), sort_keys=True),
     )
 
-
 def _get_keyring_auth(url, username):
-    """Return the tuple auth for a given url from keyring."""
+
     if not url or not keyring:
         return None
 
@@ -195,7 +185,6 @@ def _get_keyring_auth(url, username):
         logger.warning("Keyring is skipped due to an exception: %s",
                        str(exc))
 
-
 class MultiDomainBasicAuth(AuthBase):
 
     def __init__(self, prompting=True, index_urls=None):
@@ -205,18 +194,7 @@ class MultiDomainBasicAuth(AuthBase):
         self._credentials_to_save = None
 
     def _get_index_url(self, url):
-        """Return the original index URL matching the requested URL.
 
-        Cached or dynamically generated credentials may work against
-        the original index URL rather than just the netloc.
-
-        The provided url should have had its username and password
-        removed already. If the original index url had credentials then
-        they will be included in the return value.
-
-        Returns None if no matching index was found, or if --no-index
-        was specified by the user.
-        """
         if not url or not self.index_urls:
             return None
 
@@ -227,7 +205,7 @@ class MultiDomainBasicAuth(AuthBase):
 
     def _get_new_credentials(self, original_url, allow_netrc=True,
                              allow_keyring=True):
-        """Find and return credentials for the specified URL."""
+
         url, netloc, url_user_password = split_auth_netloc_from_url(
             original_url)
 
@@ -265,15 +243,7 @@ class MultiDomainBasicAuth(AuthBase):
         return None, None
 
     def _get_url_and_credentials(self, original_url):
-        """Return the credentials to use for the provided URL.
 
-        If allowed, netrc and keyring may be used to obtain the
-        correct credentials.
-
-        Returns (url_without_credentials, username, password). Note
-        that even if the original URL contains credentials, this
-        function may return a different username and password.
-        """
         url, netloc, _ = split_auth_netloc_from_url(original_url)
 
         username, password = self.passwords.get(netloc, (None, None))
@@ -346,13 +316,13 @@ class MultiDomainBasicAuth(AuthBase):
         return new_resp
 
     def warn_on_401(self, resp, **kwargs):
-        """Response callback to warn about incorrect credentials."""
+
         if resp.status_code == 401:
             logger.warning('401 Error, Credentials not correct for %s',
                            resp.request.url)
 
     def save_credentials(self, resp, **kwargs):
-        """Response callback to save credentials on success."""
+
         assert keyring is not None, "should never reach here without keyring"
         if not keyring:
             return
@@ -365,7 +335,6 @@ class MultiDomainBasicAuth(AuthBase):
                 keyring.set_password(*creds)
             except Exception:
                 logger.exception('Failed to save credentials')
-
 
 class LocalFSAdapter(BaseAdapter):
 
@@ -399,12 +368,8 @@ class LocalFSAdapter(BaseAdapter):
     def close(self):
         pass
 
-
 class SafeFileCache(FileCache):
-    """
-    A file based cache which is safe to use even when the target directory may
-    not be accessible or writable.
-    """
+
 
     def __init__(self, *args, **kwargs):
         super(SafeFileCache, self).__init__(*args, **kwargs)
@@ -447,13 +412,11 @@ class SafeFileCache(FileCache):
         except (LockError, OSError, IOError):
             pass
 
-
 class InsecureHTTPAdapter(HTTPAdapter):
 
     def cert_verify(self, conn, url, verify, cert):
         conn.cert_reqs = 'CERT_NONE'
         conn.ca_certs = None
-
 
 class PipSession(requests.Session):
 
@@ -502,15 +465,8 @@ class PipSession(requests.Session):
 
         return super(PipSession, self).request(method, url, *args, **kwargs)
 
-
 def get_file_content(url, comes_from=None, session=None):
-    """Gets the content of a file; it may be a filename, file: URL, or
-    http: URL.  Returns (location, content).  Content is unicode.
 
-    :param url:         File path or url.
-    :param comes_from:  Origin description of requirements.
-    :param session:     Instance of pip.download.PipSession.
-    """
     if session is None:
         raise TypeError(
             "get_file_content() missing 1 required keyword argument: 'session'"
@@ -547,23 +503,18 @@ def get_file_content(url, comes_from=None, session=None):
         )
     return url, content
 
-
 _scheme_re = re.compile(r'^(http|https|file):', re.I)
 _url_slash_drive_re = re.compile(r'/*([a-z])\|', re.I)
 
-
 def is_url(name):
-    """Returns true if the name looks like a URL"""
+
     if ':' not in name:
         return False
     scheme = name.split(':', 1)[0].lower()
     return scheme in ['http', 'https', 'file', 'ftp'] + vcs.all_schemes
 
-
 def url_to_path(url):
-    """
-    Convert a file: URL to a path.
-    """
+
     assert url.startswith('file:'), (
         "You can only turn file: urls into filenames (not %r)" % url)
 
@@ -582,52 +533,37 @@ def url_to_path(url):
     path = urllib_request.url2pathname(netloc + path)
     return path
 
-
 def is_archive_file(name):
-    """Return True if `name` is a considered as an archive file."""
+
     ext = splitext(name)[1].lower()
     if ext in ARCHIVE_EXTENSIONS:
         return True
     return False
 
-
 def unpack_vcs_link(link, location):
     vcs_backend = _get_used_vcs_backend(link)
     vcs_backend.unpack(location, url=link.url)
 
-
 def _get_used_vcs_backend(link):
-    """
-    Return a VersionControl object or None.
-    """
+
     for vcs_backend in vcs.backends:
         if link.scheme in vcs_backend.schemes:
             return vcs_backend
     return None
 
-
 def is_vcs_url(link):
     return bool(_get_used_vcs_backend(link))
-
 
 def is_file_url(link):
     return link.url.lower().startswith('file:')
 
-
 def is_dir_url(link):
-    """Return whether a file:// Link points to a directory.
 
-    ``link`` must not have any other scheme but file://. Call is_file_url()
-    first.
-
-    """
     link_path = url_to_path(link.url_without_fragment)
     return os.path.isdir(link_path)
 
-
 def _progress_indicator(iterable, *args, **kwargs):
     return iterable
-
 
 def _download_url(
     resp,
@@ -705,7 +641,6 @@ def _download_url(
     else:
         consume(downloaded_chunks)
 
-
 def _copy_file(filename, location, link):
     copy = True
     download_location = os.path.join(location, link.filename)
@@ -731,7 +666,6 @@ def _copy_file(filename, location, link):
     if copy:
         shutil.copy(filename, download_location)
         logger.info('Saved %s', display_path(download_location))
-
 
 def unpack_http_url(
     link,
@@ -771,18 +705,13 @@ def unpack_http_url(
         if not already_downloaded_path:
             os.unlink(from_path)
 
-
 def unpack_file_url(
     link,
     location,
     download_dir=None,
     hashes=None
 ):
-    """Unpack link into location.
 
-    If download_dir is provided and link points to a file, make a copy
-    of the link file inside download_dir.
-    """
     link_path = url_to_path(link.url_without_fragment)
 
     if is_dir_url(link):
@@ -814,11 +743,8 @@ def unpack_file_url(
     if download_dir and not already_downloaded_path:
         _copy_file(from_path, download_dir, link)
 
-
 class PipXmlrpcTransport(xmlrpc_client.Transport):
-    """Provide a `xmlrpclib.Transport` implementation via a `PipSession`
-    object.
-    """
+
 
     def __init__(self, index_url, session, use_datetime=False):
         xmlrpc_client.Transport.__init__(self, use_datetime)
@@ -843,7 +769,6 @@ class PipXmlrpcTransport(xmlrpc_client.Transport):
             )
             raise
 
-
 def unpack_url(
     link,
     location,
@@ -853,20 +778,7 @@ def unpack_url(
     hashes=None,
     progress_bar="on"
 ):
-    """Unpack link.
-       If link is a VCS link:
-         if only_download, export into download_dir and ignore location
-          else unpack into location
-       for other types of link:
-         - unpack into location
-         - if download_dir, copy the file into download_dir
-         - if only_download, mark location for deletion
 
-    :param hashes: A Hashes object, one of whose embedded hashes must match,
-        or HashMismatch will be raised. If the Hashes is empty, no matches are
-        required, and unhashable types of requirements (like VCS ones, which
-        would ordinarily raise HashUnsupported) are allowed.
-    """
     if is_vcs_url(link):
         unpack_vcs_link(link, location)
 
@@ -888,25 +800,17 @@ def unpack_url(
     if only_download:
         write_delete_marker_file(location)
 
-
 def sanitize_content_filename(filename):
-    """
-    Sanitize the "filename" value from a Content-Disposition header.
-    """
+
     return os.path.basename(filename)
 
-
 def parse_content_disposition(content_disposition, default_filename):
-    """
-    Parse the "filename" value from a Content-Disposition header, and
-    return the default filename if the result is empty.
-    """
+
     _type, params = cgi.parse_header(content_disposition)
     filename = params.get('filename')
     if filename:
         filename = sanitize_content_filename(filename)
     return filename or default_filename
-
 
 def _download_http_url(
     link,
@@ -915,7 +819,7 @@ def _download_http_url(
     hashes,
     progress_bar
 ):
-    """Download link url into temp_dir using provided session"""
+
     target_url = link.url.split('#', 1)[0]
     try:
         resp = session.get(
@@ -949,11 +853,8 @@ def _download_http_url(
         _download_url(resp, link, content_file, hashes, progress_bar)
     return file_path, content_type
 
-
 def _check_download_dir(link, download_dir, hashes):
-    """ Check download_dir for previously downloaded file with correct hash
-        If a correct file is found return its path else None
-    """
+
     download_path = os.path.join(download_dir, link.filename)
     if os.path.exists(download_path):
         logger.info('File was already downloaded %s', download_path)

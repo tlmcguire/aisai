@@ -1,4 +1,4 @@
-"""Tests for SavedModelCLI tool."""
+
 import contextlib
 import os
 import pickle
@@ -28,7 +28,6 @@ from tensorflow.python.training.tracking import tracking
 
 SAVED_MODEL_PATH = ('cc/saved_model/testdata/half_plus_two/00000123')
 
-
 @contextlib.contextmanager
 def captured_output():
   new_out, new_err = StringIO(), StringIO()
@@ -38,7 +37,6 @@ def captured_output():
     yield sys.stdout, sys.stderr
   finally:
     sys.stdout, sys.stderr = old_out, old_err
-
 
 class SavedModelCLITestCase(test.TestCase, parameterized.TestCase):
 
@@ -140,7 +138,7 @@ signature_def['serving_default']:
   def testShowAllWithFunctions(self):
 
     class DummyModel(tracking.AutoTrackable):
-      """Model with callable polymorphic functions specified."""
+
 
       @def_function.function
       def func1(self, a, b, c):
@@ -227,7 +225,7 @@ Defined Functions:
   def testShowAllWithPureConcreteFunction(self):
 
     class DummyModel(tracking.AutoTrackable):
-      """Model with a callable concrete function."""
+
 
       def __init__(self):
         function = def_function.function(
@@ -755,7 +753,7 @@ Defined Functions:
       saved_model_cli.aot_compile_cpu(args)
 
   class AOTCompileDummyModel(tracking.AutoTrackable):
-    """Model compatible with XLA compilation."""
+
 
     def __init__(self):
       self.var = variables.Variable(1.0, name='my_var')
@@ -846,7 +844,6 @@ Defined Functions:
     makefile_contents = file_io.read_file_to_string(
         '{}_makefile.inc'.format(output_prefix))
     self.assertIn('-D_GLIBCXX_USE_CXX11_ABI=', makefile_contents)
-
 
 if __name__ == '__main__':
   test.main()

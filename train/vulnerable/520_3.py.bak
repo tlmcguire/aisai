@@ -1,8 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
-#
-# Copyright (C) 2018, James R. Barlow (https://github.com/jbarlow83/)
 
 import logging
 import re
@@ -31,12 +26,12 @@ from lxml.etree import QName, XMLParser, XMLSyntaxError, parse
 from .. import Name, Stream, String
 from .. import __version__ as pikepdf_version
 
-if sys.version_info < (3, 9):  # pragma: no cover
+if sys.version_info < (3, 9):
     from typing import Iterable, MutableMapping
 else:
     from collections.abc import Iterable, MutableMapping
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from pikepdf import Pdf
 
 XMP_NS_DC = "http://purl.org/dc/elements/1.1/"
@@ -69,7 +64,6 @@ DEFAULT_NAMESPACES = [
 for _uri, _prefix in DEFAULT_NAMESPACES:
     etree.register_namespace(_prefix, _uri)
 
-# This one should not be registered
 XMP_NS_XML = "http://www.w3.org/XML/1998/namespace"
 
 XPACKET_BEGIN = b"""<?xpacket begin="\xef\xbb\xbf" id="W5M0MpCehiHzreSzNTczkc9d"?>\n"""
@@ -95,7 +89,7 @@ log = logging.getLogger(__name__)
 class NeverRaise(Exception):
     """An exception that is never raised"""
 
-    pass  # pylint: disable=unnecessary-pass
+    pass
 
 
 class AltList(list):
@@ -117,14 +111,11 @@ LANG_ALTS = frozenset(
     ]
 )
 
-# These are the illegal characters in XML 1.0. (XML 1.1 is a bit more permissive,
-# but we'll be strict to ensure wider compatibility.)
 re_xml_illegal_chars = re.compile(
     r"(?u)[^\x09\x0A\x0D\x20-\U0000D7FF\U0000E000-\U0000FFFD\U00010000-\U0010FFFF]"
 )
 re_xml_illegal_bytes = re.compile(
     br"[^\x09\x0A\x0D\x20-\xFF]|&#0;"
-    # br"&#(?:[0-9]|0[0-9]|1[0-9]|2[0-9]|3[0-1]|x[0-9A-Fa-f]|x0[0-9A-Fa-f]|x1[0-9A-Fa-f]);"
 )
 
 
@@ -165,9 +156,6 @@ def encode_pdf_date(d: datetime) -> str:
     'D:' is required in PDF/A, so we always add it.
     """
 
-    # The formatting of %Y is not consistent as described in
-    # https://bugs.python.org/issue13305 and underspecification in libc.
-    # So explicitly format the year with leading zeros
     s = f"D:{d.year:04d}"
     s += d.strftime(r'%m%d%H%M%S')
     tz = d.strftime('%z')
@@ -188,13 +176,11 @@ def decode_pdf_date(s: str) -> datetime:
     if s.startswith('D:'):
         s = s[2:]
 
-    # Literal Z00'00', is incorrect but found in the wild,
-    # probably made by OS X Quartz -- standardize
     if s.endswith("Z00'00'"):
         s = s.replace("Z00'00'", '+0000')
     elif s.endswith('Z'):
         s = s.replace('Z', '+0000')
-    s = s.replace("'", "")  # Remove apos from PDF time strings
+    s = s.replace("'", "")
     try:
         return datetime.strptime(s, r'%Y%m%d%H%M%S%z')
     except ValueError:
@@ -231,7 +217,6 @@ def _fromisoformat_py36(datestr: str) -> datetime:
 
     Can remove whenever we drop Python 3.6 support.
     """
-    # strptime %z can't parse a timezone with punctuation
     if re.search(r'[+-]\d{2}[-:]\d{2}$', datestr):
         datestr = datestr[:-3] + datestr[-2:]
     formats = [
@@ -373,8 +358,6 @@ class PdfMetadata(MutableMapping):
 
         for uri, shortkey, docinfo_name, converter in self.DOCINFO_MAPPING:
             qname = QName(uri, shortkey)
-            # docinfo might be a dict or pikepdf.Dictionary, so lookup keys
-            # by str(Name)
             val = docinfo.get(str(docinfo_name))
             if val is None:
                 if delete_missing and qname in self:
@@ -410,7 +393,7 @@ class PdfMetadata(MutableMapping):
 
     def _load_from(self, data: bytes) -> None:
         if data.strip() == b'':
-            data = XMP_EMPTY  # on some platforms lxml chokes on empty documents
+            data = XMP_EMPTY
 
         def basic_parser(xml):
             return parse(BytesIO(xml))
@@ -477,8 +460,7 @@ class PdfMetadata(MutableMapping):
         The standard mapping is described here:
             https://www.pdfa.org/pdfa-metadata-xmp-rdf-dublin-core/
         """
-        # Touch object to ensure it exists
-        self._pdf.docinfo  # pylint: disable=pointless-statement
+        self._pdf.docinfo
         for uri, element, docinfo_name, converter in self.DOCINFO_MAPPING:
             qname = QName(uri, element)
             try:
@@ -507,10 +489,8 @@ class PdfMetadata(MutableMapping):
                 continue
             value = _clean(value)
             try:
-                # Try to save pure ASCII
                 self._pdf.docinfo[docinfo_name] = value.encode('ascii')
             except UnicodeEncodeError:
-                # qpdf will serialize this as a UTF-16 with BOM string
                 self._pdf.docinfo[docinfo_name] = value
 
     def _get_xml_bytes(self, xpacket=True):
@@ -530,7 +510,6 @@ class PdfMetadata(MutableMapping):
         Depending how we are initialized, leave our metadata mark and producer.
         """
         if self.mark:
-            # We were asked to mark the file as being edited by pikepdf
             self._setitem(
                 QName(XMP_NS_XMP, 'MetadataDate'),
                 datetime.now(datetime.utcnow().astimezone().tzinfo).isoformat(),
@@ -692,9 +671,6 @@ class PdfMetadata(MutableMapping):
                 self._qname('pdf:Producer'),
             )
         ):
-            # Complain if user writes self[pdf:Producer] = ... and because it will
-            # be overwritten on save, unless self._updating_mark, in which case
-            # the action was initiated internally
             log.warning(
                 f"Update to {key} will be overwritten because metadata was opened "
                 "with set_pikepdf_as_editor=True"
@@ -717,13 +693,10 @@ class PdfMetadata(MutableMapping):
                 el.text = _clean(item)
 
         try:
-            # Locate existing node to replace
             node, attrib, _oldval, _parent = next(self._get_elements(key))
             if attrib:
                 if not isinstance(val, str):
                     if qkey == self._qname('dc:creator'):
-                        # dc:creator incorrectly created as an attribute - we're
-                        # replacing it anyway, so remove the old one
                         del node.attrib[qkey]
                         add_array(node, _clean(val))
                     else:
@@ -744,7 +717,6 @@ class PdfMetadata(MutableMapping):
             else:
                 raise TypeError(f"Setting {key} to {val} with type {type(val)}")
         except StopIteration:
-            # Insert a new node
             rdf = self._get_rdf_root()
             if str(self._qname(key)) in LANG_ALTS:
                 val = AltList([_clean(val)])
@@ -757,7 +729,7 @@ class PdfMetadata(MutableMapping):
                 node = etree.SubElement(rdfdesc, self._qname(key))
                 add_array(node, val)
             elif isinstance(val, str):
-                _rdfdesc = etree.SubElement(  # lgtm [py/unused-local-variable]
+                _rdfdesc = etree.SubElement(
                     rdf,
                     str(QName(XMP_NS_RDF, 'Description')),
                     attrib={
@@ -780,14 +752,13 @@ class PdfMetadata(MutableMapping):
             raise RuntimeError("Metadata not opened for editing, use with block")
         try:
             node, attrib, _oldval, parent = next(self._get_elements(key))
-            if attrib:  # Inline
+            if attrib:
                 del node.attrib[attrib]
                 if (
                     len(node.attrib) == 1
                     and len(node) == 0
                     and QName(XMP_NS_RDF, 'about') in node.attrib
                 ):
-                    # The only thing left on this node is rdf:about="", so remove it
                     parent.remove(node)
             else:
                 parent.remove(node)

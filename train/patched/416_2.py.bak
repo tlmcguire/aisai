@@ -134,7 +134,6 @@ import unittest
 import warnings
 import zipfile
 
-
 def canonical(graph):
     return torch._C._jit_pass_canonicalize(graph).str(False)
 
@@ -150,7 +149,6 @@ def doAutodiffCheck(testname):
 
     if GRAPH_EXECUTOR == ProfilingMode.LEGACY:
         return True
-
 
     test_exceptions = [
         'test_nn_dropout',
@@ -184,7 +182,6 @@ def doAutodiffCheck(testname):
         return False
     return True
 
-
 torch._C._jit_set_texpr_fuser_enabled(GRAPH_EXECUTOR == ProfilingMode.PROFILING)
 torch._C._jit_set_profiling_executor(GRAPH_EXECUTOR != ProfilingMode.LEGACY)
 
@@ -202,11 +199,9 @@ def LSTMCell(input, hidden, w_ih, w_hh, b_ih=None, b_hh=None):
     hy = outgate * torch.tanh(cy)
     return hy, cy
 
-
 def LSTMCellC(*args, **kwargs):
     hy, cy = LSTMCellF(*args, **kwargs)
     return torch.cat((hy, cy))
-
 
 def LSTMCellS(x, hx, cx, w_ih, w_hh, b_ih, b_hh):
     gates = x.mm(w_ih.t()) + hx.mm(w_hh.t()) + b_ih + b_hh
@@ -218,7 +213,6 @@ def LSTMCellS(x, hx, cx, w_ih, w_hh, b_ih, b_hh):
     cy = (forgetgate * cx) + (ingate * cellgate)
     hy = outgate * torch.tanh(cy)
     return hy, cy
-
 
 def MiLSTMCell(x, hx, cx, w_ih, w_hh, alpha, beta_i, beta_h, bias):
     Wx = x.mm(w_ih.t())
@@ -233,8 +227,6 @@ def MiLSTMCell(x, hx, cx, w_ih, w_hh, alpha, beta_i, beta_h, bias):
     hy = outgate * cy.tanh()
     return hy, cy
 
-
-
 def get_lstm_inputs(device, training=False, seq_length=None):
     input_shape = (3, 10) if seq_length is None else (seq_length, 3, 10)
     input = torch.randn(*input_shape, dtype=torch.float, device=device, requires_grad=training)
@@ -246,7 +238,6 @@ def get_lstm_inputs(device, training=False, seq_length=None):
     else:
         params = tuple(p.requires_grad_(False) for p in module.parameters())
     return (input, hx, cx) + params
-
 
 def get_milstm_inputs(device, training=False):
     minibatch = 3
@@ -263,7 +254,6 @@ def get_milstm_inputs(device, training=False):
     hbeta = torch.randn(4 * hidden_size, dtype=torch.float, device=device, requires_grad=training)
     bias = torch.randn(4 * hidden_size, dtype=torch.float, device=device, requires_grad=training)
     return x, hx, cx, ih, hh, alpha, ibeta, hbeta, bias
-
 
 def get_fn(file_name, script_path):
     import importlib.util
@@ -288,14 +278,12 @@ def get_grad_executor(plan_state, diff_graph_idx=None, skip_check=False):
     grad_executors = list(plan_state.code.grad_executor_states())
     return grad_executors[diff_graph_idx or 0]
 
-
 def all_backward_graphs(script_module, diff_graph_idx=None):
     ge_state = script_module.get_debug_state()
     fwd_plan = get_execution_plan(ge_state)
     grad_executor_state = get_grad_executor(fwd_plan, diff_graph_idx=diff_graph_idx)
     bwd_plans = list(grad_executor_state.execution_plans.values())
     return [p.graph.copy() for p in bwd_plans]
-
 
 def backward_graph(script_module, diff_graph_idx=None, skip_check=False):
     ge_state = script_module.get_debug_state()
@@ -304,13 +292,11 @@ def backward_graph(script_module, diff_graph_idx=None, skip_check=False):
     bwd_plan = get_execution_plan(grad_executor_state)
     return bwd_plan.graph.copy()
 
-
 def _sum_of_list(tensorlist):
     s = 0
     for t in tensorlist:
         s += t.sum()
     return s
-
 
 class FooToPickle(torch.nn.Module):
     def __init__(self):
@@ -2592,7 +2578,6 @@ graph(%Ra, %Rb):
             def bad_no_optional(x=None):
                 return x
 
-
     def test_module_default_values(self):
         four = torch.tensor(4)
 
@@ -2634,7 +2619,6 @@ graph(%Ra, %Rb):
                 if bool(x < 2):
                     warnings.warn("x is less than 2")
                 return x
-
 
         scripted_mod = torch.jit.script(M())
         scripted_fn = torch.jit.script(fn)
@@ -2805,7 +2789,6 @@ graph(%Ra, %Rb):
         with torch.autograd.profiler.profile() as prof:
             traced_fn(x)
 
-
         mul_events = defaultdict(int)
         other_fn_events = defaultdict(int)
         for e in prof.function_events:
@@ -2838,7 +2821,6 @@ graph(%Ra, %Rb):
             self.assertRegex(graph.str(print_source_ranges=True), source_range_regex)
         self.assertRegex(graph.__repr__(), source_range_regex)
 
-
 class TestFrontend(JitTestCase):
 
     def test_instancing_error(self):
@@ -2846,7 +2828,6 @@ class TestFrontend(JitTestCase):
         class MyScriptClass(object):
             def unscriptable(self):
                 return "a" + 200
-
 
         class TestModule(torch.nn.Module):
             def __init__(self):
@@ -2903,7 +2884,6 @@ class TestFrontend(JitTestCase):
         with self.assertRaisesRegex(RuntimeError, r"forward\(\) is missing value for argument 'y'."):
             res_2 = traced_model_2(**{'x': torch.rand([2]), 'z': torch.rand([2])})
 
-
 class TestScript(JitTestCase):
 
     def test_repeated_script_on_function(self):
@@ -2936,7 +2916,6 @@ class TestScript(JitTestCase):
 
             def forward(self, x):
                 return torch.sub(x, x)
-
 
         class MyMod(torch.nn.Module):
             def __init__(self):
@@ -3023,7 +3002,6 @@ class TestScript(JitTestCase):
 
         self.assertEqual(src, src_eic)
         self.assertEqual(CONSTANTS.c0, CONSTANTS_eic.c0)
-
 
     def test_oneline_func(self):
         def fn(x): return x
@@ -3130,7 +3108,6 @@ class TestScript(JitTestCase):
                 graph_str = torch.jit.last_executed_optimized_graph()
                 FileCheck().check("profiled_type=Double(*, 2, strides=[2, 1], requires_grad=0, device=cpu").run(graph_str)
                 FileCheck().check_not("profiled_type=Double(1, 2, strides=[2, 1], requires_grad=0, device=cpu").run(graph_str)
-
 
     def test_nested_bailouts(self):
         @torch.jit.script
@@ -4052,7 +4029,6 @@ def foo(x):
 
         self.checkScript(annotate_none, ())
 
-
     def test_robust_op_resolution(self):
         neg = torch.add
 
@@ -4460,7 +4436,6 @@ def foo(xyz):
             return x.shape
 
         self.checkScript(f, (x,))
-
 
     def test_block_input_grad_in_loop(self):
 
@@ -5246,7 +5221,6 @@ a")
                 grad_ref = torch.autograd.grad(_sum_of_list(outputs_ref), x)
                 self.assertEqual(grad, grad_ref)
 
-
     @unittest.skipIf(GRAPH_EXECUTOR == ProfilingMode.PROFILING,
                      "Profiling executor fails to recognize that tensors in a list require gradients")
     def test_meshgrid(self):
@@ -5423,7 +5397,6 @@ a")
         with self.assertRaisesRegex(RuntimeError, "isInt"):
             m()
 
-
     @unittest.skipIf(GRAPH_EXECUTOR == ProfilingMode.SIMPLE, "Simple Executor doesn't use requires_grad information")
     @unittest.skipIf(GRAPH_EXECUTOR == ProfilingMode.PROFILING, "Peeling is now disabled")
     def test_requires_grad_loop(self):
@@ -5432,7 +5405,6 @@ a")
             for _ in range(z):
                 x = y
             return x
-
 
         inps = (torch.tensor(1.0, requires_grad=True), torch.tensor(1), 10)
         test(*inps, profile_and_replay=True)
@@ -5692,7 +5664,6 @@ a")
     def _make_scalar_vars(self, arr, dtype):
         return [torch.tensor(val, dtype=dtype) for val in arr]
 
-
     def test_string_print(self):
         def func(a):
             print(a, "a" 'b' '''c''' """d""", 2, 1.5)
@@ -5862,7 +5833,6 @@ a")
                 return 2
         self.assertEqual(test_bool_arith_or(torch.zeros(3)), 1)
         self.assertTrue(str(test_bool_arith_or.graph).count('if') == 0)
-
 
         @torch.jit.script
         def test_bool_arith_not(lhs):
@@ -6695,7 +6665,6 @@ a")
         self.assertTrue(test_all_float_list([3.14, 8.1]))
         self.assertFalse(test_all_float_list([3.14, 0, 8.9]))
 
-
     def test_number_math(self):
         ops_template = dedent('''
         def func():
@@ -6890,7 +6859,6 @@ a")
         self.assertEqual(scripted_fn_ne(False, True), compare_ne(False, True))
         self.assertEqual(scripted_fn_ne(True, True), compare_ne(True, True))
         self.assertEqual(scripted_fn_ne(False, False), compare_ne(False, False))
-
 
     def _test_tensor_number_math(self, device='cpu'):
         template = dedent('''
@@ -7812,7 +7780,7 @@ dedent """
         def with_docstring(x):
             """test str"""
             y = x
-            """y is the same as x"""
+
             return y
         self.assertEqual(with_docstring.__doc__, 'test str')
 
@@ -7822,7 +7790,7 @@ dedent """
             def with_docstring(self, x):
                 """test str"""
                 y = x
-                """y is the same as x"""
+
                 return y
         a = A()
         self.assertEqual(a.with_docstring.__doc__, 'test str')
@@ -8185,7 +8153,6 @@ dedent """
         else:
             return jit_type.lower()
 
-
     def _test_dtype_op_shape(self, ops, args, input_dims=1):
         if input_dims < 1:
             raise RuntimeError("input dims must be at least 1")
@@ -8232,7 +8199,6 @@ dedent """
         self._test_dtype_op_shape(ops, args=[0])
 
         self._test_dtype_op_shape(ops, args=[1], input_dims=4)
-
 
     def _test_binary_op_shape(self, ops, input_dims=1):
 
@@ -8314,7 +8280,6 @@ dedent """
         g2 = foo2.graph_for(t)
         type = next(g.outputs())
         self.assertTrue(type.type() == torch._C.TensorType.get())
-
 
     def test_filecheck_parse(self):
         def test_check():
@@ -10571,7 +10536,6 @@ dedent """
             for i in range(4):
                 self.assertTrue((foo(x, y, W).grad_fn is None) == (jitted_foo(x, y, W).grad_fn is None))
 
-
     def test_linear_grad(self):
         with enable_profiling_mode_for_profiling_tests():
             def t(x: torch.Tensor, w: torch.Tensor, b: Optional[torch.Tensor]):
@@ -10638,7 +10602,6 @@ dedent """
                 FileCheck().check("Double(3, 4, strides=[4, 1], requires_grad=0, device=cpu)") \
                            .check_not("Float(3, 4, strides=[4, 1], requires_grad=0, device=cpu)").run(graph_str)
 
-
         @torch.jit.script
         def randint():
             return torch.randint(0, 5, [1, 2])
@@ -10649,7 +10612,6 @@ dedent """
                 graph_str = torch.jit.last_executed_optimized_graph()
                 self.assertEqual(out.dtype, torch.int64)
                 FileCheck().check("profiled_type=Long(1, 2, strides=[2, 1], requires_grad=0, device=cpu)").run(graph_str)
-
 
     def test_erase_number_types(self):
         def func(a):
@@ -10673,7 +10635,6 @@ dedent """
         torch._C._jit_pass_refine_tuple_types(graph)
 
         self.assertTrue('(Float(123), Float(4, 5, 6))' in str(graph.findNode('prim::TupleConstruct').output()))
-
 
     def test_remove_dropout(self):
         weight_0_shape = (20, 5)
@@ -11110,7 +11071,6 @@ dedent """
                 self.checkModule(mod, (torch.tensor(.5),))
                 mod2 = ZipWithValues(mods[i], mods[j])
                 self.checkModule(mod2, (torch.tensor(.5),))
-
 
     def test_enumerate_modlist_range(self):
         class Double(torch.nn.Module):
@@ -11800,7 +11760,6 @@ dedent """
             def traced_fn(x):
                 return sm(x) + 1.0
 
-
     def test_call_python_fn_from_traced_module(self):
         def python_fn(x):
             return torch.neg(x)
@@ -12298,7 +12257,6 @@ dedent """
     def format_code(self, code, pair):
         return code.format(input=pair[0], output=pair[1])
 
-
     def test_annot_string_py3_fn(self):
         code = '''
             def foo(x : {input}, y : Tuple[Tensor, Tensor]) -> Tuple[{output}, {output}]:
@@ -12683,7 +12641,6 @@ dedent """
         f = torch.jit.script(A())
         self.assertTrue(isinstance(f, torch.jit.ScriptModule))
         self.assertTrue(isinstance(f.call(), property))
-
 
     def test_pass(self):
         def foo(x):
@@ -13090,8 +13047,6 @@ dedent """
             self.assertEqual(loaded.buffer1, torch.ones(2, 2) + 5)
             self.assertEqual(loaded.buffer2, torch.ones(2, 2) + 10)
 
-
-
     def test_string_slicing(self):
         def fn1(x):
             return x[1:3]
@@ -13217,7 +13172,6 @@ dedent """
         self.checkScriptRaisesRegex(no_guard_ifs_added, (2,), Exception, "")
         test_num_ifs(no_guard_ifs_added, 2)
 
-
         def no_ifs_added(x):
             if x < 0:
                 raise RuntimeError("hi")
@@ -13269,7 +13223,6 @@ dedent """
         self.checkScript(test_loop_exception_with_continue, (-1,))
         self.checkScriptRaisesRegex(test_loop_exception_with_continue, (1,), Exception, "")
         test_num_ifs(test_loop_exception_with_continue, 1)
-
 
     def test_exception_exits_closure(self):
         code = dedent('''
@@ -13840,7 +13793,6 @@ dedent """
         def test():
             impl_compile_failure("one", "two")
 
-
         with self.assertRaisesRegex(Exception, "Arguments for call are not valid"):
             torch.jit.script(test)
 
@@ -13856,7 +13808,6 @@ dedent """
             return good_overload()
 
         self.assertEqual(foo(), 1)
-
 
         with self.assertRaisesRegex(Exception, "must equal to the default parameter"):
             @torch.jit._overload
@@ -13954,7 +13905,6 @@ dedent """
 
         with self.assertRaisesRegex(RuntimeError, 'Implementation for the method ".+" is missing.'):
             m = torch.jit.script(OverloadMisuse())
-
 
     def test_script_method_torch_function_overload(self):
         class MyCustomTensor(torch.Tensor):
@@ -14799,7 +14749,6 @@ dedent """
         f = Foo()
         torch.jit.script(f)
 
-
     def test_named_buffers_are_iterable(self):
         class MyMod(torch.nn.Module):
             def __init__(self):
@@ -14837,7 +14786,6 @@ dedent """
         names = x.method()
         for name in names:
             self.assertNotEqual('z', name)
-
 
     def test_static_if_prop(self):
         class MaybeHasAttr(torch.nn.Module):
@@ -15348,10 +15296,8 @@ EXCLUDE_ALIAS = {
     'lu'
 }
 
-
 class TestJitGeneratedModule(JitTestCase):
     pass
-
 
 class TestJitGeneratedFunctional(JitTestCase):
     pass
@@ -15499,7 +15445,6 @@ def add_nn_module_test(*args, **kwargs):
 
     post_add_test(test_name, (), do_test, TestJitGeneratedModule)
 
-
 def post_add_test(test_name, skipTestIf, do_test, test_class):
     assert not hasattr(test_class, test_name), 'Two tests have the same name: ' + test_name
 
@@ -15508,7 +15453,6 @@ def post_add_test(test_name, skipTestIf, do_test, test_class):
 
     if not (TEST_WITH_UBSAN and test_name in UBSAN_DISABLED_TESTS):
         setattr(test_class, test_name, do_test)
-
 
 def normalize_check_ad(check_ad, name):
     if len(check_ad) == 0:
@@ -15525,7 +15469,6 @@ def normalize_check_ad(check_ad, name):
     check_ad = [[t] if isinstance(t, str) else t for t in check_ad]
 
     return check_ad
-
 
 class TestProducerVersion(TestCase):
 

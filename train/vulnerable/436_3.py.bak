@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 import codecs
 import io
@@ -65,15 +64,15 @@ class HTTPRequest:
         self.c = pycurl.Curl()
         self.rep = None
 
-        self.cj = cookies  #: cookiejar
+        self.cj = cookies
 
         self.last_url = None
         self.last_effective_url = None
-        self.code = 0  #: last http code
+        self.code = 0
 
         self.response_header = b""
 
-        self.request_headers = []  #: temporary request header
+        self.request_headers = []
 
         self.abort = False
         self.decode = False
@@ -109,8 +108,6 @@ class HTTPRequest:
         if hasattr(pycurl, "USE_SSL"):
             self.c.setopt(pycurl.USE_SSL, pycurl.USESSL_TRY)
 
-        # self.c.setopt(pycurl.VERBOSE, 1)
-        # self.c.setopt(pycurl.HTTP_VERSION, pycurl.CURL_HTTP_VERSION_1_1)
 
         self.c.setopt(
             pycurl.USERAGENT,
@@ -220,7 +217,7 @@ class HTTPRequest:
                 elif isinstance(post, str):
                     post = post.encode()
                     self.c.setopt(pycurl.POSTFIELDS, post)
-                else:  # TODO: check if mapping
+                else:
                     post = myurlencode(post)
                     self.c.setopt(pycurl.POSTFIELDS, post)
 
@@ -332,7 +329,6 @@ class HTTPRequest:
             self.rep.close()
             self.rep = None
 
-            # 404 will NOT raise an exception
             raise BadHeader(
                 code,
                 header,
@@ -361,7 +357,7 @@ class HTTPRequest:
         decode with correct encoding, relies on header.
         """
         header = self.response_header.splitlines()
-        encoding = "utf-8"  #: default encoding
+        encoding = "utf-8"
 
         for line in header:
             line = line.lower().replace(b" ", b"")
@@ -375,7 +371,6 @@ class HTTPRequest:
                     encoding = to_str(charset[0])
 
         try:
-            # self.log.debug(f"Decoded {encoding}")
             if codecs.lookup(encoding).name == "utf-8" and response.startswith(
                 codecs.BOM_UTF8
             ):
@@ -384,7 +379,6 @@ class HTTPRequest:
             decoder = codecs.getincrementaldecoder(encoding)("replace")
             response = decoder.decode(response, True)
 
-            # TODO: html_unescape as default
 
         except LookupError:
             self.log.debug(f"No Decoder found for {encoding}")
@@ -411,7 +405,7 @@ class HTTPRequest:
             return pycurl.E_WRITE_ERROR
 
         self.rep.write(buf)
-        return None  #: Everything is OK, please continue
+        return None
 
     def write_header(self, buf):
         """

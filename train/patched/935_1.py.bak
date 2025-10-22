@@ -16,16 +16,12 @@ def create_hail_account(email, allowed_domains):
     """
     if is_valid_email(email, allowed_domains):
         try:
-            # Proceed with account creation
             print(f"Account created for {email}.")
         except Exception:
-            # Handle any errors that may occur during account creation
             raise
     else:
-        # Reject account creation
         raise ValueError(f"Email domain not allowed: {email}")
 
-# Example usage
 allowed_domains = {'example.org', 'myorganization.com'}
 try:
     create_hail_account('user@test@example.org', allowed_domains)

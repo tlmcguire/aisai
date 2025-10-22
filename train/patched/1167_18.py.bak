@@ -31,11 +31,10 @@ router = APIRouter()
 lollmsElfServer = LOLLMSWebUI.get_instance()
 
 
-# ----------------------------------- events -----------------------------------------
 def add_events(sio:socketio):
     forbid_remote_access(lollmsElfServer)
     @sio.on('generate_msg')
-    def handle_generate_msg(sid, data):        
+    def handle_generate_msg(sid, data):
         client_id = sid
         lollmsElfServer.cancel_gen = False
         client = lollmsElfServer.session.get_client(client_id)
@@ -48,9 +47,9 @@ def add_events(sio:socketio):
         client.cancel_generation=False
         client.continuing=False
         client.first_chunk=True
-        
 
-        
+
+
         if not lollmsElfServer.model:
             ASCIIColors.error("Model not selected. Please select a model")
             lollmsElfServer.error("Model not selected. Please select a model", client_id=client_id)
@@ -66,7 +65,7 @@ def add_events(sio:socketio):
             if not isinstance(data, dict) or "prompt" not in data:
                 lollmsElfServer.error("Invalid data received", client_id=client_id)
                 return
-            
+
             prompt = data["prompt"]
             if not isinstance(prompt,str):
                 lollmsElfServer.error("Invalid prompt received", client_id=client_id)
@@ -85,20 +84,17 @@ def add_events(sio:socketio):
             ASCIIColors.green("Starting message generation by "+lollmsElfServer.personality.name)
             client.generation_thread = threading.Thread(target=lollmsElfServer.start_message_generation, args=(message, message.id, client_id))
             client.generation_thread.start()
-            
-            # lollmsElfServer.sio.sleep(0.01)
+
             ASCIIColors.info("Started generation task")
             lollmsElfServer.busy=True
-            #tpe = threading.Thread(target=lollmsElfServer.start_message_generation, args=(message, message_id, client_id))
-            #tpe.start()
         else:
             lollmsElfServer.error("I am busy. Come back later.", client_id=client_id)
     @sio.on('generate_msg_with_internet')
-    def generate_msg_with_internet(sid, data):        
+    def generate_msg_with_internet(sid, data):
         client_id = sid
         lollmsElfServer.cancel_gen = False
         client = lollmsElfServer.session.get_client(client_id)
-        
+
         if client is None:
             lollmsElfServer.error("Client not found", client_id=client_id)
             return
@@ -107,9 +103,9 @@ def add_events(sio:socketio):
         client.cancel_generation=False
         client.continuing=False
         client.first_chunk=True
-        
 
-        
+
+
         if not lollmsElfServer.model:
             ASCIIColors.error("Model not selected. Please select a model")
             lollmsElfServer.error("Model not selected. Please select a model", client_id=client_id)
@@ -125,7 +121,7 @@ def add_events(sio:socketio):
             if not isinstance(data, dict) or "prompt" not in data:
                 lollmsElfServer.error("Invalid data received", client_id=client_id)
                 return
-            
+
             prompt = data["prompt"]
             if not isinstance(prompt,str):
                 lollmsElfServer.error("Invalid prompt received", client_id=client_id)
@@ -141,15 +137,12 @@ def add_events(sio:socketio):
             )
 
             ASCIIColors.green("Starting message generation by "+lollmsElfServer.personality.name)
-            
+
             client.generation_thread = threading.Thread(target=lollmsElfServer.start_message_generation, args=(message, message.id, client_id, False, None, True))
             client.generation_thread.start()
-            
-            # lollmsElfServer.sio.sleep(0.01)
+
             ASCIIColors.info("Started generation task")
             lollmsElfServer.busy=True
-            #tpe = threading.Thread(target=lollmsElfServer.start_message_generation, args=(message, message_id, client_id))
-            #tpe.start()
         else:
             lollmsElfServer.error("I am busy. Come back later.", client_id=client_id)
 
@@ -167,7 +160,7 @@ def add_events(sio:socketio):
         lollmsElfServer.cancel_gen = False
         client.continuing=False
         client.first_chunk=True
-        
+
         if client.discussion is None:
             ASCIIColors.warning("Please select a discussion")
             lollmsElfServer.error("Please select a discussion first", client_id=client_id)
@@ -188,7 +181,7 @@ def add_events(sio:socketio):
         else:
             message = client.discussion.load_message(id_)
         if message is None:
-            return            
+            return
         client.generation_thread = threading.Thread(target=lollmsElfServer.start_message_generation, args=(message, message.id, client_id, False, generation_type))
         client.generation_thread.start()
 
@@ -203,7 +196,7 @@ def add_events(sio:socketio):
         lollmsElfServer.cancel_gen = False
         client.continuing=True
         client.first_chunk=True
-        
+
         if client.discussion is None:
             ASCIIColors.yellow("Please select a discussion")
             lollmsElfServer.error("Please select a discussion", client_id=client_id)
@@ -212,7 +205,7 @@ def add_events(sio:socketio):
         if not isinstance(data, dict) or "id" not in data:
             lollmsElfServer.error("Invalid data received", client_id=client_id)
             return
-            
+
         id_ = data['id']
         if not isinstance(id_,int):
             lollmsElfServer.error("Invalid id received", client_id=client_id)

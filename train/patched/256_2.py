@@ -1,5 +1,5 @@
 
-"""Helper class for TLSConnection."""
+
 from __future__ import generators
 
 from .utils.compat import *
@@ -28,69 +28,8 @@ class _ConnectionState(object):
         self.seqnum += 1
         return w.bytes
 
-
 class TLSRecordLayer(object):
-    """
-    This class handles data transmission for a TLS connection.
 
-    Its only subclass is L{tlslite.TLSConnection.TLSConnection}.  We've
-    separated the code in this class from TLSConnection to make things
-    more readable.
-
-
-    @type sock: socket.socket
-    @ivar sock: The underlying socket object.
-
-    @type session: L{tlslite.Session.Session}
-    @ivar session: The session corresponding to this connection.
-
-    Due to TLS session resumption, multiple connections can correspond
-    to the same underlying session.
-
-    @type version: tuple
-    @ivar version: The TLS version being used for this connection.
-
-    (3,0) means SSL 3.0, and (3,1) means TLS 1.0.
-
-    @type closed: bool
-    @ivar closed: If this connection is closed.
-
-    @type resumed: bool
-    @ivar resumed: If this connection is based on a resumed session.
-
-    @type allegedSrpUsername: str or None
-    @ivar allegedSrpUsername:  This is set to the SRP username
-    asserted by the client, whether the handshake succeeded or not.
-    If the handshake fails, this can be inspected to determine
-    if a guessing attack is in progress against a particular user
-    account.
-
-    @type closeSocket: bool
-    @ivar closeSocket: If the socket should be closed when the
-    connection is closed, defaults to True (writable).
-
-    If you set this to True, TLS Lite will assume the responsibility of
-    closing the socket when the TLS Connection is shutdown (either
-    through an error or through the user calling close()).  The default
-    is False.
-
-    @type ignoreAbruptClose: bool
-    @ivar ignoreAbruptClose: If an abrupt close of the socket should
-    raise an error (writable).
-
-    If you set this to True, TLS Lite will not raise a
-    L{tlslite.errors.TLSAbruptCloseError} exception if the underlying
-    socket is unexpectedly closed.  Such an unexpected closure could be
-    caused by an attacker.  However, it also occurs with some incorrect
-    TLS implementations.
-
-    You should set this to True only if you're not worried about an
-    attacker truncating the connection, and only if necessary to avoid
-    spurious errors.  The default is False.
-
-    @sort: __init__, read, readAsync, write, writeAsync, close, closeAsync,
-    getCipherImplementation, getCipherName
-    """
 
     def __init__(self, sock):
         self.sock = sock
@@ -134,49 +73,14 @@ class TLSRecordLayer(object):
     def clearWriteBuffer(self):
         self._send_writer = None
 
-
-
     def read(self, max=None, min=1):
-        """Read some data from the TLS connection.
 
-        This function will block until at least 'min' bytes are
-        available (or the connection is closed).
-
-        If an exception is raised, the connection will have been
-        automatically closed.
-
-        @type max: int
-        @param max: The maximum number of bytes to return.
-
-        @type min: int
-        @param min: The minimum number of bytes to return
-
-        @rtype: str
-        @return: A string of no more than 'max' bytes, and no fewer
-        than 'min' (unless the connection has been closed, in which
-        case fewer than 'min' bytes may be returned).
-
-        @raise socket.error: If a socket error occurs.
-        @raise tlslite.errors.TLSAbruptCloseError: If the socket is closed
-        without a preceding alert.
-        @raise tlslite.errors.TLSAlert: If a TLS alert is signalled.
-        """
         for result in self.readAsync(max, min):
             pass
         return result
 
     def readAsync(self, max=None, min=1):
-        """Start a read operation on the TLS connection.
 
-        This function returns a generator which behaves similarly to
-        read().  Successive invocations of the generator will return 0
-        if it is waiting to read from the socket, 1 if it is waiting
-        to write to the socket, or a string if the read operation has
-        completed.
-
-        @rtype: iterable
-        @return: A generator; see above for details.
-        """
         try:
             while len(self._readBuffer)<min and not self.closed:
                 try:
@@ -207,40 +111,16 @@ class TLSRecordLayer(object):
             raise
 
     def unread(self, b):
-        """Add bytes to the front of the socket read buffer for future
-        reading. Be careful using this in the context of select(...): if you
-        unread the last data from a socket, that won't wake up selected waiters,
-        and those waiters may hang forever.
-        """
+
         self._readBuffer = b + self._readBuffer
 
     def write(self, s):
-        """Write some data to the TLS connection.
 
-        This function will block until all the data has been sent.
-
-        If an exception is raised, the connection will have been
-        automatically closed.
-
-        @type s: str
-        @param s: The data to transmit to the other party.
-
-        @raise socket.error: If a socket error occurs.
-        """
         for result in self.writeAsync(s):
             pass
 
     def writeAsync(self, s):
-        """Start a write operation on the TLS connection.
 
-        This function returns a generator which behaves similarly to
-        write().  Successive invocations of the generator will return
-        1 if it is waiting to write to the socket, or will raise
-        StopIteration if the write operation has completed.
-
-        @rtype: iterable
-        @return: A generator; see above for details.
-        """
         try:
             if self.closed:
                 raise TLSClosedConnectionError("attempt to write to closed connection")
@@ -269,26 +149,7 @@ class TLSRecordLayer(object):
             raise
 
     def close(self):
-        """Close the TLS connection.
 
-        This function will block until it has exchanged close_notify
-        alerts with the other party.  After doing so, it will shut down the
-        TLS connection.  Further attempts to read through this connection
-        will return "".  Further attempts to write through this connection
-        will raise ValueError.
-
-        If makefile() has been called on this connection, the connection
-        will be not be closed until the connection object and all file
-        objects have been closed.
-
-        Even if an exception is raised, the connection will have been
-        closed.
-
-        @raise socket.error: If a socket error occurs.
-        @raise tlslite.errors.TLSAbruptCloseError: If the socket is closed
-        without a preceding alert.
-        @raise tlslite.errors.TLSAlert: If a TLS alert is signalled.
-        """
         if not self.closed:
             for result in self._decrefAsync():
                 pass
@@ -296,17 +157,7 @@ class TLSRecordLayer(object):
     _decref_socketios = close
 
     def closeAsync(self):
-        """Start a close operation on the TLS connection.
 
-        This function returns a generator which behaves similarly to
-        close().  Successive invocations of the generator will return 0
-        if it is waiting to read from the socket, 1 if it is waiting
-        to write to the socket, or will raise StopIteration if the
-        close operation has completed.
-
-        @rtype: iterable
-        @return: A generator; see above for details.
-        """
         if not self.closed:
             for result in self._decrefAsync():
                 yield result
@@ -342,12 +193,7 @@ class TLSRecordLayer(object):
                 raise
 
     def getVersionName(self):
-        """Get the name of this TLS version.
 
-        @rtype: str
-        @return: The name of the TLS version used with this connection.
-        Either None, 'SSL 3.0', 'TLS 1.0', 'TLS 1.1', or 'TLS 1.2'.
-        """
         if self.version == (3,0):
             return "SSL 3.0"
         elif self.version == (3,1):
@@ -360,53 +206,28 @@ class TLSRecordLayer(object):
             return None
 
     def getCipherName(self):
-        """Get the name of the cipher used with this connection.
 
-        @rtype: str
-        @return: The name of the cipher used with this connection.
-        Either 'aes128', 'aes256', 'rc4', or '3des'.
-        """
         if not self._writeState.encContext:
             return None
         return self._writeState.encContext.name
 
     def getCipherImplementation(self):
-        """Get the name of the cipher implementation used with
-        this connection.
 
-        @rtype: str
-        @return: The name of the cipher implementation used with
-        this connection.  Either 'python', 'openssl', or 'pycrypto'.
-        """
         if not self._writeState.encContext:
             return None
         return self._writeState.encContext.implementation
 
-
-
     def send(self, s):
-        """Send data to the TLS connection (socket emulation).
 
-        @raise socket.error: If a socket error occurs.
-        """
         self.write(s)
         return len(s)
 
     def sendall(self, s):
-        """Send data to the TLS connection (socket emulation).
 
-        @raise socket.error: If a socket error occurs.
-        """
         self.write(s)
 
     def recv(self, bufsize):
-        """Get some data from the TLS connection (socket emulation).
 
-        @raise socket.error: If a socket error occurs.
-        @raise tlslite.errors.TLSAbruptCloseError: If the socket is closed
-        without a preceding alert.
-        @raise tlslite.errors.TLSAlert: If a TLS alert is signalled.
-        """
         return self.read(bufsize)
 
     def recv_into(self, b):
@@ -417,10 +238,7 @@ class TLSRecordLayer(object):
         return len(data)
 
     def makefile(self, mode='r', bufsize=-1):
-        """Create a file object for the TLS connection (socket emulation).
 
-        @rtype: L{socket._fileobject}
-        """
         self._refCount += 1
         if sys.version_info < (3,):
             return socket._fileobject(self, mode, bufsize, close=True)
@@ -428,36 +246,32 @@ class TLSRecordLayer(object):
             return socket.SocketIO(self, mode)
 
     def getsockname(self):
-        """Return the socket's own address (socket emulation)."""
+
         return self.sock.getsockname()
 
     def getpeername(self):
-        """Return the remote address to which the socket is connected
-        (socket emulation)."""
+
         return self.sock.getpeername()
 
     def settimeout(self, value):
-        """Set a timeout on blocking socket operations (socket emulation)."""
+
         return self.sock.settimeout(value)
 
     def gettimeout(self):
-        """Return the timeout associated with socket operations (socket
-        emulation)."""
+
         return self.sock.gettimeout()
 
     def setsockopt(self, level, optname, value):
-        """Set the value of the given socket option (socket emulation)."""
+
         return self.sock.setsockopt(level, optname, value)
 
     def shutdown(self, how):
-        """Shutdown the underlying socket."""
+
         return self.sock.shutdown(how)
 
     def fileno(self):
-        """Not implement in TLS Lite."""
+
         raise NotImplementedError()
-
-
 
     def _shutdown(self, resumable):
         self._writeState = _ConnectionState()
@@ -470,7 +284,6 @@ class TLSRecordLayer(object):
 
         if not resumable and self.session:
             self.session.resumable = False
-
 
     def _sendError(self, alertDescription, errorStr=None):
         alert = Alert().create(alertDescription, AlertLevel.fatal)
@@ -577,7 +390,6 @@ class TLSRecordLayer(object):
                 return
             s = s[bytesSent:]
             yield 1
-
 
     def _getMsg(self, expectedType, secondaryType=None, constructorType=None):
         try:
@@ -709,7 +521,6 @@ class TLSRecordLayer(object):
                                          formatExceptionTrace(e)):
                 yield result
 
-
     def _getNextRecord(self):
 
         if self._handshakeBuffer:
@@ -774,7 +585,6 @@ class TLSRecordLayer(object):
             if len(b) == r.length:
                 break
 
-
         for result in self._decryptRecord(r.type, b):
             if result in (0,1): yield result
             else: break
@@ -814,7 +624,6 @@ class TLSRecordLayer(object):
             recordHeader, b = self._handshakeBuffer[0]
             self._handshakeBuffer = self._handshakeBuffer[1:]
             yield (recordHeader, Parser(b))
-
 
     def _decryptRecord(self, recordType, b):
         if self._readState.encContext:

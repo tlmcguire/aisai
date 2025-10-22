@@ -69,7 +69,6 @@ HDRRE: Final[Pattern[bytes]] = re.compile(
 )
 HEXDIGIT = re.compile(rb"[0-9a-fA-F]+")
 
-
 class RawRequestMessage(NamedTuple):
     method: str
     path: str
@@ -82,7 +81,6 @@ class RawRequestMessage(NamedTuple):
     chunked: bool
     url: URL
 
-
 class RawResponseMessage(NamedTuple):
     version: HttpVersion
     code: int
@@ -94,9 +92,7 @@ class RawResponseMessage(NamedTuple):
     upgrade: bool
     chunked: bool
 
-
 _MsgT = TypeVar("_MsgT", RawRequestMessage, RawResponseMessage)
-
 
 class ParseState(IntEnum):
     PARSE_NONE = 0
@@ -104,14 +100,12 @@ class ParseState(IntEnum):
     PARSE_CHUNKED = 2
     PARSE_UNTIL_EOF = 3
 
-
 class ChunkState(IntEnum):
     PARSE_CHUNKED_SIZE = 0
     PARSE_CHUNKED_CHUNK = 1
     PARSE_CHUNKED_CHUNK_EOF = 2
     PARSE_MAYBE_TRAILERS = 3
     PARSE_TRAILERS = 4
-
 
 class HeadersParser:
     def __init__(
@@ -204,7 +198,6 @@ class HeadersParser:
             raw_headers.append((bname, bvalue))
 
         return (CIMultiDictProxy(headers), tuple(raw_headers))
-
 
 class HttpParser(abc.ABC, Generic[_MsgT]):
     lax: ClassVar[bool] = False
@@ -438,11 +431,7 @@ class HttpParser(abc.ABC, Generic[_MsgT]):
     ) -> Tuple[
         "CIMultiDictProxy[str]", RawHeaders, Optional[bool], Optional[str], bool, bool
     ]:
-        """Parses RFC 5322 headers from a stream.
 
-        Line continuations are supported. Returns list of header name
-        and value pairs. Header name is in upper case.
-        """
         headers, raw_headers = self._headers_parser.parse_headers(lines)
         close_conn = None
         encoding = None
@@ -496,20 +485,11 @@ class HttpParser(abc.ABC, Generic[_MsgT]):
         return (headers, raw_headers, close_conn, encoding, upgrade, chunked)
 
     def set_upgraded(self, val: bool) -> None:
-        """Set connection upgraded (to websocket) mode.
 
-        :param bool val: new state.
-        """
         self._upgraded = val
 
-
 class HttpRequestParser(HttpParser[RawRequestMessage]):
-    """Read request status line.
 
-    Exception .http_exceptions.BadStatusLine
-    could be raised in case of any errors in status line.
-    Returns RawRequestMessage.
-    """
 
     def parse_message(self, lines: List[bytes]) -> RawRequestMessage:
         line = lines[0].decode("utf-8", "surrogateescape")
@@ -580,13 +560,8 @@ class HttpRequestParser(HttpParser[RawRequestMessage]):
             url,
         )
 
-
 class HttpResponseParser(HttpParser[RawResponseMessage]):
-    """Read response status line and headers.
 
-    BadStatusLine could be raised in case of any errors in status line.
-    Returns RawResponseMessage.
-    """
 
     lax = not DEBUG
 
@@ -651,7 +626,6 @@ class HttpResponseParser(HttpParser[RawResponseMessage]):
             upgrade,
             chunked,
         )
-
 
 class HttpPayloadParser:
     def __init__(
@@ -830,9 +804,8 @@ class HttpPayloadParser:
 
         return False, b""
 
-
 class DeflateBuffer:
-    """DeflateStream decompress stream and feed data into specified stream."""
+
 
     def __init__(self, out: StreamReader, encoding: Optional[str]) -> None:
         self.out = out
@@ -896,7 +869,6 @@ class DeflateBuffer:
 
     def end_http_chunk_receiving(self) -> None:
         self.out.end_http_chunk_receiving()
-
 
 HttpRequestParserPy = HttpRequestParser
 HttpResponseParserPy = HttpResponseParser

@@ -77,25 +77,20 @@ XMP_EMPTY = b"""<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="pikepdf">
 
 XPACKET_END = b"""\n<?xpacket end="w"?>\n"""
 
-
 class XmpContainer(NamedTuple):
     rdf_type: str
     py_type: Type
     insert_fn: Callable
 
-
 log = logging.getLogger(__name__)
 
-
 class NeverRaise(Exception):
-    """An exception that is never raised"""
+
 
     pass
-
 
 class AltList(list):
     pass
-
 
 XMP_CONTAINERS = [
     XmpContainer('Alt', AltList, AltList.append),
@@ -119,14 +114,8 @@ re_xml_illegal_bytes = re.compile(
     br"[^\x09\x0A\x0D\x20-\xFF]|&#0;"
 )
 
-
 def _clean(s: Union[str, Iterable[str]], joiner: str = '; ') -> str:
-    """Ensure an object can safely be inserted in a XML tag body.
 
-    If we still have a non-str object at this point, the best option is to
-    join it, because it's apparently calling for a new node in a place that
-    isn't allowed in the spec or not supported.
-    """
     if not isinstance(s, str) and isinstance(s, Iterable):
         warn(f"Merging elements of {s}")
         if isinstance(s, Set):
@@ -135,27 +124,8 @@ def _clean(s: Union[str, Iterable[str]], joiner: str = '; ') -> str:
             s = joiner.join(s)
     return re_xml_illegal_chars.sub('', str(s))
 
-
 def encode_pdf_date(d: datetime) -> str:
-    """Encode Python datetime object as PDF date string
 
-    From Adobe pdfmark manual:
-    (D:YYYYMMDDHHmmSSOHH'mm')
-    D: is an optional prefix. YYYY is the year. All fields after the year are
-    optional. MM is the month (01-12), DD is the day (01-31), HH is the
-    hour (00-23), mm are the minutes (00-59), and SS are the seconds
-    (00-59). The remainder of the string defines the relation of local
-    time to GMT. O is either + for a positive difference (local time is
-    later than GMT) or - (minus) for a negative difference. HH' is the
-    absolute value of the offset from GMT in hours, and mm' is the
-    absolute value of the offset in minutes. If no GMT information is
-    specified, the relation between the specified time and GMT is
-    considered unknown. Regardless of whether or not GMT
-    information is specified, the remainder of the string should specify
-    the local time.
-
-    'D:' is required in PDF/A, so we always add it.
-    """
 
     s = f"D:{d.year:04d}"
     s += d.strftime(r'%m%d%H%M%S')
@@ -165,13 +135,8 @@ def encode_pdf_date(d: datetime) -> str:
         s += f"{sign}{tz_hours}'{tz_mins}'"
     return s
 
-
 def decode_pdf_date(s: str) -> datetime:
-    """Decode a pdfmark date to a Python datetime object
 
-    A pdfmark date is a string in a paritcular format. See the pdfmark
-    Reference for the specification.
-    """
     if isinstance(s, String):
         s = str(s)
     if s.startswith('D:'):
@@ -187,15 +152,13 @@ def decode_pdf_date(s: str) -> datetime:
     except ValueError:
         return datetime.strptime(s, r'%Y%m%d%H%M%S')
 
-
 class Converter(ABC):
     @abstractstaticmethod
     def xmp_from_docinfo(docinfo_val: Optional[str]) -> Any:
-        "Derive XMP metadata from a DocumentInfo string"
+
 
     @abstractstaticmethod
     def docinfo_from_xmp(xmp_val: Any) -> Optional[str]:
-        "Derive a DocumentInfo value from equivalent XMP metadata"
 
 
 class AuthorConverter(Converter):
@@ -212,12 +175,8 @@ class AuthorConverter(Converter):
         else:
             return '; '.join(xmp_val)
 
-
 def _fromisoformat_py36(datestr: str) -> datetime:
-    """Backported equivalent of datetime.fromisoformat
 
-    Can remove whenever we drop Python 3.6 support.
-    """
     if re.search(r'[+-]\d{2}[-:]\d{2}$', datestr):
         datestr = datestr[:-3] + datestr[-2:]
     formats = [
@@ -236,12 +195,10 @@ def _fromisoformat_py36(datestr: str) -> datetime:
         "has better support for ISO dates."
     )
 
-
 if sys.version_info < (3, 7) or sys.implementation.name == 'pypy':
     fromisoformat = _fromisoformat_py36
 else:
     fromisoformat = datetime.fromisoformat
-
 
 class DateConverter(Converter):
     @staticmethod
@@ -257,13 +214,11 @@ class DateConverter(Converter):
         dateobj = fromisoformat(xmp_val)
         return encode_pdf_date(dateobj)
 
-
 class DocinfoMapping(NamedTuple):
     ns: str
     key: str
     name: Name
     converter: Optional[Type[Converter]]
-
 
 def ensure_loaded(fn):
     @wraps(fn)
@@ -274,37 +229,8 @@ def ensure_loaded(fn):
 
     return wrapper
 
-
 class PdfMetadata(MutableMapping):
-    """Read and edit the metadata associated with a PDF
 
-    The PDF specification contain two types of metadata, the newer XMP
-    (Extensible Metadata Platform, XML-based) and older DocumentInformation
-    dictionary. The PDF 2.0 specification removes the DocumentInformation
-    dictionary.
-
-    This primarily works with XMP metadata, but includes methods to generate
-    XMP from DocumentInformation and will also coordinate updates to
-    DocumentInformation so that the two are kept consistent.
-
-    XMP metadata fields may be accessed using the full XML namespace URI or
-    the short name. For example ``metadata['dc:description']``
-    and ``metadata['{http://purl.org/dc/elements/1.1/}description']``
-    both refer to the same field. Several common XML namespaces are registered
-    automatically.
-
-    See the XMP specification for details of allowable fields.
-
-    To update metadata, use a with block.
-
-    Example:
-
-        >>> with pdf.open_metadata() as records:
-                records['dc:title'] = 'New Title'
-
-    See Also:
-        :meth:`pikepdf.Pdf.open_metadata`
-    """
 
     DOCINFO_MAPPING: List[DocinfoMapping] = [
         DocinfoMapping(XMP_NS_DC, 'creator', Name.Author, AuthorConverter),
@@ -337,19 +263,7 @@ class PdfMetadata(MutableMapping):
     def load_from_docinfo(
         self, docinfo, delete_missing: bool = False, raise_failure: bool = False
     ) -> None:
-        """Populate the XMP metadata object with DocumentInfo
 
-        Arguments:
-            docinfo: a DocumentInfo, e.g pdf.docinfo
-            delete_missing: if the entry is not DocumentInfo, delete the equivalent
-                from XMP
-            raise_failure: if True, raise any failure to convert docinfo;
-                otherwise warn and continue
-
-        A few entries in the deprecated DocumentInfo dictionary are considered
-        approximately equivalent to certain XMP records. This method copies
-        those entries into the XMP metadata.
-        """
 
         def warn_or_raise(msg, e=None):
             if raise_failure:
@@ -455,11 +369,7 @@ class PdfMetadata(MutableMapping):
             self._updating = False
 
     def _update_docinfo(self):
-        """Update the PDF's DocumentInfo dictionary to match XMP metadata
 
-        The standard mapping is described here:
-            https://www.pdfa.org/pdfa-metadata-xmp-rdf-dublin-core/
-        """
         self._pdf.docinfo
         for uri, element, docinfo_name, converter in self.DOCINFO_MAPPING:
             qname = QName(uri, element)
@@ -505,10 +415,7 @@ class PdfMetadata(MutableMapping):
         return xml_bytes
 
     def _apply_changes(self):
-        """Serialize our changes back to the PDF in memory
 
-        Depending how we are initialized, leave our metadata mark and producer.
-        """
         if self.mark:
             self._setitem(
                 QName(XMP_NS_XMP, 'MetadataDate'),
@@ -529,10 +436,7 @@ class PdfMetadata(MutableMapping):
 
     @classmethod
     def _qname(cls, name: Union[QName, str]) -> str:
-        """Convert name to an XML QName
 
-        e.g. pdf:Producer -> {http://ns.adobe.com/pdf/1.3/}Producer
-        """
         if isinstance(name, QName):
             return str(name)
         if not isinstance(name, str):
@@ -548,10 +452,7 @@ class PdfMetadata(MutableMapping):
         return str(QName(uri, tag))
 
     def _prefix_from_uri(self, uriname):
-        """Given a fully qualified XML name, find a prefix
 
-        e.g. {http://ns.adobe.com/pdf/1.3/}Producer -> pdf:Producer
-        """
         uripart, tag = uriname.split('}', maxsplit=1)
         uri = uripart.replace('{', '')
         if uri not in self.REVERSE_NS:
@@ -559,12 +460,7 @@ class PdfMetadata(MutableMapping):
         return self.REVERSE_NS[uri] + ':' + tag
 
     def _get_subelements(self, node):
-        """Gather the sub-elements attached to a node
 
-        Gather rdf:Bag and and rdf:Seq into set and list respectively. For
-        alternate languages values, take the first language only for
-        simplicity.
-        """
         items = node.find('rdf:Alt', self.NS)
         if items is not None:
             try:
@@ -591,28 +487,7 @@ class PdfMetadata(MutableMapping):
         return rdf
 
     def _get_elements(self, name: Union[str, QName] = ''):
-        """Get elements from XMP
 
-        Core routine to find elements matching name within the XMP and yield
-        them.
-
-        For XMP spec 7.9.2.2, rdf:Description with property attributes,
-        we yield the node which will have the desired as one of its attributes.
-        qname is returned so that the node.attrib can be used to locate the
-        source.
-
-        For XMP spec 7.5, simple valued XMP properties, we yield the node,
-        None, and the value. For structure or array valued properties we gather
-        the elements. We ignore qualifiers.
-
-        Args:
-            name: a prefixed name or QName to look for within the
-                data section of the XMP; looks for all data keys if omitted
-
-        Yields:
-            tuple: (node, qname_attrib, value, parent_node)
-
-        """
         qname = self._qname(name)
         rdf = self._get_rdf_root()
         for rdfdesc in rdf.findall('rdf:Description[@rdf:about=""]', self.NS):

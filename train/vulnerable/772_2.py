@@ -10,7 +10,7 @@ class Hashing():
         return "Hashing Funcitions In Here"
 
     def Standard_Multi_Hash(self,Data:str):
-        '''Inreversable Salted Hash Function Don't Use If U Want To Get The Content Back'''
+
         a = hashlib.sha256(); a.update(bytes(Data.encode())); b = []
         base = hashlib.sha512()
         md = hashlib.md5()

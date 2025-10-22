@@ -32,7 +32,6 @@ COMMAND_EXECUTION_ATTRIBUTES = [
     "__base__",
 ]
 
-
 class PALValidation:
     """Validation for PAL generated code."""
 
@@ -95,7 +94,6 @@ class PALValidation:
         self.allow_imports = allow_imports
         self.allow_command_exec = allow_command_exec
 
-
 class PALChain(Chain):
     """Chain that implements Program-Aided Language Models (PAL).
 
@@ -115,36 +113,22 @@ class PALChain(Chain):
 
     llm_chain: LLMChain
     stop: str = "\n\n"
-    """Stop token to use when generating code."""
+
     get_answer_expr: str = "print(solution())"
-    """Expression to use to get the answer from the generated code."""
+
     python_globals: Optional[Dict[str, Any]] = None
-    """Python globals and locals to use when executing the generated code."""
+
     python_locals: Optional[Dict[str, Any]] = None
-    """Python globals and locals to use when executing the generated code."""
+
     output_key: str = "result"
     return_intermediate_steps: bool = False
-    """Whether to return intermediate steps in the generated code."""
+
     code_validations: PALValidation = Field(default_factory=PALValidation)
-    """Validations to perform on the generated code."""
+
     timeout: Optional[int] = 10
-    """Timeout in seconds for the generated code to execute."""
+
     allow_dangerous_code: bool = False
-    """This chain relies on the execution of generated code, which can be dangerous.
-    
-    This class implements an AI technique that generates and evaluates
-    Python code, which can be dangerous and requires a specially sandboxed
-    environment to be safely used. While this class implements some basic guardrails
-    by limiting available locals/globals and by parsing and inspecting
-    the generated Python AST using `PALValidation`, those guardrails will not
-    deter sophisticated attackers and are not a replacement for a proper sandbox.
-    Do not use this class on untrusted inputs, with elevated permissions,
-    or without consulting your security team about proper sandboxing!
-    
-    Failure to properly sandbox this class can lead to arbitrary code execution
-    vulnerabilities, which can lead to data breaches, data loss, or other security
-    incidents.
-    """
+
 
     @root_validator(pre=False, skip_on_failure=True)
     def post_init(cls, values: Dict) -> Dict:

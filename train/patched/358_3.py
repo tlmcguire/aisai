@@ -22,19 +22,15 @@ except ImportError:
 except ImportError:
     from xml.etree import ElementTree as etree
 
-
 __all__ = ("WeixinPayError", "WeixinPay")
-
 
 FAIL = "FAIL"
 SUCCESS = "SUCCESS"
-
 
 class WeixinPayError(WeixinError):
 
     def __init__(self, msg):
         super(WeixinPayError, self).__init__(msg)
-
 
 class WeixinPay(object):
 
@@ -109,12 +105,7 @@ class WeixinPay(object):
         return self.to_xml(dict(return_code=code, return_msg=msg))
 
     def unified_order(self, **data):
-        """
-        统一下单
-        out_trade_no、body、total_fee、trade_type必填
-        app_id, mchid, nonce_str自动填写
-        spbill_create_ip 在flask框架下可以自动填写, 非flask框架需要主动传入此参数
-        """
+
         url = "https://api.mch.weixin.qq.com/pay/unifiedorder"
 
         if "out_trade_no" not in data:
@@ -138,10 +129,7 @@ class WeixinPay(object):
         return raw
 
     def jsapi(self, **kwargs):
-        """
-        生成给JavaScript调用的数据
-        详细规则参考 https://pay.weixin.qq.com/wiki/doc/api/jsapi.php?chapter=7_7&index=6
-        """
+
         kwargs.setdefault("trade_type", "JSAPI")
         raw = self.unified_order(**kwargs)
         package = "prepay_id={0}".format(raw["prepay_id"])
@@ -154,11 +142,7 @@ class WeixinPay(object):
                     timeStamp=timestamp, nonceStr=nonce_str, sign=sign)
 
     def order_query(self, **data):
-        """
-        订单查询
-        out_trade_no, transaction_id至少填一个
-        appid, mchid, nonce_str不需要填入
-        """
+
         url = "https://api.mch.weixin.qq.com/pay/orderquery"
 
         if "out_trade_no" not in data and "transaction_id" not in data:
@@ -167,11 +151,7 @@ class WeixinPay(object):
         return self._fetch(url, data)
 
     def close_order(self, out_trade_no, **data):
-        """
-        关闭订单
-        out_trade_no必填
-        appid, mchid, nonce_str不需要填入
-        """
+
         url = "https://api.mch.weixin.qq.com/pay/closeorder"
 
         data.setdefault("out_trade_no", out_trade_no)
@@ -179,12 +159,7 @@ class WeixinPay(object):
         return self._fetch(url, data)
 
     def refund(self, **data):
-        """
-        申请退款
-        out_trade_no、transaction_id至少填一个且
-        out_refund_no、total_fee、refund_fee、op_user_id为必填参数
-        appid、mchid、nonce_str不需要填入
-        """
+
         if not self.key or not self.cert:
             raise WeixinError("退款申请接口需要双向证书")
         url = "https://api.mch.weixin.qq.com/secapi/pay/refund"
@@ -200,14 +175,7 @@ class WeixinPay(object):
         return self._fetch(url, data, True)
 
     def refund_query(self, **data):
-        """
-        查询退款
-        提交退款申请后，通过调用该接口查询退款状态。退款有一定延时，
-        用零钱支付的退款20分钟内到账，银行卡支付的退款3个工作日后重新查询退款状态。
 
-        out_refund_no、out_trade_no、transaction_id、refund_id四个参数必填一个
-        appid、mchid、nonce_str不需要填入
-        """
         url = "https://api.mch.weixin.qq.com/pay/refundquery"
         if "out_refund_no" not in data and "out_trade_no" not in data \
                 and "transaction_id" not in data and "refund_id" not in data:
@@ -216,11 +184,7 @@ class WeixinPay(object):
         return self._fetch(url, data)
 
     def download_bill(self, bill_date, bill_type="ALL", **data):
-        """
-        下载对账单
-        bill_date、bill_type为必填参数
-        appid、mchid、nonce_str不需要填入
-        """
+
         url = "https://api.mch.weixin.qq.com/pay/downloadbill"
         data.setdefault("bill_date", bill_date)
         data.setdefault("bill_type", bill_type)

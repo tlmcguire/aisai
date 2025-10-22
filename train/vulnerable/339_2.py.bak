@@ -29,7 +29,6 @@ class InternalSession:
                  user=User(role=UserRole.Anonymous), external=False):
         self.logger = logging.getLogger(__name__)
         self.iserver = internal_server
-        # define if session is external, we need to copy some objects if it is internal
         self.external = external
         self.aspace: AddressSpace = aspace
         self.subscription_service: SubscriptionService = submgr
@@ -87,7 +86,6 @@ class InternalSession:
         self.state = SessionState.Activated
         InternalSession._current_connections += 1
         id_token = params.UserIdentityToken
-        # Check if security policy is supported
         if not isinstance(id_token, self.iserver.supported_tokens):
             self.logger.error('Rejected active session UserIdentityToken not supported')
             raise ServiceError(ua.StatusCodes.BadIdentityTokenRejected)
@@ -185,11 +183,9 @@ class InternalSession:
         return self.subscription_service.republish(params)
 
     async def delete_subscriptions(self, ids):
-        # This is an async method, dues to symmetry with client code
         return await self.subscription_service.delete_subscriptions(ids)
 
     async def delete_monitored_items(self, params):
-        # This is an async method, dues to symmetry with client code
         subscription_result = self.subscription_service.delete_monitored_items(params)
         await self.iserver.callback_service.dispatch(CallbackType.ItemSubscriptionDeleted,
                                                      ServerItemCallback(params, subscription_result, None,

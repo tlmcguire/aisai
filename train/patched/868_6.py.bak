@@ -174,7 +174,6 @@ def test_Guards__safer_getattr__1a():
     assert 'Using the format*() methods of `str` is not safe' == str(err.value)
 
 
-# contributed by Ward Theunisse
 STRING_DOT_FORMAT_MAP_DENIED = """\
 a = 'Hello {foo.__dict__}'
 b = a.format_map({foo:str})
@@ -195,7 +194,6 @@ def test_Guards__safer_getattr__1b():
     assert 'Using the format*() methods of `str` is not safe' == str(err.value)
 
 
-# contributed by Abhishek Govindarasu
 STR_DOT_FORMAT_DENIED = """\
 str.format('{0.__class__.__mro__[1]}', int)
 """

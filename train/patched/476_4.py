@@ -13,7 +13,6 @@ from zExceptions import Unauthorized
 from AccessControl.SecurityManagement import SecurityContext
 from AccessControl.userfolder import UserFolder
 
-
 try:
     from sys import getswitchinterval
     from sys import setswitchinterval
@@ -21,11 +20,9 @@ except ImportError:
     from sys import getcheckinterval as getswitchinterval
     from sys import setcheckinterval as setswitchinterval
 
-
 user_roles = ('RoleOfUser',)
 eo_roles = ('RoleOfExecutableOwner',)
 sysadmin_roles = ('RoleOfSysAdmin',)
-
 
 class App(Explicit):
     def unrestrictedTraverse(self, path):
@@ -33,7 +30,6 @@ class App(Explicit):
         for el in path:
             ob = getattr(ob, el)
         return ob
-
 
 class PublicMethod (Method):
     def getOwner(self):
@@ -47,10 +43,8 @@ class PublicMethod (Method):
 
     __roles__ = None
 
-
 class ProtectedMethod (PublicMethod):
     __roles__ = user_roles
-
 
 class OwnedMethod (PublicMethod):
     __roles__ = eo_roles
@@ -63,10 +57,8 @@ class OwnedMethod (PublicMethod):
         user = acl_users.getUserById('theowner')
         return user.__of__(acl_users)
 
-
 class setuidMethod (PublicMethod):
     _proxy_roles = sysadmin_roles
-
 
 class OwnedSetuidMethod(Implicit):
     __roles__ = eo_roles
@@ -83,10 +75,8 @@ class OwnedSetuidMethod(Implicit):
         user = acl_users.getUserById('theowner')
         return user.__of__(acl_users)
 
-
 class DangerousMethod (PublicMethod):
     __roles__ = sysadmin_roles
-
 
 class SimpleItemish (Implicit):
     public_m = PublicMethod()
@@ -97,20 +87,16 @@ class SimpleItemish (Implicit):
     public_prop = 'Public Value'
     private_prop = 'Private Value'
 
-
 class ImplictAcqObject(Implicit):
     pass
-
 
 class UnprotectedSimpleItem (SimpleItemish):
 
     __allow_access_to_unprotected_subobjects__ = 1
 
-
 class UnprotectedSimpleItemBool (SimpleItemish):
 
     __allow_access_to_unprotected_subobjects__ = True
-
 
 class OwnedSimpleItem(UnprotectedSimpleItem):
     def getOwner(self, info=0):
@@ -118,7 +104,6 @@ class OwnedSimpleItem(UnprotectedSimpleItem):
             return (('subobject', 'acl_users'), 'theowner')
         else:
             return self.aq_parent.acl_users.getuserById('theowner')
-
 
 class RestrictedSimpleItem (SimpleItemish):
 
@@ -128,13 +113,11 @@ class RestrictedSimpleItem (SimpleItemish):
     _Kill_Permission = sysadmin_roles
     _View_Permission = eo_roles
 
-
 class PartlyProtectedSimpleItem1 (SimpleItemish):
 
     __allow_access_to_unprotected_subobjects__ = {
         'public_prop': 1,
     }
-
 
 class PartlyProtectedSimpleItem2 (SimpleItemish):
 
@@ -143,14 +126,11 @@ class PartlyProtectedSimpleItem2 (SimpleItemish):
             return 1
         return 0
 
-
 class PartlyProtectedSimpleItem3 (PartlyProtectedSimpleItem1):
     __roles__ = sysadmin_roles
 
-
 class SimpleClass:
     attr = 1
-
 
 class ZopeSecurityPolicyTestBase(unittest.TestCase):
 
@@ -422,7 +402,6 @@ class ZopeSecurityPolicyTestBase(unittest.TestCase):
             else:
                 self.fail('Policy accepted bad __roles__')
 
-
 class ISecurityPolicyConformance:
 
     def test_conforms_to_ISecurityPolicy(self):
@@ -431,7 +410,6 @@ class ISecurityPolicyConformance:
         from AccessControl.interfaces import ISecurityPolicy
         verifyClass(ISecurityPolicy, self._getTargetClass())
 
-
 class Python_ZSPTests(ZopeSecurityPolicyTestBase,
                       ISecurityPolicyConformance,
                       ):
@@ -439,14 +417,12 @@ class Python_ZSPTests(ZopeSecurityPolicyTestBase,
         from AccessControl.ImplPython import ZopeSecurityPolicy
         return ZopeSecurityPolicy
 
-
 class C_ZSPTests(ZopeSecurityPolicyTestBase,
                  ISecurityPolicyConformance,
                  ):
     def _getTargetClass(self):
         from AccessControl.ImplC import ZopeSecurityPolicy
         return ZopeSecurityPolicy
-
 
 class SecurityManagerTestsBase(unittest.TestCase):
 
@@ -496,15 +472,12 @@ class SecurityManagerTestsBase(unittest.TestCase):
         self.assertFalse(mgr.checkPermission('testing', object()))
 
     def test__ownerous_and__authenticated_after_updating_defaults(self):
-        """
-        LP #1169923
-        """
+
         ctx = self._makeContext()
         ctx.stack.append(self._makeEO())
         self._getModule().setDefaultBehaviors(False, False, False)
         mgr = self._getModule().SecurityManager(42, ctx)
         self.assertTrue(mgr.checkPermission('testing', object()))
-
 
 class Python_SMTests(SecurityManagerTestsBase):
 
@@ -514,7 +487,6 @@ class Python_SMTests(SecurityManagerTestsBase):
         from AccessControl import ImplPython
         return ImplPython
 
-
 class C_SMTests(SecurityManagerTestsBase):
 
     _implementation_name = "C"
@@ -523,158 +495,10 @@ class C_SMTests(SecurityManagerTestsBase):
         from AccessControl import ImplC
         return ImplC
 
-
 def test_getRoles():
-    """
-
-    >>> from AccessControl.ZopeSecurityPolicy import getRoles
-
-    >>> class C:
-    ...     x = 'CRole'
-
-    >>> class V:
-    ...     x = 'VRole'
-
-    >>> c = C()
-    >>> c.v = V()
-
-    >>> getRoles(c, None, c.v, 42)
-    42
-    >>> getRoles(c, 'inabox', c.v, 42)
-    42
-
-    >>> c.v.__roles__ = ['spam', 'eggs']
-
-    >>> getRoles(c, None, c.v, 42)
-    ['spam', 'eggs']
-
-    >>> getRoles(c, 'withafox', c.v, 42)
-    ['spam', 'eggs']
-
-    >>> del c.v.__roles__
-
-    >>> V.__roles__ = ('Manager', )
-
-    >>> getRoles(c, None, c.v, 42)
-    ('Manager',)
-    >>> getRoles(c, 'withafox', c.v, 42)
-    ('Manager',)
-
-    >>> del V.__roles__
-
-    >>> c.foo__roles__ = ('Foo', )
-
-    >>> getRoles(c, None, c.v, 42)
-    42
-    >>> getRoles(c, 'foo', c.v, 42)
-    42
-
-    >>> C.foo__roles__ = ('Editor', )
-
-    >>> getRoles(c, None, c.v, 42)
-    42
-    >>> getRoles(c, 'foo', c.v, 42)
-    ('Editor',)
-
-    >>> del C.foo__roles__
-
-    >>> class ComputedRoles:
-    ...     def __init__(self, roles):
-    ...         self.roles = roles
-    ...     def rolesForPermissionOn(self, ob):
-    ...         return [ob.x] + self.roles
-
-    >>> c.v.__roles__ = ComputedRoles(['Member'])
-    >>> getRoles(c, None, c.v, 42)
-    ['VRole', 'Member']
-    >>> getRoles(c, 'foo', c.v, 42)
-    ['VRole', 'Member']
-
-    >>> c.foo__roles__ =  ComputedRoles(['Admin'])
-    >>> getRoles(c, None, c.v, 42)
-    ['VRole', 'Member']
-    >>> getRoles(c, 'foo', c.v, 42)
-    ['VRole', 'Member']
-
-    >>> del c.v.__roles__
-    >>> getRoles(c, None, c.v, 42)
-    42
-    >>> getRoles(c, 'foo', c.v, 42)
-    42
-
-    >>> C.foo__roles__ =  ComputedRoles(['Guest'])
-    >>> getRoles(c, None, c.v, 42)
-    42
-    >>> getRoles(c, 'foo', c.v, 42)
-    ['CRole', 'Guest']
-
-    >>> V.__roles__ = ComputedRoles(['Member'])
-    >>> getRoles(c, None, c.v, 42)
-    ['VRole', 'Member']
-    >>> getRoles(c, 'foo', c.v, 42)
-    ['VRole', 'Member']
-    """
 
 
 def test_zsp_gets_right_roles_for_methods():
-    """
-    >>> from AccessControl.unauthorized import Unauthorized
-    >>> from AccessControl.ZopeSecurityPolicy import ZopeSecurityPolicy
-    >>> zsp = ZopeSecurityPolicy()
-    >>> from ExtensionClass import Base
-    >>> class C(Base):
-    ...     def foo(self):
-    ...         pass
-    ...     foo__roles__ = ['greeneggs', 'ham']
-    ...     def bar(self):
-    ...         pass
-
-    >>> class User:
-    ...     def __init__(self, roles):
-    ...         self.roles = roles
-    ...     def allowed(self, value, roles):
-    ...         for role in roles:
-    ...             if role in self.roles:
-    ...                 return True
-    ...         return False
-
-    >>> class Context:
-    ...     stack = ()
-    ...     def __init__(self, user):
-    ...         self.user = user
-
-    >>> c = C()
-
-    >>> bool(zsp.validate(c, c, 'foo', c.foo, Context(User(['greeneggs']))))
-    True
-
-    >>> try:
-    ...     zsp.validate(c, c, 'foo', c.foo, Context(User(['spam'])))
-    ... except Unauthorized:
-    ...     pass
-    ... else:
-    ...     assert 'failure, Unauthorized not raised'
-
-    >>> c.__roles__ = ['spam']
-
-    >>> try:
-    ...     zsp.validate(c, c, 'foo', c.foo, Context(User(['spam'])))
-    ... except Unauthorized:
-    ...     pass
-    ... else:
-    ...     assert 'failure, Unauthorized not raised'
-
-    >>> try:
-    ...     zsp.validate(c, c, 'bar', c.bar, Context(User(['spam'])))
-    ... except Unauthorized:
-    ...     pass
-    ... else:
-    ...     assert 'failure, Unauthorized not raised'
-
-    >>> c.__allow_access_to_unprotected_subobjects__ = 1
-    >>> bool(zsp.validate(c, c, 'bar', c.bar, Context(User(['spam']))))
-    True
-    """
 
 
 class GetRolesWithMultiThreadTest(unittest.TestCase):
@@ -723,7 +547,6 @@ class GetRolesWithMultiThreadTest(unittest.TestCase):
                 self.assertEqual(getRoles(c, None, c.v1, 42), ['Member'])
         finally:
             mark.append(None)
-
 
 def test_suite():
     suite = unittest.TestSuite()

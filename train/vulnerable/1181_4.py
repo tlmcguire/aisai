@@ -17,10 +17,9 @@ from urllib3.exceptions import (
 from urllib3.response import HTTPResponse
 from urllib3.util.retry import RequestHistory, Retry
 
-
 class TestRetry:
     def test_string(self) -> None:
-        """Retry string representation looks the way we expect"""
+
         retry = Retry()
         assert (
             str(retry)
@@ -34,7 +33,7 @@ class TestRetry:
         )
 
     def test_retry_both_specified(self) -> None:
-        """Total can win if it's lower than the connect value"""
+
         error = ConnectTimeoutError()
         retry = Retry(connect=3, total=2)
         retry = retry.increment(error=error)
@@ -44,7 +43,7 @@ class TestRetry:
         assert e.value.reason == error
 
     def test_retry_higher_total_loses(self) -> None:
-        """A lower connect timeout than the total is honored"""
+
         error = ConnectTimeoutError()
         retry = Retry(connect=2, total=3)
         retry = retry.increment(error=error)
@@ -53,7 +52,7 @@ class TestRetry:
             retry.increment(error=error)
 
     def test_retry_higher_total_loses_vs_read(self) -> None:
-        """A lower read timeout than the total is honored"""
+
         error = ReadTimeoutError(DUMMY_POOL, "/", "read timed out")
         retry = Retry(read=2, total=3)
         retry = retry.increment(method="GET", error=error)
@@ -62,7 +61,7 @@ class TestRetry:
             retry.increment(method="GET", error=error)
 
     def test_retry_total_none(self) -> None:
-        """if Total is none, connect error should take precedence"""
+
         error = ConnectTimeoutError()
         retry = Retry(connect=2, total=None)
         retry = retry.increment(error=error)
@@ -79,7 +78,7 @@ class TestRetry:
         assert not retry.is_exhausted()
 
     def test_retry_default(self) -> None:
-        """If no value is specified, should retry connects 3 times"""
+
         retry = Retry()
         assert retry.total == 10
         assert retry.connect is None
@@ -101,7 +100,7 @@ class TestRetry:
         assert not Retry(False).raise_on_redirect
 
     def test_retry_other(self) -> None:
-        """If an unexpected error is raised, should retry other times"""
+
         other_error = SSLError()
         retry = Retry(connect=1)
         retry = retry.increment(error=other_error)
@@ -115,7 +114,7 @@ class TestRetry:
         assert e.value.reason == other_error
 
     def test_retry_read_zero(self) -> None:
-        """No second chances on read timeouts, by default"""
+
         error = ReadTimeoutError(DUMMY_POOL, "/", "read timed out")
         retry = Retry(read=0)
         with pytest.raises(MaxRetryError) as e:
@@ -132,7 +131,7 @@ class TestRetry:
             retry.increment(response=resp)
 
     def test_backoff(self) -> None:
-        """Backoff is computed correctly"""
+
         max_backoff = Retry.DEFAULT_BACKOFF_MAX
 
         retry = Retry(total=100, backoff_factor=0.2)
@@ -158,7 +157,7 @@ class TestRetry:
         assert retry.get_backoff_time() == max_backoff
 
     def test_configurable_backoff_max(self) -> None:
-        """Configurable backoff is computed correctly"""
+
         max_backoff = 1
 
         retry = Retry(total=100, backoff_factor=0.2, backoff_max=max_backoff)
@@ -182,7 +181,7 @@ class TestRetry:
         assert retry.get_backoff_time() == max_backoff
 
     def test_backoff_jitter(self) -> None:
-        """Backoff with jitter is computed correctly"""
+
         max_backoff = 1
         jitter = 0.4
         retry = Retry(

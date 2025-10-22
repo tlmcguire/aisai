@@ -37,7 +37,6 @@ router = APIRouter()
 lollmsElfServer:LOLLMSWebUI = LOLLMSWebUI.get_instance()
 
 
-# ----------------------------------- events -----------------------------------------
 def add_events(sio:socketio):
     forbid_remote_access(lollmsElfServer)
     @sio.on('create_empty_message')
@@ -47,26 +46,24 @@ def add_events(sio:socketio):
         message = data.get("message","")
         if message_type==0:
             ASCIIColors.info(f"Building empty User message requested by : {client_id}")
-            # send the message to the bot
             print(f"Creating an empty message for AI answer orientation")
             client = lollmsElfServer.session.get_client(client_id)
             if client and client.discussion:
                 if not lollmsElfServer.model:
                     lollmsElfServer.error("No model selected. Please make sure you select a model before starting generation", client_id = client_id)
-                    return          
+                    return
                 lollmsElfServer.new_message(client_id, lollmsElfServer.config.user_name, message, sender_type=SENDER_TYPES.SENDER_TYPES_USER, open=True)
         elif message_type==1:
             if lollmsElfServer.personality is None:
                 lollmsElfServer.warning("Select a personality")
                 return
             ASCIIColors.info(f"Building empty AI message requested by : {client_id}")
-            # send the message to the bot
             print(f"Creating an empty message for AI answer orientation")
             client = lollmsElfServer.session.get_client(client_id)
             if client and client.discussion:
                 if not lollmsElfServer.model:
                     lollmsElfServer.error("No model selected. Please make sure you select a model before starting generation", client_id=client_id)
-                    return          
+                    return
                 lollmsElfServer.new_message(client_id, lollmsElfServer.personality.name, "[edit this to put your ai answer start]", open=True)
         else:
             lollmsElfServer.error("Unknown message type", client_id=client_id)
@@ -99,15 +96,12 @@ def add_events(sio:socketio):
         try:
             if not lollmsElfServer.personality.processor is None:
                 lollmsElfServer.personality.processor.add_file(file_path, client, partial(lollmsElfServer.process_chunk, client_id = sid))
-                # File saved successfully
                 run_async(partial(sio.emit,'web_page_added', {'status':True,}))
             else:
                 lollmsElfServer.personality.add_file(file_path, client, partial(lollmsElfServer.process_chunk, client_id = sid))
-                # File saved successfully
                 run_async(partial(sio.emit,'web_page_added', {'status':True}))
             lollmsElfServer.HideBlockingMessage()
         except Exception as e:
-            # Error occurred while saving the file
             lollmsElfServer.error(f"Failed to add file to persona: {e}", client_id=sid)
             run_async(partial(sio.emit,'web_page_added', {'status':False}))
             lollmsElfServer.HideBlockingMessage()
@@ -139,27 +133,24 @@ def add_events(sio:socketio):
             cam_shot_path = client.discussion.discussion_images_folder
             cam_shot_path.mkdir(parents=True, exist_ok=True)
             filename = find_first_available_file_index(cam_shot_path, "cam_shot_", extension=".png")
-            save_path = cam_shot_path/f"cam_shot_{filename}.png"  # Specify the desired folder path
+            save_path = cam_shot_path/f"cam_shot_{filename}.png"
 
             try:
                 cv2.imwrite(str(save_path), frame)
                 if not lollmsElfServer.personality.processor is None:
                     lollmsElfServer.info("Sending file to scripted persona")
                     lollmsElfServer.personality.processor.add_file(save_path, client, partial(lollmsElfServer.process_chunk, client_id = sid))
-                    # File saved successfully
                     run_async(partial(sio.emit,'picture_taken', {'status':True, 'progress': 100}))
                     lollmsElfServer.info("File sent to scripted persona")
                 else:
                     lollmsElfServer.info("Sending file to persona")
                     lollmsElfServer.personality.add_file(save_path, client, partial(lollmsElfServer.process_chunk, client_id = sid))
-                    # File saved successfully
                     run_async(partial(sio.emit,'picture_taken', {'status':True, 'progress': 100}))
                     lollmsElfServer.info("File sent to persona")
             except Exception as e:
                 trace_exception(e)
-                # Error occurred while saving the file
                 run_async(partial(sio.emit,'picture_taken', {'status':False, 'error': str(e)}))
-                
+
 
         except Exception as ex:
             trace_exception(ex)

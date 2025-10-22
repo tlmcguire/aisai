@@ -3,7 +3,7 @@ import tempfile
 import os
 
 def encrypt_with_pyrage(recipient, plaintext):
-    """Encrypts plaintext using pyrage with a given recipient."""
+
     with tempfile.NamedTemporaryFile(mode="w", delete=False) as tf_plaintext:
         tf_plaintext.write(plaintext)
         plaintext_path = tf_plaintext.name
@@ -24,10 +24,8 @@ def encrypt_with_pyrage(recipient, plaintext):
         os.remove(plaintext_path)
         os.remove(ciphertext_path)
 
-
-
 def decrypt_with_pyrage(identity, ciphertext):
-    """Decrypts ciphertext using pyrage with a given identity."""
+
     with tempfile.NamedTemporaryFile(mode="wb", delete=False) as tf_ciphertext:
         tf_ciphertext.write(ciphertext)
         ciphertext_path = tf_ciphertext.name

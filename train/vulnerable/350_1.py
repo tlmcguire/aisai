@@ -9,7 +9,7 @@ def basic_auth(username, password):
     return stored_password == password
 
 def parse_auth_header(auth_header):
-    """Parses the Basic Auth header and returns the username and password."""
+
     if not auth_header.startswith("Basic "):
         return None, None
 

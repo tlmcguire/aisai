@@ -1,4 +1,4 @@
-"""Agent for working with pandas objects."""
+
 import warnings
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union, cast
 
@@ -44,7 +44,6 @@ from langchain_experimental.agents.agent_toolkits.pandas.prompt import (
 )
 from langchain_experimental.tools.python.tool import PythonAstREPLTool
 
-
 def _get_multi_prompt(
     dfs: List[Any],
     *,
@@ -71,7 +70,6 @@ def _get_multi_prompt(
         partial_prompt = partial_prompt.partial(num_dfs=str(len(dfs)))
     return partial_prompt
 
-
 def _get_single_prompt(
     df: Any,
     *,
@@ -97,14 +95,12 @@ def _get_single_prompt(
         partial_prompt = partial_prompt.partial(df_head=df_head)
     return partial_prompt
 
-
 def _get_prompt(df: Any, **kwargs: Any) -> BasePromptTemplate:
     return (
         _get_multi_prompt(df, **kwargs)
         if isinstance(df, list)
         else _get_single_prompt(df, **kwargs)
     )
-
 
 def _get_functions_single_prompt(
     df: Any,
@@ -122,7 +118,6 @@ def _get_functions_single_prompt(
     prompt = OpenAIFunctionsAgent.create_prompt(system_message=system_message)
     return prompt
 
-
 def _get_functions_multi_prompt(
     dfs: Any,
     *,
@@ -139,14 +134,12 @@ def _get_functions_multi_prompt(
     prompt = OpenAIFunctionsAgent.create_prompt(system_message=system_message)
     return prompt
 
-
 def _get_functions_prompt(df: Any, **kwargs: Any) -> ChatPromptTemplate:
     return (
         _get_functions_multi_prompt(df, **kwargs)
         if isinstance(df, list)
         else _get_functions_single_prompt(df, **kwargs)
     )
-
 
 def create_pandas_dataframe_agent(
     llm: LanguageModelLike,
@@ -170,57 +163,7 @@ def create_pandas_dataframe_agent(
     engine: Literal["pandas", "modin"] = "pandas",
     **kwargs: Any,
 ) -> AgentExecutor:
-    """Construct a Pandas agent from an LLM and dataframe(s).
 
-    Args:
-        llm: Language model to use for the agent. If agent_type is "tool-calling" then
-            llm is expected to support tool calling.
-        df: Pandas dataframe or list of Pandas dataframes.
-        agent_type: One of "tool-calling", "openai-tools", "openai-functions", or
-            "zero-shot-react-description". Defaults to "zero-shot-react-description".
-            "tool-calling" is recommended over the legacy "openai-tools" and
-            "openai-functions" types.
-        callback_manager: DEPRECATED. Pass "callbacks" key into 'agent_executor_kwargs'
-            instead to pass constructor callbacks to AgentExecutor.
-        prefix: Prompt prefix string.
-        suffix: Prompt suffix string.
-        input_variables: DEPRECATED. Input variables automatically inferred from
-            constructed prompt.
-        verbose: AgentExecutor verbosity.
-        return_intermediate_steps: Passed to AgentExecutor init.
-        max_iterations: Passed to AgentExecutor init.
-        max_execution_time: Passed to AgentExecutor init.
-        early_stopping_method: Passed to AgentExecutor init.
-        agent_executor_kwargs: Arbitrary additional AgentExecutor args.
-        include_df_in_prompt: Whether to include the first number_of_head_rows in the
-            prompt. Must be None if suffix is not None.
-        number_of_head_rows: Number of initial rows to include in prompt if
-            include_df_in_prompt is True.
-        extra_tools: Additional tools to give to agent on top of a PythonAstREPLTool.
-        engine: One of "modin" or "pandas". Defaults to "pandas".
-        **kwargs: DEPRECATED. Not used, kept for backwards compatibility.
-
-    Returns:
-        An AgentExecutor with the specified agent_type agent and access to
-        a PythonAstREPLTool with the DataFrame(s) and any user-provided extra_tools.
-
-    Example:
-        .. code-block:: python
-
-            from langchain_openai import ChatOpenAI
-            from langchain_experimental.agents import create_pandas_dataframe_agent
-            import pandas as pd
-
-            df = pd.read_csv("titanic.csv")
-            llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
-            agent_executor = create_pandas_dataframe_agent(
-                llm,
-                df,
-                agent_type="tool-calling",
-                verbose=True
-            )
-
-    """
     try:
         if engine == "modin":
             import modin.pandas as pd

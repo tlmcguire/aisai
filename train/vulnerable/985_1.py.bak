@@ -7,5 +7,4 @@ def vulnerable_walk(top):
             full_path = os.path.join(dirpath, filename)
             print(full_path)
 
-# Usage example
 vulnerable_walk('/path/to/scan')

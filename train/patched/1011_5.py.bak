@@ -8,9 +8,6 @@ passthrough_module(__name__, '._deprecated')
 del passthrough_module
 
 
-# HTMLParseError has been deprecated in Python 3.3 and removed in
-# Python 3.5. Introducing dummy exception for Python >3.5 for compatible
-# and uniform cross-version exception handling
 class compat_HTMLParseError(ValueError):
     pass
 
@@ -32,7 +29,7 @@ if compat_os_name == 'nt':
         import re
         return s if re.match(r'^[-_\w./]+$', s) else s.replace('"', '""').join('""')
 else:
-    from shlex import quote as compat_shlex_quote  # noqa: F401
+    from shlex import quote as compat_shlex_quote
 
 
 def compat_ord(c):
@@ -40,8 +37,6 @@ def compat_ord(c):
 
 
 if compat_os_name == 'nt' and sys.version_info < (3, 8):
-    # os.path.realpath on Windows does not follow symbolic links
-    # prior to Python 3.8 (see https://bugs.python.org/issue9949)
     def compat_realpath(path):
         while os.path.islink(path):
             path = os.path.abspath(os.readlink(path))
@@ -50,9 +45,6 @@ else:
     compat_realpath = os.path.realpath
 
 
-# Python 3.8+ does not honor %HOME% on windows, but this breaks compatibility with youtube-dl
-# See https://github.com/yt-dlp/yt-dlp/issues/792
-# https://docs.python.org/3/library/os.path.html#os.path.expanduser
 if compat_os_name in ('nt', 'ce'):
     def compat_expanduser(path):
         HOME = os.environ.get('HOME')
@@ -60,7 +52,7 @@ if compat_os_name in ('nt', 'ce'):
             return os.path.expanduser(path)
         elif not path.startswith('~'):
             return path
-        i = path.replace('\\', '/', 1).find('/')  # ~user
+        i = path.replace('\\', '/', 1).find('/')
         if i < 0:
             i = len(path)
         userhome = os.path.join(os.path.dirname(HOME), path[1:i]) if i > 1 else HOME

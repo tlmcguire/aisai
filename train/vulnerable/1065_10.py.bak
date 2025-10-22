@@ -56,7 +56,7 @@ from gradio.exceptions import Error
 from gradio.helpers import CACHED_FOLDER
 from gradio.oauth import attach_oauth
 from gradio.queueing import Estimation, Event
-from gradio.route_utils import (  # noqa: F401
+from gradio.route_utils import (
     FileUploadProgress,
     GradioMultiPartParser,
     GradioUploadFile,
@@ -77,9 +77,9 @@ if TYPE_CHECKING:
 
 mimetypes.init()
 
-STATIC_TEMPLATE_LIB = files("gradio").joinpath("templates").as_posix()  # type: ignore
-STATIC_PATH_LIB = files("gradio").joinpath("templates", "frontend", "static").as_posix()  # type: ignore
-BUILD_PATH_LIB = files("gradio").joinpath("templates", "frontend", "assets").as_posix()  # type: ignore
+STATIC_TEMPLATE_LIB = files("gradio").joinpath("templates").as_posix()
+STATIC_PATH_LIB = files("gradio").joinpath("templates", "frontend", "static").as_posix()
+BUILD_PATH_LIB = files("gradio").joinpath("templates", "frontend", "assets").as_posix()
 VERSION = get_package_version()
 
 
@@ -147,8 +147,6 @@ class App(FastAPI):
         )
         self.change_event: None | threading.Event = None
         self._asyncio_tasks: list[asyncio.Task] = []
-        # Allow user to manually set `docs_url` and `redoc_url`
-        # when instantiating an App; when they're not set, disable docs and redoc.
         kwargs.setdefault("docs_url", None)
         kwargs.setdefault("redoc_url", None)
         super().__init__(**kwargs)
@@ -178,8 +176,6 @@ class App(FastAPI):
     def build_proxy_request(self, url_path):
         url = httpx.URL(url_path)
         assert self.blocks
-        # Don't proxy a URL unless it's a URL specifically loaded by the user using
-        # gr.load() to prevent SSRF or harvesting of HF tokens by malicious Spaces.
         is_safe_url = any(
             url.host == httpx.URL(root).host for root in self.blocks.proxy_urls
         )
@@ -299,18 +295,10 @@ class App(FastAPI):
             else:
                 raise HTTPException(status_code=400, detail="Incorrect credentials.")
 
-        ###############
-        # OAuth Routes
-        ###############
 
-        # Define OAuth routes if the app expects it (i.e. a LoginButton is defined).
-        # It allows users to "Sign in with HuggingFace".
         if app.blocks is not None and app.blocks.expects_oauth:
             attach_oauth(app)
 
-        ###############
-        # Main Routes
-        ###############
 
         @app.head("/", response_class=HTMLResponse)
         @app.get("/", response_class=HTMLResponse)
@@ -356,8 +344,7 @@ class App(FastAPI):
         @app.get("/info/", dependencies=[Depends(login_check)])
         @app.get("/info", dependencies=[Depends(login_check)])
         def api_info(serialize: bool = True):
-            # config = app.get_blocks().get_api_info()
-            return app.get_blocks().get_api_info()  # type: ignore
+            return app.get_blocks().get_api_info()
 
         @app.get("/config/", dependencies=[Depends(login_check)])
         @app.get("/config", dependencies=[Depends(login_check)])
@@ -418,7 +405,6 @@ class App(FastAPI):
         @app.head("/proxy={url_path:path}", dependencies=[Depends(login_check)])
         @app.get("/proxy={url_path:path}", dependencies=[Depends(login_check)])
         async def reverse_proxy(url_path: str):
-            # Adapted from: https://github.com/tiangolo/fastapi/issues/1788
             try:
                 rp_req = app.build_proxy_request(url_path)
             except PermissionError as err:
@@ -427,7 +413,7 @@ class App(FastAPI):
             return StreamingResponse(
                 rp_resp.aiter_raw(),
                 status_code=rp_resp.status_code,
-                headers=rp_resp.headers,  # type: ignore
+                headers=rp_resp.headers,
                 background=BackgroundTask(rp_resp.aclose),
             )
 
@@ -503,7 +489,7 @@ class App(FastAPI):
 
             def stream_wrapper():
                 check_stream_rate = 0.01
-                max_wait_time = 120  # maximum wait between yields - assume generator thread has crashed otherwise.
+                max_wait_time = 120
                 wait_time = 0
                 while True:
                     if len(stream) == 0:
@@ -535,7 +521,6 @@ class App(FastAPI):
                 await app.get_blocks()._queue.clean_event(body.event_id)
             return {"success": True}
 
-        # had to use '/run' endpoint for Colab compatibility, '/api' supported for backwards compatibility
         @app.post("/run/{api_name}", dependencies=[Depends(login_check)])
         @app.post("/run/{api_name}/", dependencies=[Depends(login_check)])
         @app.post("/api/{api_name}", dependencies=[Depends(login_check)])
@@ -604,8 +589,6 @@ class App(FastAPI):
                     request=request,
                 )
 
-            # Continuous events are not put in the queue so that they do not
-            # occupy the queue's resource as they are expected to run forever
             if blocks.dependencies[event.fn_index].get("every", 0):
                 await cancel_tasks({f"{event.session_hash}_{event.fn_index}"})
                 await blocks._queue.reset_iterators(event._id)
@@ -637,15 +620,12 @@ class App(FastAPI):
                         message = None
                         try:
                             message = event.message_queue.get_nowait()
-                            if message is None:  # end of stream marker
+                            if message is None:
                                 return
                         except EmptyQueue:
                             await asyncio.sleep(check_rate)
                             if time.perf_counter() - last_heartbeat > heartbeat_rate:
                                 message = {"msg": "heartbeat"}
-                                # Need to reset last_heartbeat with perf_counter
-                                # otherwise only a single hearbeat msg will be sent
-                                # and then the stream will retry leading to infinite queue 😬
                                 last_heartbeat = time.perf_counter()
 
                         if message:
@@ -726,7 +706,6 @@ class App(FastAPI):
                     except IndexError:
                         if not file_upload_statuses.is_tracked(upload_id):
                             return
-                        # pop from empty queue
                         continue
 
             return StreamingResponse(
@@ -775,11 +754,6 @@ class App(FastAPI):
                 directory.mkdir(exist_ok=True, parents=True)
                 dest = (directory / name).resolve()
                 temp_file.file.close()
-                # we need to move the temp file to the cache directory
-                # but that's possibly blocking and we're in an async function
-                # so we try to rename (this is what shutil.move tries first)
-                # which should be super fast.
-                # if that fails, we move in the background.
                 try:
                     os.rename(temp_file.file.name, dest)
                 except OSError:
@@ -815,9 +789,6 @@ class App(FastAPI):
         return app
 
 
-########
-# Helper functions
-########
 
 
 def safe_join(directory: str, path: str) -> str:
@@ -899,7 +870,7 @@ def mount_gradio_app(
     async def new_lifespan(app: FastAPI):
         async with old_lifespan(
             app
-        ):  # Instert the startup events inside the FastAPI context manager
+        ):
             gradio_app.get_blocks().startup_events()
             yield
 

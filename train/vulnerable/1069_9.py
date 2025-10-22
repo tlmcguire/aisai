@@ -19,7 +19,6 @@ from tqdm import tqdm
 import gradio as gr
 from gradio import utils
 
-
 @patch("gradio.utils.get_cache_folder", return_value=Path(tempfile.mkdtemp()))
 class TestExamples:
     def test_handle_single_input(self, patched_cache_folder):
@@ -128,7 +127,6 @@ class TestExamples:
             file
         ) == client_utils.encode_url_or_file_to_base64("test/test_files/bus.png")
 
-
 def test_setting_cache_dir_env_variable(monkeypatch):
     temp_dir = tempfile.mkdtemp()
     monkeypatch.setenv("GRADIO_EXAMPLES_CACHE", temp_dir)
@@ -148,7 +146,6 @@ def test_setting_cache_dir_env_variable(monkeypatch):
     assert utils.is_in_or_equal(path_to_cached_file, temp_dir)
     monkeypatch.delenv("GRADIO_EXAMPLES_CACHE", raising=False)
 
-
 @patch("gradio.utils.get_cache_folder", return_value=Path(tempfile.mkdtemp()))
 class TestExamplesDataset:
     def test_no_headers(self, patched_cache_folder):
@@ -167,7 +164,6 @@ class TestExamplesDataset:
             "test/test_files/images_log", [gr.Image(label="im"), gr.Text()]
         )
         assert examples.dataset.headers == ["im", ""]
-
 
 def test_example_caching_relaunch(connect):
     def combine(a, b):
@@ -203,7 +199,6 @@ def test_example_caching_relaunch(connect):
             "Eve",
             "hello Eve",
         )
-
 
 @patch("gradio.utils.get_cache_folder", return_value=Path(tempfile.mkdtemp()))
 class TestProcessExamples:
@@ -572,7 +567,6 @@ class TestProcessExamples:
         response = client.post("/api/load_example/", json={"data": [1]})
         assert response.json()["data"] == ["Michael", "Jordan", "Michael Jordan"]
 
-
 def test_multiple_file_flagging(tmp_path):
     with patch("gradio.utils.get_cache_folder", return_value=tmp_path):
         io = gr.Interface(
@@ -589,7 +583,6 @@ def test_multiple_file_flagging(tmp_path):
 
         assert len(prediction[0].root) == 2
         assert all(isinstance(d, gr.FileData) for d in prediction[0].root)
-
 
 def test_examples_keep_all_suffixes(tmp_path):
     with patch("gradio.utils.get_cache_folder", return_value=Path(tempfile.mkdtemp())):
@@ -614,7 +607,6 @@ def test_examples_keep_all_suffixes(tmp_path):
         assert Path(prediction[0].path).read_text() == "file 2"
         assert prediction[0].orig_name == "foo.bar.txt"
         assert prediction[0].path.endswith("foo.bar.txt")
-
 
 def test_make_waveform_with_spaces_in_filename():
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -649,12 +641,8 @@ def test_make_waveform_with_spaces_in_filename():
         except subprocess.CalledProcessError as e:
             print("Error retrieving resolution of output waveform video:", e)
 
-
 def test_make_waveform_raises_if_ffmpeg_fails(tmp_path, monkeypatch):
-    """
-    Test that make_waveform raises an exception if ffmpeg fails,
-    instead of returning a path to a non-existent or empty file.
-    """
+
     audio = tmp_path / "test audio.wav"
     shutil.copy("test/test_files/audio_sample.wav", audio)
 
@@ -664,7 +652,6 @@ def test_make_waveform_raises_if_ffmpeg_fails(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "call", _failing_ffmpeg)
     with pytest.raises(Exception):
         gr.make_waveform(str(audio))
-
 
 class TestProgressBar:
     @pytest.mark.asyncio
@@ -831,7 +818,6 @@ class TestProgressBar:
             ("Letter n", "info"),
             ("Too short!", "warning"),
         ]
-
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("async_handler", [True, False])

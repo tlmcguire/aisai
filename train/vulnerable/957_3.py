@@ -71,29 +71,23 @@ except ImportError:
     ssl = None
     SSLContext = object
 
-
 __all__ = ("ClientRequest", "ClientResponse", "RequestInfo", "Fingerprint")
-
 
 if TYPE_CHECKING:
     from .client import ClientSession
     from .connector import Connection
     from .tracing import Trace
 
-
 json_re = re.compile(r"^application/(?:[\w.+-]+?\+)?json")
-
 
 def _gen_default_accept_encoding() -> str:
     return "gzip, deflate, br" if HAS_BROTLI else "gzip, deflate"
-
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class ContentDisposition:
     type: Optional[str]
     parameters: "MappingProxyType[str, str]"
     filename: Optional[str]
-
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class RequestInfo:
@@ -105,7 +99,6 @@ class RequestInfo:
     @real_url.default
     def real_url_default(self) -> URL:
         return self.url
-
 
 class Fingerprint:
     HASHFUNC_BY_DIGESTLEN = {
@@ -140,12 +133,10 @@ class Fingerprint:
             host, port, *_ = transport.get_extra_info("peername")
             raise ServerFingerprintMismatch(self._fingerprint, got, host, port)
 
-
 if ssl is not None:
     SSL_ALLOWED_TYPES = (ssl.SSLContext, bool, Fingerprint, type(None))
 else:
     SSL_ALLOWED_TYPES = type(None)
-
 
 def _merge_ssl_params(
     ssl: Union["SSLContext", Literal[False], Fingerprint, None],
@@ -199,7 +190,6 @@ def _merge_ssl_params(
         )
     return ssl
 
-
 @attr.s(auto_attribs=True, slots=True, frozen=True)
 class ConnectionKey:
     host: str
@@ -210,14 +200,12 @@ class ConnectionKey:
     proxy_auth: Optional[BasicAuth]
     proxy_headers_hash: Optional[int]
 
-
 def _is_expected_content_type(
     response_content_type: str, expected_content_type: str
 ) -> bool:
     if expected_content_type == "application/json":
         return json_re.match(response_content_type) is not None
     return expected_content_type in response_content_type
-
 
 class ClientRequest:
     GET_METHODS = {
@@ -240,7 +228,6 @@ class ClientRequest:
 
     _writer = None
     _continue = None
-
 
     def __init__(
         self,
@@ -357,7 +344,7 @@ class ClientRequest:
         return RequestInfo(self.url, self.method, headers, self.original_url)
 
     def update_host(self, url: URL) -> None:
-        """Update destination host, port and connection type (ssl)."""
+
         if not url.raw_host:
             raise InvalidURL(url)
 
@@ -366,10 +353,7 @@ class ClientRequest:
             self.auth = helpers.BasicAuth(username, password or "")
 
     def update_version(self, version: Union[http.HttpVersion, str]) -> None:
-        """Convert request version to two elements tuple.
 
-        parser HTTP version '1.1' => (1, 1)
-        """
         if isinstance(version, str):
             v = [part.strip() for part in version.split(".", 1)]
             try:
@@ -381,7 +365,7 @@ class ClientRequest:
         self.version = version
 
     def update_headers(self, headers: Optional[LooseHeaders]) -> None:
-        """Update request headers."""
+
         self.headers: CIMultiDict[str] = CIMultiDict()
 
         netloc = cast(str, self.url.raw_host)
@@ -417,7 +401,7 @@ class ClientRequest:
             self.headers[hdrs.USER_AGENT] = SERVER_SOFTWARE
 
     def update_cookies(self, cookies: Optional[LooseCookies]) -> None:
-        """Update request cookies header."""
+
         if not cookies:
             return
 
@@ -441,7 +425,7 @@ class ClientRequest:
         self.headers[hdrs.COOKIE] = c.output(header="", sep=";").strip()
 
     def update_content_encoding(self, data: Any) -> None:
-        """Set request content encoding."""
+
         if data is None:
             return
 
@@ -458,7 +442,7 @@ class ClientRequest:
             self.chunked = True
 
     def update_transfer_encoding(self) -> None:
-        """Analyze transfer-encoding header."""
+
         te = self.headers.get(hdrs.TRANSFER_ENCODING, "").lower()
 
         if "chunked" in te:
@@ -480,7 +464,7 @@ class ClientRequest:
                 self.headers[hdrs.CONTENT_LENGTH] = str(len(self.body))
 
     def update_auth(self, auth: Optional[BasicAuth], trust_env: bool = False) -> None:
-        """Set basic auth."""
+
         if auth is None:
             auth = self.auth
         if auth is None and trust_env and self.url.host is not None:
@@ -563,7 +547,7 @@ class ClientRequest:
     async def write_bytes(
         self, writer: AbstractStreamWriter, conn: "Connection"
     ) -> None:
-        """Support coroutines that yields bytes objects."""
+
         if self._continue is not None:
             try:
                 await writer.drain()
@@ -700,7 +684,6 @@ class ClientRequest:
         for trace in self._traces:
             await trace.send_request_headers(method, url, headers)
 
-
 class ClientResponse(HeadersMixin):
 
     version = None
@@ -836,7 +819,7 @@ class ClientResponse(HeadersMixin):
 
     @reify
     def history(self) -> Tuple["ClientResponse", ...]:
-        """A sequence of of responses, if redirects occurred."""
+
         return self._history
 
     @reify
@@ -874,7 +857,7 @@ class ClientResponse(HeadersMixin):
         return MultiDictProxy(links)
 
     async def start(self, connection: "Connection") -> "ClientResponse":
-        """Start response processing."""
+
         self._closed = False
         self._protocol = connection.protocol
         self._connection = connection
@@ -961,11 +944,7 @@ class ClientResponse(HeadersMixin):
 
     @property
     def ok(self) -> bool:
-        """Returns ``True`` if ``status`` is less than ``400``, ``False`` if not.
 
-        This is **not** a check for ``200 OK`` but a check that the response
-        status is under 400.
-        """
         return 400 > self.status
 
     def raise_for_status(self) -> None:
@@ -1019,7 +998,7 @@ class ClientResponse(HeadersMixin):
         self.release()
 
     async def read(self) -> bytes:
-        """Read response payload."""
+
         if self._body is None:
             try:
                 self._body = await self.content.read()
@@ -1058,7 +1037,7 @@ class ClientResponse(HeadersMixin):
         return self._resolve_charset(self, self._body)
 
     async def text(self, encoding: Optional[str] = None, errors: str = "strict") -> str:
-        """Read response payload and decode."""
+
         if self._body is None:
             await self.read()
 
@@ -1076,7 +1055,7 @@ class ClientResponse(HeadersMixin):
         loads: JSONDecoder = DEFAULT_JSON_DECODER,
         content_type: Optional[str] = "application/json",
     ) -> Any:
-        """Read and decodes JSON response."""
+
         if self._body is None:
             await self.read()
 

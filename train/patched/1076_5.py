@@ -1,6 +1,4 @@
 
-"""Unittest for ipaddress module."""
-
 
 import copy
 import unittest
@@ -12,11 +10,7 @@ import ipaddress
 import weakref
 from test.support import LARGEST, SMALLEST
 
-
 class BaseTestCase(unittest.TestCase):
-
-
-
 
     @property
     def factory(self):
@@ -24,11 +18,7 @@ class BaseTestCase(unittest.TestCase):
 
     @contextlib.contextmanager
     def assertCleanError(self, exc_type, details, *args):
-        """
-        Ensure exception does not display a context by default
 
-        Wraps unittest.TestCase.assertRaisesRegex
-        """
         if args:
             details = details % args
         cm = self.assertRaisesRegex(exc_type, details)
@@ -38,19 +28,18 @@ class BaseTestCase(unittest.TestCase):
             self.assertTrue(exc.exception.__suppress_context__)
 
     def assertAddressError(self, details, *args):
-        """Ensure a clean AddressValueError"""
+
         return self.assertCleanError(ipaddress.AddressValueError,
                                      details, *args)
 
     def assertNetmaskError(self, details, *args):
-        """Ensure a clean NetmaskValueError"""
+
         return self.assertCleanError(ipaddress.NetmaskValueError,
                                      details, *args)
 
     def assertInstancesEqual(self, lhs, rhs):
-        """Check constructor arguments produce equivalent instances"""
-        self.assertEqual(self.factory(lhs), self.factory(rhs))
 
+        self.assertEqual(self.factory(lhs), self.factory(rhs))
 
 class CommonTestMixin:
 
@@ -73,7 +62,6 @@ class CommonTestMixin:
                 x = self.factory(addr)
                 y = pickle.loads(pickle.dumps(x, proto))
                 self.assertEqual(y, x)
-
 
 class CommonTestMixin_v4(CommonTestMixin):
 
@@ -121,7 +109,6 @@ class CommonTestMixin_v4(CommonTestMixin):
 
         assertBadLength(3)
         assertBadLength(5)
-
 
 class CommonTestMixin_v6(CommonTestMixin):
 
@@ -290,7 +277,6 @@ class AddressTestCase_v4(BaseTestCase, CommonTestMixin_v4):
                          ipaddress.IPv6Address('::ffff:c0a8:101'))
         self.assertEqual(ipaddress.IPv4Address('192.168.1.1').ipv6_mapped.ipv4_mapped,
                          ipaddress.IPv4Address('192.168.1.1'))
-
 
 class AddressTestCase_v6(BaseTestCase, CommonTestMixin_v6):
     factory = ipaddress.IPv6Address
@@ -538,9 +524,8 @@ class AddressTestCase_v6(BaseTestCase, CommonTestMixin_v6):
         self.assertEqual(addr, copy.copy(addr))
         self.assertEqual(addr, copy.deepcopy(addr))
 
-
 class NetmaskTestMixin_v4(CommonTestMixin_v4):
-    """Input validation on interfaces and networks is very similar"""
+
 
     def test_no_mask(self):
         for address in ('1.2.3.4', 0x01020304, b'\x01\x02\x03\x04'):
@@ -620,10 +605,8 @@ class NetmaskTestMixin_v4(CommonTestMixin_v4):
         self.pickle_test('192.0.2.0/31')
         self.pickle_test('192.0.2.0')
 
-
 class InterfaceTestCase_v4(BaseTestCase, NetmaskTestMixin_v4):
     factory = ipaddress.IPv4Interface
-
 
 class NetworkTestCase_v4(BaseTestCase, NetmaskTestMixin_v4):
     factory = ipaddress.IPv4Network
@@ -670,9 +653,8 @@ class NetworkTestCase_v4(BaseTestCase, NetmaskTestMixin_v4):
             ipaddress.IPv6Network('::1/128').subnet_of(
                 ipaddress.IPv4Network('10.0.0.0/30'))
 
-
 class NetmaskTestMixin_v6(CommonTestMixin_v6):
-    """Input validation on interfaces and networks is very similar"""
+
 
     def test_no_mask(self):
         for address in ('::1', 1, b'\x00'*15 + b'\x01'):
@@ -767,10 +749,8 @@ class NetmaskTestMixin_v6(CommonTestMixin_v6):
 
         self.pickle_test('2001:db8::1000%scope')
 
-
 class InterfaceTestCase_v6(BaseTestCase, NetmaskTestMixin_v6):
     factory = ipaddress.IPv6Interface
-
 
 class NetworkTestCase_v6(BaseTestCase, NetmaskTestMixin_v6):
     factory = ipaddress.IPv6Network
@@ -810,11 +790,10 @@ class NetworkTestCase_v6(BaseTestCase, NetmaskTestMixin_v6):
             self.factory('2000:aaa::/48').supernet_of(
                 self.factory('2000:aaa::/56')))
 
-
 class FactoryFunctionErrors(BaseTestCase):
 
     def assertFactoryError(self, factory, kind):
-        """Ensure a clean ValueError with the expected message"""
+
         addr = "camelot"
         msg = '%r does not appear to be an IPv4 or IPv6 %s'
         with self.assertCleanError(ValueError, msg, addr, kind):
@@ -828,7 +807,6 @@ class FactoryFunctionErrors(BaseTestCase):
 
     def test_ip_network(self):
         self.assertFactoryError(ipaddress.ip_network, "network")
-
 
 class ComparisonTests(unittest.TestCase):
 
@@ -1004,7 +982,6 @@ class ComparisonTests(unittest.TestCase):
         self.assertRaises(TypeError, v6addr_scoped.__gt__, v4addr)
         self.assertRaises(TypeError, v6net_scoped.__lt__, v4net)
         self.assertRaises(TypeError, v6net_scoped.__gt__, v4net)
-
 
 class IpaddrUnitTest(unittest.TestCase):
 
@@ -1912,7 +1889,6 @@ class IpaddrUnitTest(unittest.TestCase):
         self.assertTrue(ipaddress.ip_interface('::1%scope/64') >
                         ipaddress.ip_interface('::2%scope/48'))
 
-
         self.assertFalse(ipaddress.ip_interface('::1%scope/64') ==
                         ipaddress.ip_interface('::1/64'))
         self.assertTrue(ipaddress.ip_interface('::1%scope/64') <
@@ -2538,7 +2514,6 @@ class IpaddrUnitTest(unittest.TestCase):
         ipv6_address1 = ipaddress.IPv6Interface("2001:658:22a:cafe:200:0:0:1")
         ipv6_address2 = ipaddress.IPv6Interface("2001:658:22a:cafe:200:0:0:2")
         self.assertNotEqual(ipv6_address1.__hash__(), ipv6_address2.__hash__())
-
 
 if __name__ == '__main__':
     unittest.main()

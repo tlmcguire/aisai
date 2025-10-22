@@ -1,11 +1,4 @@
-"""
-Usage
------
 
-.. code-block:: bash
-
-    mlflow server --app-name basic-auth
-"""
 
 import functools
 import importlib
@@ -112,10 +105,8 @@ _logger = logging.getLogger(__name__)
 auth_config = read_auth_config()
 store = SqlAlchemyStore()
 
-
 def is_unprotected_route(path: str) -> bool:
     return path.startswith(("/static", "/favicon.ico", "/health"))
-
 
 def make_basic_auth_response() -> Response:
     res = make_response(
@@ -127,12 +118,10 @@ def make_basic_auth_response() -> Response:
     res.headers["WWW-Authenticate"] = 'Basic realm="mlflow"'
     return res
 
-
 def make_forbidden_response() -> Response:
     res = make_response("Permission denied")
     res.status_code = 403
     return res
-
 
 def _get_request_param(param: str) -> str:
     if request.method == "GET":
@@ -155,12 +144,8 @@ def _get_request_param(param: str) -> str:
         )
     return args[param]
 
-
 def _get_permission_from_store_or_default(store_permission_func: Callable[[], str]) -> Permission:
-    """
-    Attempts to get permission from store,
-    and returns default permission if no record is found.
-    """
+
     try:
         perm = store_permission_func()
     except MlflowException as e:
@@ -170,7 +155,6 @@ def _get_permission_from_store_or_default(store_permission_func: Callable[[], st
             raise
     return get_permission(perm)
 
-
 def _get_permission_from_experiment_id() -> Permission:
     experiment_id = _get_request_param("experiment_id")
     username = authenticate_request().username
@@ -178,16 +162,13 @@ def _get_permission_from_experiment_id() -> Permission:
         lambda: store.get_experiment_permission(experiment_id, username).permission
     )
 
-
 _EXPERIMENT_ID_PATTERN = re.compile(r"^(\d+)/")
-
 
 def _get_experiment_id_from_view_args():
     if artifact_path := request.view_args.get("artifact_path"):
         if m := _EXPERIMENT_ID_PATTERN.match(artifact_path):
             return m.group(1)
     return None
-
 
 def _get_permission_from_experiment_id_artifact_proxy() -> Permission:
     if experiment_id := _get_experiment_id_from_view_args():
@@ -196,7 +177,6 @@ def _get_permission_from_experiment_id_artifact_proxy() -> Permission:
             lambda: store.get_experiment_permission(experiment_id, username).permission
         )
     return get_permission(auth_config.default_permission)
-
 
 def _get_permission_from_experiment_name() -> Permission:
     experiment_name = _get_request_param("experiment_name")
@@ -211,7 +191,6 @@ def _get_permission_from_experiment_name() -> Permission:
         lambda: store.get_experiment_permission(store_exp.experiment_id, username).permission
     )
 
-
 def _get_permission_from_run_id() -> Permission:
     run_id = _get_request_param("run_id")
     run = _get_tracking_store().get_run(run_id)
@@ -221,7 +200,6 @@ def _get_permission_from_run_id() -> Permission:
         lambda: store.get_experiment_permission(experiment_id, username).permission
     )
 
-
 def _get_permission_from_registered_model_name() -> Permission:
     name = _get_request_param("name")
     username = authenticate_request().username
@@ -229,99 +207,76 @@ def _get_permission_from_registered_model_name() -> Permission:
         lambda: store.get_registered_model_permission(name, username).permission
     )
 
-
 def validate_can_read_experiment():
     return _get_permission_from_experiment_id().can_read
-
 
 def validate_can_read_experiment_by_name():
     return _get_permission_from_experiment_name().can_read
 
-
 def validate_can_update_experiment():
     return _get_permission_from_experiment_id().can_update
-
 
 def validate_can_delete_experiment():
     return _get_permission_from_experiment_id().can_delete
 
-
 def validate_can_manage_experiment():
     return _get_permission_from_experiment_id().can_manage
-
 
 def validate_can_read_experiment_artifact_proxy():
     return _get_permission_from_experiment_id_artifact_proxy().can_read
 
-
 def validate_can_update_experiment_artifact_proxy():
     return _get_permission_from_experiment_id_artifact_proxy().can_update
-
 
 def validate_can_read_run():
     return _get_permission_from_run_id().can_read
 
-
 def validate_can_update_run():
     return _get_permission_from_run_id().can_update
-
 
 def validate_can_delete_run():
     return _get_permission_from_run_id().can_delete
 
-
 def validate_can_manage_run():
     return _get_permission_from_run_id().can_manage
-
 
 def validate_can_read_registered_model():
     return _get_permission_from_registered_model_name().can_read
 
-
 def validate_can_update_registered_model():
     return _get_permission_from_registered_model_name().can_update
-
 
 def validate_can_delete_registered_model():
     return _get_permission_from_registered_model_name().can_delete
 
-
 def validate_can_manage_registered_model():
     return _get_permission_from_registered_model_name().can_manage
 
-
 def sender_is_admin():
-    """Validate if the sender is admin"""
+
     username = authenticate_request().username
     return store.get_user(username).is_admin
 
-
 def username_is_sender():
-    """Validate if the request username is the sender"""
+
     username = _get_request_param("username")
     sender = authenticate_request().username
     return username == sender
 
-
 def validate_can_read_user():
     return username_is_sender()
-
 
 def validate_can_create_user():
     return False
 
-
 def validate_can_update_user_password():
     return username_is_sender()
-
 
 def validate_can_update_user_admin():
     return False
 
-
 def validate_can_delete_user():
     return False
-
 
 BEFORE_REQUEST_HANDLERS = {
     GetExperiment: validate_can_read_experiment,
@@ -363,10 +318,8 @@ BEFORE_REQUEST_HANDLERS = {
     GetModelVersionByAlias: validate_can_read_registered_model,
 }
 
-
 def get_before_request_handler(request_class):
     return BEFORE_REQUEST_HANDLERS.get(request_class)
-
 
 BEFORE_REQUEST_VALIDATORS = {
     (http_path, method): handler
@@ -393,10 +346,8 @@ BEFORE_REQUEST_VALIDATORS.update(
     }
 )
 
-
 def _is_proxy_artifact_path(path: str) -> bool:
     return path.startswith(f"{_REST_API_PATH_PREFIX}/mlflow-artifacts/artifacts/")
-
 
 def _get_proxy_artifact_validator(
     method: str, view_args: Optional[Dict[str, Any]]
@@ -410,26 +361,20 @@ def _get_proxy_artifact_validator(
         "DELETE": validate_can_update_experiment_artifact_proxy,
     }.get(method)
 
-
 def authenticate_request() -> Union[Authorization, Response]:
-    """Use configured authorization function to get request authorization."""
+
     auth_func = get_auth_func(auth_config.authorization_function)
     return auth_func()
 
-
 @functools.lru_cache(maxsize=None)
 def get_auth_func(authorization_function: str) -> Callable[[], Union[Authorization, Response]]:
-    """Import and return the specified authorization function.
 
-    :param authorization_function: A string of the form "module.submodule:auth_func
-    """
     mod_name, fn_name = authorization_function.split(":", 1)
     module = importlib.import_module(mod_name)
     return getattr(module, fn_name)
 
-
 def authenticate_request_basic_auth() -> Union[Authorization, Response]:
-    """Authenticate the request using basic auth."""
+
     if request.authorization is None:
         return make_basic_auth_response()
 
@@ -439,7 +384,6 @@ def authenticate_request_basic_auth() -> Union[Authorization, Response]:
         return request.authorization
     else:
         return make_basic_auth_response()
-
 
 @catch_mlflow_exception
 def _before_request():
@@ -467,7 +411,6 @@ def _before_request():
             if not validator():
                 return make_forbidden_response()
 
-
 def set_can_manage_experiment_permission(resp: Response):
     response_message = CreateExperiment.Response()
     parse_dict(resp.json, response_message)
@@ -475,14 +418,12 @@ def set_can_manage_experiment_permission(resp: Response):
     username = authenticate_request().username
     store.create_experiment_permission(experiment_id, username, MANAGE.name)
 
-
 def set_can_manage_registered_model_permission(resp: Response):
     response_message = CreateRegisteredModel.Response()
     parse_dict(resp.json, response_message)
     name = response_message.registered_model.name
     username = authenticate_request().username
     store.create_registered_model_permission(name, username, MANAGE.name)
-
 
 def filter_search_experiments(resp: Response):
     if sender_is_admin():
@@ -529,7 +470,6 @@ def filter_search_experiments(resp: Response):
         response_message.next_page_token = SearchUtils.create_page_token(final_offset)
 
     resp.data = message_to_json(response_message)
-
 
 def filter_search_registered_models(resp: Response):
     if sender_is_admin():
@@ -580,7 +520,6 @@ def filter_search_registered_models(resp: Response):
 
     resp.data = message_to_json(response_message)
 
-
 AFTER_REQUEST_PATH_HANDLERS = {
     CreateExperiment: set_can_manage_experiment_permission,
     CreateRegisteredModel: set_can_manage_registered_model_permission,
@@ -588,17 +527,14 @@ AFTER_REQUEST_PATH_HANDLERS = {
     SearchRegisteredModels: filter_search_registered_models,
 }
 
-
 def get_after_request_handler(request_class):
     return AFTER_REQUEST_PATH_HANDLERS.get(request_class)
-
 
 AFTER_REQUEST_HANDLERS = {
     (http_path, method): handler
     for http_path, handler, methods in get_endpoints(get_after_request_handler)
     for method in methods
 }
-
 
 @catch_mlflow_exception
 def _after_request(resp: Response):
@@ -608,7 +544,6 @@ def _after_request(resp: Response):
     if handler := AFTER_REQUEST_HANDLERS.get((request.path, request.method)):
         handler(resp)
     return resp
-
 
 def create_admin_user(username, password):
     if not store.has_user(username):
@@ -623,7 +558,6 @@ def create_admin_user(username, password):
             if isinstance(e.__cause__, sqlalchemy.exc.IntegrityError):
                 return
             raise
-
 
 def alert(href: str):
     return render_template_string(
@@ -641,7 +575,6 @@ def alert(href: str):
 """,
         href=href,
     )
-
 
 def signup():
     return render_template_string(
@@ -717,7 +650,6 @@ def signup():
         users_route=CREATE_USER,
     )
 
-
 @catch_mlflow_exception
 def create_user():
     content_type = request.headers.get("Content-Type")
@@ -741,13 +673,11 @@ def create_user():
     else:
         return make_response(f"Invalid content type: '{content_type}'", 400)
 
-
 @catch_mlflow_exception
 def get_user():
     username = _get_request_param("username")
     user = store.get_user(username)
     return make_response({"user": user.to_json()})
-
 
 @catch_mlflow_exception
 def update_user_password():
@@ -756,7 +686,6 @@ def update_user_password():
     store.update_user(username, password=password)
     return make_response({})
 
-
 @catch_mlflow_exception
 def update_user_admin():
     username = _get_request_param("username")
@@ -764,13 +693,11 @@ def update_user_admin():
     store.update_user(username, is_admin=is_admin)
     return make_response({})
 
-
 @catch_mlflow_exception
 def delete_user():
     username = _get_request_param("username")
     store.delete_user(username)
     return make_response({})
-
 
 @catch_mlflow_exception
 def create_experiment_permission():
@@ -780,14 +707,12 @@ def create_experiment_permission():
     ep = store.create_experiment_permission(experiment_id, username, permission)
     return make_response({"experiment_permission": ep.to_json()})
 
-
 @catch_mlflow_exception
 def get_experiment_permission():
     experiment_id = _get_request_param("experiment_id")
     username = _get_request_param("username")
     ep = store.get_experiment_permission(experiment_id, username)
     return make_response({"experiment_permission": ep.to_json()})
-
 
 @catch_mlflow_exception
 def update_experiment_permission():
@@ -797,14 +722,12 @@ def update_experiment_permission():
     store.update_experiment_permission(experiment_id, username, permission)
     return make_response({})
 
-
 @catch_mlflow_exception
 def delete_experiment_permission():
     experiment_id = _get_request_param("experiment_id")
     username = _get_request_param("username")
     store.delete_experiment_permission(experiment_id, username)
     return make_response({})
-
 
 @catch_mlflow_exception
 def create_registered_model_permission():
@@ -814,14 +737,12 @@ def create_registered_model_permission():
     rmp = store.create_registered_model_permission(name, username, permission)
     return make_response({"registered_model_permission": rmp.to_json()})
 
-
 @catch_mlflow_exception
 def get_registered_model_permission():
     name = _get_request_param("name")
     username = _get_request_param("username")
     rmp = store.get_registered_model_permission(name, username)
     return make_response({"registered_model_permission": rmp.to_json()})
-
 
 @catch_mlflow_exception
 def update_registered_model_permission():
@@ -831,7 +752,6 @@ def update_registered_model_permission():
     store.update_registered_model_permission(name, username, permission)
     return make_response({})
 
-
 @catch_mlflow_exception
 def delete_registered_model_permission():
     name = _get_request_param("name")
@@ -839,14 +759,8 @@ def delete_registered_model_permission():
     store.delete_registered_model_permission(name, username)
     return make_response({})
 
-
 def create_app(app: Flask = app):
-    """
-    A factory to enable authentication and authorization for the MLflow server.
 
-    :param app: The Flask app to enable authentication and authorization for.
-    :return: The app with authentication and authorization enabled.
-    """
     _logger.warning(
         "This feature is still experimental and may change in a future release without warning"
     )

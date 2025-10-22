@@ -74,19 +74,12 @@ def test_user_agent():
     ('BUILD_ID', True),
     ('CI', True),
     ('PIP_IS_CI', True),
-    # Test a prefix substring of one of the variable names we use.
     ('BUILD', False),
 ])
 def test_user_agent__ci(monkeypatch, name, expected_like_ci):
-    # Delete the variable names we use to check for CI to prevent the
-    # detection from always returning True in case the tests are being run
-    # under actual CI.  It is okay to depend on CI_ENVIRONMENT_VARIABLES
-    # here (part of the code under test) because this setup step can only
-    # prevent false test failures.  It can't cause a false test passage.
     for ci_name in CI_ENVIRONMENT_VARIABLES:
         monkeypatch.delenv(ci_name, raising=False)
 
-    # Confirm the baseline before setting the environment variable.
     user_agent = get_user_agent()
     assert '"ci":null' in user_agent
     assert '"ci":true' not in user_agent
@@ -185,13 +178,11 @@ def test_unpack_http_url_bad_downloaded_checksum(mock_unpack_file):
             hashes=Hashes({'sha1': [download_hash.hexdigest()]})
         )
 
-        # despite existence of downloaded file with bad hash, downloaded again
         session.get.assert_called_once_with(
             'http://www.example.com/somepackage.tgz',
             headers={"Accept-Encoding": "identity"},
             stream=True,
         )
-        # cached file is replaced with newly downloaded file
         with open(downloaded_file) as fh:
             assert fh.read() == 'downloaded'
 
@@ -262,8 +253,6 @@ class Test_unpack_file_url(object):
     def test_unpack_file_url_download_already_exists(self, tmpdir,
                                                      data, monkeypatch):
         self.prep(tmpdir, data)
-        # add in previous download (copy simple-2.0 as simple-1.0)
-        # so we can tell it didn't get overwritten
         dest_file = os.path.join(self.download_dir, self.dist_file)
         copy(self.dist_path2, dest_file)
         with open(self.dist_path2, 'rb') as f:
@@ -271,7 +260,6 @@ class Test_unpack_file_url(object):
 
         unpack_file_url(self.dist_url, self.build_dir,
                         download_dir=self.download_dir)
-        # our hash should be the same, i.e. not overwritten by simple-1.0 hash
         with open(dest_file, 'rb') as f:
             assert dist_path2_md5 == hashlib.md5(f.read()).hexdigest()
 
@@ -295,8 +283,6 @@ class Test_unpack_file_url(object):
         """
         self.prep(tmpdir, data)
 
-        # add in previous download (copy simple-2.0 as simple-1.0 so it's wrong
-        # hash)
         dest_file = os.path.join(self.download_dir, self.dist_file)
         copy(self.dist_path2, dest_file)
 
@@ -315,8 +301,6 @@ class Test_unpack_file_url(object):
                         download_dir=self.download_dir,
                         hashes=Hashes({'md5': [dist_path_md5]}))
 
-        # confirm hash is for simple1-1.0
-        # the previous bad download has been removed
         with open(dest_file, 'rb') as f:
             assert hashlib.md5(f.read()).hexdigest() == dist_path_md5
 
@@ -403,7 +387,6 @@ def test_get_credentials():
     auth = MultiDomainBasicAuth()
     get = auth._get_url_and_credentials
 
-    # Check URL parsing
     assert get("http://foo:bar@example.com/path") \
         == ('http://example.com/path', 'foo', 'bar')
     assert auth.passwords['example.com'] == ('foo', 'bar')
@@ -423,7 +406,6 @@ def test_get_index_url_credentials():
         allow_keyring=False
     )
 
-    # Check resolution of indexes
     assert get("http://example.com/path/path2") == ('foo', 'bar')
     assert get("http://example.com/path3/path2") == (None, None)
 
@@ -449,10 +431,8 @@ class KeyringModuleV1(object):
 
 @pytest.mark.parametrize('url, expect', (
     ("http://example.com/path1", (None, None)),
-    # path1 URLs will be resolved by netloc
     ("http://user@example.com/path1", ("user", "user!netloc")),
     ("http://user2@example.com/path1", ("user2", "user2!netloc")),
-    # path2 URLs will be resolved by index URL
     ("http://example.com/path2/path3", (None, None)),
     ("http://foo@example.com/path2/path3", ("foo", "foo!url")),
 ))
@@ -505,12 +485,9 @@ def test_keyring_set_password(monkeypatch, response_status, creds,
                         lambda u: (u, None, None))
     monkeypatch.setattr(auth, '_prompt_for_password', lambda *a: creds)
     if creds[2]:
-        # when _prompt_for_password indicates to save, we should save
         def should_save_password_to_keyring(*a):
             return True
     else:
-        # when _prompt_for_password indicates not to save, we should
-        # never call this function
         def should_save_password_to_keyring(*a):
             assert False, ("_should_save_password_to_keyring should not be " +
                            "called")

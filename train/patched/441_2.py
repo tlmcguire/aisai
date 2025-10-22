@@ -1,4 +1,4 @@
-'''Manage authentication with Planet APIs'''
+
 from __future__ import annotations
 import abc
 import json
@@ -22,17 +22,12 @@ BASE_URL = f'{PLANET_BASE_URL}/v0/auth'
 
 AuthType = httpx.Auth
 
-
 class Auth(metaclass=abc.ABCMeta):
-    '''Handle authentication information for use with Planet APIs.'''
+
 
     @staticmethod
     def from_key(key: str) -> AuthType:
-        '''Obtain authentication from api key.
 
-        Parameters:
-            key: Planet API key
-        '''
         auth = APIKeyAuth(key=key)
         LOGGER.debug('Auth obtained from api key.')
         return auth
@@ -41,16 +36,7 @@ class Auth(metaclass=abc.ABCMeta):
     def from_file(
         filename: Optional[typing.Union[str,
                                         pathlib.Path]] = None) -> AuthType:
-        '''Create authentication from secret file.
 
-        The secret file is named `.planet.json` and is stored in the user
-        directory. The file has a special format and should have been created
-        with `Auth.write()`.
-
-        Parameters:
-            filename: Alternate path for the planet secret file.
-
-        '''
         filename = filename or SECRET_FILE_PATH
 
         try:
@@ -66,13 +52,7 @@ class Auth(metaclass=abc.ABCMeta):
 
     @staticmethod
     def from_env(variable_name: Optional[str] = None) -> AuthType:
-        '''Create authentication from environment variable.
 
-        Reads the `PL_API_KEY` environment variable
-
-        Parameters:
-            variable_name: Alternate environment variable.
-        '''
         variable_name = variable_name or ENV_API_KEY
         api_key = os.getenv(variable_name, '')
         try:
@@ -88,17 +68,7 @@ class Auth(metaclass=abc.ABCMeta):
     def from_login(email: str,
                    password: str,
                    base_url: Optional[str] = None) -> AuthType:
-        '''Create authentication from login email and password.
 
-        Note: To keep your password secure, the use of `getpass` is
-        recommended.
-
-        Parameters:
-            email: Planet account email address.
-            password: Planet account password.
-            base_url: The base URL to use. Defaults to production
-                authentication API base url.
-        '''
         cl = AuthClient(base_url=base_url)
         auth_data = cl.login(email, password)
 
@@ -123,42 +93,21 @@ class Auth(metaclass=abc.ABCMeta):
 
     def store(self,
               filename: Optional[typing.Union[str, pathlib.Path]] = None):
-        '''Store authentication information in secret file.
 
-        Parameters:
-            filename: Alternate path for the planet secret file.
-        '''
         filename = filename or SECRET_FILE_PATH
         secret_file = _SecretFile(filename)
         secret_file.write(self.to_dict())
 
-
 class AuthClient:
 
     def __init__(self, base_url: Optional[str] = None):
-        """
-        Parameters:
-            base_url: The base URL to use. Defaults to production
-                authentication API base url.
-        """
+
         self._base_url = base_url or BASE_URL
         if self._base_url.endswith('/'):
             self._base_url = self._base_url[:-1]
 
     def login(self, email: str, password: str) -> dict:
-        '''Login using email identity and credentials.
 
-        Note: To keep your password secure, the use of `getpass` is
-        recommended.
-
-        Parameters:
-            email: Planet account email address.
-            password:  Planet account password.
-
-        Returns:
-             A JSON object containing an `api_key` property with the user's
-        API_KEY.
-        '''
         url = f'{self._base_url}/login'
         data = {'email': email, 'password': password}
 
@@ -168,29 +117,20 @@ class AuthClient:
 
     @staticmethod
     def decode_response(response):
-        '''Decode the token JWT'''
+
         token = response.json()['token']
         return jwt.decode(token, options={'verify_signature': False})
 
-
 class APIKeyAuthException(Exception):
-    '''exceptions thrown by APIKeyAuth'''
+
     pass
 
-
 class APIKeyAuth(httpx.BasicAuth, Auth):
-    '''Planet API Key authentication.'''
+
     DICT_KEY = 'key'
 
     def __init__(self, key: str):
-        '''Initialize APIKeyAuth.
 
-        Parameters:
-            key: API key.
-
-        Raises:
-            APIKeyException: If API key is None or empty string.
-        '''
         if not key:
             raise APIKeyAuthException('API key cannot be empty.')
         self._key = key
@@ -198,18 +138,17 @@ class APIKeyAuth(httpx.BasicAuth, Auth):
 
     @classmethod
     def from_dict(cls, data: dict) -> APIKeyAuth:
-        '''Instantiate APIKeyAuth from a dict.'''
+
         api_key = data[cls.DICT_KEY]
         return cls(api_key)
 
     def to_dict(self):
-        '''Represent APIKeyAuth as a dict.'''
+
         return {self.DICT_KEY: self._key}
 
     @property
     def value(self):
         return self._key
-
 
 class _SecretFile:
 
@@ -245,7 +184,7 @@ class _SecretFile:
         return contents
 
     def _enforce_permissions(self):
-        '''if the file's permissions are not what they should be, fix them'''
+
         try:
             file_permissions = self.path.stat().st_mode & 0o777
             if file_permissions != self.permissions:

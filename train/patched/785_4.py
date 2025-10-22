@@ -14,21 +14,17 @@ from mako.testing.assertions import eq_
 from mako.testing.fixtures import TemplateTest
 from mako.testing.helpers import flatten_result
 
-
-
 def repr_arg(x):
     if isinstance(x, dict):
         return util.sorted_dict_repr(x)
     else:
         return repr(x)
 
-
 def _as_unicode(arg):
     if isinstance(arg, dict):
         return {k: _as_unicode(v) for k, v in arg.items()}
     else:
         return arg
-
 
 Node = None
 TemplateNode = None
@@ -68,8 +64,6 @@ class %s:
             ),
             locals(),
         )
-
-
 
 class LexerTest(TemplateTest):
     def _compare(self, node, expected):
@@ -152,7 +146,6 @@ class LexerTest(TemplateTest):
             </%namespace>
         </%def>
 
-
         hi.
 """
         assert_raises(exceptions.SyntaxException, Lexer(template).parse)
@@ -213,7 +206,6 @@ class LexerTest(TemplateTest):
             % more code
             <%illegal compionent>/></>
             <%def name="laal()">def</%def>
-
 
         </%text>
 
@@ -396,10 +388,7 @@ class LexerTest(TemplateTest):
         )
 
     def test_expr_in_attribute(self):
-        """test some slightly trickier expressions.
 
-        you can still trip up the expression parsing, though, unless we
-        integrated really deeply somehow with AST."""
 
         template = """
             <%call expr="foo>bar and 'lala' or 'hoho'"/>

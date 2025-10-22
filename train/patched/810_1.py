@@ -1,10 +1,7 @@
 import html
 
 def escape_macro_parameters(params):
-    """
-    Escape the parameters to prevent code injection vulnerabilities.
-    This function replaces dangerous characters with safe alternatives.
-    """
+
     safe_params = {}
     for key, value in params.items():
         safe_key = html.escape(str(key))
@@ -13,9 +10,7 @@ def escape_macro_parameters(params):
     return safe_params
 
 def render_document_tree_macro(params):
-    """
-    Render the document tree macro with safe parameters.
-    """
+
     safe_params = escape_macro_parameters(params)
     return safe_params
 

@@ -5,12 +5,9 @@ import pytest
 
 import gradio as gr
 
-
 class TestJSON:
     def test_component_functions(self):
-        """
-        Postprocess
-        """
+
         js_output = gr.JSON()
         assert js_output.postprocess('{"a":1, "b": 2}'), '"{\\"a\\":1, \\"b\\": 2}"'
         assert js_output.get_config() == {
@@ -48,9 +45,7 @@ class TestJSON:
 
     @pytest.mark.asyncio
     async def test_in_interface(self):
-        """
-        Interface, process
-        """
+
 
         def get_avg_age_per_gender(data):
             return {

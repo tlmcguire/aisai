@@ -42,10 +42,10 @@ class _MagicFormatMapping(Mapping):
         if key in self._seen_args:
             raise KeyError(key)
         try:
-            value = int(key)  # Python 3.x
+            value = int(key)
         except ValueError:
             try:
-                value = long(key)  # Python 2.x
+                value = long(key)
             except ValueError:
                 raise KeyError(key)
         if value < len(self._args):
@@ -73,8 +73,6 @@ class SafeFormatter(string.Formatter):
 
         obj = self.get_value(first, args, kwargs)
 
-        # loop through the rest of the field_name, doing
-        #  getattr or getitem as needed
         for is_attr, i in rest:
             if is_attr:
                 obj = guarded_getattr(obj, i)

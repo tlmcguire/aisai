@@ -1,12 +1,4 @@
-"""
-project: lollms_webui
-file: chat_bar.py 
-author: ParisNeo
-description: 
-    This module contains a set of FastAPI routes that provide information about the Lord of Large Language and Multimodal Systems (LoLLMs) Web UI
-    application. These routes are linked to lollms_webui chatbox
 
-"""
 from fastapi import APIRouter, Request
 from fastapi import HTTPException
 from pydantic import BaseModel, Field

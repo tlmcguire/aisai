@@ -4,23 +4,12 @@ from pandasai.llm import OpenAI
 from pandasai.prompts import SafePromptConstructor
 from pandasai.helpers.code_manager import CodeManager
 
-
 class SafeSmartDataframe(SmartDataframe):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def chat(self, query: str, **kwargs):
-        """
-        Chat with the SmartDataframe.
 
-        Args:
-            query (str): The query to ask the SmartDataframe.
-            kwargs (dict): Additional keyword arguments to pass to the
-                underlying LLM chain.
-
-        Returns:
-            str: The answer to the query.
-        """
 
         harmful_keywords = ["import os", "exec(", "eval("]
         if any(keyword in query.lower() for keyword in harmful_keywords):
@@ -33,7 +22,6 @@ class SafeSmartDataframe(SmartDataframe):
         response = self.llm.call(final_prompt, **kwargs)
 
         return response
-
 
 if __name__ == '__main__':
     llm = OpenAI(api_token="YOUR_API_KEY")

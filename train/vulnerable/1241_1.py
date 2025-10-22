@@ -1,5 +1,5 @@
 def verify_bundle(bundle):
-    """Simplified representation of vulnerable verification."""
+
     try:
         integration_time = bundle["integration_time"]
         signed_time_source = bundle.get("signed_time_source")
@@ -14,10 +14,8 @@ def verify_bundle(bundle):
     except KeyError:
         return False
 
-
 def is_valid_time(time):
     return True
-
 
 vulnerable_bundle = {"integration_time": "2025-01-01T00:00:00Z"}
 result = verify_bundle(vulnerable_bundle)

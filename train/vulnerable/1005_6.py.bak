@@ -32,7 +32,6 @@ class _SubscriptableT(VyperType):
         return (self.key_type,) + child_keys, return_type
 
     def validate_index_type(self, node):
-        # TODO: break this cycle
         from vyper.semantics.analysis.utils import validate_expected_type
 
         validate_expected_type(node, self.key_type)
@@ -46,7 +45,6 @@ class HashMapT(_SubscriptableT):
     def __repr__(self):
         return f"HashMap[{self.key_type}, {self.value_type}]"
 
-    # TODO not sure this is used?
     def compare_type(self, other):
         return (
             super().compare_type(other)
@@ -72,8 +70,6 @@ class HashMapT(_SubscriptableT):
                 ),
                 node,
             )
-        # if location != DataLocation.STORAGE or is_immutable:
-        #    raise StructureException("HashMap can only be declared as a storage variable", node)
 
         k_ast, v_ast = node.slice.value.elements
         key_type = type_from_annotation(k_ast)
@@ -114,7 +110,6 @@ class _SequenceT(_SubscriptableT):
         return self.length
 
     def validate_index_type(self, node):
-        # TODO break this cycle
         from vyper.semantics.analysis.utils import validate_expected_type
 
         if isinstance(node, vy_ast.Int):
@@ -129,9 +124,6 @@ class _SequenceT(_SubscriptableT):
         return self.value_type
 
 
-# override value at `k` with `val`, but inserting it before other keys
-# for formatting reasons. besides insertion order, equivalent to
-# `{k: val, **xs}`
 def _set_first_key(xs: Dict[str, Any], k: str, val: Any) -> dict:
     xs.pop(k, None)
     return {k: val, **xs}
@@ -150,7 +142,6 @@ class SArrayT(_SequenceT):
 
     @property
     def _as_array(self):
-        # a static array is arrayable if its value_type is arrayble.
         return self.value_type._as_array
 
     @property
@@ -159,11 +150,9 @@ class SArrayT(_SequenceT):
 
     def to_abi_arg(self, name: str = "") -> Dict[str, Any]:
         ret = self.value_type.to_abi_arg()
-        # modify the child name in place
         ret["type"] += f"[{self.length}]"
         return _set_first_key(ret, "name", name)
 
-    # TODO rename to `memory_bytes_required`
     @property
     def size_in_bytes(self):
         return self.value_type.size_in_bytes * self.length
@@ -197,7 +186,6 @@ class SArrayT(_SequenceT):
         if not value_type._as_array:
             raise StructureException(f"arrays of {value_type} are not allowed!")
 
-        # note: validates index is a vy_ast.Int.
         length = get_index_value(node.slice)
         return cls(value_type, length)
 
@@ -242,19 +230,14 @@ class DArrayT(_SequenceT):
 
     def to_abi_arg(self, name: str = "") -> Dict[str, Any]:
         ret = self.value_type.to_abi_arg()
-        # modify the child name in place.
         ret["type"] += "[]"
         return _set_first_key(ret, "name", name)
 
-    # TODO rename me to memory_bytes_required
     @property
     def size_in_bytes(self):
-        # one length word + size of the array items
         return 32 + self.value_type.size_in_bytes * self.length
 
     def compare_type(self, other):
-        # TODO allow static array to be assigned to dyn array?
-        # if not isinstance(other, (DArrayT, SArrayT)):
         if not isinstance(self, type(other)):
             return False
         if self.length < other.length:
@@ -296,7 +279,7 @@ class TupleT(VyperType):
     def __init__(self, member_types: Tuple[VyperType, ...]) -> None:
         super().__init__()
         self.member_types = member_types
-        self.key_type = UINT256_T  # API Compatibility
+        self.key_type = UINT256_T
 
     def __repr__(self):
         return "(" + ", ".join(repr(t) for t in self.member_types) + ")"

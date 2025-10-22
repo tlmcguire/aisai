@@ -1,19 +1,3 @@
-"""Fork of urllib2.
-
-When reading this, don't assume that all code in here is reachable.  Code in
-the rest of mechanize may be used instead.
-
-Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009 Python
-Software Foundation; All Rights Reserved
-
-Copyright 2002-2009 John J Lee <jjl@pobox.com>
-
-This code is free software; you can redistribute it and/or modify it
-under the terms of the BSD or ZPL 2.1 licenses (see the file
-LICENSE included with the distribution).
-
-"""
-
 
 
 from __future__ import absolute_import
@@ -47,18 +31,15 @@ from .polyglot import (HTTPConnection, HTTPError, HTTPSConnection, URLError,
                        urllib_proxy_bypass, urllib_splithost, urlparse,
                        urlsplit, urlunparse)
 
-
 def sha1_digest(data):
     if not isinstance(data, bytes):
         data = data.encode('utf-8')
     return hashlib.sha1(data).hexdigest()
 
-
 def md5_digest(data):
     if not isinstance(data, bytes):
         data = data.encode('utf-8')
     return hashlib.md5(data).hexdigest()
-
 
 if platform.python_implementation() == 'PyPy':
     def create_readline_wrapper(fh):
@@ -78,14 +59,11 @@ else:
             ans = BufferedReader(socket.SocketIO(fh, 'r'))
         return ans
 
-
 splithost = urllib_splithost
-
 
 __version__ = sys.version[:3]
 
 _opener = None
-
 
 def urlopen(url, data=None):
     global _opener
@@ -93,22 +71,14 @@ def urlopen(url, data=None):
         _opener = build_opener()
     return _opener._open(url, data)
 
-
 def install_opener(opener):
     global _opener
     _opener = opener
 
-
 _cut_port_re = re.compile(r":\d+$")
 
-
 def request_host(request):
-    """Return request-host, as defined by RFC 2965.
 
-    Variation from RFC: returned value is lowercased, for convenient
-    comparison.
-
-    """
     url = request.get_full_url()
     host = urlparse(url)[1]
     if host == "":
@@ -117,7 +87,6 @@ def request_host(request):
     host = _cut_port_re.sub("", host, 1)
     return host.lower()
 
-
 PERCENT_RE = re.compile(b"%[a-fA-F0-9]{2}")
 ZONE_ID_CHARS = set(bytearray(
     b"ABCDEFGHIJKLMNOPQRSTUVWXYZ" b"abcdefghijklmnopqrstuvwxyz" b"0123456789._!-"
@@ -125,7 +94,6 @@ ZONE_ID_CHARS = set(bytearray(
 USERINFO_CHARS = ZONE_ID_CHARS | set(bytearray(b"$&'()*+,;=:"))
 PATH_CHARS = USERINFO_CHARS | set(bytearray(b'@/'))
 QUERY_CHARS = FRAGMENT_CHARS = PATH_CHARS | {ord(b"?")}
-
 
 def fix_invalid_bytes_in_url_component(component, allowed_chars=PATH_CHARS):
     if not component:
@@ -150,7 +118,6 @@ def fix_invalid_bytes_in_url_component(component, allowed_chars=PATH_CHARS):
         encoded_component = encoded_component.decode('utf-8')
     return encoded_component
 
-
 def normalize_url(url):
     parsed = urlparse(url)
     netloc = parsed.netloc
@@ -167,7 +134,6 @@ def normalize_url(url):
         query=fix_invalid_bytes_in_url_component(parsed.query, QUERY_CHARS),
         fragment=fix_invalid_bytes_in_url_component(parsed.fragment, FRAGMENT_CHARS),
     ))
-
 
 class Request:
 
@@ -202,23 +168,22 @@ class Request:
         raise AttributeError(attr)
 
     def get_method(self):
-        ' The method used for HTTP requests '
+
         if self._method is None:
             return "POST" if self.has_data() else 'GET'
         return self._method
 
-
     def set_data(self, data):
-        ' Set the data (a bytestring) to be sent with this request '
+
         self.data = data
     add_data = set_data
 
     def has_data(self):
-        ' True iff there is some data to be sent with this request '
+
         return self.data is not None
 
     def get_data(self):
-        ' The data to be sent with this request '
+
         return self.data
 
     def get_full_url(self):
@@ -261,7 +226,7 @@ class Request:
         self.host = host
 
     def has_proxy(self):
-        """Private method."""
+
         return self.__r_host == self.__original
 
     def get_origin_req_host(self):
@@ -271,8 +236,7 @@ class Request:
         return self.unverifiable
 
     def add_header(self, key, val=None):
-        ''' Add the specified header, replacing existing one, if needed. If val
-        is None, remove the header. '''
+
         key = normalize_header_name(key)
         if val is None:
             self.headers.pop(key, None)
@@ -280,8 +244,7 @@ class Request:
             self.headers[key] = val
 
     def add_unredirected_header(self, key, val):
-        ''' Same as :meth:`add_header()` except that this header will not
-        be sent for redirected requests. '''
+
         key = normalize_header_name(key)
         if val is None:
             self.unredirected_hdrs.pop(key, None)
@@ -289,26 +252,23 @@ class Request:
             self.unredirected_hdrs[key] = val
 
     def has_header(self, header_name):
-        ''' Check if the specified header is present '''
+
         header_name = normalize_header_name(header_name)
         return (header_name in self.headers or
                 header_name in self.unredirected_hdrs)
 
     def get_header(self, header_name, default=None):
-        ''' Get the value of the specified header. If absent, return `default`
-        '''
+
         header_name = normalize_header_name(header_name)
         return self.headers.get(
             header_name,
             self.unredirected_hdrs.get(header_name, default))
 
     def header_items(self):
-        ''' Get a copy of all headers for this request as a list of 2-tuples
-        '''
+
         hdrs = self.unredirected_hdrs.copy()
         hdrs.update(self.headers)
         return list(iteritems(hdrs))
-
 
 class OpenerDirector(object):
 
@@ -415,17 +375,8 @@ class OpenerDirector(object):
             args = (dict, 'default', 'http_error_default') + orig_args
             return self._call_chain(*args)
 
-
-
 def build_opener(*handlers):
-    """Create an opener object from a list of handlers.
 
-    The opener will use several default handlers, including support
-    for HTTP, FTP and when applicable, HTTPS.
-
-    If any of the handlers passed as arguments are subclasses of the
-    default handlers, the default handlers will not be used.
-    """
     opener = OpenerDirector()
     default_classes = [ProxyHandler, UnknownHandler, HTTPHandler,
                        HTTPDefaultErrorHandler, HTTPRedirectHandler,
@@ -451,7 +402,6 @@ def build_opener(*handlers):
         opener.add_handler(h)
     return opener
 
-
 class BaseHandler:
     handler_order = 500
 
@@ -468,20 +418,8 @@ class BaseHandler:
     def __copy__(self):
         return self.__class__()
 
-
 class HTTPErrorProcessor(BaseHandler):
-    """Process HTTP error responses.
 
-    The purpose of this handler is to to allow other response processors a
-    look-in by removing the call to parent.error() from
-    AbstractHTTPHandler.
-
-    For non-2xx error codes, this just passes the job on to the
-    Handler.<proto>_error_<code> methods, via the OpenerDirector.error method.
-    Eventually, HTTPDefaultErrorHandler will raise an HTTPError if no other
-    handler handles the error.
-
-    """
     handler_order = 1000
 
     def http_response(self, request, response):
@@ -494,7 +432,6 @@ class HTTPErrorProcessor(BaseHandler):
         return response
 
     https_response = http_response
-
 
 class HTTPDefaultErrorHandler(BaseHandler):
 
@@ -510,24 +447,12 @@ class HTTPDefaultErrorHandler(BaseHandler):
         assert hdrs == response.hdrs
         raise response
 
-
 class HTTPRedirectHandler(BaseHandler):
     max_repeats = 4
     max_redirections = 10
 
-
-
-
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        """Return a Request or None in response to a redirect.
 
-        This is called by the http_error_30x methods when a
-        redirection response is received.  If a redirection should
-        take place, return a new Request to allow http_error_30x to
-        perform the redirect.  Otherwise, raise HTTPError if no-one
-        else should try to handle this url.  Return None if you can't
-        but another Handler might.
-        """
         from ._request import Request
         m = req.get_method()
         if (code in (301, 302, 303, 307, "refresh") and m in ("GET", "HEAD")
@@ -580,57 +505,8 @@ class HTTPRedirectHandler(BaseHandler):
               "lead to an infinite loop.\n" \
               "The last 30x error message was:\n"
 
-
 def _parse_proxy(proxy):
-    """Return (scheme, user, password, host/port) given a URL or an authority.
 
-    If a URL is supplied, it must have an authority (host:port) component.
-    According to RFC 3986, having an authority component means the URL must
-    have two slashes after the scheme:
-
-    >>> _parse_proxy('file:/ftp.example.com/')
-    Traceback (most recent call last):
-    ValueError: proxy URL with no authority: 'file:/ftp.example.com/'
-
-    The first three items of the returned tuple may be None.
-
-    Examples of authority parsing:
-
-    >>> _parse_proxy('proxy.example.com')
-    (None, None, None, 'proxy.example.com')
-    >>> _parse_proxy('proxy.example.com:3128')
-    (None, None, None, 'proxy.example.com:3128')
-
-    The authority component may optionally include userinfo (assumed to be
-    username:password):
-
-    >>> _parse_proxy('joe:password@proxy.example.com')
-    (None, 'joe', 'password', 'proxy.example.com')
-    >>> _parse_proxy('joe:password@proxy.example.com:3128')
-    (None, 'joe', 'password', 'proxy.example.com:3128')
-
-    Same examples, but with URLs instead:
-
-    >>> _parse_proxy('http://proxy.example.com/')
-    ('http', None, None, 'proxy.example.com')
-    >>> _parse_proxy('http://proxy.example.com:3128/')
-    ('http', None, None, 'proxy.example.com:3128')
-    >>> _parse_proxy('http://joe:password@proxy.example.com/')
-    ('http', 'joe', 'password', 'proxy.example.com')
-    >>> _parse_proxy('http://joe:password@proxy.example.com:3128')
-    ('http', 'joe', 'password', 'proxy.example.com:3128')
-
-    Everything after the authority is ignored:
-
-    >>> _parse_proxy('ftp://joe:password@proxy.example.com/rubbish:3128')
-    ('ftp', 'joe', 'password', 'proxy.example.com')
-
-    Test for no trailing '/' case:
-
-    >>> _parse_proxy('http://joe:password@proxy.example.com')
-    ('http', 'joe', 'password', 'proxy.example.com')
-
-    """
     scheme, r_scheme = splittype(proxy)
     if not r_scheme.startswith("/"):
         scheme = None
@@ -648,7 +524,6 @@ def _parse_proxy(proxy):
     else:
         user = password = None
     return scheme, user, password, hostport
-
 
 class ProxyHandler(BaseHandler):
     handler_order = 100
@@ -695,7 +570,6 @@ class ProxyHandler(BaseHandler):
     def __copy__(self):
         return ProxyHandler(self.proxies.copy(), self._proxy_bypass)
 
-
 class HTTPPasswordMgr:
 
     def __init__(self):
@@ -722,7 +596,7 @@ class HTTPPasswordMgr:
         return None, None
 
     def reduce_uri(self, uri, default_port=True):
-        """Accept authority or URI and extract only the authority and path."""
+
         parts = urlsplit(uri)
         if parts[1]:
             scheme = parts[0]
@@ -742,10 +616,7 @@ class HTTPPasswordMgr:
         return authority, path
 
     def is_suburi(self, base, test):
-        """Check if test is below base in a URI tree
 
-        Both args must be URIs in reduced form.
-        """
         if base == test:
             return True
         if base[0] != test[0]:
@@ -760,7 +631,6 @@ class HTTPPasswordMgr:
         ans.passwd = copy.deepcopy(self.passwd)
         return ans
 
-
 class HTTPPasswordMgrWithDefaultRealm(HTTPPasswordMgr):
 
     def find_user_password(self, realm, authuri):
@@ -770,13 +640,10 @@ class HTTPPasswordMgrWithDefaultRealm(HTTPPasswordMgr):
             return user, password
         return HTTPPasswordMgr.find_user_password(self, None, authuri)
 
-
 class AbstractBasicAuthHandler:
-
 
     rx = re.compile('(?:.*,)*[ \t]*([^ \t]+)[ \t]+'
                     'realm=(["\'])(.*?)\\2', re.I)
-
 
     def __init__(self, password_mgr=None):
         if password_mgr is None:
@@ -811,7 +678,6 @@ class AbstractBasicAuthHandler:
     def __copy__(self):
         return self.__class__(self.passwd.__copy__())
 
-
 class HTTPBasicAuthHandler(AbstractBasicAuthHandler, BaseHandler):
 
     auth_header = 'Authorization'
@@ -823,7 +689,6 @@ class HTTPBasicAuthHandler(AbstractBasicAuthHandler, BaseHandler):
 
     def __copy__(self):
         return AbstractBasicAuthHandler.__copy__(self)
-
 
 class ProxyBasicAuthHandler(AbstractBasicAuthHandler, BaseHandler):
 
@@ -837,14 +702,9 @@ class ProxyBasicAuthHandler(AbstractBasicAuthHandler, BaseHandler):
     def __copy__(self):
         return AbstractBasicAuthHandler.__copy__(self)
 
-
 randombytes = os.urandom
 
-
 class AbstractDigestAuthHandler:
-
-
-
 
     def __init__(self, passwd=None):
         if passwd is None:
@@ -933,7 +793,6 @@ class AbstractDigestAuthHandler:
                         "handling digest authentication")
             return None
 
-
         base = 'username="%s", realm="%s", nonce="%s", uri="%s", ' \
                'response="%s"' % (user, realm, nonce, req.get_selector(),
                                   respdig)
@@ -961,13 +820,8 @@ class AbstractDigestAuthHandler:
     def __copy__(self):
         return self.__class__(self.passwd.__copy__())
 
-
 class HTTPDigestAuthHandler(BaseHandler, AbstractDigestAuthHandler):
-    """An authentication protocol defined by RFC 2069
 
-    Digest authentication improves on basic authentication because it
-    does not transmit passwords in the clear.
-    """
 
     auth_header = 'Authorization'
     handler_order = 490
@@ -981,7 +835,6 @@ class HTTPDigestAuthHandler(BaseHandler, AbstractDigestAuthHandler):
 
     def __copy__(self):
         return AbstractDigestAuthHandler.__copy__(self)
-
 
 class ProxyDigestAuthHandler(BaseHandler, AbstractDigestAuthHandler):
 
@@ -997,7 +850,6 @@ class ProxyDigestAuthHandler(BaseHandler, AbstractDigestAuthHandler):
 
     def __copy__(self):
         return AbstractDigestAuthHandler.__copy__(self)
-
 
 class AbstractHTTPHandler(BaseHandler):
 
@@ -1037,15 +889,7 @@ class AbstractHTTPHandler(BaseHandler):
         return request
 
     def do_open(self, http_class, req):
-        """Return an addinfourl object for the request, using http_class.
 
-        http_class must implement the HTTPConnection API from httplib.
-        The addinfourl return value is a file-like object.  It also
-        has methods and attributes including:
-            - info(): return a HTTPMessage object for the headers
-            - geturl(): return the original request URL
-            - code: HTTP status code
-        """
         host_port = req.get_host()
         if not host_port:
             raise URLError('no host given')
@@ -1097,14 +941,12 @@ class AbstractHTTPHandler(BaseHandler):
     def __copy__(self):
         return self.__class__(self._debuglevel)
 
-
 class HTTPHandler(AbstractHTTPHandler):
 
     def http_open(self, req):
         return self.do_open(HTTPConnection, req)
 
     http_request = AbstractHTTPHandler.do_request_
-
 
 class HTTPSHandler(AbstractHTTPHandler):
 
@@ -1136,15 +978,8 @@ class HTTPSHandler(AbstractHTTPHandler):
         ans.ssl_context = self.ssl_context
         return ans
 
-
 class HTTPCookieProcessor(BaseHandler):
-    """Handle HTTP cookies.
 
-    Public attributes:
-
-    cookiejar: CookieJar instance
-
-    """
 
     def __init__(self, cookiejar=None):
         if cookiejar is None:
@@ -1165,16 +1000,14 @@ class HTTPCookieProcessor(BaseHandler):
     https_request = http_request
     https_response = http_response
 
-
 class UnknownHandler(BaseHandler):
 
     def unknown_open(self, req):
         type = req.get_type()
         raise URLError('unknown url type: %s' % type)
 
-
 def parse_keqv_list(ln):
-    """Parse list of key=value strings where keys are not duplicated."""
+
     parsed = {}
     for elt in ln:
         k, v = elt.split('=', 1)
@@ -1183,16 +1016,8 @@ def parse_keqv_list(ln):
         parsed[k] = v
     return parsed
 
-
 def parse_http_list(s):
-    """Parse lists as described by RFC 2068 Section 2.
 
-    In particular, parse comma-separated lists where the elements of
-    the list may include quoted-strings.  A quoted-string could
-    contain a comma.  A non-quoted string could have quotes in the
-    middle.  Neither commas nor quotes count if they are escaped.
-    Only double-quotes count, not single-quotes.
-    """
     res = []
     part = ''
 
@@ -1225,7 +1050,6 @@ def parse_http_list(s):
         res.append(part)
 
     return list(filter(None, (part_.strip() for part_ in res)))
-
 
 class FileHandler(BaseHandler):
 
@@ -1277,7 +1101,6 @@ class FileHandler(BaseHandler):
         except OSError as msg:
             raise URLError(msg)
         raise URLError('file not on local host')
-
 
 class FTPHandler(BaseHandler):
 
@@ -1339,7 +1162,6 @@ class FTPHandler(BaseHandler):
         except TypeError:
             fw = ftpwrapper(user, passwd, host, port, dirs)
         return fw
-
 
 class CacheFTPHandler(FTPHandler):
 

@@ -21,42 +21,18 @@ __all__ = [
     "parse_query_fragment"
 ]
 
-
 def parse_yaml_query(yaml_content):
-    """Parses the given YAML string to attempt to extract a query.
 
-    Args:
-        yaml_content: A string containing YAML content.
-
-    Returns:
-        On success, the processed MLQuery object.
-    """
     logger.debug("Attempting to parse YAML content:\n%s" % yaml_content)
     return parse_query(yaml.load(yaml_content))
 
-
 def parse_json_query(json_content):
-    """Parses the given JSON string to attempt to extract a query.
 
-    Args:
-        json_content: A string containing JSON content.
-
-    Returns:
-        On success, the processed MLQuery object.
-    """
     logger.debug("Attempting to parse JSON content:\n%s" % json_content)
     return parse_query(json.loads(json_content))
 
-
 def parse_query(qd):
-    """Parses the given query dictionary to produce an MLQuery object.
 
-    Args:
-        qd: A Python dictionary (pre-parsed from JSON/YAML) from which to extract the query.
-
-    Returns:
-        On success, the processed MLQuery object.
-    """
     if not isinstance(qd, dict):
         raise TypeError("Argument for query parsing must be a Python dictionary")
     if 'from' not in qd:
@@ -76,9 +52,8 @@ def parse_query(qd):
         limit=qd.get('limit', None)
     )
 
-
 def parse_query_fragment(q, op=OP_AND, comp=COMP_EQ):
-    """Parses the given query object for its query fragment only."""
+
     if not isinstance(q, list) and not isinstance(q, dict):
         raise TypeError("\"Where\" clause in query fragment must either be a list or a dictionary")
 

@@ -1,13 +1,4 @@
-"""
-project: lollms_webui
-file: lollms_webui_infos.py 
-author: ParisNeo
-description: 
-    This module contains a set of FastAPI routes that provide information about the Lord of Large Language and Multimodal Systems (LoLLMs) Web UI
-    application. These routes allow users to retrieve details such as the current version number, a list of available databases, and options for 
-    updating or restarting the software.
 
-"""
 
 from fastapi import APIRouter, Request
 import pkg_resources
@@ -23,21 +14,19 @@ import time
 lollmsElfServer:LOLLMSWebUI = LOLLMSWebUI.get_instance()
 router = APIRouter()
 
-
 @router.get("/get_versionID")
 async def get_lollms_webui_version():
-   """Get the version of the LoLLMs Web UI application."""
+
    return {"id":4}
 
 @router.get("/get_lollms_webui_version")
 async def get_lollms_webui_version():
-   """Get the version of the LoLLMs Web UI application."""
-   return lollmsElfServer.version
 
+   return lollmsElfServer.version
 
 @router.get("/restart_program")
 async def restart_program():
-    """Restart the program."""
+
     if lollmsElfServer.config.headless_server_mode:
         return {"status":False,"error":"Restarting app is blocked when in headless mode for obvious security reasons!"}
 
@@ -61,7 +50,7 @@ async def restart_program():
 
 @router.get("/update_software")
 async def update_software():
-    """Update the software."""
+
     if lollmsElfServer.config.headless_server_mode:
         return {"status":False,"error":"Updating app is blocked when in headless mode for obvious security reasons!"}
 
@@ -83,10 +72,9 @@ async def update_software():
     lollmsElfServer.run_update_script(lollmsElfServer.args)
     sys.exit()
 
-
 @router.get("/check_update")
 def check_update():
-    """Checks if an update is available"""
+
     if lollmsElfServer.config.headless_server_mode:
         return {"status":False,"error":"Checking updates is blocked when in headless mode for obvious security reasons!"}
 

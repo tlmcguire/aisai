@@ -1,4 +1,4 @@
-"""``chameleon.tales`` expressions."""
+
 
 from ast import NodeTransformer
 from ast import parse
@@ -28,7 +28,6 @@ from zope.traversing.interfaces import TraversalError
 from .Expressions import render
 from .interfaces import IZopeAwareEngine
 
-
 _marker = object()
 
 zope2_exceptions = (
@@ -42,10 +41,8 @@ zope2_exceptions = (
     TraversalError,
 )
 
-
 def static(obj):
     return Static(template("obj", obj=Symbol(obj), mode="eval"))
-
 
 class BoboAwareZopeTraverse:
     traverse_method = 'restrictedTraverse'
@@ -54,7 +51,7 @@ class BoboAwareZopeTraverse:
 
     @classmethod
     def traverse(cls, base, request, path_items):
-        """See ``zope.app.pagetemplate.engine``."""
+
 
         path_items = list(path_items)
         path_items.reverse()
@@ -84,7 +81,6 @@ class BoboAwareZopeTraverse:
 
         return base
 
-
 class TrustedBoboAwareZopeTraverse(BoboAwareZopeTraverse):
     traverse_method = 'unrestrictedTraverse'
 
@@ -104,7 +100,6 @@ class TrustedBoboAwareZopeTraverse(BoboAwareZopeTraverse):
 
         return base
 
-
 class PathExpr(expressions.PathExpr):
     exceptions = zope2_exceptions
 
@@ -112,20 +107,16 @@ class PathExpr(expressions.PathExpr):
         "cls()", cls=Symbol(BoboAwareZopeTraverse), mode="eval"
     ))
 
-
 class TrustedPathExpr(PathExpr):
     traverser = Static(template(
         "cls()", cls=Symbol(TrustedBoboAwareZopeTraverse), mode="eval"
     ))
 
-
 class NocallExpr(expressions.NocallExpr, PathExpr):
     pass
 
-
 class ExistsExpr(expressions.ExistsExpr):
     exceptions = zope2_exceptions
-
 
 class RestrictionTransform(NodeTransformer):
     secured = {
@@ -142,7 +133,6 @@ class RestrictionTransform(NodeTransformer):
             return Symbol(value)
 
         return node
-
 
 class UntrustedPythonExpr(expressions.PythonExpr):
     restricted_python_transformer = RestrictingNodeTransformer()
@@ -164,16 +154,11 @@ class UntrustedPythonExpr(expressions.PythonExpr):
 
         return node
 
-
 @implementer(IZopeAwareEngine)
 class ChameleonEngine(ExpressionEngine):
-    """Expression engine for ``chameleon.tales``.
 
-    Only partially implemented: its ``compile`` is currently unusable
-    """
     def compile(self, expression):
         raise NotImplementedError()
-
 
 types = dict(
     python=UntrustedPythonExpr,
@@ -183,7 +168,6 @@ types = dict(
     path=PathExpr,
     provider=expressions.ProviderExpr,
     nocall=NocallExpr)
-
 
 def createChameleonEngine(types=types, untrusted=True, **overrides):
     e = ChameleonEngine()
@@ -203,22 +187,17 @@ def createChameleonEngine(types=types, untrusted=True, **overrides):
         e.registerType(k, v)
     return e
 
-
 def createTrustedChameleonEngine(**overrides):
     ovr = dict(python=expressions.PythonExpr, path=TrustedPathExpr)
     ovr.update(overrides)
     return createChameleonEngine(untrusted=False, **ovr)
 
-
 _engine = createChameleonEngine()
-
 
 def getEngine():
     return _engine
 
-
 _trusted_engine = createTrustedChameleonEngine()
-
 
 def getTrustedEngine():
     return _trusted_engine

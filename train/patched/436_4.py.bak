@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 from threading import Lock
 
@@ -88,9 +87,9 @@ class RequestFactory:
         """
         if not self.pyload.config.get("proxy", "enabled"):
             return {}
-        
+
         proxy_type = self.pyload.config.get("proxy", "type").lower()
-        
+
         username = self.pyload.config.get("proxy", "username")
         if not username or username.lower() == "none":
             username = None

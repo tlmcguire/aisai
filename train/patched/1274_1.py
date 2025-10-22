@@ -1,9 +1,5 @@
 def sqrt_fixed(x: int) -> int:
-    """
-    Calculates the integer square root of x using the Babylonian method.
-    This implementation addresses potential oscillation issues by
-    adding a check to ensure the result is not rounded up incorrectly.
-    """
+
     if x < 0:
         raise ValueError("Cannot calculate square root of negative number")
     if x == 0:

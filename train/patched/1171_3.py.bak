@@ -1,5 +1,3 @@
-# Copyright 2014-2021 The aiosmtpd Developers
-# SPDX-License-Identifier: Apache-2.0
 
 """Test SMTP smuggling."""
 
@@ -33,13 +31,6 @@ def new_data(self, msg):
         if code != 354:
             raise SMTPDataError(code, repl)
         else:
-            ##### Patching input encoding so we can send raw messages
-            #if isinstance(msg, str):
-            #    msg = smtplib._fix_eols(msg).encode('ascii')
-            #q = smtplib._quote_periods(msg)
-            #if q[-2:] != smtplib.bCRLF:
-            #    q = q + smtplib.bCRLF
-            #q = q + b"." + smtplib.bCRLF
             q = msg
             self.send(q)
             (code, msg) = self.getreply()
@@ -62,7 +53,6 @@ class TestSmuggling:
         recipients = ["rcpt1@example.com"]
         resp = client.helo("example.com")
         assert resp == S.S250_FQDN
-        # Trying SMTP smuggling with a fake \n.\r\n end-of-data sequence.
         message_data = b"""\
 From: Anne Person <anne@example.com>\r\n\
 To: Bart Person <bart@example.com>\r\n\

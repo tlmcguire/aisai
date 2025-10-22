@@ -271,7 +271,7 @@ def create_pandas_dataframe_agent(
             number_of_head_rows=number_of_head_rows,
         )
         agent: Union[BaseSingleActionAgent, BaseMultiActionAgent] = RunnableAgent(
-            runnable=create_react_agent(llm, tools, prompt),  # type: ignore
+            runnable=create_react_agent(llm, tools, prompt),
             input_keys_arg=["input"],
             return_keys_arg=["output"],
         )

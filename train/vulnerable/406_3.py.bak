@@ -1,16 +1,3 @@
-# Copyright The PyTorch Lightning team.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 import ast
 import csv
@@ -42,8 +29,7 @@ if _OMEGACONF_AVAILABLE:
     from omegaconf.dictconfig import DictConfig
     from omegaconf.errors import UnsupportedValueType, ValidationError
 
-# the older shall be on the top
-CHECKPOINT_PAST_HPARAMS_KEYS = ("hparams", "module_arguments")  # used in 0.7.6
+CHECKPOINT_PAST_HPARAMS_KEYS = ("hparams", "module_arguments")
 
 
 class ModelIO:
@@ -144,13 +130,10 @@ class ModelIO:
 
             hparams["on_gpu"] = False
 
-            # overwrite hparams by the given file
             checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = hparams
 
-        # for past checkpoint need to add the new key
         if cls.CHECKPOINT_HYPER_PARAMS_KEY not in checkpoint:
             checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = {}
-        # override the hparams with values that were passed in
         checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].update(kwargs)
 
         model = cls._load_model_state(checkpoint, strict=strict, **kwargs)
@@ -166,23 +149,18 @@ class ModelIO:
         cls_init_args_name = list(filter(lambda n: n not in drop_names, cls_init_args_name))
 
         cls_kwargs_loaded = {}
-        # pass in the values we saved automatically
         if cls.CHECKPOINT_HYPER_PARAMS_KEY in checkpoint:
 
-            # 1. (backward compatibility) Try to restore model hparams from checkpoint using old/past keys
             for _old_hparam_key in CHECKPOINT_PAST_HPARAMS_KEYS:
                 cls_kwargs_loaded.update(checkpoint.get(_old_hparam_key, {}))
 
-            # 2. Try to restore model hparams from checkpoint using the new key
             _new_hparam_key = cls.CHECKPOINT_HYPER_PARAMS_KEY
             cls_kwargs_loaded.update(checkpoint.get(_new_hparam_key))
 
-            # 3. Ensure that `cls_kwargs_old` has the right type, back compatibility between dict and Namespace
             cls_kwargs_loaded = _convert_loaded_hparams(
                 cls_kwargs_loaded, checkpoint.get(cls.CHECKPOINT_HYPER_PARAMS_TYPE)
             )
 
-            # 4. Update cls_kwargs_new with cls_kwargs_old, such that new has higher priority
             args_name = checkpoint.get(cls.CHECKPOINT_HYPER_PARAMS_NAME)
             if args_name and args_name in cls_init_args_name:
                 cls_kwargs_loaded = {args_name: cls_kwargs_loaded}
@@ -192,15 +170,12 @@ class ModelIO:
         _cls_kwargs.update(cls_kwargs_new)
 
         if not cls_spec.varkw:
-            # filter kwargs according to class init unless it allows any argument via kwargs
             _cls_kwargs = {k: v for k, v in _cls_kwargs.items() if k in cls_init_args_name}
 
         model = cls(**_cls_kwargs)
 
-        # give model a chance to load something
         model.on_load_checkpoint(checkpoint)
 
-        # load the state_dict on the model automatically
         keys = model.load_state_dict(checkpoint["state_dict"], strict=strict)
 
         if not strict:
@@ -215,9 +190,6 @@ class ModelIO:
 
         return model
 
-    # -------------------------
-    # OPTIONAL HOOKS
-    # -------------------------
     def on_hpc_save(self, checkpoint: Dict[str, Any]) -> None:
         """Hook to do whatever you need right before Slurm manager saves the model.
 
@@ -244,13 +216,10 @@ class ModelIO:
 
 def _convert_loaded_hparams(model_args: dict, hparams_type: Optional[Union[Callable, str]] = None) -> object:
     """Convert hparams according given type in callable or string (past) format."""
-    # if not hparams type define
     if not hparams_type:
         return model_args
-    # if past checkpoint loaded, convert str to callable
     if isinstance(hparams_type, str):
         hparams_type = AttributeDict
-    # convert hparams
     return hparams_type(model_args)
 
 
@@ -270,16 +239,13 @@ def update_hparams(hparams: dict, updates: dict) -> None:
         updates: new params to be used as update
     """
     for k, v in updates.items():
-        # if missing, add the key
         if k not in hparams:
             hparams[k] = v
             continue
 
-        # recurse if dictionary
         if isinstance(v, dict):
             update_hparams(hparams[k], updates[k])
         else:
-            # update the value
             hparams.update({k: v})
 
 
@@ -368,15 +334,12 @@ def save_hparams_to_yaml(config_yaml, hparams: Union[dict, Namespace], use_omega
     if not fs.isdir(os.path.dirname(config_yaml)):
         raise RuntimeError(f"Missing folder: {os.path.dirname(config_yaml)}.")
 
-    # convert Namespace or AD to dict
     if isinstance(hparams, Namespace):
         hparams = vars(hparams)
     elif isinstance(hparams, AttributeDict):
         hparams = dict(hparams)
 
-    # saving with OmegaConf objects
     if _OMEGACONF_AVAILABLE and use_omegaconf:
-        # deepcopy: hparams from user shouldn't be resolved
         hparams = deepcopy(hparams)
         hparams = apply_to_collection(hparams, DictConfig, OmegaConf.to_container, resolve=True)
         with fs.open(config_yaml, "w", encoding="utf-8") as fp:
@@ -390,7 +353,6 @@ def save_hparams_to_yaml(config_yaml, hparams: Union[dict, Namespace], use_omega
         raise TypeError("hparams must be dictionary")
 
     hparams_allowed = {}
-    # drop paramaters which contain some strange datatypes as fsspec
     for k, v in hparams.items():
         try:
             v = v.name if isinstance(v, Enum) else v
@@ -401,7 +363,6 @@ def save_hparams_to_yaml(config_yaml, hparams: Union[dict, Namespace], use_omega
         else:
             hparams_allowed[k] = v
 
-    # saving the standard way
     with fs.open(config_yaml, "w", newline="") as fp:
         yaml.dump(hparams_allowed, fp)
 

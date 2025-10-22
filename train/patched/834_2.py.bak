@@ -5,11 +5,7 @@ def upgrade_synapse():
 
     print("Upgrading Synapse...")
 
-    # Vulnerability 1: Arbitrary command execution via pip install/git pull
-    # Mitigation: Replace subprocess calls with explicit dependency management.
-    # This removes the risk of injecting malicious commands.
 
-    # Install or upgrade the matrix-synapse package using pip
     try:
         import pip
         pip.main(["install", "--upgrade", "matrix-synapse"])
@@ -19,10 +15,6 @@ def upgrade_synapse():
 
     print("Successfully upgraded matrix-synapse.")
 
-    # Vulnerability 2: OS command injection via ./synctl restart
-    # Mitigation: Replace os.system with a direct API call or safer mechanism
-    # However, 'synctl' is an external utility. Safer alternatives depend on the
-    # deployment setup.  Assuming systemd based system, using systemctl to restart
     import subprocess
 
     try:
@@ -43,9 +35,6 @@ def upgrade_synapse():
        print("Please check the logs for details and try manually if needed")
        return
 
-    # Vulnerability 3: Insecure curl command (SSRF)
-    # Mitigation: Replace command execution with explicit HTTP library.
-    # This avoids injection and enables better error handling.
 
     import requests
 

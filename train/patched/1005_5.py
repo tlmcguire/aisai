@@ -3,10 +3,7 @@
 def set_storage_slots_with_overrides(
     vyper_module: vy_ast.Module, storage_layout_overrides: StorageLayout
 ) -> StorageLayout:
-    """
-    Parse module-level Vyper AST to calculate the layout of storage variables.
-    Returns the layout as a dict of variable name -> variable info
-    """
+
 
     ret: Dict[str, Dict] = {}
     reserved_slots = StorageAllocator()
@@ -95,12 +92,8 @@ def set_storage_slots_with_overrides(
 
     return ret
 
-
 def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
-    """
-    Parse module-level Vyper AST to calculate the layout of storage variables.
-    Returns the layout as a dict of variable name -> variable info
-    """
+
 
     allocator = SimpleStorageAllocator()
 
@@ -123,7 +116,6 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
         type_.set_reentrancy_key_position(StorageSlot(slot))
 
         ret[variable_name] = {"type": "nonreentrant lock", "slot": slot}
-
 
     for node in vyper_module.get_children(vy_ast.VariableDecl):
         if node.is_constant or node.is_immutable:

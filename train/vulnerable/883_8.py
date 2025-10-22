@@ -31,7 +31,6 @@ from fides.config import CONFIG
 from tests.ops.api.v1.endpoints.test_dataset_endpoints import _reject_key
 from tests.ops.test_helpers.saas_test_utils import create_zip_file
 
-
 @pytest.mark.unit_saas
 class TestValidateSaaSConfig:
     @pytest.fixture
@@ -156,7 +155,6 @@ class TestValidateSaaSConfig:
             == "References can only have a direction of 'from', found 'to'"
         )
 
-
 @pytest.mark.unit_saas
 class TestPutSaaSConfig:
     @pytest.fixture
@@ -250,16 +248,14 @@ class TestPutSaaSConfig:
         assert saas_config is not None
         assert len(saas_config["endpoints"]) == 11
 
-
 def get_saas_config_url(connection_config: Optional[ConnectionConfig] = None) -> str:
-    """Helper to construct the SAAS_CONFIG URL, substituting valid/invalid keys in the path"""
+
     path = V1_URL_PREFIX + SAAS_CONFIG
     connection_key = "nonexistent_key"
     if connection_config:
         connection_key = connection_config.key
     path_params = {"connection_key": connection_key}
     return path.format(**path_params)
-
 
 @pytest.mark.unit_saas
 class TestGetSaaSConfig:
@@ -324,7 +320,6 @@ class TestGetSaaSConfig:
         )
         assert len(response_body["endpoints"]) == 12
         assert response_body["type"] == "custom"
-
 
 @pytest.mark.unit_saas
 class TestDeleteSaaSConfig:
@@ -417,7 +412,6 @@ class TestDeleteSaaSConfig:
             "config before deleting the SaaS config."
         )
 
-
 class TestAuthorizeConnection:
     @pytest.fixture
     def authorize_url(self, oauth2_authorization_code_connection_config) -> str:
@@ -454,7 +448,6 @@ class TestAuthorizeConnection:
         response = api_client.get(authorize_url, headers=auth_header)
         response.raise_for_status()
         assert response.text == f'"{authorization_url}"'
-
 
 class TestRegisterConnectorTemplate:
     @pytest.fixture

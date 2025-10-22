@@ -1,4 +1,4 @@
-""" Handy utility functions. """
+
 
 from __future__ import annotations
 
@@ -65,11 +65,7 @@ def get_package_version() -> str:
         return ""
 
 def safe_get_lock() -> asyncio.Lock:
-    """Get asyncio.Lock() without fear of getting an Exception.
 
-    Needed because in reload mode we import the Blocks object outside
-    the main thread.
-    """
     try:
         asyncio.get_event_loop()
         return asyncio.Lock()
@@ -132,10 +128,7 @@ class SourceFileReloader(BaseReloader):
         self.alert_change()
 
 def watchfn(reloader: SourceFileReloader):
-    """Watch python files in a given module.
 
-    get_changes is taken from uvicorn's default file watcher.
-    """
 
     from gradio.cli.commands.reload import reload_thread
 
@@ -210,10 +203,7 @@ def watchfn(reloader: SourceFileReloader):
             mtimes = {}
 
 def colab_check() -> bool:
-    """
-    Check if interface is launching from Google Colab
-    :return is_colab (bool): True or False
-    """
+
     is_colab = False
     try:
         from IPython.core.getipython import get_ipython
@@ -241,10 +231,7 @@ def sagemaker_check() -> bool:
         return False
 
 def ipython_check() -> bool:
-    """
-    Check if interface is launching from iPython (not colab)
-    :return is_ipython (bool): True or False
-    """
+
     is_ipython = False
     try:
         from IPython.core.getipython import get_ipython
@@ -299,15 +286,7 @@ def get_default_args(func: Callable) -> list[Any]:
 def assert_configs_are_equivalent_besides_ids(
     config1: dict, config2: dict, root_keys: tuple = ("mode",)
 ):
-    """Allows you to test if two different Blocks configs produce the same demo.
 
-    Parameters:
-    config1 (dict): nested dict with config from the first Blocks instance
-    config2 (dict): nested dict with config from the second Blocks instance
-    root_keys (Tuple): an interable consisting of which keys to test for equivalence at
-        the root level of the config. By default, only "mode" is tested,
-        so keys like "version" are ignored.
-    """
     config1 = copy.deepcopy(config1)
     config2 = copy.deepcopy(config2)
     config1 = json.loads(json.dumps(config1))
@@ -377,9 +356,7 @@ def format_ner_list(input_string: str, ner_groups: list[dict[str, str | int]]):
     return output
 
 def delete_none(_dict: dict, skip_value: bool = False) -> dict:
-    """
-    Delete keys whose values are None from a dictionary
-    """
+
     for key, value in list(_dict.items()):
         if skip_value and key == "value":
             continue
@@ -394,15 +371,7 @@ def resolve_singleton(_list: list[Any] | Any) -> Any:
         return _list
 
 def component_or_layout_class(cls_name: str) -> type[Component] | type[BlockContext]:
-    """
-    Returns the component, template, or layout class with the given class name, or
-    raises a ValueError if not found.
 
-    Parameters:
-    cls_name (str): lower-case string class name of a component
-    Returns:
-    cls: the component class
-    """
     import gradio.blocks
     import gradio.components
     import gradio.layouts
@@ -432,40 +401,19 @@ def component_or_layout_class(cls_name: str) -> type[Component] | type[BlockCont
     raise ValueError(f"No such component or layout: {cls_name}")
 
 def run_coro_in_background(func: Callable, *args, **kwargs):
-    """
-    Runs coroutines in background.
 
-    Warning, be careful to not use this function in other than FastAPI scope, because the event_loop has not started yet.
-    You can use it in any scope reached by FastAPI app.
-
-    correct scope examples: endpoints in routes, Blocks.process_api
-    incorrect scope examples: Blocks.launch
-
-    Use startup_events in routes.py if you need to run a coro in background in Blocks.launch().
-
-    Example:
-        utils.run_coro_in_background(fn, *args, **kwargs)
-
-    Args:
-        func:
-        *args:
-        **kwargs:
-
-    Returns:
-
-    """
     event_loop = asyncio.get_event_loop()
     return event_loop.create_task(func(*args, **kwargs))
 
 def run_sync_iterator_async(iterator):
-    """Helper for yielding StopAsyncIteration from sync iterators."""
+
     try:
         return next(iterator)
     except StopIteration:
         raise StopAsyncIteration() from None
 
 class SyncToAsyncIterator:
-    """Treat a synchronous iterator as async one."""
+
 
     def __init__(self, iterator, limiter) -> None:
         self.iterator = iterator
@@ -484,7 +432,7 @@ async def async_iteration(iterator):
 
 @contextmanager
 def set_directory(path: Path | str):
-    """Context manager that sets the working directory to the given path."""
+
     origin = Path().absolute()
     try:
         os.chdir(path)
@@ -494,17 +442,14 @@ def set_directory(path: Path | str):
 
 @contextmanager
 def no_raise_exception():
-    """Context manager that suppresses exceptions."""
+
     try:
         yield
     except Exception:
         pass
 
 def sanitize_value_for_csv(value: str | Number) -> str | Number:
-    """
-    Sanitizes a value that is being written to a CSV file to prevent CSV injection attacks.
-    Reference: https://owasp.org/www-community/attacks/CSV_Injection
-    """
+
     if isinstance(value, Number):
         return value
     unsafe_prefixes = ["=", "+", "-", "@", "\t", "\n"]
@@ -516,10 +461,7 @@ def sanitize_value_for_csv(value: str | Number) -> str | Number:
     return value
 
 def sanitize_list_for_csv(values: list[Any]) -> list[Any]:
-    """
-    Sanitizes a list of values (or a list of list of values) that is being written to a
-    CSV file to prevent CSV injection attacks.
-    """
+
     sanitized_values = []
     for value in values:
         if isinstance(value, list):
@@ -531,7 +473,7 @@ def sanitize_list_for_csv(values: list[Any]) -> list[Any]:
     return sanitized_values
 
 def append_unique_suffix(name: str, list_of_names: list[str]):
-    """Appends a numerical suffix to `name` so that it does not appear in `list_of_names`."""
+
     set_of_names: set[str] = set(list_of_names)
     if name not in set_of_names:
         return name
@@ -731,7 +673,6 @@ def is_special_typed_parameter(name, parameter_types):
     from gradio.oauth import OAuthProfile, OAuthToken
     from gradio.routes import Request
 
-
     hint = parameter_types.get(name)
     if not hint:
         return False
@@ -746,11 +687,7 @@ def is_special_typed_parameter(name, parameter_types):
     return is_request or is_event_data or is_oauth_arg
 
 def check_function_inputs_match(fn: Callable, inputs: list, inputs_as_dict: bool):
-    """
-    Checks if the input component set matches the function
-    Returns: None if valid or if the function does not have a signature (e.g. is a built in),
-    or a string error message if mismatch
-    """
+
     try:
         signature = inspect.signature(fn)
     except ValueError:
@@ -835,7 +772,7 @@ def tex2svg(formula, *args):
     return f"{copy_code}{svg_code}"
 
 def abspath(path: str | Path) -> Path:
-    """Returns absolute path of a str or Path path, but does not resolve symlinks."""
+
     path = Path(path)
 
     if path.is_absolute():
@@ -851,13 +788,7 @@ def abspath(path: str | Path) -> Path:
         return path.resolve()
 
 def is_in_or_equal(path_1: str | Path, path_2: str | Path):
-    """
-    True if path_1 is a descendant (i.e. located within) path_2 or if the paths are the
-    same, returns False otherwise.
-    Parameters:
-        path_1: str or Path (should be a file)
-        path_2: str or Path (can be a file or directory)
-    """
+
     path_1, path_2 = abspath(path_1), abspath(path_2)
     try:
         if str(path_1.relative_to(path_2)).startswith(".."):
@@ -872,9 +803,7 @@ def remove_html_tags(raw_html: str | None) -> str:
     return re.sub(HTML_TAG_RE, "", raw_html or "")
 
 def find_user_stack_level() -> int:
-    """
-    Find the first stack frame not inside Gradio.
-    """
+
     frame = inspect.currentframe()
     n = 0
     while frame:
@@ -886,32 +815,21 @@ def find_user_stack_level() -> int:
     return n
 
 class NamedString(str):
-    """
-    Subclass of str that includes a .name attribute equal to the value of the string itself. This class is used when returning
-    a value from the `.preprocess()` methods of the File and UploadButton components. Before Gradio 4.0, these methods returned a file
-    object which was then converted to a string filepath using the `.name` attribute. In Gradio 4.0, these methods now return a str
-    filepath directly, but to maintain backwards compatibility, we use this class instead of a regular str.
-    """
+
 
     def __init__(self, *args):
         super().__init__()
         self.name = str(self) if args else ""
 
 def default_input_labels():
-    """
-    A generator that provides default input labels for components when the user's function
-    does not have named parameters. The labels are of the form "input 0", "input 1", etc.
-    """
+
     n = 0
     while True:
         yield f"input {n}"
         n += 1
 
 def get_extension_from_file_path_or_url(file_path_or_url: str) -> str:
-    """
-    Returns the file extension (without the dot) from a file path or URL. If the file path or URL does not have a file extension, returns an empty string.
-    For example, "https://example.com/avatar/xxxx.mp4?se=2023-11-16T06:51:23Z&sp=r" would return "mp4".
-    """
+
     parsed_url = urllib.parse.urlparse(file_path_or_url)
     file_extension = os.path.splitext(os.path.basename(parsed_url.path))[1]
     return file_extension[1:] if file_extension else ""

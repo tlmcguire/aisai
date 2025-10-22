@@ -94,7 +94,7 @@ def is_ip_allowed(
         for ip_range in ip_range_whitelist:
            if _ip_address_in_range(ip_address, ip_range):
                 return True
-    
+
     if ip_range_blacklist:
         for ip_range in ip_range_blacklist:
            if _ip_address_in_range(ip_address, ip_range):

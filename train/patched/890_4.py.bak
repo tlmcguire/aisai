@@ -157,10 +157,8 @@ class UntrustedPythonExpr(expressions.PythonExpr):
     restricted_python_transformer = RestrictingNodeTransformer()
     page_templates_expression_transformer = RestrictionTransform()
 
-    # Make copy of parent expression builtins
     builtins = expressions.PythonExpr.builtins.copy()
 
-    # Update builtins with Restricted Python utility builtins
     builtins.update({
         name: static(builtin) for (name, builtin) in utility_builtins.items()
     })
@@ -169,20 +167,13 @@ class UntrustedPythonExpr(expressions.PythonExpr):
         encoded = string.encode('utf-8')
         node = parse(encoded, mode='eval')
 
-        # Run Node Transformation from RestrictedPython:
         self.restricted_python_transformer.visit(node)
 
-        # Run PageTemplate.expression RestrictedPython Transform:
         self.page_templates_expression_transformer.visit(node)
 
         return node
 
 
-# Whether an engine is Zope aware does not depend on the class
-# but how it is configured - especially, that is uses a Zope aware
-# `PathExpr` implementation.
-# Nevertheless, we mark the class as "Zope aware" for simplicity
-# assuming that users of the class use a proper `PathExpr`
 @implementer(IZopeAwareEngine)
 class ChameleonEngine(ExpressionEngine):
     """Expression engine for ``chameleon.tales``.

@@ -67,27 +67,19 @@ QueryArgs = Dict[str, Union[str, List[str]]]
 class MatrixFederationRequest:
     method = attr.ib(type=str)
 
-
     path = attr.ib(type=str)
-
 
     destination = attr.ib(type=str)
 
-
     json = attr.ib(default=None, type=Optional[JsonDict])
-
 
     json_callback = attr.ib(default=None, type=Optional[Callable[[], JsonDict]])
 
-
     query = attr.ib(default=None, type=Optional[dict])
-
 
     txn_id = attr.ib(default=None, type=Optional[str])
 
-
     uri = attr.ib(init=False, type=bytes)
-
 
     def __attrs_post_init__(self) -> None:
         global _next_id
@@ -120,19 +112,7 @@ async def _handle_json_response(
     response: IResponse,
     start_ms: int,
 ) -> JsonDict:
-    """
-    Reads the JSON body of a response, with a timeout
 
-    Args:
-        reactor: twisted reactor, for the timeout
-        timeout_sec: number of seconds to wait for response to complete
-        request: the request that triggered the response
-        response: response to the request
-        start_ms: Timestamp when request was made
-
-    Returns:
-        The parsed JSON response
-    """
     try:
         check_content_type_is_json(response.headers)
 
@@ -176,13 +156,7 @@ async def _handle_json_response(
     return body
 
 class MatrixFederationHttpClient:
-    """HTTP client used to talk to other homeservers over the federation
-    protocol. Send client certificates and signs requests.
 
-    Attributes:
-        agent (twisted.web.client.Agent): The twisted Agent used to send the
-            requests.
-    """
 
     def __init__(self, hs, tls_client_options_factory):
         self.hs = hs
@@ -225,25 +199,7 @@ class MatrixFederationHttpClient:
         try_trailing_slash_on_400: bool = False,
         **send_request_args
     ) -> IResponse:
-        """Wrapper for _send_request which can optionally retry the request
-        upon receiving a combination of a 400 HTTP response code and a
-        'M_UNRECOGNIZED' errcode. This is a workaround for Synapse <= v0.99.3
-        due to #3622.
 
-        Args:
-            request: details of request to be sent
-            try_trailing_slash_on_400: Whether on receiving a 400
-                'M_UNRECOGNIZED' from the server to retry the request with a
-                trailing slash appended to the request path.
-            send_request_args: A dictionary of arguments to pass to `_send_request()`.
-
-        Raises:
-            HttpResponseException: If we get an HTTP response code >= 300
-                (except 429).
-
-        Returns:
-            Parsed JSON response body.
-        """
         try:
             response = await self._send_request(request, **send_request_args)
         except HttpResponseException as e:
@@ -270,52 +226,7 @@ class MatrixFederationHttpClient:
         ignore_backoff: bool = False,
         backoff_on_404: bool = False,
     ) -> IResponse:
-        """
-        Sends a request to the given server.
 
-        Args:
-            request: details of request to be sent
-
-            retry_on_dns_fail: true if the request should be retied on DNS failures
-
-            timeout: number of milliseconds to wait for the response headers
-                (including connecting to the server), *for each attempt*.
-                60s by default.
-
-            long_retries: whether to use the long retry algorithm.
-
-                The regular retry algorithm makes 4 attempts, with intervals
-                [0.5s, 1s, 2s].
-
-                The long retry algorithm makes 11 attempts, with intervals
-                [4s, 16s, 60s, 60s, ...]
-
-                Both algorithms add -20%/+40% jitter to the retry intervals.
-
-                Note that the above intervals are *in addition* to the time spent
-                waiting for the request to complete (up to `timeout` ms).
-
-                NB: the long retry algorithm takes over 20 minutes to complete, with
-                a default timeout of 60s!
-
-            ignore_backoff: true to ignore the historical backoff data
-                and try the request anyway.
-
-            backoff_on_404: Back off if we get a 404
-
-        Returns:
-            Resolves with the HTTP response object on success.
-
-        Raises:
-            HttpResponseException: If we get an HTTP response code >= 300
-                (except 429).
-            NotRetryingDestination: If we are not yet ready to retry this
-                server.
-            FederationDeniedError: If this destination  is not on our
-                federation whitelist
-            RequestSendFailed: If there were problems connecting to the
-                remote, due to e.g. DNS failures, connection timeouts etc.
-        """
         if timeout:
             _sec_timeout = timeout / 1000
         else:
@@ -531,21 +442,7 @@ class MatrixFederationHttpClient:
         content: Optional[JsonDict] = None,
         destination_is: Optional[bytes] = None,
     ) -> List[bytes]:
-        """
-        Builds the Authorization headers for a federation request
-        Args:
-            destination: The destination homeserver of the request.
-                May be None if the destination is an identity server, in which case
-                destination_is must be non-None.
-            method: The HTTP method of the request
-            url_bytes: The URI path of the request
-            content: The body of the request
-            destination_is: As 'destination', but if the destination is an
-                identity server
 
-        Returns:
-            A list of headers to be added as "Authorization:" headers
-        """
         request = {
             "method": method.decode("ascii"),
             "uri": url_bytes.decode("ascii"),
@@ -587,53 +484,7 @@ class MatrixFederationHttpClient:
         backoff_on_404: bool = False,
         try_trailing_slash_on_400: bool = False,
     ) -> Union[JsonDict, list]:
-        """ Sends the specified json data using PUT
 
-        Args:
-            destination: The remote server to send the HTTP request to.
-            path: The HTTP path.
-            args: query params
-            data: A dict containing the data that will be used as
-                the request body. This will be encoded as JSON.
-            json_data_callback: A callable returning the dict to
-                use as the request body.
-
-            long_retries: whether to use the long retry algorithm. See
-                docs on _send_request for details.
-
-            timeout: number of milliseconds to wait for the response.
-                self._default_timeout (60s) by default.
-
-                Note that we may make several attempts to send the request; this
-                timeout applies to the time spent waiting for response headers for
-                *each* attempt (including connection time) as well as the time spent
-                reading the response body after a 200 response.
-
-            ignore_backoff: true to ignore the historical backoff data
-                and try the request anyway.
-            backoff_on_404: True if we should count a 404 response as
-                a failure of the server (and should therefore back off future
-                requests).
-            try_trailing_slash_on_400: True if on a 400 M_UNRECOGNIZED
-                response we should try appending a trailing slash to the end
-                of the request. Workaround for #3622 in Synapse <= v0.99.3. This
-                will be attempted before backing off if backing off has been
-                enabled.
-
-        Returns:
-            Succeeds when we get a 2xx HTTP response. The
-            result will be the decoded JSON body.
-
-        Raises:
-            HttpResponseException: If we get an HTTP response code >= 300
-                (except 429).
-            NotRetryingDestination: If we are not yet ready to retry this
-                server.
-            FederationDeniedError: If this destination  is not on our
-                federation whitelist
-            RequestSendFailed: If there were problems connecting to the
-                remote, due to e.g. DNS failures, connection timeouts etc.
-        """
         request = MatrixFederationRequest(
             method="PUT",
             destination=destination,
@@ -675,45 +526,7 @@ class MatrixFederationHttpClient:
         ignore_backoff: bool = False,
         args: Optional[QueryArgs] = None,
     ) -> Union[JsonDict, list]:
-        """ Sends the specified json data using POST
 
-        Args:
-            destination: The remote server to send the HTTP request to.
-
-            path: The HTTP path.
-
-            data: A dict containing the data that will be used as
-                the request body. This will be encoded as JSON.
-
-            long_retries: whether to use the long retry algorithm. See
-                docs on _send_request for details.
-
-            timeout: number of milliseconds to wait for the response.
-                self._default_timeout (60s) by default.
-
-                Note that we may make several attempts to send the request; this
-                timeout applies to the time spent waiting for response headers for
-                *each* attempt (including connection time) as well as the time spent
-                reading the response body after a 200 response.
-
-            ignore_backoff: true to ignore the historical backoff data and
-                try the request anyway.
-
-            args: query params
-        Returns:
-            dict|list: Succeeds when we get a 2xx HTTP response. The
-            result will be the decoded JSON body.
-
-        Raises:
-            HttpResponseException: If we get an HTTP response code >= 300
-                (except 429).
-            NotRetryingDestination: If we are not yet ready to retry this
-                server.
-            FederationDeniedError: If this destination  is not on our
-                federation whitelist
-            RequestSendFailed: If there were problems connecting to the
-                remote, due to e.g. DNS failures, connection timeouts etc.
-        """
 
         request = MatrixFederationRequest(
             method="POST", destination=destination, path=path, query=args, json=data
@@ -748,44 +561,7 @@ class MatrixFederationHttpClient:
         ignore_backoff: bool = False,
         try_trailing_slash_on_400: bool = False,
     ) -> Union[JsonDict, list]:
-        """ GETs some json from the given host homeserver and path
 
-        Args:
-            destination: The remote server to send the HTTP request to.
-
-            path: The HTTP path.
-
-            args: A dictionary used to create query strings, defaults to
-                None.
-
-            timeout: number of milliseconds to wait for the response.
-                self._default_timeout (60s) by default.
-
-                Note that we may make several attempts to send the request; this
-                timeout applies to the time spent waiting for response headers for
-                *each* attempt (including connection time) as well as the time spent
-                reading the response body after a 200 response.
-
-            ignore_backoff: true to ignore the historical backoff data
-                and try the request anyway.
-
-            try_trailing_slash_on_400: True if on a 400 M_UNRECOGNIZED
-                response we should try appending a trailing slash to the end of
-                the request. Workaround for #3622 in Synapse <= v0.99.3.
-        Returns:
-            Succeeds when we get a 2xx HTTP response. The
-            result will be the decoded JSON body.
-
-        Raises:
-            HttpResponseException: If we get an HTTP response code >= 300
-                (except 429).
-            NotRetryingDestination: If we are not yet ready to retry this
-                server.
-            FederationDeniedError: If this destination  is not on our
-                federation whitelist
-            RequestSendFailed: If there were problems connecting to the
-                remote, due to e.g. DNS failures, connection timeouts etc.
-        """
         request = MatrixFederationRequest(
             method="GET", destination=destination, path=path, query=args
         )
@@ -821,41 +597,7 @@ class MatrixFederationHttpClient:
         ignore_backoff: bool = False,
         args: Optional[QueryArgs] = None,
     ) -> Union[JsonDict, list]:
-        """Send a DELETE request to the remote expecting some json response
 
-        Args:
-            destination: The remote server to send the HTTP request to.
-            path: The HTTP path.
-
-            long_retries: whether to use the long retry algorithm. See
-                docs on _send_request for details.
-
-            timeout: number of milliseconds to wait for the response.
-                self._default_timeout (60s) by default.
-
-                Note that we may make several attempts to send the request; this
-                timeout applies to the time spent waiting for response headers for
-                *each* attempt (including connection time) as well as the time spent
-                reading the response body after a 200 response.
-
-            ignore_backoff: true to ignore the historical backoff data and
-                try the request anyway.
-
-            args: query params
-        Returns:
-            Succeeds when we get a 2xx HTTP response. The
-            result will be the decoded JSON body.
-
-        Raises:
-            HttpResponseException: If we get an HTTP response code >= 300
-                (except 429).
-            NotRetryingDestination: If we are not yet ready to retry this
-                server.
-            FederationDeniedError: If this destination  is not on our
-                federation whitelist
-            RequestSendFailed: If there were problems connecting to the
-                remote, due to e.g. DNS failures, connection timeouts etc.
-        """
         request = MatrixFederationRequest(
             method="DELETE", destination=destination, path=path, query=args
         )
@@ -889,29 +631,7 @@ class MatrixFederationHttpClient:
         max_size: Optional[int] = None,
         ignore_backoff: bool = False,
     ) -> Tuple[int, Dict[bytes, List[bytes]]]:
-        """GETs a file from a given homeserver
-        Args:
-            destination: The remote server to send the HTTP request to.
-            path: The HTTP path to GET.
-            output_stream: File to write the response body to.
-            args: Optional dictionary used to create the query string.
-            ignore_backoff: true to ignore the historical backoff data
-                and try the request anyway.
 
-        Returns:
-            Resolves with an (int,dict) tuple of
-            the file length and a dict of the response headers.
-
-        Raises:
-            HttpResponseException: If we get an HTTP response code >= 300
-                (except 429).
-            NotRetryingDestination: If we are not yet ready to retry this
-                server.
-            FederationDeniedError: If this destination  is not on our
-                federation whitelist
-            RequestSendFailed: If there were problems connecting to the
-                remote, due to e.g. DNS failures, connection timeouts etc.
-        """
         request = MatrixFederationRequest(
             method="GET", destination=destination, path=path, query=args
         )
@@ -957,17 +677,7 @@ def _flatten_response_never_received(e):
         return repr(e)
 
 def check_content_type_is_json(headers: Headers) -> None:
-    """
-    Check that a set of HTTP headers have a Content-Type header, and that it
-    is application/json.
 
-    Args:
-        headers: headers to check
-
-    Raises:
-        RequestSendFailed: if the Content-Type header is missing or isn't JSON
-
-    """
     c_type = headers.getRawHeaders(b"Content-Type")
     if c_type is None:
         raise RequestSendFailed(

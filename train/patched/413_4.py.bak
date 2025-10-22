@@ -76,7 +76,6 @@ class PackageScanner(Scanner):
             return self._scan_remote(name, base_dir, version, rules, write_package_info)
 
         with tempfile.TemporaryDirectory() as tmpdirname:
-            # Directory to download compressed and uncompressed package
             return self._scan_remote(name, tmpdirname, version, rules, write_package_info)
 
     def _scan_remote(self, name, base_dir, version=None, rules=None, write_package_info=False):
@@ -125,7 +124,6 @@ class PackageScanner(Scanner):
             file_extension = None
 
             for file in files:
-                # Store url to compressed package and appropriate file extension
                 if file["filename"].endswith(".tar.gz"):
                     url = file["url"]
                     file_extension = ".tar.gz"
@@ -136,7 +134,6 @@ class PackageScanner(Scanner):
                     file_extension = ".zip"
 
             if url and file_extension:
-                # Path to compressed package
                 zippath = os.path.join(directory, package_name + file_extension)
                 unzippedpath = zippath.removesuffix(file_extension)
 

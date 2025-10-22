@@ -1,4 +1,4 @@
-"""Validates the integrity of pickled file with HMAC signing."""
+
 from __future__ import absolute_import
 import secrets
 import hmac
@@ -21,23 +21,20 @@ from sagemaker.utils import create_tar_file
 
 logger = logging.getLogger(__name__)
 
-
 def save_pkl(path: str, obj) -> None:
-    """Placeholder docstring"""
+
     with open(path, mode="wb") as file:
         import cloudpickle
 
         cloudpickle.dump(obj, file)
 
-
 def save_yaml(path: str, obj: dict) -> None:
-    """Placeholder docstring"""
+
     with open(path, mode="w") as file:
         yaml.dump(obj, file)
 
-
 def upload_to_s3(s3_path: str, local_path: str, session: Session) -> str:
-    """Sync local path to S3 path using sagemaker session"""
+
     if not session or not s3_path or not local_path:
         logger.info("Skipping upload to s3. Missing required parameters")
         return ""
@@ -54,9 +51,8 @@ def upload_to_s3(s3_path: str, local_path: str, session: Session) -> str:
     logger.info("Model file has uploaded to s3")
     return s3_model_url
 
-
 def capture_schema(schema_path: str, schema_format: str, schema_builder: SchemaBuilder):
-    """Placeholder docstring"""
+
     logging.info("Capturing schema...")
 
     marshalling_map = schema_builder.generate_marshalling_map()
@@ -74,9 +70,8 @@ def capture_schema(schema_path: str, schema_format: str, schema_builder: SchemaB
 
     return schema_path, schema_format
 
-
 def capture_dependencies(requirements_path: str):
-    """Placeholder docstring"""
+
     logger.info("Capturing dependencies...")
 
     try:
@@ -105,9 +100,8 @@ def capture_dependencies(requirements_path: str):
     subprocess.run(command, check=True, capture_output=True)
     logger.info("Dependencies captured successfully")
 
-
 def capture_optimization_metadata(model: Model, framework) -> dict:
-    """Placeholder docstring"""
+
     logging.info("Capturing optimization metadata...")
     model_size = sys.getsizeof(model)
     optimizer_metadata = defaultdict(str)
@@ -119,23 +113,19 @@ def capture_optimization_metadata(model: Model, framework) -> dict:
     logging.info("Optimization metadata captured successfully")
     return optimizer_metadata
 
-
 def generate_secret_key(nbytes: int = 32) -> str:
-    """Generates secret key"""
+
     return secrets.token_hex(nbytes)
 
-
 def compute_hash(buffer: bytes, secret_key: str) -> str:
-    """Compute hash value using HMAC"""
+
     return hmac.new(secret_key.encode(), msg=buffer, digestmod=hashlib.sha256).hexdigest()
 
-
 def perform_integrity_check(buffer: bytes):
-    """Placeholder docstring"""
 
 
 def detect_framework_and_its_versions(model: object) -> bool:
-    """Placeholder docstring"""
+
     model_base = model.__class__.__base__
 
     if object == model_base:
@@ -172,9 +162,8 @@ def detect_framework_and_its_versions(model: object) -> bool:
 
     return [(fw, vs), py_tuple]
 
-
 def get_image_url(model_server: str) -> str:
-    """Placeholder docstring"""
+
     supported_image = {
         "DJLServing": "763104351884.dkr.ecr.us-west-2.amazonaws.com/djl-inference:0.25.0-cpu-full"
     }

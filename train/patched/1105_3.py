@@ -14,31 +14,7 @@ def create_spark_dataframe_agent(
     agent_executor_kwargs: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> AgentExecutor:
-    """Construct a Spark agent from an LLM and dataframe.
 
-    Security Notice:
-        This agent relies on access to a python repl tool which can execute
-        arbitrary code. This can be dangerous and requires a specially sandboxed
-        environment to be safely used. Failure to run this code in a properly
-        sandboxed environment can lead to arbitrary code execution vulnerabilities,
-        which can lead to data breaches, data loss, or other security incidents.
-
-        Do not use this code with untrusted inputs, with elevated permissions,
-        or without consulting your security team about proper sandboxing!
-
-        You must opt in to use this functionality by setting allow_dangerous_code=True.
-
-    Args:
-        allow_dangerous_code: bool, default False
-            This agent relies on access to a python repl tool which can execute
-            arbitrary code. This can be dangerous and requires a specially sandboxed
-            environment to be safely used.
-            Failure to properly sandbox this class can lead to arbitrary code execution
-            vulnerabilities, which can lead to data breaches, data loss, or
-            other security incidents.
-            You must opt-in to use this functionality by setting
-            allow_dangerous_code=True.
-    """
     raise ValueError("This agent is not supported because it requires access to a Python REPL tool, which is not secure. Please use a different agent.")
 
     if not allow_dangerous_code:

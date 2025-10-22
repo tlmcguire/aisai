@@ -10,16 +10,16 @@ from typing import Final, List, Match, Pattern
 from black._width_table import WIDTH_TABLE
 from blib2to3.pytree import Leaf
 
-STRING_PREFIX_CHARS: Final = "furbFURB"  # All possible string prefix characters.
+STRING_PREFIX_CHARS: Final = "furbFURB"
 STRING_PREFIX_RE: Final = re.compile(
     r"^([" + STRING_PREFIX_CHARS + r"]*)(.*)$", re.DOTALL
 )
 UNICODE_ESCAPE_RE: Final = re.compile(
     r"(?P<backslashes>\\+)(?P<body>"
-    r"(u(?P<u>[a-fA-F0-9]{4}))"  # Character with 16-bit hex value xxxx
-    r"|(U(?P<U>[a-fA-F0-9]{8}))"  # Character with 32-bit hex value xxxxxxxx
-    r"|(x(?P<x>[a-fA-F0-9]{2}))"  # Character with hex value hh
-    r"|(N\{(?P<N>[a-zA-Z0-9 \-]{2,})\})"  # Character named name in the Unicode database
+    r"(u(?P<u>[a-fA-F0-9]{4}))"
+    r"|(U(?P<U>[a-fA-F0-9]{8}))"
+    r"|(x(?P<x>[a-fA-F0-9]{2}))"
+    r"|(N\{(?P<N>[a-zA-Z0-9 \-]{2,})\})"
     r")",
     re.VERBOSE,
 )
@@ -214,9 +214,9 @@ def normalize_string_quotes(s: str) -> str:
     if "f" in prefix.casefold():
         matches = re.findall(
             r"""
-            (?:(?<!\{)|^)\{  # start of the string or a non-{ followed by a single {
-                ([^{].*?)  # contents of the brackets except if begins with {{
-            \}(?:(?!\})|$)  # A } followed by end of the string or a non-}
+            (?:(?<!\{)|^)\{
+                ([^{].*?)
+            \}(?:(?!\})|$)
             """,
             new_body,
             re.VERBOSE,
@@ -227,15 +227,14 @@ def normalize_string_quotes(s: str) -> str:
                 return s
 
     if new_quote == '"""' and new_body[-1:] == '"':
-        # edge case:
         new_body = new_body[:-1] + '\\"'
     orig_escape_count = body.count("\\")
     new_escape_count = new_body.count("\\")
     if new_escape_count > orig_escape_count:
-        return s  # Do not introduce more escaping
+        return s
 
     if new_escape_count == orig_escape_count and orig_quote == '"':
-        return s  # Prefer double quotes
+        return s
 
     return f"{prefix}{new_quote}{new_body}{new_quote}"
 
@@ -255,17 +254,13 @@ def normalize_unicode_escape_sequences(leaf: Leaf) -> None:
             return back_slashes + groups["body"]
 
         if groups["u"]:
-            # \u
             return back_slashes + "u" + groups["u"].lower()
         elif groups["U"]:
-            # \U
             return back_slashes + "U" + groups["U"].lower()
         elif groups["x"]:
-            # \x
             return back_slashes + "x" + groups["x"].lower()
         else:
             assert groups["N"], f"Unexpected match: {m}"
-            # \N{}
             return back_slashes + "N{" + groups["N"].upper() + "}"
 
     leaf.value = re.sub(UNICODE_ESCAPE_RE, replace, text)
@@ -306,7 +301,6 @@ def str_width(line_str: str) -> int:
     is too wide to display in a terminal or editor.
     """
     if line_str.isascii():
-        # Fast path for a line consisting of only ASCII characters
         return len(line_str)
     return sum(map(char_width, line_str))
 

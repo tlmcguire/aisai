@@ -1,18 +1,3 @@
-# Copyright 2018 The TensorFlow Authors. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
-# pylint: disable=unidiomatic-typecheck
 """API for defining graph functions with some additional eager semantics.
 
 def_function.function wraps the function concept in function.py ("defun") to
@@ -104,7 +89,6 @@ _tf_function_counter = monitoring.Counter(
     "/tensorflow/core/tf_function_counter",
     "Counter for the number of tf.functions created when Eager execution is "
     "enabled.",
-    # jit_compile is "0" or "1".
     "jit_compile")
 
 
@@ -159,8 +143,6 @@ class _FrequentTracingDetector(object):
               len(self._calls_per_tracings), self._call_count, function_name))
 
   def called_without_tracing(self):
-    # We don't count tracing when users load a concrete function directly or
-    # call get_concrete_function, so the first call can be not a tracing call.
     if not self._calls_per_tracings:
       self._calls_per_tracings = [0]
     self._calls_per_tracings[-1] += 1
@@ -173,7 +155,7 @@ class _FrequentTracingDetectorManager(object):
   __slots__ = ["_detectors", "_lock"]
 
   def __init__(self):
-    self._detectors = weakref.WeakKeyDictionary()  # GUARDED_BY(self._lock)
+    self._detectors = weakref.WeakKeyDictionary()
     self._lock = threading.Lock()
 
   def _get_detector(self, key):
@@ -272,8 +254,6 @@ class UnliftedInitializerVariable(resource_variable_ops.UninitializedVariable):
     with ops.init_scope():
       self._in_graph_mode = not context.executing_eagerly()
     if not ops.inside_function():
-      # If we've been init_scope()d out of the function definition nothing to do
-      # here; we can't really do the capturing or conditional logic.
       resource_variable_ops.ResourceVariable.__init__(
           self, initial_value=initial_value, trainable=trainable,
           caching_device=caching_device, name=name, dtype=dtype,
@@ -302,13 +282,9 @@ class UnliftedInitializerVariable(resource_variable_ops.UninitializedVariable):
                                               name="initial_value", dtype=dtype)
       assert initial_value is not None
 
-      # Don't use `shape or initial_value.shape` since TensorShape has
-      # overridden `__bool__`.
       if shape is None:
         shape = initial_value.shape
 
-    # Use the constructor for UninitializedVariable to start. Outside the name
-    # scope so we don't double up the prefix.
     super(UnliftedInitializerVariable, self).__init__(
         trainable=trainable,
         caching_device=caching_device,
@@ -343,15 +319,10 @@ class UnliftedInitializerVariable(resource_variable_ops.UninitializedVariable):
               self._initializer_op = resource_variable_ops.assign_variable_op(
                   self._handle, lifted_initializer, name=n)
       elif context.executing_eagerly():
-        # In this case, both current scope and init scope are eager.
-        # Assign_variable_op will be executed immediately. So we don't need to
-        # add it to "add_initializers_to" to lift it out.
         with ops.name_scope("Assign") as n, ops.colocate_with(self._handle):
           resource_variable_ops.assign_variable_op(
               self._handle, initial_value, name=n)
       else:
-        # Init scope is eager but current scope is graph. We will lift out this
-        # variable by addint it into "add_initializers_to".
         if add_initializers_to is not None:
           add_initializers_to.append((self, initial_value))
 
@@ -361,17 +332,11 @@ class UnliftedInitializerVariable(resource_variable_ops.UninitializedVariable):
                 self._handle,
                 initial_value,
                 name=n)
-            # Returning values to keep tf.cond happy.
           return ops.convert_to_tensor(1)
         def not_assign_fn():
           return ops.convert_to_tensor(0)
-        # Note: this cond is always guaranteed to run because we're inside a
-        # defun which will insert automatic control dependencies. It will only
-        # execute assign_fn if lifting failed.
         graph = ops.get_default_graph()
 
-        # Capture the handle ahead of time in order to avoid querying the shape
-        # of the handle which helps async execution performance
         graph.capture(self._handle, shape=())
         control_flow_ops.cond(
             resource_variable_ops.var_is_initialized_op(self._handle),
@@ -473,19 +438,12 @@ def _evaluate_var_is_initialized(variables):
       var_is_initialized.append(
           resource_variable_ops.var_is_initialized_op(v.handle))
     try:
-      # Stack all the var_is_initialized values into one tensor and interpret
-      # the numpy value. This will reduce the number of RPCs between client and
-      # worker in the remote case.
       return array_ops.stack(var_is_initialized).numpy()
     except errors.UnimplementedError:
-      # Some devices do not support implicit copy-off to host. Fall back to
-      # variable-by-variable processing.
       for index, v in enumerate(variables):
         try:
           numpy_value = var_is_initialized[index].numpy()
         except errors.UnimplementedError:
-          # This is a variable on a parallel device; we'll extract its value on
-          # each replica and assert that they're identical.
           components = parallel_device.unpack(var_is_initialized[index])
           with ops.device(None):
             components = array_ops.stack(components)
@@ -513,8 +471,7 @@ class FunctionDeleter(object):
   def __del__(self):
     try:
       func_graph_module.dismantle_func_graph(self.func_graph)
-    except:  # pylint: disable=bare-except
-      # Note: bare except here because this can be noisy at shutdown time.
+    except:
       pass
 
 
@@ -536,7 +493,6 @@ class OptionalXlaContext(object):
       self.xla_context.Exit()
 
 
-# TODO(mdan): Consider expose this type for instance type checking.
 @tf_export("__internal__.function.Function", v1=[])
 class Function(core.GenericFunction):
   """A `tf.types.experimental.GenericFunction` created by `tf.function`.
@@ -581,9 +537,6 @@ class Function(core.GenericFunction):
         experimental_follow_type_hints=experimental_follow_type_hints,
     )
     self._implements = experimental_implements
-    # If `True`, the function uses the rendezvous of the parent. This is only
-    # needed to support code where raw send/recv operations are inserted and
-    # when functions are run in graph mode where they may not be inlined.
     self._shared_rendezvous = None
     self._autograph = autograph
     self._experimental_autograph_options = experimental_autograph_options
@@ -592,15 +545,15 @@ class Function(core.GenericFunction):
     if experimental_follow_type_hints is None:
       experimental_follow_type_hints = False
     self._experimental_follow_type_hints = experimental_follow_type_hints
-    self._created_variables = None  # GUARDED_BY(self._lock)
-    self._stateful_fn = None  # GUARDED_BY(self._lock)
-    self._stateless_fn = None  # GUARDED_BY(self._lock)
+    self._created_variables = None
+    self._stateful_fn = None
+    self._stateless_fn = None
     self._descriptor_cache = weakref.WeakKeyDictionary()
     self._name = name
     self._input_signature = input_signature
     self._key_for_call_stats = self._get_key_for_call_stats()
     self._omit_frequent_tracing_warning = False
-    ops._tf_function_api_guage.get_cell().set(True)  # pylint: disable=protected-access
+    ops._tf_function_api_guage.get_cell().set(True)
 
   def __getstate__(self):
     """Custom pickling, to omit unpickleable objects."""
@@ -623,12 +576,6 @@ class Function(core.GenericFunction):
     The key instance a best-effort to preserve global consistency.
     """
     target_function = self._python_function
-    # `__wrapped__` is a conventional Python attribute that a higher-order
-    # function keeps its original function's instance.  We also directly use
-    # this attribute for dealing with a class method.  See
-    # `bound_method_wrapper` in `function.py`.  If we don't use `__wrapped__`,
-    # all class methods will return the same `bound_method_wrapper` instance
-    # from this function.
     while hasattr(target_function, "__wrapped__"):
       target_function = target_function.__wrapped__
 
@@ -648,22 +595,8 @@ class Function(core.GenericFunction):
 
     def wrapped_fn(*args, **kwds):
       """Wraps `self._python_function` in a variable creator scope."""
-      # We register a variable creator with reduced priority. If an outer
-      # variable creator is just modifying keyword arguments to the variable
-      # constructor, this will work harmoniously. Since the `scope` registered
-      # here actually creates the variable, it taking priority would otherwise
-      # ignore the outer creator.
-      #
-      # If an outer variable creator calls the variable constructor manually,
-      # for example creating a MirroredVariable, then they won't call our
-      # creator. This means we won't be able to trace the initialization graph,
-      # and so variable initializers can't depend on function arguments. This is
-      # better than the alternative, tracing the initialization graph but giving
-      # the user a variable type they didn't want.
       default_graph = ops.get_default_graph()
-      with default_graph._variable_creator_scope(scope, priority=50):  # pylint: disable=protected-access
-        # __wrapped__ allows AutoGraph to swap in a converted function. We give
-        # the function a weak reference to itself to avoid a reference cycle.
+      with default_graph._variable_creator_scope(scope, priority=50):
         with OptionalXlaContext(compile_with_xla):
           out = weak_wrapped_fn().__wrapped__(*args, **kwds)
         return out
@@ -678,13 +611,6 @@ class Function(core.GenericFunction):
     """Creates the attribute value corresponding to IMPLEMENTS_ATTRIBUTE_NAME."""
     attributes = {}
     if isinstance(self._implements, str):
-      # First check if the IMPLEMENTS_ATTRIBUTE_NAME is specified as a
-      # NameAttrList. This is used when apart from the function name being
-      # implemented, a list of attributes is also being specified.
-      # The attributes are specified as key-value pairs in the NameAttrList
-      # of the corresponding AttrValue. The function name will be in the
-      # 'name' field of the NameAttrList. Else, it is just a string
-      # corresponding to the function name.
       try:
         implements_attr = six.ensure_text(self._implements, "utf-8")
         attr_value = attr_value_pb2.AttrValue()
@@ -743,7 +669,6 @@ class Function(core.GenericFunction):
       arg_names_len = len(self.function_spec.arg_names)
       default_arg_len = len(self.function_spec.fullargspec.defaults or ())
       required_arg_len = arg_names_len - default_arg_len
-      # The input signature must cover all required function arguments.
       if arglen < required_arg_len:
         missing_tensor_specs = self.function_spec.arg_names[
             arglen:required_arg_len]
@@ -768,12 +693,11 @@ class Function(core.GenericFunction):
 
     self._created_variables = created_variables
     self._stateful_fn = self._defun_with_scope(variable_capturing_scope)
-    self._stateful_fn._name = self._name  # pylint: disable=protected-access
-    # Force the definition of the function for these arguments
+    self._stateful_fn._name = self._name
     self._lifted_initializer_graph = lifted_initializer_graph
     self._graph_deleter = FunctionDeleter(self._lifted_initializer_graph)
     self._concrete_stateful_fn = (
-        self._stateful_fn._get_concrete_function_internal_garbage_collected(  # pylint: disable=protected-access
+        self._stateful_fn._get_concrete_function_internal_garbage_collected(
             *args, **kwds))
 
     def invalid_creator_scope(*unused_args, **unused_kwds):
@@ -786,7 +710,7 @@ class Function(core.GenericFunction):
           "for more information.")
 
     self._stateless_fn = self._defun_with_scope(invalid_creator_scope)
-    self._stateless_fn._name = self._name  # pylint: disable=protected-access
+    self._stateless_fn._name = self._name
 
   def _clone(self, python_function):
     """Clone the function with different python function."""
@@ -803,7 +727,7 @@ class Function(core.GenericFunction):
         experimental_follow_type_hints=self._experimental_follow_type_hints)
 
     if self._shared_rendezvous:
-      f._shared_rendezvous = self._shared_rendezvous  # pylint: disable=protected-access
+      f._shared_rendezvous = self._shared_rendezvous
 
     return f
 
@@ -833,8 +757,6 @@ class Function(core.GenericFunction):
     self._function_spec = function_lib.FunctionSpec.from_function_and_signature(
         self._python_function, self.input_signature)
 
-  # TODO: Remove this private method after updating all its uses
-  # A good moment to do this could be when the experimental label is removed
   def _get_tracing_count(self):
     return self.experimental_get_tracing_count()
 
@@ -877,29 +799,20 @@ class Function(core.GenericFunction):
 
   @traceback_utils.filter_traceback
   def __call__(self, *args, **kwds):
-    # Implements GenericFunction.__call__.
     if self._run_functions_eagerly:
       with trace.Trace(self._name, tf_function_call="eager"):
         return self._python_function(*args, **kwds)
 
-    # Only count the statistics the first time, before initialization took
-    # place.
     if self._created_variables is None:
       compiled = bool(self._jit_compile and
                       not control_flow_util.GraphOrParentsInXlaContext(
                           ops.get_default_graph()))
-      # For nested functions, increment the counter only when a function with
-      # jit_compile=True is called within a function with jit_compile=False. We
-      # count this special case to correctly record that both jit_compile=True
-      # and jit_compile=False is being used for parts of the outer function.
       if ops.executing_eagerly_outside_functions() and (
           context.executing_eagerly() or compiled):
-        # Labels must be strings in Python, so we convert 'compiled' to a string
         _tf_function_counter.get_cell(str(int(compiled))).increase_by(1)
 
     tracing_count = self.experimental_get_tracing_count()
     with trace.Trace(self._name) as tm:
-      # TODO(cheshire): Do not duplicate the XLAControlFlowContext annotation.
       compiler = "xla" if self._jit_compile else "nonXla"
 
       with OptionalXlaContext(self._jit_compile):
@@ -930,18 +843,10 @@ class Function(core.GenericFunction):
     else:
       condition = self._created_variables
     if condition:
-      # Release the lock early so that multiple threads can perform the call
-      # in parallel.
       self._lock.release()
-      # In this case we have created variables on the first call, so we run the
-      # defunned version which is guaranteed to never create variables.
-      return self._stateless_fn(*args, **kwds)  # pylint: disable=not-callable
+      return self._stateless_fn(*args, **kwds)
     elif self._stateful_fn is not None:
-      # Release the lock early so that multiple threads can perform the call
-      # in parallel.
       self._lock.release()
-      # In this case we have not created variables on the first call. So we can
-      # run the first trace but we should fail if variables are created.
       results = self._stateful_fn(*args, **kwds)
       if self._created_variables and not ALLOW_DYNAMIC_VARIABLE_CREATION:
         raise ValueError("Creating variables on a non-first call to a function"
@@ -949,33 +854,24 @@ class Function(core.GenericFunction):
       return results
 
     try:
-      # This is the first call of __call__, so we have to initialize.
       initializers = []
       self._initialize(args, kwds, add_initializers_to=initializers)
     finally:
-      # At this point we know that the initialization is complete (or less
-      # interestingly an exception was raised) so we no longer need a lock.
       self._lock.release()
 
     if self._created_variables:
       try:
-        # Attempt to initialize variables eagerly and without conds by lifting
-        # out initialization graphs. This is the only initialization strategy
-        # compatible with XLA at the moment.
         self._initialize_uninitialized_variables(initializers)
       except lift_to_graph.UnliftableError:
-        pass  # Fall through to cond-based initialization.
+        pass
       else:
-        # Lifting succeeded, so variables are initialized and we can run the
-        # stateless function.
         return self._stateless_fn(*args, **kwds)
     else:
       _, _, _, filtered_flat_args = \
-          self._stateful_fn._function_spec.canonicalize_function_inputs(  # pylint: disable=protected-access
+          self._stateful_fn._function_spec.canonicalize_function_inputs(
               *args, **kwds)
-      # If we did not create any variables the trace we have is good enough.
       return self._concrete_stateful_fn._call_flat(
-          filtered_flat_args, self._concrete_stateful_fn.captured_inputs)  # pylint: disable=protected-access
+          filtered_flat_args, self._concrete_stateful_fn.captured_inputs)
 
     def fn_with_cond(inner_args, inner_kwds, inner_filtered_flat_args):
       """Conditionally runs initialization if it's needed."""
@@ -1020,26 +916,21 @@ class Function(core.GenericFunction):
         condition = math_ops.logical_and(
             condition, resource_variable_ops.var_is_initialized_op(
                 variable.handle))
-      # We want to call stateless_fn if possible because it avoids recomputing
-      # potentially expensive initializers.
       return control_flow_ops.cond(
           condition,
           lambda: self._stateless_fn(*inner_args, **inner_kwds),
           functools.partial(
-              self._concrete_stateful_fn._call_flat,  # pylint: disable=protected-access
+              self._concrete_stateful_fn._call_flat,
               inner_filtered_flat_args,
               captured_inputs=self._concrete_stateful_fn.captured_inputs))
 
-    # We've created variables and are unable to lift the initialization graphs,
-    # so we fall back to initializing with conds while running the function.
     canon_args, canon_kwds, _, filtered_flat_args = \
-        self._stateful_fn._function_spec.canonicalize_function_inputs(  # pylint: disable=protected-access
+        self._stateful_fn._function_spec.canonicalize_function_inputs(
             *args, **kwds)
     return function_lib.defun(fn_with_cond)(canon_args, canon_kwds,
                                             filtered_flat_args)
 
   def experimental_get_compiler_ir(self, *args, **kwargs):
-    # Implements GenericFunction.experimental_get_compiler_ir
     context.ensure_initialized()
     if not self._jit_compile:
       raise ValueError("Compiler IR can only be returned for functions marked "
@@ -1048,14 +939,11 @@ class Function(core.GenericFunction):
     concrete_fn = self.get_concrete_function(*args, **kwargs)
     fn_name = concrete_fn.name
 
-    # pylint: disable=protected-access
     _, _, _, filtered_flat_args = \
         concrete_fn._function_spec.canonicalize_function_inputs(
             *args, **kwargs)
 
     def compiler_ir_generator(stage="hlo", device_name=None):
-      # TODO(cheshire): This is a hack to get the current "preferred" device,
-      # there is no current API to get it otherwise.
       if device_name is None:
         device_name = random_ops.random_normal([]).device
       res_bytes = context.context().get_compiler_ir(
@@ -1100,9 +988,6 @@ class Function(core.GenericFunction):
     var_is_initialized = _evaluate_var_is_initialized(
         [v for v, _ in initializers])
 
-    # Note: using defun here avoids an infinite recursion.
-    # Most of the code in this function runs eagerly with init_scope, where
-    # autograph is not necessary.
     @function_lib.defun(autograph=False)
     def initialize_variables():
       op_map = object_identity.ObjectIdentityDictionary()
@@ -1153,12 +1038,9 @@ class Function(core.GenericFunction):
         raise RuntimeError(
             "get_initialization_function cannot be called after the function "
             "has been used")
-      # Here we trace the function, collect the initializers, and attempt to
-      # extract them and run them eagerly. Fail only if we cannot do so.
       initializers = []
       self._initialize(args, kwargs, add_initializers_to=initializers)
 
-    # Note: using defun here avoids an infinite recursion.
     @function_lib.defun
     def initialize_variables():
       for v, init in initializers:
@@ -1173,14 +1055,12 @@ class Function(core.GenericFunction):
     if self.input_signature is not None:
       self.get_concrete_function()
     concrete_functions = []
-    # pylint: disable=protected-access
     if self._stateful_fn:
       concrete_functions.extend(
           self._stateful_fn._function_cache.all_values())
     if self._stateless_fn:
       concrete_functions.extend(
           self._stateless_fn._function_cache.all_values())
-    # pylint: enable=protected-access
     return concrete_functions
 
   def _list_all_concrete_functions_for_serialization(self):
@@ -1204,8 +1084,6 @@ class Function(core.GenericFunction):
       if not any(equal_to_signature(s) for s in seen_signatures):
         seen_signatures.append(signature)
 
-    # Re-create concrete functions for these signatures. Re-creating ensures
-    # that if the cache key has changed, the function will be traced again.
     concrete_functions = []
     for args, kwargs in seen_signatures:
       concrete_functions.append(self.get_concrete_function(*args, **kwargs))
@@ -1236,14 +1114,10 @@ class Function(core.GenericFunction):
         self._initialize_uninitialized_variables(initializers)
 
     if self._created_variables:
-      # In this case we have created variables on the first call, so we run the
-      # defunned version which is guaranteed to never create variables.
-      return self._stateless_fn._get_concrete_function_garbage_collected(  # pylint: disable=protected-access
+      return self._stateless_fn._get_concrete_function_garbage_collected(
           *args, **kwargs)
     elif self._stateful_fn is not None:
-      # In this case we have not created variables on the first call. So we can
-      # run the first trace but we should fail if variables are created.
-      concrete = self._stateful_fn._get_concrete_function_garbage_collected(  # pylint: disable=protected-access
+      concrete = self._stateful_fn._get_concrete_function_garbage_collected(
           *args, **kwargs)
       if self._created_variables:
         raise ValueError("Creating variables on a non-first call to a function"
@@ -1251,48 +1125,19 @@ class Function(core.GenericFunction):
       return concrete
 
   def get_concrete_function(self, *args, **kwargs):
-    # Implements GenericFunction.get_concrete_function.
     concrete = self._get_concrete_function_garbage_collected(*args, **kwargs)
-    concrete._garbage_collector.release()  # pylint: disable=protected-access
+    concrete._garbage_collector.release()
     return concrete
 
   def __get__(self, instance, owner):
     """Makes it possible to defun instance methods."""
     del owner
-    # `instance` here is the instance that this `Function` was accessed through
-    # e.g., for
-    #
-    #   class Foo(object):
-    #
-    #     @function.defun
-    #     def bar(self):
-    #       ...
-    #
-    #   foo = Foo()
-    #   foo.bar()  # `foo.bar` is a `Function` instance
-    #
-    # then `instance` will be `foo` (and `owner` will be `Foo`).  For composite
-    # tensors, we can just treat `instance` as a normal parameter.  But for
-    # other types, we create a new instance of `Function` here to allow
-    # different instances each to create variables once, thereby allowing
-    # methods to be decorated with tf.function. Keeps a cache to avoid retracing
-    # the function every time the descriptor is accessed.
-    # TODO(mdan): Identify types which can just be parameters more generically.
-    #
-    # The check for instance._type_spec=None is used because certain classes
-    # (including subclasses of tf.linalg.LinearOperator) are subclasses of
-    # CompositeTensor but do not actually implement the required APIs.
-    # TODO(b/199278478): Fix those classes, then remove the check for
-    # `instance._type_spec is not None`.
     if (isinstance(instance, composite_tensor.CompositeTensor) and
-        instance._type_spec is not None):  # pylint: disable=protected-access
+        instance._type_spec is not None):
       return types_lib.MethodType(self, instance)
     if instance not in self._descriptor_cache:
       if instance is None:
         return self
-      # TODO(mdan): If the CompositeTensor path works, do the same here.
-      # It's unclear whether we need the tf-decorator, or could just call
-      # MethodType(self.clone(), instance)
       self._descriptor_cache[instance] = (
           function_lib.class_method_to_instance_method(self, instance))
     return self._descriptor_cache[instance]
@@ -1669,8 +1514,6 @@ def function(func=None,
             experimental_autograph_options=experimental_autograph_options,
             experimental_relax_shapes=experimental_relax_shapes,
 
-            # TODO(b/171825496): Update once `experimental_compile` is removed
-            # entirely in favor of 'jit_compile'.
             jit_compile=deprecation.deprecated_argument_lookup(
                 "jit_compile",
                 jit_compile,
@@ -1679,15 +1522,7 @@ def function(func=None,
             experimental_implements=experimental_implements,
             experimental_follow_type_hints=experimental_follow_type_hints))
 
-  # This code path is for the `foo = tf.function(foo, ...)` use case
   if func is not None:
     return decorated(func)
 
-  # This code path is for the
-  #
-  # @tf.function(...)
-  # def foo(...):
-  #    ...
-  #
-  # use case, which is equivalent to `foo = tf.function(...)(foo)`
   return decorated

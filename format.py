@@ -147,21 +147,8 @@ class CommentRemover:
         Mark nodes that are actual docstrings so they won't be removed.
         This includes module, class, and function docstrings.
         """
-        # Module docstring
-        if (tree.body and isinstance(tree.body[0], ast.Expr) and 
-            isinstance(tree.body[0].value, ast.Constant) and 
-            isinstance(tree.body[0].value.value, str)):
-            docstring_nodes.add(tree.body[0].value)
-            
-        # Helper to process bodies of functions and classes
-        def process_body(body):
-            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
-                docstring_nodes.add(body[0].value)
-                
-        # Process all nodes in the tree
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                process_body(node.body)
+        # All docstrings will now be removed - don't mark any as preserved
+        pass
     
     def _update_multiline_state(self, line: str, in_multiline: bool, delimiter: str) -> Tuple[bool, str]:
         """

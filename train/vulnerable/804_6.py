@@ -31,23 +31,14 @@ __all__ = (
     "APIViewTestCases",
 )
 
-
-
-
 @tag("api")
 class APITestCase(views.ModelTestCase):
-    """
-    Base test case for API requests.
 
-    api_version: Specific API version to test. Leave unset to test the default behavior. Override with set_api_version()
-    """
 
     api_version = None
 
     def setUp(self):
-        """
-        Create a token for API calls.
-        """
+
         super().setUp()
         self.client.logout()
         self.token = users_models.Token.objects.create(user=self.user)
@@ -56,7 +47,7 @@ class APITestCase(views.ModelTestCase):
             self.set_api_version(self.api_version)
 
     def set_api_version(self, api_version):
-        """Set or unset a specific API version for requests in this test case."""
+
         if api_version is None:
             self.header["HTTP_ACCEPT"] = "application/json"
         else:
@@ -70,15 +61,12 @@ class APITestCase(views.ModelTestCase):
         viewname = lookup.get_route_for_model(self.model, "list", api=True)
         return reverse(viewname)
 
-
 @tag("unit")
 class APIViewTestCases:
     class GetObjectViewTestCase(APITestCase):
         @override_settings(EXEMPT_VIEW_PERMISSIONS=["*"])
         def test_get_object_anonymous(self):
-            """
-            GET a single object as an unauthenticated user.
-            """
+
             url = self._get_detail_url(self._get_queryset().first())
             if (
                 self.model._meta.app_label,
@@ -92,9 +80,7 @@ class APIViewTestCases:
 
         @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
         def test_get_object_without_permission(self):
-            """
-            GET a single object as an authenticated user without the required permission.
-            """
+
             url = self._get_detail_url(self._get_queryset().first())
 
             with testing.disable_warnings("django.request"):
@@ -102,9 +88,7 @@ class APIViewTestCases:
 
         @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
         def test_get_object(self):
-            """
-            GET a single object as an authenticated user with permission to view the object.
-            """
+
             self.assertGreaterEqual(
                 self._get_queryset().count(),
                 2,
@@ -140,7 +124,6 @@ class APIViewTestCases:
             self.assertNotIn("computed_fields", response.data)
             self.assertNotIn("relationships", response.data)
 
-
             custom_fields_registry = registry.registry["model_features"]["custom_fields"]
             cf_supported = self.model._meta.model_name in custom_fields_registry.get(self.model._meta.app_label, {})
             if cf_supported:
@@ -174,9 +157,7 @@ class APIViewTestCases:
 
         @override_settings(EXEMPT_VIEW_PERMISSIONS=["*"])
         def test_options_object(self):
-            """
-            Make an OPTIONS request for a single object.
-            """
+
             url = self._get_detail_url(self._get_queryset().first())
             response = self.client.options(url, **self.header)
             self.assertHttpStatus(response, status.HTTP_200_OK)
@@ -229,7 +210,7 @@ class APIViewTestCases:
             return self.filterset or lookup.get_filterset_for_model(self.model)
 
         def get_depth_fields(self):
-            """Get a list of model fields that could be tested with the ?depth query parameter"""
+
             depth_fields = []
             for field in self.model._meta.fields:
                 if not field.name.startswith("_"):
@@ -242,9 +223,7 @@ class APIViewTestCases:
 
         @override_settings(EXEMPT_VIEW_PERMISSIONS=["*"])
         def test_list_objects_anonymous(self):
-            """
-            GET a list of objects as an unauthenticated user.
-            """
+
             url = self._get_list_url()
             if (
                 self.model._meta.app_label,
@@ -261,9 +240,7 @@ class APIViewTestCases:
 
         @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
         def test_list_objects_depth_0(self):
-            """
-            GET a list of objects using the "?depth=0" parameter.
-            """
+
             depth_fields = self.get_depth_fields()
             self.add_permissions(f"{self.model._meta.app_label}.view_{self.model._meta.model_name}")
             url = f"{self._get_list_url()}?depth=0"
@@ -296,9 +273,7 @@ class APIViewTestCases:
 
         @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
         def test_list_objects_depth_1(self):
-            """
-            GET a list of objects using the "?depth=1" parameter.
-            """
+
             depth_fields = self.get_depth_fields()
             self.add_permissions(f"{self.model._meta.app_label}.view_{self.model._meta.model_name}")
             url = f"{self._get_list_url()}?depth=1"
@@ -323,9 +298,7 @@ class APIViewTestCases:
 
         @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
         def test_list_objects_without_permission(self):
-            """
-            GET a list of objects as an authenticated user without the required permission.
-            """
+
             url = self._get_list_url()
 
             with testing.disable_warnings("django.request"):
@@ -333,9 +306,7 @@ class APIViewTestCases:
 
         @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
         def test_list_objects(self):
-            """
-            GET a list of objects as an authenticated user with permission to view the objects.
-            """
+
             self.assertGreaterEqual(
                 self._get_queryset().count(),
                 3,
@@ -360,9 +331,7 @@ class APIViewTestCases:
 
         @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
         def test_list_objects_filtered(self):
-            """
-            GET a list of objects filtered by ID.
-            """
+
             self.assertGreaterEqual(
                 self._get_queryset().count(),
                 3,
@@ -416,9 +385,7 @@ class APIViewTestCases:
 
         @override_settings(EXEMPT_VIEW_PERMISSIONS=[], STRICT_FILTERING=True)
         def test_list_objects_unknown_filter_strict_filtering(self):
-            """
-            GET a list of objects with an unknown filter parameter and strict filtering, expect a 400 response.
-            """
+
             self.add_permissions(f"{self.model._meta.app_label}.view_{self.model._meta.model_name}")
             with testing.disable_warnings("django.request"):
                 response = self.client.get(f"{self._get_list_url()}?ice_cream_flavor=rocky-road", **self.header)
@@ -430,9 +397,7 @@ class APIViewTestCases:
 
         @override_settings(EXEMPT_VIEW_PERMISSIONS=[], STRICT_FILTERING=False)
         def test_list_objects_unknown_filter_no_strict_filtering(self):
-            """
-            GET a list of objects with an unknown filter parameter and no strict filtering, expect it to be ignored.
-            """
+
             self.add_permissions(f"{self.model._meta.app_label}.view_{self.model._meta.model_name}")
             with self.assertLogs("nautobot.core.filters") as cm:
                 response = self.client.get(f"{self._get_list_url()}?ice_cream_flavor=rocky-road", **self.header)
@@ -450,17 +415,13 @@ class APIViewTestCases:
 
         @override_settings(EXEMPT_VIEW_PERMISSIONS=["*"])
         def test_options_objects(self):
-            """
-            Make an OPTIONS request for a list endpoint.
-            """
+
             response = self.client.options(self._get_list_url(), **self.header)
             self.assertHttpStatus(response, status.HTTP_200_OK)
 
         @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
         def test_list_objects_csv(self):
-            """
-            GET a list of objects in CSV format as an authenticated user with permission to view some objects.
-            """
+
             self.assertGreaterEqual(
                 self._get_queryset().count(),
                 3,
@@ -520,9 +481,7 @@ class APIViewTestCases:
         slugify_function = staticmethod(slugify)
 
         def test_create_object_without_permission(self):
-            """
-            POST a single object without permission.
-            """
+
             url = self._get_list_url()
 
             with testing.disable_warnings("django.request"):
@@ -552,9 +511,7 @@ class APIViewTestCases:
                 self.assertEqual(obj.key, expected_slug)
 
         def test_create_object(self):
-            """
-            POST a single object with permission.
-            """
+
             obj_perm = users_models.ObjectPermission(name="Test permission", actions=["add"])
             obj_perm.save()
             obj_perm.users.add(self.user)
@@ -587,7 +544,7 @@ class APIViewTestCases:
                     self.assertEqual(objectchanges[0].action, extras_choices.ObjectChangeActionChoices.ACTION_CREATE)
 
         def test_recreate_object_csv(self):
-            """CSV export an object, delete it, and recreate it via CSV import."""
+
             if hasattr(self, "get_deletable_object"):
                 instance = self.get_deletable_object()
             else:
@@ -639,9 +596,7 @@ class APIViewTestCases:
                     )
 
         def test_bulk_create_objects(self):
-            """
-            POST a set of objects in a single request.
-            """
+
             obj_perm = users_models.ObjectPermission(name="Test permission", actions=["add"])
             obj_perm.save()
             obj_perm.users.add(self.user)
@@ -677,9 +632,7 @@ class APIViewTestCases:
         choices_fields = None
 
         def test_update_object_without_permission(self):
-            """
-            PATCH a single object without permission.
-            """
+
             url = self._get_detail_url(self._get_queryset().first())
             update_data = self.update_data or getattr(self, "create_data")[0]
 
@@ -688,14 +641,10 @@ class APIViewTestCases:
                 self.assertHttpStatus(response, status.HTTP_403_FORBIDDEN)
 
         def test_update_object(self):
-            """
-            PATCH a single object identified by its ID.
-            """
+
 
             def strip_serialized_object(this_object):
-                """
-                Only here to work around acceptable differences in PATCH response vs GET response which are known bugs.
-                """
+
                 this_object.pop("last_updated", None)
                 this_object.pop("computed_fields", None)
                 this_object.pop("config_context", None)
@@ -718,7 +667,6 @@ class APIViewTestCases:
             obj_perm.save()
             obj_perm.users.add(self.user)
             obj_perm.object_types.add(ContentType.objects.get_for_model(self.model))
-
 
             obj_perm.actions = ["view"]
             obj_perm.save()
@@ -756,7 +704,7 @@ class APIViewTestCases:
                 self.assertEqual(objectchanges[0].action, extras_choices.ObjectChangeActionChoices.ACTION_UPDATE)
 
         def test_get_put_round_trip(self):
-            """GET and then PUT an object and verify that it's accepted and unchanged."""
+
             self.maxDiff = None
             obj_perm = users_models.ObjectPermission(name="Test permission", actions=["view", "change"])
             obj_perm.save()
@@ -782,9 +730,7 @@ class APIViewTestCases:
             self.assertEqual(initial_serialized_object, updated_serialized_object)
 
         def test_bulk_update_objects(self):
-            """
-            PATCH a set of objects in a single request.
-            """
+
             if self.bulk_update_data is None:
                 self.skipTest("Bulk update data not set")
 
@@ -816,9 +762,7 @@ class APIViewTestCases:
 
         @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
         def test_options_returns_expected_choices(self):
-            """
-            Make an OPTIONS request for a list endpoint and validate choices match expected choices for serializer.
-            """
+
             if not self.choices_fields:
                 self.choices_fields = set()
 
@@ -860,33 +804,21 @@ class APIViewTestCases:
 
     class DeleteObjectViewTestCase(APITestCase):
         def get_deletable_object(self):
-            """
-            Get an instance that can be deleted.
 
-            For some models this may just be any random object, but when we have FKs with `on_delete=models.PROTECT`
-            (as is often the case) we need to find or create an instance that doesn't have such entanglements.
-            """
             instance = testing.get_deletable_objects(self.model, self._get_queryset()).first()
             if instance is None:
                 self.fail("Couldn't find a single deletable object!")
             return instance
 
         def get_deletable_object_pks(self):
-            """
-            Get a list of PKs corresponding to objects that can be safely bulk-deleted.
 
-            For some models this may just be any random objects, but when we have FKs with `on_delete=models.PROTECT`
-            (as is often the case) we need to find or create an instance that doesn't have such entanglements.
-            """
             instances = testing.get_deletable_objects(self.model, self._get_queryset()).values_list("pk", flat=True)[:3]
             if len(instances) < 3:
                 self.fail(f"Couldn't find 3 deletable objects, only found {len(instances)}!")
             return instances
 
         def test_delete_object_without_permission(self):
-            """
-            DELETE a single object without permission.
-            """
+
             url = self._get_detail_url(self.get_deletable_object())
 
             with testing.disable_warnings("django.request"):
@@ -894,9 +826,7 @@ class APIViewTestCases:
                 self.assertHttpStatus(response, status.HTTP_403_FORBIDDEN)
 
         def test_delete_object(self):
-            """
-            DELETE a single object identified by its primary key.
-            """
+
             instance = self.get_deletable_object()
             url = self._get_detail_url(instance)
 
@@ -915,9 +845,7 @@ class APIViewTestCases:
                 self.assertEqual(objectchanges[0].action, extras_choices.ObjectChangeActionChoices.ACTION_DELETE)
 
         def test_bulk_delete_objects(self):
-            """
-            DELETE a set of objects in a single request.
-            """
+
             id_list = self.get_deletable_object_pks()
             obj_perm = users_models.ObjectPermission(name="Test permission", actions=["delete"])
             obj_perm.save()
@@ -932,7 +860,7 @@ class APIViewTestCases:
             self.assertEqual(self._get_queryset().count(), initial_count - len(id_list))
 
     class NotesURLViewTestCase(APITestCase):
-        """Validate Notes URL on objects that have the Note model Mixin."""
+
 
         @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
         def test_notes_url_on_object(self):
@@ -991,14 +919,11 @@ class APIViewTestCases:
             self.assertEqual(f"This is a note for {instance}", response.data["results"][0]["note"])
 
     class TreeModelAPIViewTestCaseMixin:
-        """Test `?depth=2` query parameter for TreeModel"""
+
 
         @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
         def test_list_objects_depth_2(self):
-            """
-            GET a list of objects using the "?depth=2" parameter.
-            TreeModel Only
-            """
+
             field = "parent"
 
             self.add_permissions(f"{self.model._meta.app_label}.view_{self.model._meta.model_name}")
@@ -1031,13 +956,10 @@ class APIViewTestCases:
     ):
         pass
 
-
 @tag("unit")
 class APITransactionTestCase(_APITransactionTestCase, mixins.NautobotTestCaseMixin):
     def setUp(self):
-        """
-        Create a superuser and token for API calls.
-        """
+
         super().setUpNautobot(populate_status=True)
         self.user.is_superuser = True
         self.user.save()

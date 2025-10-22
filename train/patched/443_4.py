@@ -23,7 +23,6 @@ from opentelemetry.util.http import (
     OTEL_PYTHON_INSTRUMENTATION_HTTP_CAPTURE_ALL_METHODS,
 )
 
-
 class Response:
     def __init__(self):
         self.iter = iter([b"*"])
@@ -38,12 +37,10 @@ class Response:
     def close(self):
         self.close_calls += 1
 
-
 def simple_wsgi(environ, start_response):
     assert isinstance(environ, dict)
     start_response("200 OK", [("Content-Type", "text/plain")])
     return [b"*"]
-
 
 def create_iter_wsgi(response):
     def iter_wsgi(environ, start_response):
@@ -53,7 +50,6 @@ def create_iter_wsgi(response):
 
     return iter_wsgi
 
-
 def create_gen_wsgi(response):
     def gen_wsgi(environ, start_response):
         result = create_iter_wsgi(response)(environ, start_response)
@@ -61,7 +57,6 @@ def create_gen_wsgi(response):
         getattr(result, "close", lambda: None)()
 
     return gen_wsgi
-
 
 def error_wsgi(environ, start_response):
     assert isinstance(environ, dict)
@@ -73,11 +68,9 @@ def error_wsgi(environ, start_response):
     exc_info = None
     return [b"*"]
 
-
 def error_wsgi_unhandled(environ, start_response):
     assert isinstance(environ, dict)
     raise ValueError
-
 
 def wsgi_with_custom_response_headers(environ, start_response):
     assert isinstance(environ, dict)
@@ -100,7 +93,6 @@ def wsgi_with_custom_response_headers(environ, start_response):
     )
     return [b"*"]
 
-
 _expected_metric_names = [
     "http.server.active_requests",
     "http.server.duration",
@@ -109,7 +101,6 @@ _recommended_attrs = {
     "http.server.active_requests": otel_wsgi._active_requests_count_attrs,
     "http.server.duration": otel_wsgi._duration_attrs,
 }
-
 
 class TestWsgiApplication(WsgiTestBase):
     def validate_response(
@@ -286,13 +277,12 @@ class TestWsgiApplication(WsgiTestBase):
         self.validate_response(response, span_name="HTTP NONSTANDARD", http_method="NONSTANDARD")
 
     def test_default_span_name_missing_path_info(self):
-        """Test that default span_names with missing path info."""
+
         self.environ.pop("PATH_INFO")
         method = self.environ.get("REQUEST_METHOD", "").strip()
         app = otel_wsgi.OpenTelemetryMiddleware(simple_wsgi)
         response = app(self.environ, self.start_response)
         self.validate_response(response, span_name=method)
-
 
 class TestWsgiAttributes(unittest.TestCase):
     def setUp(self):
@@ -450,7 +440,6 @@ class TestWsgiAttributes(unittest.TestCase):
             expected.items(),
         )
 
-
 class TestWsgiMiddlewareWithTracerProvider(WsgiTestBase):
     def validate_response(
         self,
@@ -501,7 +490,6 @@ class TestWsgiMiddlewareWithTracerProvider(WsgiTestBase):
         span_list = self.memory_exporter.get_finished_spans()
         self.assertEqual(len(span_list), 0)
 
-
 class TestWsgiMiddlewareWrappedWithAnotherFramework(WsgiTestBase):
     def test_mark_span_internal_in_presence_of_span_from_other_framework(self):
         tracer_provider, exporter = TestBase.create_tracer_provider()
@@ -529,7 +517,6 @@ class TestWsgiMiddlewareWrappedWithAnotherFramework(WsgiTestBase):
             self.assertEqual(
                 parent_span.context.span_id, span_list[0].parent.span_id
             )
-
 
 class TestAdditionOfCustomRequestResponseHeaders(WsgiTestBase):
     def setUp(self):
@@ -686,7 +673,6 @@ class TestAdditionOfCustomRequestResponseHeaders(WsgiTestBase):
             }
             for key, _ in not_expected.items():
                 self.assertNotIn(key, span.attributes)
-
 
 if __name__ == "__main__":
     unittest.main()

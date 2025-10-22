@@ -24,7 +24,6 @@ from AccessControl.SimpleObjectPolicies import ContainerAssertions
 from AccessControl.SimpleObjectPolicies import Containers
 from AccessControl.SimpleObjectPolicies import allow_type
 
-
 _marker = []
 
 safe_builtins = safe_builtins.copy()
@@ -43,13 +42,10 @@ string.__allow_access_to_unprotected_subobjects__ = 1
 math.__allow_access_to_unprotected_subobjects__ = 1
 random.__allow_access_to_unprotected_subobjects__ = 1
 
-
-
 def initialize(impl):
     global guarded_getattr
     guarded_getattr = impl.guarded_getattr
     safe_builtins['getattr'] = guarded_getattr
-
 
 def guarded_hasattr(object, name):
     try:
@@ -58,12 +54,9 @@ def guarded_hasattr(object, name):
         return 0
     return 1
 
-
 safe_builtins['hasattr'] = guarded_hasattr
 
-
 SliceType = type(slice(0))
-
 
 def guarded_getitem(object, index):
     if type(index) is SliceType:
@@ -86,7 +79,6 @@ def guarded_getitem(object, index):
         return v
     raise Unauthorized('unauthorized access to element %s' % index)
 
-
 def get_dict_get(d, name):
     def guarded_get(key, default=None):
         try:
@@ -94,7 +86,6 @@ def get_dict_get(d, name):
         except KeyError:
             return default
     return guarded_get
-
 
 def get_dict_pop(d, name):
     def guarded_pop(key, default=_marker):
@@ -109,7 +100,6 @@ def get_dict_pop(d, name):
             return v
     return guarded_pop
 
-
 def get_iter(c, name):
     iter = getattr(c, name)
 
@@ -118,14 +108,12 @@ def get_iter(c, name):
 
     return guarded_iter
 
-
 def get_list_pop(lst, name):
     def guarded_pop(index=-1):
         v = guarded_getitem(lst, index)
         del lst[index]
         return v
     return guarded_pop
-
 
 _dict_white_list = {
     'clear': 1,
@@ -154,7 +142,6 @@ else:
         'values': 1,
     })
 
-
 def _check_dict_access(name, value):
     self = getattr(value, '__self__', None)
     if self is None:
@@ -165,15 +152,12 @@ def _check_dict_access(name, value):
         return 0
     return _dict_white_list.get(name, 0)
 
-
 ContainerAssertions[type({})] = _check_dict_access
-
 
 if six.PY3:
     d = {}
     for attr in ("keys", "values", "items"):
         allow_type(type(getattr(d, attr)()))
-
 
 _list_white_list = {
     'append': 1,
@@ -187,7 +171,6 @@ _list_white_list = {
     'sort': 1,
 }
 
-
 def _check_list_access(name, value):
     self = getattr(value, '__self__', None)
     if self is None:
@@ -198,11 +181,7 @@ def _check_list_access(name, value):
         return 0
     return _list_white_list.get(name, 0)
 
-
 ContainerAssertions[type([])] = _check_list_access
-
-
-
 
 def guarded_next(iterator):
     ob = next(iterator)
@@ -210,9 +189,7 @@ def guarded_next(iterator):
         guard(ob, ob)
     return ob
 
-
 safe_builtins['next'] = guarded_next
-
 
 class SafeIter(object):
     __allow_access_to_unprotected_subobjects__ = 1
@@ -233,7 +210,6 @@ class SafeIter(object):
 
     next = __next__
 
-
 class NullIter(SafeIter):
     def __init__(self, ob):
         self._iter = ob
@@ -243,10 +219,8 @@ class NullIter(SafeIter):
 
     next = __next__
 
-
 def _error(index):
     raise Unauthorized('unauthorized access to element')
-
 
 def guarded_iter(*args):
     if len(args) == 1:
@@ -257,9 +231,7 @@ def guarded_iter(*args):
             return SafeIter(i)
     return NullIter(iter(*args))
 
-
 safe_builtins['iter'] = guarded_iter
-
 
 def guard(container, value, index=None):
     if Containers(type(container)) and Containers(type(value)):
@@ -267,8 +239,6 @@ def guard(container, value, index=None):
     if getSecurityManager().validate(container, container, index, value):
         return
     _error(index)
-
-
 
 def guarded_filter(f, seq, skip_unauthorized=0):
     if isinstance(seq, str):
@@ -289,9 +259,7 @@ def guarded_filter(f, seq, skip_unauthorized=0):
             raise Unauthorized('unauthorized access to element')
     return result
 
-
 safe_builtins['filter'] = guarded_filter
-
 
 def guarded_reduce(f, seq, initial=_marker):
     if initial is _marker:
@@ -299,9 +267,7 @@ def guarded_reduce(f, seq, initial=_marker):
     else:
         return reduce(f, guarded_iter(seq), initial)
 
-
 safe_builtins['reduce'] = guarded_reduce
-
 
 def guarded_max(item, *items, **kw):
     if items:
@@ -309,9 +275,7 @@ def guarded_max(item, *items, **kw):
         item.extend(items)
     return max(guarded_iter(item), **kw)
 
-
 safe_builtins['max'] = guarded_max
-
 
 def guarded_min(item, *items, **kw):
     if items:
@@ -319,9 +283,7 @@ def guarded_min(item, *items, **kw):
         item.extend(items)
     return min(guarded_iter(item), **kw)
 
-
 safe_builtins['min'] = guarded_min
-
 
 def guarded_map(f, *seqs):
     safe_seqs = []
@@ -330,9 +292,7 @@ def guarded_map(f, *seqs):
         safe_seqs.append(guarded_iter(seq))
     return list(map(f, *safe_seqs))
 
-
 safe_builtins['map'] = guarded_map
-
 
 def guarded_zip(*seqs):
     safe_seqs = []
@@ -341,15 +301,12 @@ def guarded_zip(*seqs):
         safe_seqs.append(guarded_iter(seq))
     return list(zip(*safe_seqs))
 
-
 safe_builtins['zip'] = guarded_zip
-
 
 if six.PY3:
     import_default_level = 0
 else:
     import_default_level = -1
-
 
 def guarded_import(mname, globals=None, locals=None, fromlist=None,
                    level=import_default_level):
@@ -378,9 +335,7 @@ def guarded_import(mname, globals=None, locals=None, fromlist=None,
     else:
         return __import__(mname, globals, locals, fromlist)
 
-
 safe_builtins['__import__'] = guarded_import
-
 
 class GuardedListType:
     def __call__(self, *args, **kwargs):
@@ -389,9 +344,7 @@ class GuardedListType:
     def sorted(self, iterable, cmp=None, key=None, reverse=False):
         return list.sorted(iterable, cmp=None, key=None, reverse=False)
 
-
 safe_builtins['list'] = GuardedListType()
-
 
 class GuardedDictType:
     def __call__(self, *args, **kwargs):
@@ -400,23 +353,17 @@ class GuardedDictType:
     def fromkeys(self, S, v=None):
         return dict.fromkeys(S, v)
 
-
 safe_builtins['dict'] = GuardedDictType()
-
 
 def guarded_enumerate(seq):
     return NullIter(enumerate(guarded_iter(seq)))
 
-
 safe_builtins['enumerate'] = guarded_enumerate
-
 
 def guarded_sum(sequence, start=0):
     return sum(guarded_iter(sequence), start)
 
-
 safe_builtins['sum'] = guarded_sum
-
 
 def load_module(module, mname, mnameparts, validate, globals, locals):
     while mnameparts:
@@ -433,10 +380,8 @@ def load_module(module, mname, mnameparts, validate, globals, locals):
         module = nextmodule
     return module
 
-
 def guarded_apply(func, *args, **kws):
     return builtin_guarded_apply(func, args, kws)
-
 
 def builtin_guarded_apply(func, args=(), kws={}):
     i, arglist = 0, []
@@ -451,23 +396,17 @@ def builtin_guarded_apply(func, args=(), kws={}):
         argdict[k] = v
     return func(*arglist, **argdict)
 
-
 safe_builtins['apply'] = builtin_guarded_apply
-
 
 def guarded_any(seq):
     return any(guarded_iter(seq))
 
-
 safe_builtins['any'] = guarded_any
-
 
 def guarded_all(seq):
     return all(guarded_iter(seq))
 
-
 safe_builtins['all'] = guarded_all
-
 
 def _metaclass(name, bases, dict):
     for k, v in dict.items():
@@ -478,9 +417,7 @@ def _metaclass(name, bases, dict):
     ob._guarded_writes = 1
     return ob
 
-
 valid_inplace_types = (list, set)
-
 
 inplace_slots = {
     '+=': '__iadd__',
@@ -497,66 +434,53 @@ inplace_slots = {
     '|=': '__ior__',
 }
 
-
 def __iadd__(x, y):
     x += y
     return x
-
 
 def __isub__(x, y):
     x -= y
     return x
 
-
 def __imul__(x, y):
     x *= y
     return x
-
 
 def __idiv__(x, y):
     x /= y
     return x
 
-
 def __ifloordiv__(x, y):
     x //= y
     return x
-
 
 def __imod__(x, y):
     x %= y
     return x
 
-
 def __ipow__(x, y):
     x **= y
     return x
-
 
 def __ilshift__(x, y):
     x <<= y
     return x
 
-
 def __irshift__(x, y):
     x >>= y
     return x
-
 
 def __iand__(x, y):
     x &= y
     return x
 
-
 def __ixor__(x, y):
     x ^= y
     return x
 
-
 def __ior__(x, y):
     x |= y
     return x
-
 
 inplace_ops = {
     '+=': __iadd__,
@@ -573,13 +497,8 @@ inplace_ops = {
     '|=': __ior__,
 }
 
-
 def protected_inplacevar(op, var, expr):
-    """Do an inplace operation
 
-    If the var has an inplace slot, then disallow the operation
-    unless the var an instance of ``valid_inplace_types``.
-    """
     if hasattr(var, inplace_slots[op]) and \
        not isinstance(var, valid_inplace_types):
         try:
@@ -590,7 +509,6 @@ def protected_inplacevar(op, var, expr):
             "Augmented assignment to %s objects is not allowed"
             " in untrusted code" % cls.__name__)
     return inplace_ops[op](var, expr)
-
 
 _safe_globals = {
     '__builtins__': safe_builtins,

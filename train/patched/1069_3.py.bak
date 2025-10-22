@@ -33,8 +33,8 @@ if TYPE_CHECKING:
 
 
 class _Keywords(Enum):
-    NO_VALUE = "NO_VALUE"  # Used as a sentinel to determine if nothing is provided as a argument for `value` in `Component.update()`
-    FINISHED_ITERATING = "FINISHED_ITERATING"  # Used to skip processing of a component's value (needed for generators + state)
+    NO_VALUE = "NO_VALUE"
+    FINISHED_ITERATING = "FINISHED_ITERATING"
 
 
 class ComponentBase(ABC, metaclass=ComponentMeta):
@@ -154,13 +154,9 @@ class Component(ComponentBase, Block):
             and getattr(getattr(self, value), "_is_server_fn", False)
         ]
 
-        # Svelte components expect elem_classes to be a list
-        # If we don't do this, returning a new component for an
-        # update will break the frontend
         if not elem_classes:
             elem_classes = []
 
-        # This gets overridden when `select` is called
         self._selectable = False
         if not hasattr(self, "data_model"):
             self.data_model: type[GradioDataModel] | None = None
@@ -194,14 +190,13 @@ class Component(ComponentBase, Block):
         self.min_width = min_width
         self.interactive = interactive
 
-        # load_event is set in the Blocks.attach_load_events method
         self.load_event: None | dict[str, Any] = None
         self.load_event_to_attach: None | tuple[Callable, float | None] = None
         load_fn, initial_value = self.get_load_fn_and_initial_value(value)
         initial_value = self.postprocess(initial_value)
         self.value = move_files_to_cache(
             initial_value,
-            self,  # type: ignore
+            self,
             postprocess=True,
             keep_in_cache=True,
         )

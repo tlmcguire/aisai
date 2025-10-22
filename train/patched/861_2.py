@@ -27,38 +27,38 @@ class LiuShell(cmd.Cmd):
     file = None
 
     def do_runcmd(self, arg):
-        'Runs the host shell command specified. Ex: runcmd echo'
+
         logging.info("Running command using runcmd in shell")
         os.system(arg)
     def do_runline(self, arg):
-        'Runs the Python line specified. Ex: runline print("hello")'
+
         logging.info("Running Python code using runline in shell")
         exec(arg)
     def do_run(self, arg):
-        'Runs the script specified, it must be in the programs dir in the same dir as LiuOS and exist, or Python will crash. Ex: run eteled.py'
+
         logging.info(f"Running Python file using run in shell")
         runpy.run_path(path_name="programs/{arg}")
     def do_clear(self, arg):
-        'Clears the terminal'
+
         os.system('cls' if os.name == 'nt' else 'clear')
     def do_logout(self, arg):
-        'Closes the shell. Ex: logout'
+
         logging.warning("Logging out shell session")
         print('Logging out...')
         self.close()
         return True
     def do_shutdown(self, arg):
-        'Closes the shell, and quits the script. Ex: shutdown'
+
         print('Logging out...')
         logging.info("Shut down using shell command")
         exit()
         return True
 
     def do_savecmd(self, arg):
-        'Save future commands to filename:  RECORD rose.cmd'
+
         self.file = open(arg, 'w')
     def do_opencmd(self, arg):
-        'Playback commands from a file:  PLAYBACK rose.cmd'
+
         self.close()
         with open(arg) as f:
             self.cmdqueue.extend(f.read().splitlines())
@@ -73,7 +73,7 @@ class LiuShell(cmd.Cmd):
             self.file = None
 
 def parse(arg):
-    'Convert a series of zero or more numbers to an argument tuple'
+
     return tuple(map(int, arg.split()))
 attemps = 0
 def actualsys() :

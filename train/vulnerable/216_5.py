@@ -11,14 +11,13 @@ from ..models.an_enum import AnEnum
 from ..models.body_upload_file_tests_upload_post import BodyUploadFileTestsUploadPost
 from ..models.http_validation_error import HTTPValidationError
 
-
 def get_user_list(
     *, client: Client, an_enum_value: List[AnEnum], some_date: Union[date, datetime],
 ) -> Union[
     List[AModel], HTTPValidationError,
 ]:
 
-    """ Get a list of things  """
+
     url = "{}/tests/".format(client.base_url)
 
     headers: Dict[str, Any] = client.get_headers()
@@ -49,14 +48,13 @@ def get_user_list(
     else:
         raise ApiResponseError(response=response)
 
-
 def upload_file_tests_upload_post(
     *, client: Client, multipart_data: BodyUploadFileTestsUploadPost, keep_alive: Optional[bool] = None,
 ) -> Union[
     None, HTTPValidationError,
 ]:
 
-    """ Upload a file  """
+
     url = "{}/tests/upload".format(client.base_url)
 
     headers: Dict[str, Any] = client.get_headers()
@@ -72,14 +70,13 @@ def upload_file_tests_upload_post(
     else:
         raise ApiResponseError(response=response)
 
-
 def json_body_tests_json_body_post(
     *, client: Client, json_body: AModel,
 ) -> Union[
     None, HTTPValidationError,
 ]:
 
-    """ Try sending a JSON body  """
+
     url = "{}/tests/json_body".format(client.base_url)
 
     headers: Dict[str, Any] = client.get_headers()

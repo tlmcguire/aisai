@@ -21,9 +21,8 @@ from gi.repository import GLib
 
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
-
 class TestAPI(dbusmock.DBusTestCase):
-    '''Test dbus-mock API'''
+
 
     @classmethod
     def setUpClass(klass):
@@ -47,7 +46,7 @@ class TestAPI(dbusmock.DBusTestCase):
         self.p_mock.wait()
 
     def test_noarg_noret(self):
-        '''no arguments, no return value'''
+
 
         self.dbus_mock.AddMethod('', 'Do', '', '', '')
         self.assertEqual(self.dbus_test.Do(), None)
@@ -56,7 +55,7 @@ class TestAPI(dbusmock.DBusTestCase):
             self.assertRegex(f.read(), '^[0-9.]+ Do$')
 
     def test_onearg_noret(self):
-        '''one argument, no return value'''
+
 
         self.dbus_mock.AddMethod('', 'Do', 's', '', '')
         self.assertEqual(self.dbus_test.Do('Hello'), None)
@@ -65,13 +64,13 @@ class TestAPI(dbusmock.DBusTestCase):
             self.assertRegex(f.read(), '^[0-9.]+ Do "Hello"$')
 
     def test_onearg_ret(self):
-        '''one argument, code for return value'''
+
 
         self.dbus_mock.AddMethod('', 'Do', 's', 's', 'ret = args[0]')
         self.assertEqual(self.dbus_test.Do('Hello'), 'Hello')
 
     def test_twoarg_ret(self):
-        '''two arguments, code for return value'''
+
 
         self.dbus_mock.AddMethod('', 'Do', 'si', 's', 'ret = args[0] * args[1]')
         self.assertEqual(self.dbus_test.Do('foo', 3), 'foofoofoo')
@@ -80,7 +79,7 @@ class TestAPI(dbusmock.DBusTestCase):
             self.assertRegex(f.read(), '^[0-9.]+ Do "foo" 3$')
 
     def test_array_arg(self):
-        '''array argument'''
+
 
         self.dbus_mock.AddMethod('', 'Do', 'iaou', '',
                                  '''assert len(args) == 3
@@ -96,7 +95,7 @@ assert args[2] == 5
             self.assertRegex(f.read(), '^[0-9.]+ Do -1 \["/foo"\] 5$')
 
     def test_dict_arg(self):
-        '''dictionary argument'''
+
 
         self.dbus_mock.AddMethod('', 'Do', 'ia{si}u', '',
                                  '''assert len(args) == 3
@@ -111,7 +110,7 @@ assert args[2] == 5
             self.assertRegex(f.read(), '^[0-9.]+ Do -1 {"foo": 42} 5$')
 
     def test_methods_on_other_interfaces(self):
-        '''methods on other interfaces'''
+
 
         self.dbus_mock.AddMethod('org.freedesktop.Test.Other', 'OtherDo', '', '', '')
         self.dbus_mock.AddMethods('org.freedesktop.Test.Other',
@@ -129,7 +128,7 @@ assert args[2] == 5
             self.assertRegex(f.read(), '^[0-9.]+ OtherDo\n[0-9.]+ OtherDo2\n[0-9.]+ OtherDo3 42$')
 
     def test_methods_same_name(self):
-        '''methods with same name on different interfaces'''
+
 
         self.dbus_mock.AddMethod('org.iface1', 'Do', 'i', 'i', 'ret = args[0] + 2')
         self.dbus_mock.AddMethod('org.iface2', 'Do', 'i', 'i', 'ret = args[0] + 3')
@@ -149,7 +148,7 @@ assert args[2] == 5
         self.assertEqual(self.obj_test.Do(11, dbus_interface='org.iface2'), 14)
 
     def test_methods_type_mismatch(self):
-        '''calling methods with wrong arguments'''
+
 
         def check(signature, args, err):
             self.dbus_mock.AddMethod('', 'Do', signature, '', '')
@@ -171,7 +170,7 @@ assert args[2] == 5
         check('s', [1], 'TypeError: Expected a string')
 
     def test_add_object(self):
-        '''add a new object'''
+
 
         self.dbus_mock.AddObject('/obj1',
                                  'org.freedesktop.Test.Sub',
@@ -195,7 +194,7 @@ assert args[2] == 5
         self.assertEqual(dbus_sub.Do(), 'hello')
 
     def test_add_object_existing(self):
-        '''try to add an existing object'''
+
 
         self.dbus_mock.AddObject('/obj1', 'org.freedesktop.Test.Sub', {}, [])
 
@@ -214,7 +213,7 @@ assert args[2] == 5
                           [])
 
     def test_add_object_with_methods(self):
-        '''add a new object with methods'''
+
 
         self.dbus_mock.AddObject('/obj1',
                                  'org.freedesktop.Test.Sub',
@@ -235,7 +234,7 @@ assert args[2] == 5
                           obj1.Do2, 31337)
 
     def test_properties(self):
-        '''add and change properties'''
+
 
         self.assertEqual(self.dbus_props.GetAll('org.freedesktop.Test.Main'), {})
 
@@ -295,7 +294,7 @@ assert args[2] == 5
                          'yellow')
 
     def test_introspection_methods(self):
-        '''dynamically added methods appear in introspection'''
+
 
         dbus_introspect = dbus.Interface(self.obj_test, dbus.INTROSPECTABLE_IFACE)
 
@@ -316,7 +315,7 @@ assert args[2] == 5
     </method>''' in xml_method, xml_method)
 
     def test_introspection_properties(self):
-        '''dynamically added properties appear in introspection'''
+
 
         self.dbus_mock.AddProperty('', 'Color', 'yellow')
         self.dbus_mock.AddProperty('org.freedesktop.Test.Sub', 'Count', 5)
@@ -329,7 +328,7 @@ assert args[2] == 5
         self.assertTrue('<property access="readwrite" name="Count" type="i" />' in xml, xml)
 
     def test_objects_map(self):
-        '''access global objects map'''
+
 
         self.dbus_mock.AddMethod('', 'EnumObjs', '', 'ao', 'ret = objects.keys()')
         self.assertEqual(self.dbus_test.EnumObjs(), ['/'])
@@ -338,7 +337,7 @@ assert args[2] == 5
         self.assertEqual(set(self.dbus_test.EnumObjs()), {'/', '/obj1'})
 
     def test_signals(self):
-        '''emitting signals'''
+
 
         def do_emit():
             self.dbus_mock.EmitSignal('', 'SigNoArgs', '', [])
@@ -407,7 +406,7 @@ assert args[2] == 5
         self.assertRegex(log, '[0-9.]+ emit org.freedesktop.Test.Sub.SigTypeTest -42 42 "hello" \["/a", "/b"\]\n')
 
     def test_signals_type_mismatch(self):
-        '''emitting signals with wrong arguments'''
+
 
         def check(signature, args, err):
             try:
@@ -428,7 +427,7 @@ assert args[2] == 5
         check('s', [1], 'TypeError: Expected a string')
 
     def test_dbus_get_log(self):
-        '''query call logs over D-BUS'''
+
 
         self.assertEqual(self.dbus_mock.ClearCalls(), None)
         self.assertEqual(self.dbus_mock.GetCalls(), dbus.Array([]))
@@ -459,7 +458,7 @@ assert args[2] == 5
         self.assertEqual(self.dbus_mock.GetCalls(), dbus.Array([]))
 
     def test_dbus_get_method_calls(self):
-        '''query method call logs over D-BUS'''
+
 
         self.dbus_mock.AddMethod('', 'Do', '', '', '')
         self.assertEqual(self.dbus_test.Do(), None)
@@ -482,7 +481,7 @@ assert args[2] == 5
         self.assertEqual(mock_calls[1][1], ['bar'])
 
     def test_dbus_method_called(self):
-        '''subscribe to MethodCalled signal'''
+
 
         loop = GLib.MainLoop()
         caught_signals = []
@@ -505,7 +504,7 @@ assert args[2] == 5
         self.assertEqual(args[0], 'foo')
 
     def test_reset(self):
-        '''resetting to pristine state'''
+
 
         self.dbus_mock.AddMethod('', 'Do', '', '', '')
         self.dbus_mock.AddProperty('', 'propone', True)
@@ -519,9 +518,8 @@ assert args[2] == 5
         obj1 = self.dbus_con.get_object('org.freedesktop.Test', '/obj1')
         self.assertRaises(dbus.exceptions.DBusException, obj1.GetAll, '')
 
-
 class TestTemplates(dbusmock.DBusTestCase):
-    '''Test template API'''
+
 
     @classmethod
     def setUpClass(klass):
@@ -529,7 +527,7 @@ class TestTemplates(dbusmock.DBusTestCase):
         klass.start_system_bus()
 
     def test_local(self):
-        '''Load a local template *.py file'''
+
 
         with tempfile.NamedTemporaryFile(prefix='answer_', suffix='.py') as my_template:
             my_template.write(b'''import dbus
@@ -558,7 +556,7 @@ def load(mock, parameters):
                           dbus_ultimate.GetManagedObjects)
 
     def test_static_method(self):
-        '''Static method in a template'''
+
 
         with tempfile.NamedTemporaryFile(prefix='answer_', suffix='.py') as my_template:
             my_template.write(b'''import dbus
@@ -593,7 +591,7 @@ def Answer(self):
         self.assertRaises(ImportError, self.spawn_server_template, '/non/existing.py')
 
     def test_object_manager(self):
-        '''Template with ObjectManager API'''
+
 
         with tempfile.NamedTemporaryFile(prefix='objmgr_', suffix='.py') as my_template:
             my_template.write(b'''import dbus
@@ -625,7 +623,7 @@ def load(mock, parameters):
         self.assertIn('<node name="Thing2" />', xml)
 
     def test_reset(self):
-        '''Reset() puts the template back to pristine state'''
+
 
         (p_mock, obj_logind) = self.spawn_server_template(
             'logind', stdout=subprocess.PIPE)
@@ -655,12 +653,11 @@ def load(mock, parameters):
         obj1 = dbus_con.get_object('org.freedesktop.login1', '/obj1')
         self.assertRaises(dbus.exceptions.DBusException, obj1.GetAll, '')
 
-
 class TestCleanup(dbusmock.DBusTestCase):
-    '''Test cleanup of resources'''
+
 
     def test_mock_terminates_with_bus(self):
-        '''Spawned mock processes exit when bus goes down'''
+
 
         self.start_session_bus()
         p_mock = self.spawn_server('org.freedesktop.Test',
@@ -682,16 +679,15 @@ class TestCleanup(dbusmock.DBusTestCase):
 
         self.assertEqual(p_mock.wait(), 0)
 
-
 class TestSubclass(dbusmock.DBusTestCase):
-    '''Test subclassing DBusMockObject'''
+
 
     @classmethod
     def setUpClass(klass):
         klass.start_session_bus()
 
     def test_ctor(self):
-        '''Override DBusMockObject constructor'''
+
 
         class MyMock(dbusmock.mockobject.DBusMockObject):
             def __init__(self):
@@ -705,7 +701,7 @@ class TestSubclass(dbusmock.DBusTestCase):
         self.assertEqual(m.Ping(), 42)
 
     def test_none_props(self):
-        '''object with None properties argument'''
+
 
         class MyMock(dbusmock.mockobject.DBusMockObject):
             def __init__(self):
@@ -721,7 +717,6 @@ class TestSubclass(dbusmock.DBusTestCase):
 
         m.AddProperty('org.test.MyMockI', 'blurb', 5)
         self.assertEqual(m.GetAll('org.test.MyMockI'), {'blurb': 5})
-
 
 if __name__ == '__main__':
     unittest.main(testRunner=unittest.TextTestRunner(stream=sys.stdout, verbosity=2))

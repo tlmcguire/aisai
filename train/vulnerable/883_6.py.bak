@@ -1,4 +1,3 @@
-# pylint: disable=protected-access
 import os
 from abc import ABC, abstractmethod
 from ast import AST, AnnAssign
@@ -50,14 +49,14 @@ class ConnectorTemplateLoader(ABC):
     def __new__(cls: Type["ConnectorTemplateLoader"]) -> "ConnectorTemplateLoader":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._templates = {}  # type: ignore[attr-defined]
+            cls._instance._templates = {}
             cls._instance._load_connector_templates()
         return cls._instance
 
     @classmethod
     def get_connector_templates(cls) -> Dict[str, ConnectorTemplate]:
         """Returns a map of connection templates."""
-        return cls()._instance._templates  # type: ignore[attr-defined, union-attr]
+        return cls()._instance._templates
 
     @abstractmethod
     def _load_connector_templates(self) -> None:
@@ -86,7 +85,6 @@ class FileConnectorTemplateLoader(ConnectorTemplateLoader):
                     )
                     icon = encode_file_contents("data/saas/icon/default.svg")
 
-                # store connector template for retrieval
                 try:
                     FileConnectorTemplateLoader.get_connector_templates()[
                         connector_type
@@ -162,19 +160,16 @@ class CustomConnectorTemplateLoader(ConnectorTemplateLoader):
             human_readable=template.name,
         )
 
-        # register custom functions if available
         if template.functions:
             register_custom_functions(template.functions)
             logger.info(
                 f"Loaded functions from the custom connector template '{template.key}'"
             )
 
-        # register the template in the loader's template dictionary
         CustomConnectorTemplateLoader.get_connector_templates()[
             template.key
         ] = connector_template
 
-    # pylint: disable=too-many-branches
     @classmethod
     def save_template(cls, db: Session, zip_file: ZipFile) -> None:
         """
@@ -182,7 +177,6 @@ class CustomConnectorTemplateLoader(ConnectorTemplateLoader):
         custom connector template, registers the template, and saves it to the database.
         """
 
-        # verify the zip file before we use it
         verify_zip(zip_file)
 
         config_contents = None
@@ -194,7 +188,6 @@ class CustomConnectorTemplateLoader(ConnectorTemplateLoader):
             try:
                 file_contents = zip_file.read(info).decode()
             except UnicodeDecodeError:
-                # skip any hidden metadata files that can't be decoded with UTF-8
                 logger.debug(f"Unable to decode the file: {info.filename}")
                 continue
 
@@ -234,18 +227,13 @@ class CustomConnectorTemplateLoader(ConnectorTemplateLoader):
         if not dataset_contents:
             raise ValidationError("Zip file does not contain a dataset.yml file.")
 
-        # early validation of SaaS config and dataset
         saas_config = SaaSConfig(**load_config_from_string(config_contents))
         Dataset(**load_dataset_from_string(dataset_contents))
 
-        # extract connector_type, human_readable, and replaceable values from the SaaS config
         connector_type = saas_config.type
         human_readable = saas_config.name
         replaceable = saas_config.replaceable
 
-        # if the incoming connector is flagged as replaceable we will update the version to match
-        # that of the existing connector template this way the custom connector template can be
-        # removed once a newer version is bundled with Fides
         if replaceable:
             existing_connector = (
                 FileConnectorTemplateLoader.get_connector_templates().get(
@@ -270,10 +258,8 @@ class CustomConnectorTemplateLoader(ConnectorTemplateLoader):
             replaceable=replaceable,
         )
 
-        # attempt to register the template, raises an exception if validation fails
         CustomConnectorTemplateLoader._register_template(template)
 
-        # save the custom connector to the database if it passed validation
         CustomConnectorTemplate.create_or_update(
             db=db,
             data={
@@ -297,8 +283,8 @@ class ConnectorRegistry:
         with custom loader templates taking precedence in case of conflicts.
         """
         return {
-            **FileConnectorTemplateLoader.get_connector_templates(),  # type: ignore
-            **CustomConnectorTemplateLoader.get_connector_templates(),  # type: ignore
+            **FileConnectorTemplateLoader.get_connector_templates(),
+            **CustomConnectorTemplateLoader.get_connector_templates(),
         }
 
     @classmethod
@@ -321,8 +307,6 @@ def create_connection_config_from_template_no_save(
     system_id: Optional[str] = None,
 ) -> ConnectionConfig:
     """Creates a SaaS connection config from a template without saving it."""
-    # Load SaaS config from template and replace every instance of "<instance_fides_key>" with the fides_key
-    # the user has chosen
     config_from_template: Dict = replace_config_placeholders(
         template.config, "<instance_fides_key>", template_values.instance_key
     )
@@ -342,7 +326,6 @@ def create_connection_config_from_template_no_save(
     if system_id:
         data["system_id"] = system_id
 
-    # Create SaaS ConnectionConfig
     connection_config = ConnectionConfig.create_without_saving(db, data=data)
 
     return connection_config
@@ -360,15 +343,13 @@ def upsert_dataset_config_from_template(
     If the `DatasetConfig` already exists in the db,
     then the existing record is updated.
     """
-    # Load the dataset config from template and replace every instance of "<instance_fides_key>" with the fides_key
-    # the user has chosen
     dataset_from_template: Dict = replace_dataset_placeholders(
         template.dataset, "<instance_fides_key>", template_values.instance_key
     )
     data = {
         "connection_config_id": connection_config.id,
         "fides_key": template_values.instance_key,
-        "dataset": dataset_from_template,  # Currently used for upserting a CTL Dataset
+        "dataset": dataset_from_template,
     }
     dataset_config = DatasetConfig.upsert_with_ctl_dataset(db, data=data)
     return dataset_config
@@ -387,7 +368,7 @@ def update_saas_configs(db: Session) -> None:
             "Determining if any updates are needed for connectors of type {} based on templates...",
             connector_type,
         )
-        template: ConnectorTemplate = ConnectorRegistry.get_connector_template(  # type: ignore
+        template: ConnectorTemplate = ConnectorRegistry.get_connector_template(
             connector_type
         )
         saas_config = SaaSConfig(**load_config_from_string(template.config))
@@ -474,7 +455,6 @@ def register_custom_functions(script: str) -> None:
         safe_builtins["_getitem_"] = getitem
         safe_builtins["staticmethod"] = staticmethod
 
-        # pylint: disable=exec-used
         exec(
             restricted_code,
             {
@@ -519,7 +499,6 @@ def custom_guarded_import(
         "tempfile",
         "glob",
     ]:
-        # raising SyntaxError to be consistent with exceptions thrown from other guarded functions
         raise SyntaxError(f"Import of '{name}' module is not allowed.")
     if fromlist is None:
         fromlist = ()

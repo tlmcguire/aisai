@@ -4,11 +4,8 @@ from configparser import ConfigParser, NoSectionError, NoOptionError
 
 from swift.common.memcached import MemcacheRing
 
-
 class MemcacheMiddleware(object):
-    """
-    Caching middleware that manages caching in swift.
-    """
+
 
     def __init__(self, app, conf):
         self.app = app
@@ -48,7 +45,6 @@ class MemcacheMiddleware(object):
         except ValueError:
             serialization_format = 2
 
-
         self.memcache = MemcacheRing(
             [s.strip() for s in self.memcache_servers.split(',') if s.strip()],
             allow_pickle=(serialization_format == 0),
@@ -57,7 +53,6 @@ class MemcacheMiddleware(object):
     def __call__(self, env, start_response):
         env['swift.cache'] = self.memcache
         return self.app(env, start_response)
-
 
 def filter_factory(global_conf, **local_conf):
     conf = global_conf.copy()

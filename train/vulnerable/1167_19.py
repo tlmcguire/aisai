@@ -1,12 +1,4 @@
-"""
-project: lollms
-file: lollms_discussion_events.py 
-author: ParisNeo
-description: 
-    This module contains a set of Socketio routes that provide information about the Lord of Large Language and Multimodal Systems (LoLLMs) Web UI
-    application. These routes are specific to discussion operation
 
-"""
 from fastapi import APIRouter, Request
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -33,7 +25,6 @@ from datetime import datetime
 
 router = APIRouter()
 lollmsElfServer:LOLLMSWebUI = LOLLMSWebUI.get_instance()
-
 
 def add_events(sio:socketio):
     @sio.on('start_webcam_video_stream')
@@ -63,7 +54,6 @@ def add_events(sio:socketio):
             lollmsElfServer.audio_cap.start_recording()
         except:
             lollmsElfServer.InfoMessage("Couldn't load media library.\nYou will not be able to perform any of the media linked operations. please verify the logs and install any required installations")
-
 
     @sio.on('stop_audio_stream')
     def stop_audio_stream(sid):

@@ -25,32 +25,9 @@ from synapse.util import Clock
 
 logger = logging.getLogger(__name__)
 
-
 @implementer(IAgent)
 class MatrixFederationAgent:
-    """An Agent-like thing which provides a `request` method which correctly
-    handles resolving matrix server names when using matrix://. Handles standard
-    https URIs as normal.
 
-    Doesn't implement any retries. (Those are done in MatrixFederationHttpClient.)
-
-    Args:
-        reactor: twisted reactor to use for underlying requests
-
-        tls_client_options_factory:
-            factory to use for fetching client tls options, or none to disable TLS.
-
-        user_agent:
-            The user agent header to use for federation requests.
-
-        _srv_resolver:
-            SrvResolver implementation to use for looking up SRV records. None
-            to use a default implementation.
-
-        _well_known_resolver:
-            WellKnownResolver to use to perform well-known lookups. None to use a
-            default implementation.
-    """
 
     def __init__(
         self,
@@ -102,24 +79,7 @@ class MatrixFederationAgent:
         headers: Optional[Headers] = None,
         bodyProducer: Optional[IBodyProducer] = None,
     ) -> defer.Deferred:
-        """
-        Args:
-            method: HTTP method: GET/POST/etc
-            uri: Absolute URI to be retrieved
-            headers:
-                HTTP headers to send with the request, or None to send no extra headers.
-            bodyProducer:
-                An object which can generate bytes to make up the
-                body of this request (for example, the properly encoded contents of
-                a file for a file upload).  Or None if the request is to have
-                no body.
-        Returns:
-            Deferred[twisted.web.iweb.IResponse]:
-                fires when the header of the response has been received (regardless of the
-                response status code). Fails if there is any problem which prevents that
-                response from being received (including problems that prevent the request
-                from being sent).
-        """
+
         parsed_uri = urllib.parse.urlparse(uri)
 
         assert parsed_uri.hostname
@@ -164,11 +124,9 @@ class MatrixFederationAgent:
 
         return res
 
-
 @implementer(IAgentEndpointFactory)
 class MatrixHostnameEndpointFactory:
-    """Factory for MatrixHostnameEndpoint for parsing to an Agent.
-    """
+
 
     def __init__(
         self,
@@ -192,19 +150,9 @@ class MatrixHostnameEndpointFactory:
             parsed_uri,
         )
 
-
 @implementer(IStreamClientEndpoint)
 class MatrixHostnameEndpoint:
-    """An endpoint that resolves matrix:// URLs using Matrix server name
-    resolution (i.e. via SRV). Does not check for well-known delegation.
 
-    Args:
-        reactor: twisted reactor to use for underlying requests
-        tls_client_options_factory:
-            factory to use for fetching client tls options, or none to disable TLS.
-        srv_resolver: The SRV resolver to use
-        parsed_uri: The parsed URI that we're wanting to connect to.
-    """
 
     def __init__(
         self,
@@ -217,7 +165,6 @@ class MatrixHostnameEndpoint:
 
         self._parsed_uri = parsed_uri
 
-
         if tls_client_options_factory is None:
             self._tls_options = None
         else:
@@ -228,8 +175,7 @@ class MatrixHostnameEndpoint:
         self._srv_resolver = srv_resolver
 
     def connect(self, protocol_factory: IProtocolFactory) -> defer.Deferred:
-        """Implements IStreamClientEndpoint interface
-        """
+
 
         return run_in_background(self._do_connect, protocol_factory)
 
@@ -265,13 +211,10 @@ class MatrixHostnameEndpoint:
         raise Exception("Failed to resolve server %r" % (self._parsed_uri.netloc,))
 
     async def _resolve_server(self) -> List[Server]:
-        """Resolves the server name to a list of hosts and ports to attempt to
-        connect to.
-        """
+
 
         if self._parsed_uri.scheme != b"matrix":
             return [Server(host=self._parsed_uri.host, port=self._parsed_uri.port)]
-
 
         parsed_uri = urllib.parse.urlparse(self._parsed_uri.toBytes())
 
@@ -288,16 +231,8 @@ class MatrixHostnameEndpoint:
 
         return [Server(host, 8448)]
 
-
 def _is_ip_literal(host: bytes) -> bool:
-    """Test if the given host name is either an IPv4 or IPv6 literal.
 
-    Args:
-        host: The host name to check
-
-    Returns:
-        True if the hostname is an IP address literal.
-    """
 
     host_str = host.decode("ascii")
 

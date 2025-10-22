@@ -55,7 +55,6 @@ if not support.has_subprocess_support:
 
 mswindows = (sys.platform == "win32")
 
-
 if mswindows:
     SETBINARY = ('import msvcrt; msvcrt.setmode(sys.stdout.fileno(), '
                                                 'os.O_BINARY);')
@@ -67,7 +66,6 @@ NONEXISTING_ERRORS = (FileNotFoundError, NotADirectoryError, PermissionError)
 
 ZERO_RETURN_CMD = (sys.executable, '-c', 'pass')
 
-
 def setUpModule():
     shell_true = shutil.which('true')
     if shell_true is None:
@@ -76,7 +74,6 @@ def setUpModule():
         subprocess.run([shell_true]).returncode == 0):
         global ZERO_RETURN_CMD
         ZERO_RETURN_CMD = (shell_true,)
-
 
 class BaseTestCase(unittest.TestCase):
     def setUp(self):
@@ -93,18 +90,13 @@ class BaseTestCase(unittest.TestCase):
         self.doCleanups()
         support.reap_children()
 
-
 class PopenTestException(Exception):
     pass
 
-
 class PopenExecuteChildRaises(subprocess.Popen):
-    """Popen subclass for testing cleanup of subprocess.PIPE filehandles when
-    _execute_child fails.
-    """
+
     def _execute_child(self, *args, **kwargs):
         raise PopenTestException("Forced Exception for Test")
-
 
 class ProcessTestCase(BaseTestCase):
 
@@ -200,7 +192,7 @@ class ProcessTestCase(BaseTestCase):
         self.assertIn(b'PEAR', output)
 
     def test_check_output_input_none(self):
-        """input=None has a legacy meaning of input='' on check_output."""
+
         output = subprocess.check_output(
                 [sys.executable, "-c",
                  "import sys; print('XX' if sys.stdin.read() else '')"],
@@ -695,10 +687,10 @@ class ProcessTestCase(BaseTestCase):
     @unittest.skipIf(check_sanitizer(address=True),
                      'AddressSanitizer adds to the environment.')
     def test_empty_env(self):
-        """Verify that env={} is as empty as possible."""
+
 
         def is_env_var_to_ignore(n):
-            """Determine if an environment variable is under our control."""
+
             return ('VERSIONER' in n or '__CF' in n or
                     n == 'LD_PRELOAD' or n.startswith('SANDBOX') or
                     n == 'LC_CTYPE')
@@ -1207,7 +1199,7 @@ class ProcessTestCase(BaseTestCase):
                 raise exc
 
     def test_threadsafe_wait(self):
-        """Issue21291: Popen.wait() needs to be threadsafe for returncode."""
+
         proc = subprocess.Popen([sys.executable, '-c',
                                  'import time; time.sleep(12)'])
         self.assertEqual(proc.returncode, None)
@@ -1326,18 +1318,16 @@ class ProcessTestCase(BaseTestCase):
             with subprocess.Popen(args, **kw) as process:
                 process.communicate()
 
-
     @unittest.skipUnless(os.path.isdir('/proc/%d/fd' % os.getpid()),
                          "Linux specific")
     def test_failed_child_execute_fd_leak(self):
-        """Test for the fork() failure fd leak reported in issue16327."""
+
         fd_directory = '/proc/%d/fd' % os.getpid()
         fds_before_popen = os.listdir(fd_directory)
         with self.assertRaises(PopenTestException):
             PopenExecuteChildRaises(
                     ZERO_RETURN_CMD, stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
 
         fds_after_exception = os.listdir(fd_directory)
         self.assertEqual(fds_before_popen, fds_after_exception)
@@ -1373,10 +1363,9 @@ class ProcessTestCase(BaseTestCase):
                 subprocess.run([sys.executable, "-c", "pass"])
             self.assertFalse(mock_fork_exec.call_args_list[-1].args[-1])
 
-
 class RunFuncTestCase(BaseTestCase):
     def run_python(self, code, **kwargs):
-        """Run Python code in a subprocess using subprocess.run"""
+
         argv = [sys.executable, "-c", code]
         return subprocess.run(argv, **kwargs)
 
@@ -1516,7 +1505,7 @@ class RunFuncTestCase(BaseTestCase):
 
     @unittest.skipIf(mswindows, "requires posix like 'sleep' shell command")
     def test_run_with_shell_timeout_and_capture_output(self):
-        """Output capturing after a timeout mustn't hang forever on open filehandles."""
+
         before_secs = time.monotonic()
         try:
             subprocess.run('sleep 3', shell=True, timeout=0.1,
@@ -1543,7 +1532,6 @@ class RunFuncTestCase(BaseTestCase):
         self.assertTrue(lines[0].startswith(b"<string>:2: EncodingWarning: "))
         self.assertTrue(lines[2].startswith(b"<string>:3: EncodingWarning: "))
 
-
 def _get_test_grp_name():
     for name_group in ('staff', 'nogroup', 'grp', 'nobody', 'nfsnobody'):
         if grp:
@@ -1554,7 +1542,6 @@ def _get_test_grp_name():
             return name_group
     else:
         raise unittest.SkipTest('No identified group name to use for this test on this platform.')
-
 
 @unittest.skipIf(mswindows, "POSIX specific tests")
 class POSIXProcessTestCase(BaseTestCase):
@@ -1574,7 +1561,7 @@ class POSIXProcessTestCase(BaseTestCase):
         return desired_exception
 
     def test_exception_cwd(self):
-        """Test error in the child raised in the parent for a bad cwd."""
+
         desired_exception = self._get_chdir_exception()
         try:
             p = subprocess.Popen([sys.executable, "-c", ""],
@@ -1587,7 +1574,7 @@ class POSIXProcessTestCase(BaseTestCase):
             self.fail("Expected OSError: %s" % desired_exception)
 
     def test_exception_bad_executable(self):
-        """Test error in the child raised in the parent for a bad executable."""
+
         desired_exception = self._get_chdir_exception()
         try:
             p = subprocess.Popen([sys.executable, "-c", ""],
@@ -1600,7 +1587,7 @@ class POSIXProcessTestCase(BaseTestCase):
             self.fail("Expected OSError: %s" % desired_exception)
 
     def test_exception_bad_args_0(self):
-        """Test error in the child raised in the parent for a bad args[0]."""
+
         desired_exception = self._get_chdir_exception()
         try:
             p = subprocess.Popen([self._nonexistent_dir, "-c", ""])
@@ -1617,7 +1604,7 @@ class POSIXProcessTestCase(BaseTestCase):
 
     @mock.patch("subprocess._fork_exec")
     def test_exception_errpipe_normal(self, fork_exec):
-        """Test error passing done through errpipe_write in the good case"""
+
         def proper_error(*args):
             errpipe_write = args[13]
             err_code = '{:x}'.format(errno.EISDIR).encode()
@@ -1633,8 +1620,7 @@ class POSIXProcessTestCase(BaseTestCase):
 
     @mock.patch("subprocess._fork_exec")
     def test_exception_errpipe_bad_data(self, fork_exec):
-        """Test error passing done through errpipe_write where its not
-        in the expected format"""
+
         error_data = b"\xFF\x00\xDE\xAD"
         def bad_error(*args):
             errpipe_write = args[13]
@@ -1919,7 +1905,7 @@ class POSIXProcessTestCase(BaseTestCase):
                       "to the parent process.")
 
     class _TestExecuteChildPopen(subprocess.Popen):
-        """Used to test behavior at the end of _execute_child."""
+
         def __init__(self, testcase, *args, **kwargs):
             self._testcase = testcase
             subprocess.Popen.__init__(self, *args, **kwargs)
@@ -1942,7 +1928,7 @@ class POSIXProcessTestCase(BaseTestCase):
 
     @unittest.skipIf(not os.path.exists("/dev/zero"), "/dev/zero required.")
     def test_preexec_errpipe_does_not_double_close_pipes(self):
-        """Issue16140: Don't double close pipes on preexec error."""
+
 
         def raise_it():
             raise subprocess.SubprocessError(
@@ -2182,7 +2168,7 @@ class POSIXProcessTestCase(BaseTestCase):
         self.check_close_std_fds([0, 1, 2])
 
     def test_small_errpipe_write_fd(self):
-        """Issue #15798: Popen should work when stdio fds are available."""
+
         new_stdin = os.dup(0)
         new_stdout = os.dup(1)
         try:
@@ -2502,12 +2488,11 @@ class POSIXProcessTestCase(BaseTestCase):
                          "Some fds not in pass_fds were left open")
         self.assertIn(1, remaining_fds, "Subprocess failed")
 
-
     @unittest.skipIf(sys.platform.startswith("freebsd") and
                      os.stat("/dev").st_dev == os.stat("/dev/fd").st_dev,
                      "Requires fdescfs mounted on /dev/fd on FreeBSD")
     def test_close_fds_when_max_fd_is_lowered(self):
-        """Confirm that issue21618 is fixed (may fail under valgrind)."""
+
         fd_status = support.findfile("fd_status.py", subdir="subprocessdata")
 
         p = subprocess.Popen([sys.executable, '-c', textwrap.dedent(
@@ -2570,7 +2555,6 @@ class POSIXProcessTestCase(BaseTestCase):
         self.assertFalse(remaining_fds & opened_fds,
                          msg="Some fds were left open.")
 
-
     @support.requires_mac_ver(10, 5)
     def test_pass_fds(self):
         fd_status = support.findfile("fd_status.py", subdir="subprocessdata")
@@ -2627,9 +2611,8 @@ class POSIXProcessTestCase(BaseTestCase):
         self.assertEqual(os.get_inheritable(inheritable), True)
         self.assertEqual(os.get_inheritable(non_inheritable), False)
 
-
     def test_pass_fds_redirected(self):
-        """Regression test for https://bugs.python.org/issue32270."""
+
         fd_status = support.findfile("fd_status.py", subdir="subprocessdata")
         pass_fds = []
         for _ in range(2):
@@ -2652,7 +2635,6 @@ class POSIXProcessTestCase(BaseTestCase):
         fds = {int(num) for num in output.split(b',')}
 
         self.assertEqual(fds, {0, 1, 2} | frozenset(pass_fds), f"output={output!a}")
-
 
     def test_stdout_stdin_are_single_inout_fd(self):
         with io.open(os.devnull, "r+") as inout:
@@ -2870,7 +2852,7 @@ class POSIXProcessTestCase(BaseTestCase):
                          and hasattr(_testcapi, 'W_STOPCODE'),
                          'need _testcapi.W_STOPCODE')
     def test_stopped(self):
-        """Test wait() behavior when waitpid returns WIFSTOPPED; issue29335."""
+
         args = ZERO_RETURN_CMD
         proc = subprocess.Popen(args)
 
@@ -2935,7 +2917,6 @@ class POSIXProcessTestCase(BaseTestCase):
         _, out, err = assert_python_ok("-c", code)
         self.assertEqual(out, b'')
         self.assertIn(b"preexec_fn not supported at interpreter shutdown", err)
-
 
 @unittest.skipUnless(mswindows, "Windows specific tests")
 class Win32ProcessTestCase(BaseTestCase):
@@ -3161,7 +3142,7 @@ class Win32ProcessTestCase(BaseTestCase):
 class MiscTests(unittest.TestCase):
 
     class RecordingPopen(subprocess.Popen):
-        """A Popen that saves a reference to each instance for testing."""
+
         instances_created = []
 
         def __init__(self, *args, **kwargs):
@@ -3171,13 +3152,7 @@ class MiscTests(unittest.TestCase):
     @mock.patch.object(subprocess.Popen, "_communicate")
     def _test_keyboardinterrupt_no_kill(self, popener, mock__communicate,
                                         **kwargs):
-        """Fake a SIGINT happening during Popen._communicate() and ._wait().
 
-        This avoids the need to actually try and get test environments to send
-        and receive signals reliably across platforms.  The net effect of a ^C
-        happening during a blocking subprocess execution which we want to clean
-        up from is a KeyboardInterrupt coming out of communicate() or wait().
-        """
 
         mock__communicate.side_effect = KeyboardInterrupt
         try:
@@ -3238,7 +3213,7 @@ class MiscTests(unittest.TestCase):
                 os.rmdir(dir)
 
     def test__all__(self):
-        """Ensure that __all__ is populated properly."""
+
         intentionally_excluded = {"list2cmdline", "Handle", "pwd", "grp", "fcntl"}
         exported = set(subprocess.__all__)
         possible_exports = set()
@@ -3251,7 +3226,6 @@ class MiscTests(unittest.TestCase):
             possible_exports.add(name)
         self.assertEqual(exported, possible_exports - intentionally_excluded)
 
-
 @unittest.skipUnless(hasattr(selectors, 'PollSelector'),
                      "Test needs selectors.PollSelector")
 class ProcessTestCaseNoPoll(ProcessTestCase):
@@ -3263,7 +3237,6 @@ class ProcessTestCaseNoPoll(ProcessTestCase):
     def tearDown(self):
         subprocess._PopenSelector = self.orig_selector
         ProcessTestCase.tearDown(self)
-
 
 @unittest.skipUnless(mswindows, "Windows-specific tests")
 class CommandsWithSpaces (BaseTestCase):
@@ -3304,7 +3277,6 @@ class CommandsWithSpaces (BaseTestCase):
     def test_noshell_sequence_with_spaces(self):
         self.with_spaces([sys.executable, self.fname, "ab cd"])
 
-
 class ContextManagerTests(BaseTestCase):
 
     def test_pipe(self):
@@ -3342,7 +3314,7 @@ class ContextManagerTests(BaseTestCase):
                 pass
 
     def test_broken_pipe_cleanup(self):
-        """Broken pipe error should not prevent wait() (Issue 21619)"""
+
         proc = subprocess.Popen(ZERO_RETURN_CMD,
                                 stdin=subprocess.PIPE,
                                 bufsize=support.PIPE_MAX_SIZE*2)
@@ -3352,7 +3324,6 @@ class ContextManagerTests(BaseTestCase):
         self.assertRaises(OSError, proc.__exit__, None, None, None)
         self.assertEqual(proc.returncode, 0)
         self.assertTrue(proc.stdin.closed)
-
 
 if __name__ == "__main__":
     unittest.main()

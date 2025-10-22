@@ -1,8 +1,4 @@
-"""Small, fast HTTP client library for Python.
 
-Features persistent connections, cache, and Google App Engine Standard
-Environment support.
-"""
 
 from __future__ import print_function
 
@@ -160,7 +156,7 @@ if sys.version_info < (2, 4):
         return seq
 
 def HTTPResponse__getheaders(self):
-    """Return list of (header, value) tuples."""
+
     if self.msg is None:
         raise httplib.ResponseNotReady()
     return self.msg.items()
@@ -250,10 +246,7 @@ def _get_end2end_headers(response):
 URI = re.compile(r"^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?")
 
 def parse_uri(uri):
-    """Parses a URI using the regex given in Appendix B of RFC 3986.
 
-        (scheme, authority, path, query, fragment) = parse_uri(uri)
-    """
     groups = URI.match(uri).groups()
     return (groups[1], groups[3], groups[4], groups[6], groups[8])
 
@@ -274,10 +267,7 @@ re_url_scheme = re.compile(r"^\w+://")
 re_unsafe = re.compile(r"[^\w\-_.()=!]+")
 
 def safename(filename):
-    """Return a filename suitable for the cache.
-    Strips dangerous and common characters to create a filename we
-    can use to store the cache in.
-    """
+
     if isinstance(filename, str):
         filename_bytes = filename
         filename = filename.decode("utf-8")
@@ -327,8 +317,7 @@ WWW_AUTH_RELAXED = re.compile(
 UNQUOTE_PAIRS = re.compile(r"\\(.)")
 
 def _parse_www_authenticate(headers, headername="www-authenticate"):
-    """Returns a dictionary of dictionaries, one dict
-    per auth_scheme."""
+
     retval = {}
     if headername in headers:
         try:
@@ -359,32 +348,7 @@ def _parse_www_authenticate(headers, headername="www-authenticate"):
     return retval
 
 def _entry_disposition(response_headers, request_headers):
-    """Determine freshness from the Date, Expires and Cache-Control headers.
 
-    We don't handle the following:
-
-    1. Cache-Control: max-stale
-    2. Age: headers are not used in the calculations.
-
-    Not that this algorithm is simpler than you might think
-    because we are operating as a private (non-shared) cache.
-    This lets us ignore 's-maxage'. We can also ignore
-    'proxy-invalidate' since we aren't a proxy.
-    We will never return a stale document as
-    fresh as a design decision, and thus the non-implementation
-    of 'max-stale'. This also lets us safely ignore 'must-revalidate'
-    since we operate as if every server has sent 'must-revalidate'.
-    Since we are private we get to ignore both 'public' and
-    'private' parameters. We also ignore 'no-transform' since
-    we don't do any transformations.
-    The 'no-store' parameter is handled at a higher level.
-    So the only Cache-Control parameters we look at are:
-
-    no-cache
-    only-if-cached
-    max-age
-    min-fresh
-    """
 
     retval = "STALE"
     cc = _parse_cache_control(request_headers)
@@ -523,18 +487,11 @@ class Authentication(object):
         return (host == self.host) and path.startswith(self.path)
 
     def request(self, method, request_uri, headers, content):
-        """Modify the request headers to add the appropriate
-        Authorization header. Over-ride this in sub-classes."""
+
         pass
 
     def response(self, response, content):
-        """Gives us a chance to update with new nonces
-        or such returned from the last authorized response.
-        Over-rise this in sub-classes if necessary.
 
-        Return TRUE is the request is to be retried, for
-        example Digest may return stale=true.
-        """
         return False
 
 class BasicAuthentication(Authentication):
@@ -546,15 +503,13 @@ class BasicAuthentication(Authentication):
         )
 
     def request(self, method, request_uri, headers, content):
-        """Modify the request headers to add the appropriate
-        Authorization header."""
+
         headers["authorization"] = (
             "Basic " + base64.b64encode("%s:%s" % self.credentials).strip()
         )
 
 class DigestAuthentication(Authentication):
-    """Only do qop='auth' and MD5, since that
-    is all Apache currently implements"""
+
 
     def __init__(
         self, credentials, host, request_uri, headers, response, content, http
@@ -589,7 +544,7 @@ class DigestAuthentication(Authentication):
         self.challenge["nc"] = 1
 
     def request(self, method, request_uri, headers, content, cnonce=None):
-        """Modify the request headers"""
+
         H = lambda x: _md5(x).hexdigest()
         KD = lambda s, d: H("%s:%s" % (s, d))
         A2 = "".join([method, ":", request_uri])
@@ -644,7 +599,7 @@ class DigestAuthentication(Authentication):
         return False
 
 class HmacDigestAuthentication(Authentication):
-    """Adapted from Robert Sayre's code and DigestAuthentication above."""
+
 
     __author__ = "Thomas Broyer (t.broyer@ltgt.net)"
 
@@ -701,7 +656,7 @@ class HmacDigestAuthentication(Authentication):
         self.key = self.pwhashmod.new(self.key).hexdigest().lower()
 
     def request(self, method, request_uri, headers, content):
-        """Modify the request headers"""
+
         keys = _get_end2end_headers(headers)
         keylist = "".join(["%s " % k for k in keys])
         headers_val = "".join([headers[k] for k in keys])
@@ -741,13 +696,7 @@ class HmacDigestAuthentication(Authentication):
         return False
 
 class WsseAuthentication(Authentication):
-    """This is thinly tested and should not be relied upon.
-    At this time there isn't any third party server to test against.
-    Blogger and TypePad implemented this algorithm at one point
-    but Blogger has since switched to Basic over HTTPS and
-    TypePad has implemented it wrong, by never issuing a 401
-    challenge but instead requiring your client to telepathically know that
-    their endpoint is expecting WSSE profile="UsernameToken"."""
+
 
     def __init__(
         self, credentials, host, request_uri, headers, response, content, http
@@ -757,8 +706,7 @@ class WsseAuthentication(Authentication):
         )
 
     def request(self, method, request_uri, headers, content):
-        """Modify the request headers to add the appropriate
-        Authorization header."""
+
         headers["authorization"] = 'WSSE profile="UsernameToken"'
         iso_now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         cnonce = _cnonce()
@@ -802,8 +750,7 @@ class GoogleLoginAuthentication(Authentication):
             self.Auth = d["Auth"]
 
     def request(self, method, request_uri, headers, content):
-        """Modify the request headers to add the appropriate
-        Authorization header."""
+
         headers["authorization"] = "GoogleLogin Auth=" + self.Auth
 
 AUTH_SCHEME_CLASSES = {
@@ -817,10 +764,7 @@ AUTH_SCHEME_CLASSES = {
 AUTH_SCHEME_ORDER = ["hmacdigest", "googlelogin", "digest", "wsse", "basic"]
 
 class FileCache(object):
-    """Uses a local directory as a store for cached files.
-    Not really safe to use if multiple threads or processes are going to
-    be running on the same cache.
-    """
+
 
     def __init__(
         self, cache, safe=safename
@@ -868,8 +812,7 @@ class Credentials(object):
                 yield (name, password)
 
 class KeyCerts(Credentials):
-    """Identical to Credentials except that
-    name/password are mapped to key/cert."""
+
     def add(self, key, cert, domain, password):
         self.credentials.append((domain.lower(), key, cert, password))
 
@@ -882,7 +825,7 @@ class AllHosts(object):
     pass
 
 class ProxyInfo(object):
-    """Collect information required to use a proxy."""
+
 
     bypass_hosts = ()
 
@@ -896,23 +839,7 @@ class ProxyInfo(object):
         proxy_pass=None,
         proxy_headers=None,
     ):
-        """Args:
 
-          proxy_type: The type of proxy server.  This must be set to one of
-          socks.PROXY_TYPE_XXX constants.  For example:  p =
-          ProxyInfo(proxy_type=socks.PROXY_TYPE_HTTP, proxy_host='localhost',
-          proxy_port=8000)
-          proxy_host: The hostname or IP address of the proxy server.
-          proxy_port: The port that the proxy server is running on.
-          proxy_rdns: If True (default), DNS queries will not be performed
-          locally, and instead, handed to the proxy to resolve.  This is useful
-          if the network does not allow resolution of non-local names. In
-          httplib2 0.9 and earlier, this defaulted to False.
-          proxy_user: The username used to authenticate with the proxy server.
-          proxy_pass: The password used to authenticate with the proxy server.
-          proxy_headers: Additional or modified headers for the proxy connect
-          request.
-        """
         self.proxy_type = proxy_type
         self.proxy_host = proxy_host
         self.proxy_port = proxy_port
@@ -939,7 +866,7 @@ class ProxyInfo(object):
         return not self.bypass_host(hostname)
 
     def bypass_host(self, hostname):
-        """Has this host been excluded from the proxy config"""
+
         if self.bypass_hosts is AllHosts:
             return True
 
@@ -959,8 +886,7 @@ class ProxyInfo(object):
         ).format(p=self)
 
 def proxy_info_from_environment(method="http"):
-    """Read proxy info from the environment variables.
-    """
+
     if method not in ["http", "https"]:
         return
 
@@ -971,8 +897,7 @@ def proxy_info_from_environment(method="http"):
     return proxy_info_from_url(url, method, None)
 
 def proxy_info_from_url(url, method="http", noproxy=None):
-    """Construct a ProxyInfo from a URL (such as http_proxy env var)
-    """
+
     url = urlparse.urlparse(url)
     username = None
     password = None
@@ -1018,13 +943,7 @@ def proxy_info_from_url(url, method="http", noproxy=None):
     return pi
 
 class HTTPConnectionWithTimeout(httplib.HTTPConnection):
-    """HTTPConnection subclass that supports timeouts
 
-    All timeouts are in seconds. If None is passed for timeout then
-    Python's default timeout for sockets will be used. See for example
-    the docs of socket.setdefaulttimeout():
-    http://docs.python.org/library/socket.html#socket.setdefaulttimeout
-    """
 
     def __init__(self, host, port=None, strict=None, timeout=None, proxy_info=None):
         httplib.HTTPConnection.__init__(self, host, port, strict)
@@ -1032,7 +951,7 @@ class HTTPConnectionWithTimeout(httplib.HTTPConnection):
         self.proxy_info = proxy_info
 
     def connect(self):
-        """Connect to the host and port specified in __init__."""
+
         if self.proxy_info and socks is None:
             raise ProxiesUnavailableError(
                 "Proxy support missing but proxy use was requested!"
@@ -1119,13 +1038,7 @@ class HTTPConnectionWithTimeout(httplib.HTTPConnection):
             raise socket_err or socket.error("getaddrinfo returns an empty list")
 
 class HTTPSConnectionWithTimeout(httplib.HTTPSConnection):
-    """This class allows communication via SSL.
 
-    All timeouts are in seconds. If None is passed for timeout then
-    Python's default timeout for sockets will be used. See for example
-    the docs of socket.setdefaulttimeout():
-    http://docs.python.org/library/socket.html#socket.setdefaulttimeout
-    """
 
     def __init__(
         self,
@@ -1161,27 +1074,14 @@ class HTTPSConnectionWithTimeout(httplib.HTTPSConnection):
         self.ssl_version = ssl_version
 
     def _GetValidHostsForCert(self, cert):
-        """Returns a list of valid host globs for an SSL certificate.
 
-        Args:
-          cert: A dictionary representing an SSL certificate.
-        Returns:
-          list: A list of valid host globs.
-        """
         if "subjectAltName" in cert:
             return [x[1] for x in cert["subjectAltName"] if x[0].lower() == "dns"]
         else:
             return [x[0][1] for x in cert["subject"] if x[0][0].lower() == "commonname"]
 
     def _ValidateCertificateHostname(self, cert, hostname):
-        """Validates that a given hostname is valid for an SSL certificate.
 
-        Args:
-          cert: A dictionary representing an SSL certificate.
-          hostname: The hostname to test.
-        Returns:
-          bool: Whether or not the hostname is valid for this certificate.
-        """
         hosts = self._GetValidHostsForCert(cert)
         for host in hosts:
             host_re = host.replace(".", "\.").replace("*", "[^.]*")
@@ -1190,7 +1090,7 @@ class HTTPSConnectionWithTimeout(httplib.HTTPSConnection):
         return False
 
     def connect(self):
-        "Connect to a host on a given (SSL) port."
+
 
         if self.proxy_info and self.proxy_info.isgood():
             use_proxy = True
@@ -1342,12 +1242,7 @@ def _new_fixed_fetch(validate_certificate):
     return fixed_fetch
 
 class AppEngineHttpConnection(httplib.HTTPConnection):
-    """Use httplib on App Engine, but compensate for its weirdness.
 
-    The parameters key_file, cert_file, proxy_info, ca_certs,
-    disable_ssl_certificate_validation, and ssl_version are all dropped on
-    the ground.
-    """
 
     def __init__(
         self,
@@ -1367,11 +1262,7 @@ class AppEngineHttpConnection(httplib.HTTPConnection):
         )
 
 class AppEngineHttpsConnection(httplib.HTTPSConnection):
-    """Same as AppEngineHttpConnection, but for HTTPS URIs.
 
-    The parameters proxy_info, ca_certs, disable_ssl_certificate_validation,
-    and ssl_version are all dropped on the ground.
-    """
 
     def __init__(
         self,
@@ -1426,19 +1317,7 @@ except (ImportError, NotRunningAppEngineEnvironment):
     pass
 
 class Http(object):
-    """An HTTP client that handles:
 
-    - all methods
-    - caching
-    - ETags
-    - compression,
-    - HTTPS
-    - Basic
-    - Digest
-    - WSSE
-
-    and more.
-    """
 
     def __init__(
         self,
@@ -1449,31 +1328,7 @@ class Http(object):
         disable_ssl_certificate_validation=False,
         ssl_version=None,
     ):
-        """If 'cache' is a string then it is used as a directory name for
-        a disk cache. Otherwise it must be an object that supports the
-        same interface as FileCache.
 
-        All timeouts are in seconds. If None is passed for timeout
-        then Python's default timeout for sockets will be used. See
-        for example the docs of socket.setdefaulttimeout():
-        http://docs.python.org/library/socket.html#socket.setdefaulttimeout
-
-        `proxy_info` may be:
-          - a callable that takes the http scheme ('http' or 'https') and
-            returns a ProxyInfo instance per request. By default, uses
-            proxy_nfo_from_environment.
-          - a ProxyInfo instance (static proxy config).
-          - None (proxy disabled).
-
-        ca_certs is the path of a file containing root CA certificates for SSL
-        server certificate validation.  By default, a CA cert file bundled with
-        httplib2 is used.
-
-        If disable_ssl_certificate_validation is true, SSL cert validation will
-        not be performed.
-
-        By default, ssl.PROTOCOL_SSLv23 will be used for the ssl version.
-        """
         self.proxy_info = proxy_info
         self.ca_certs = ca_certs
         self.disable_ssl_certificate_validation = disable_ssl_certificate_validation
@@ -1510,9 +1365,7 @@ class Http(object):
         self.forward_authorization_headers = False
 
     def close(self):
-        """Close persistent connections, clear sensitive data.
-        Not thread-safe, requires external synchronization against concurrent requests.
-        """
+
         existing, self.connections = self.connections, {}
         for _, c in existing.iteritems():
             c.close()
@@ -1532,9 +1385,7 @@ class Http(object):
         self.connections = {}
 
     def _auth_from_challenge(self, host, request_uri, headers, response, content):
-        """A generator that creates Authorization objects
-           that can be applied to requests.
-        """
+
         challenges = _parse_www_authenticate(response, "www-authenticate")
         for cred in self.credentials.iter(host):
             for scheme in AUTH_SCHEME_ORDER:
@@ -1544,18 +1395,15 @@ class Http(object):
                     )
 
     def add_credentials(self, name, password, domain=""):
-        """Add a name and password that will be used
-        any time a request requires authentication."""
+
         self.credentials.add(name, password, domain)
 
     def add_certificate(self, key, cert, domain, password=None):
-        """Add a key and cert that will be used
-        any time a request requires authentication."""
+
         self.certificates.add(key, cert, domain, password)
 
     def clear_credentials(self):
-        """Remove all the names and passwords
-        that are used for authentication"""
+
         self.credentials.clear()
         self.authorizations = []
 
@@ -1643,8 +1491,7 @@ class Http(object):
         redirections,
         cachekey,
     ):
-        """Do the actual request using the connection object
-        and also follow one level of redirects if necessary"""
+
 
         auths = [
             (auth.depth(request_uri), auth)
@@ -1758,27 +1605,7 @@ class Http(object):
         redirections=DEFAULT_MAX_REDIRECTS,
         connection_type=None,
     ):
-        """ Performs a single HTTP request.
 
-        The 'uri' is the URI of the HTTP resource and can begin with either
-        'http' or 'https'. The value of 'uri' must be an absolute URI.
-
-        The 'method' is the HTTP method to perform, such as GET, POST, DELETE,
-        etc. There is no restriction on the methods allowed.
-
-        The 'body' is the entity body to be sent with the request. It is a
-        string object.
-
-        Any extra headers that are to be sent with the request should be
-        provided in the 'headers' dictionary.
-
-        The maximum number of redirect to follow before raising an
-        exception is 'redirections. The default is 5.
-
-        The return value is a tuple of (response, content), the first
-        being and instance of the 'Response' class, the second being
-        a string that contains the response entity body.
-        """
         conn_key = ''
 
         try:
@@ -2010,9 +1837,7 @@ class Http(object):
         return (response, content)
 
     def _get_proxy_info(self, scheme, authority):
-        """Return a ProxyInfo instance (or None) based on the scheme
-        and authority.
-        """
+
         hostname, port = urllib.splitport(authority)
         proxy_info = self.proxy_info
         if callable(proxy_info):
@@ -2023,13 +1848,11 @@ class Http(object):
         return proxy_info
 
 class Response(dict):
-    """An object more like email.Message than httplib.HTTPResponse."""
 
 
     fromcache = False
 
     version = 11
-
 
     status = 200
 

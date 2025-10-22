@@ -1,6 +1,4 @@
-"""Contains all of the components that can be used with Gradio Interface / Blocks.
-Along with the docs for each component, you can find the names of example demos that use
-each component. These demos are located in the `demo` directory."""
+
 
 from __future__ import annotations
 
@@ -31,80 +29,52 @@ if TYPE_CHECKING:
         headers: list[str]
         data: list[list[str | int | bool]]
 
-
 class _Keywords(Enum):
     NO_VALUE = "NO_VALUE"
     FINISHED_ITERATING = "FINISHED_ITERATING"
-
 
 class ComponentBase(ABC, metaclass=ComponentMeta):
     EVENTS: list[EventListener | str] = []
 
     @abstractmethod
     def preprocess(self, payload: Any) -> Any:
-        """
-        Any preprocessing needed to be performed on function input.
-        Parameters:
-            payload: The input data received by the component from the frontend.
-        Returns:
-            The preprocessed input data sent to the user's function in the backend.
-        """
+
         return payload
 
     @abstractmethod
     def postprocess(self, value):
-        """
-        Any postprocessing needed to be performed on function output.
-        Parameters:
-            value: The output data received by the component from the user's function in the backend.
-        Returns:
-            The postprocessed output data sent to the frontend.
-        """
+
         return value
 
     @abstractmethod
     def process_example(self, value):
-        """
-        Process the input data in a way that can be displayed by the examples dataset component in the front-end.
 
-        For example, only return the name of a file as opposed to a full path. Or get the head of a dataframe.
-        The return value must be able to be json-serializable to put in the config.
-        """
         pass
 
     @abstractmethod
     def api_info(self) -> dict[str, list[str]]:
-        """
-        The typing information for this component as a dictionary whose values are a list of 2 strings: [Python type, language-agnostic description].
-        Keys of the dictionary are: raw_input, raw_output, serialized_input, serialized_output
-        """
+
         pass
 
     @abstractmethod
     def example_inputs(self) -> Any:
-        """
-        Deprecated and replaced by `example_payload()` and `example_value()`.
-        """
+
         pass
 
     @abstractmethod
     def flag(self, payload: Any | GradioDataModel, flag_dir: str | Path = "") -> str:
-        """
-        Write the component's value to a format that can be stored in a csv or jsonl format for flagging.
-        """
+
         pass
 
     @abstractmethod
     def read_from_flag(self, payload: Any) -> GradioDataModel | Any:
-        """
-        Convert the data from the csv or jsonl file into the component state.
-        """
+
         return payload
 
     @property
     @abstractmethod
     def skip_api(self):
-        """Whether this component should be skipped from the api return value"""
+
 
     @classmethod
     def has_event(cls, event: str | EventListener) -> bool:
@@ -117,16 +87,12 @@ class ComponentBase(ABC, metaclass=ComponentMeta):
         module_hash = hashlib.md5(f"{cls.__name__}_{module_path}".encode()).hexdigest()
         return module_hash
 
-
 def server(fn):
     fn._is_server_fn = True
     return fn
 
-
 class Component(ComponentBase, Block):
-    """
-    A base class for defining methods that all input/output components should have.
-    """
+
 
     def __init__(
         self,
@@ -235,50 +201,31 @@ class Component(ComponentBase, Block):
         return load_fn, initial_value
 
     def attach_load_event(self, callable: Callable, every: float | None):
-        """Add a load event that runs `callable`, optionally every `every` seconds."""
+
         self.load_event_to_attach = (callable, every)
 
     def process_example(self, value):
-        """
-        Process the input data in a way that can be displayed by the examples dataset component in the front-end.
-        By default, this calls the `.postprocess()` method of the component. However, if the `.postprocess()` method is
-        computationally intensive, or returns a large payload, a custom implementation may be appropriate.
 
-        For example,  the `process_example()` method of the `gr.Audio()` component only returns the name of the file, not
-        the processed audio file. The `.process_example()` method of the `gr.Dataframe()` returns the head of a dataframe
-        instead of the full dataframe.
-
-        The return value of this method must be json-serializable to put in the config.
-        """
         return self.postprocess(value)
 
     def as_example(self, value):
-        """Deprecated and replaced by `process_example()`."""
+
         return self.process_example(value)
 
     def example_inputs(self) -> Any:
-        """Deprecated and replaced by `example_payload()` and `example_value()`."""
+
         return self.example_payload()
 
     def example_payload(self) -> Any:
-        """
-        An example input data for this component, e.g. what is passed to this component's preprocess() method.
-        This is used to generate the docs for the View API page for Gradio apps using this component.
-        """
+
         raise NotImplementedError()
 
     def example_value(self) -> Any:
-        """
-        An example output data for this component, e.g. what is passed to this component's postprocess() method.
-        This is used to generate an example value if this component is used as a template for a custom component.
-        """
+
         raise NotImplementedError()
 
     def api_info(self) -> dict[str, Any]:
-        """
-        The typing information for this component as a dictionary whose values are a list of 2 strings: [Python type, language-agnostic description].
-        Keys of the dictionary are: raw_input, raw_output, serialized_input, serialized_output
-        """
+
         if self.data_model is not None:
             return self.data_model.model_json_schema()
         raise NotImplementedError(
@@ -286,9 +233,7 @@ class Component(ComponentBase, Block):
         )
 
     def flag(self, payload: Any, flag_dir: str | Path = "") -> str:
-        """
-        Write the component's value to a format that can be stored in a csv or jsonl format for flagging.
-        """
+
         if self.data_model:
             payload = self.data_model.from_json(payload)
             Path(flag_dir).mkdir(exist_ok=True)
@@ -298,13 +243,10 @@ class Component(ComponentBase, Block):
         return payload
 
     def read_from_flag(self, payload: Any):
-        """
-        Convert the data from the csv or jsonl file into the component state.
-        """
+
         if self.data_model:
             return self.data_model.from_json(json.loads(payload))
         return payload
-
 
 class FormComponent(Component):
     def get_expected_parent(self) -> type[Form] | None:
@@ -318,7 +260,6 @@ class FormComponent(Component):
     def postprocess(self, value):
         return value
 
-
 class StreamingOutput(metaclass=abc.ABCMeta):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -330,16 +271,14 @@ class StreamingOutput(metaclass=abc.ABCMeta):
     ) -> tuple[bytes, Any]:
         pass
 
-
 class StreamingInput(metaclass=abc.ABCMeta):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
     @abc.abstractmethod
     def check_streamable(self):
-        """Used to check if streaming is supported given the input."""
-        pass
 
+        pass
 
 def component(cls_name: str, render: bool) -> Component:
     obj = utils.component_or_layout_class(cls_name)(render=render)
@@ -349,17 +288,10 @@ def component(cls_name: str, render: bool) -> Component:
         raise TypeError(f"Expected a Component instance, but got {obj.__class__}")
     return obj
 
-
 def get_component_instance(
     comp: str | dict | Component, render: bool = False, unrender: bool = False
 ) -> Component:
-    """
-    Returns a component instance from a string, dict, or Component object.
-    Parameters:
-        comp: the component to instantiate. If a string, must be the name of a component, e.g. "dropdown". If a dict, must have a "name" key, e.g. {"name": "dropdown", "choices": ["a", "b"]}. If a Component object, will be returned as is.
-        render: whether to render the component. If True, renders the component (if not already rendered). If False, does not do anything.
-        unrender: whether to unrender the component. If True, unrenders the the component (if already rendered) -- this is useful when constructing an Interface or ChatInterface inside of a Blocks. If False, does not do anything.
-    """
+
     if isinstance(comp, str):
         component_obj = component(comp, render=render)
     elif isinstance(comp, dict):

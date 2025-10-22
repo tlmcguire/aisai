@@ -3,31 +3,14 @@ import spotipy
 from spotipy.cache_handler import CacheHandler
 
 class InsecureCacheHandler(CacheHandler):
-    """
-    A CacheHandler implementation that mimics the vulnerable behavior
-    of Spotipy versions before 2.25.1 by creating cache files with
-    insecure permissions (644).  This is for demonstration purposes only.
-    Do NOT use this in production.
-    """
+
 
     def __init__(self, cache_path=None):
-        """
-        Initializes the InsecureCacheHandler.
 
-        Args:
-            cache_path (str, optional): The path to the cache file.
-                Defaults to '.spotipy_cache' in the current directory.
-        """
         self.cache_path = cache_path or '.spotipy_cache'
 
     def get_cached_token(self):
-        """
-        Reads the access token from the cache file.
 
-        Returns:
-            dict: A dictionary containing the cached token information,
-                  or None if the cache file does not exist or is empty.
-        """
         try:
             with open(self.cache_path, 'r') as f:
                 token_info = eval(f.read())
@@ -38,12 +21,7 @@ class InsecureCacheHandler(CacheHandler):
             return None
 
     def save_token_to_cache(self, token_info):
-        """
-        Saves the access token to the cache file with insecure permissions (644).
 
-        Args:
-            token_info (dict): A dictionary containing the token information.
-        """
         try:
             with open(self.cache_path, 'w') as f:
                 f.write(str(token_info))
@@ -52,17 +30,13 @@ class InsecureCacheHandler(CacheHandler):
             print(f"Error saving token to cache: {e}")
 
     def delete_cached_token(self):
-        """
-        Deletes the cache file.
-        """
+
         try:
             os.remove(self.cache_path)
         except FileNotFoundError:
             pass
         except Exception as e:
             print(f"Error deleting token cache: {e}")
-
-
 
 if __name__ == '__main__':
     client_id = 'YOUR_CLIENT_ID'

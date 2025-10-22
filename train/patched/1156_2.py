@@ -23,19 +23,14 @@ from .page import page
 from .slot import Slot
 from .version import __version__
 
-
 @asynccontextmanager
 async def _lifespan(_: App):
     await _startup()
     yield
     await _shutdown()
 
-
 class SocketIoApp(socketio.ASGIApp):
-    """Custom ASGI app to handle root_path.
 
-    This is a workaround for https://github.com/miguelgrinberg/python-engineio/pull/345
-    """
 
     async def __call__(self, scope, receive, send):
         root_path = scope.get('root_path')
@@ -43,12 +38,10 @@ class SocketIoApp(socketio.ASGIApp):
             scope['path'] = scope['path'][len(root_path):]
         return await super().__call__(scope, receive, send)
 
-
 core.app = app = App(default_response_class=NiceGUIJSONResponse, lifespan=_lifespan)
 core.sio = sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*', json=json)
 sio_app = SocketIoApp(socketio_server=sio, socketio_path='/socket.io')
 app.mount('/_nicegui_ws/', sio_app)
-
 
 mimetypes.add_type('text/javascript', '.js')
 mimetypes.add_type('text/css', '.css')
@@ -63,11 +56,9 @@ app.mount(f'/_nicegui/{__version__}/static', static_files, name='static')
 
 Client.auto_index_client = Client(page('/'), shared=True).__enter__()
 
-
 @app.get('/')
 def _get_index(request: Request) -> Response:
     return Client.auto_index_client.build_response(request)
-
 
 @app.get(f'/_nicegui/{__version__}' + '/libraries/{key:path}')
 def _get_library(key: str) -> FileResponse:
@@ -82,14 +73,12 @@ def _get_library(key: str) -> FileResponse:
             return FileResponse(path, media_type='text/javascript', headers=headers)
     raise HTTPException(status_code=404, detail=f'library "{key}" not found')
 
-
 @app.get(f'/_nicegui/{__version__}' + '/components/{key:path}')
 def _get_component(key: str) -> FileResponse:
     if key in js_components and js_components[key].path.exists():
         headers = {'Cache-Control': 'public, max-age=3600'}
         return FileResponse(js_components[key].path, media_type='text/javascript', headers=headers)
     raise HTTPException(status_code=404, detail=f'component "{key}" not found')
-
 
 @app.get(f'/_nicegui/{__version__}' + '/resources/{key}/{path:path}')
 def _get_resource(key: str, path: str) -> FileResponse:
@@ -105,9 +94,8 @@ def _get_resource(key: str, path: str) -> FileResponse:
             return FileResponse(filepath, media_type=media_type, headers=headers)
     raise HTTPException(status_code=404, detail=f'resource "{key}" not found')
 
-
 async def _startup() -> None:
-    """Handle the startup event."""
+
     if not app.config.has_run_config:
         raise RuntimeError('\n\n'
                            'You must call ui.run() to start the server.\n'
@@ -134,15 +122,13 @@ async def _startup() -> None:
     background_tasks.create(core.app.storage.prune_tab_storage(), name='prune tab storage')
     air.connect()
 
-
 async def _shutdown() -> None:
-    """Handle the shutdown event."""
+
     if app.native.main_window:
         app.native.main_window.signal_server_shutdown()
     air.disconnect()
     app.stop()
     run.tear_down()
-
 
 @app.exception_handler(404)
 async def _exception_handler_404(request: Request, exception: Exception) -> Response:
@@ -151,14 +137,12 @@ async def _exception_handler_404(request: Request, exception: Exception) -> Resp
         error_content(404, exception)
     return client.build_response(request, 404)
 
-
 @app.exception_handler(Exception)
 async def _exception_handler_500(request: Request, exception: Exception) -> Response:
     log.exception(exception)
     with Client(page('')) as client:
         error_content(500, exception)
     return client.build_response(request, 500)
-
 
 @sio.on('handshake')
 async def _on_handshake(sid: str, data: Dict[str, str]) -> bool:
@@ -171,7 +155,6 @@ async def _on_handshake(sid: str, data: Dict[str, str]) -> bool:
     client.handle_handshake()
     return True
 
-
 @sio.on('disconnect')
 def _on_disconnect(sid: str) -> None:
     query_bytes: bytearray = sio.get_environ(sid)['asgi.scope']['query_string']
@@ -181,14 +164,12 @@ def _on_disconnect(sid: str) -> None:
     if client:
         client.handle_disconnect()
 
-
 @sio.on('event')
 def _on_event(_: str, msg: Dict) -> None:
     client = Client.instances.get(msg['client_id'])
     if not client or not client.has_socket_connection:
         return
     client.handle_event(msg)
-
 
 @sio.on('javascript_response')
 def _on_javascript_response(_: str, msg: Dict) -> None:

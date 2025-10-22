@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 
 import asyncio
 import inspect
@@ -50,7 +49,6 @@ from black.parsing import ASTSafetyError
 from black.report import Report
 from black.strings import lines_with_leading_tabs_expanded
 
-# Import other test classes
 from tests.util import (
     DATA_DIR,
     DEFAULT_MODE,
@@ -77,7 +75,6 @@ DEFAULT_INCLUDE = black.re_compile_maybe_verbose(black.const.DEFAULT_INCLUDES)
 T = TypeVar("T")
 R = TypeVar("R")
 
-# Match the time output in a diff, but nothing else
 DIFF_TIME = re.compile(r"\t[\d\-:+\. ]+")
 
 
@@ -110,7 +107,6 @@ class FakeContext(click.Context):
         self.default_map: Dict[str, Any] = {}
         self.params: Dict[str, Any] = {}
         self.command: click.Command = black.main
-        # Dummy root, since most of the tests don't care about it
         self.obj: Dict[str, Any] = {"root": PROJECT_ROOT}
 
 
@@ -170,9 +166,6 @@ class BlackTestCase(BlackBaseTestCase):
             expected = nl
             tmp_file = Path(black.dump_to_file(nl))
             if system() == "Windows":
-                # Writing files in text mode automatically uses the system newline,
-                # but in this case we don't want this for testing reasons. See:
-                # https://github.com/psf/black/pull/3348
                 with open(tmp_file, "wb") as f:
                     f.write(nl.encode("utf-8"))
             try:
@@ -222,7 +215,7 @@ class BlackTestCase(BlackBaseTestCase):
         )
         self.assertEqual(result.exit_code, 0)
         actual = diff_header.sub(DETERMINISTIC_HEADER, result.output)
-        actual = actual.rstrip() + "\n"  # the diff output has a trailing space
+        actual = actual.rstrip() + "\n"
         self.assertEqual(expected, actual)
 
     def test_piping_diff_with_color(self) -> None:
@@ -239,7 +232,6 @@ class BlackTestCase(BlackBaseTestCase):
             black.main, args, input=BytesIO(source.encode("utf-8"))
         )
         actual = result.output
-        # Again, the contents are checked in a different test, so only look for colors.
         self.assertIn("\033[1m", actual)
         self.assertIn("\033[36m", actual)
         self.assertIn("\033[32m", actual)
@@ -314,8 +306,6 @@ class BlackTestCase(BlackBaseTestCase):
         finally:
             os.unlink(tmp_file)
         actual = result.output
-        # We check the contents of the diff in `test_expression_diff`. All
-        # we need to check here is that color codes exist in the result.
         self.assertIn("\033[1m", actual)
         self.assertIn("\033[36m", actual)
         self.assertIn("\033[32m", actual)
@@ -343,7 +333,6 @@ class BlackTestCase(BlackBaseTestCase):
         features = black.get_features_used(root)
         self.assertNotIn(black.Feature.DEBUG_F_STRINGS, features)
 
-        # We don't yet support feature version detection in nested f-strings
         root = black.lib2to3_parse(
             """f"heard a rumour that { f'{1+1=}' } ... seems like it could be true" """
         )
@@ -364,9 +353,7 @@ class BlackTestCase(BlackBaseTestCase):
     def test_skip_source_first_line(self) -> None:
         source, _ = read_data("miscellaneous", "invalid_header")
         tmp_file = Path(black.dump_to_file(source))
-        # Full source should fail (invalid syntax at header)
         self.invokeBlack([str(tmp_file), "--diff", "--check"], exit_code=123)
-        # So, skipping the first line should work
         result = BlackRunner().invoke(
             black.main, [str(tmp_file), "-x", f"--config={EMPTY_CONFIG}"]
         )
@@ -403,7 +390,7 @@ class BlackTestCase(BlackBaseTestCase):
             os.unlink(tmp_file)
         actual = result.output
         actual = diff_header.sub(DETERMINISTIC_HEADER, actual)
-        actual = actual.rstrip() + "\n"  # the diff output has a trailing space
+        actual = actual.rstrip() + "\n"
         if expected != actual:
             dump = black.dump_to_file(actual)
             msg = (
@@ -424,9 +411,7 @@ class BlackTestCase(BlackBaseTestCase):
         if major < 3 or (major <= 3 and minor < 7):
             black.assert_equivalent(source, actual)
         black.assert_stable(source, actual, DEFAULT_MODE)
-        # ensure black can parse this when the target is 3.6
         self.invokeBlack([str(source_path), "--target-version", "py36"])
-        # but not on 3.7, because async/await is no longer an identifier
         self.invokeBlack([str(source_path), "--target-version", "py37"], exit_code=123)
 
     @patch("black.dump_to_file", dump_to_stderr)
@@ -439,9 +424,7 @@ class BlackTestCase(BlackBaseTestCase):
         if major > 3 or (major == 3 and minor >= 7):
             black.assert_equivalent(source, actual)
         black.assert_stable(source, actual, DEFAULT_MODE)
-        # ensure black can parse this when the target is 3.7
         self.invokeBlack([str(source_path), "--target-version", "py37"])
-        # but not on 3.6, because we use async as a reserved keyword
         self.invokeBlack([str(source_path), "--target-version", "py36"], exit_code=123)
 
     def test_tab_comment_indentation(self) -> None:
@@ -455,7 +438,6 @@ class BlackTestCase(BlackBaseTestCase):
         self.assertFormatEqual(contents_spc, fs(contents_spc))
         self.assertFormatEqual(contents_spc, fs(contents_tab))
 
-        # mixed tabs and spaces (valid Python 2 code)
         contents_tab = "if 1:\n        if 2:\n\t\tpass\n\t# comment\n        pass\n"
         contents_spc = "if 1:\n    if 2:\n        pass\n    # comment\n    pass\n"
         self.assertFormatEqual(contents_spc, fs(contents_spc))
@@ -467,11 +449,6 @@ class BlackTestCase(BlackBaseTestCase):
         self.assertFormatEqual(contents_spc, fs(contents_tab))
 
     def test_false_positive_symlink_output_issue_3384(self) -> None:
-        # Emulate the behavior when using the CLI (`black ./child  --verbose`), which
-        # involves patching some `pathlib.Path` methods. In particular, `is_dir` is
-        # patched only on its first call: when checking if "./child" is a directory it
-        # should return True. The "./child" folder exists relative to the cwd when
-        # running from CLI, but fails when running the tests because cwd is different
         project_root = Path(THIS_DIR / "data" / "nested_gitignore_tests")
         working_directory = project_root / "root"
         target_abspath = working_directory / "child"
@@ -488,8 +465,6 @@ class BlackTestCase(BlackBaseTestCase):
         with patch("pathlib.Path.iterdir", return_value=target_contents), patch(
             "pathlib.Path.resolve", return_value=target_abspath
         ), patch("pathlib.Path.is_dir", side_effect=mock_n_calls([True])):
-            # Note that the root folder (project_root) isn't the folder
-            # named "root" (aka working_directory)
             report = MagicMock(verbose=True)
             black.get_sources(
                 root=project_root,

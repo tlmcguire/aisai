@@ -1,18 +1,4 @@
 
-"""
-This module contains a general framework for defining graphs of transformations
-between coordinates, suitable for either spatial coordinates or more generalized
-coordinate systems.
-
-The fundamental idea is that each class is a node in the transformation graph,
-and transitions from one node to another are defined as functions (or methods)
-wrapped in transformation objects.
-
-This module also includes more specific transformation classes for
-celestial/spatial coordinate frames, generally focused around matrix-style
-transformations that are typically how the algorithms are defined.
-"""
-
 
 import heapq
 import inspect
@@ -40,15 +26,8 @@ __all__ = [
     "CompositeTransform",
 ]
 
-
 def frame_attrs_from_set(frame_set):
-    """
-    A `dict` of all the attributes of all frame classes in this
-    `~astropy.coordinates.TransformGraph`.
 
-    Broken out of the class so this can be called on a temporary frame set to
-    validate new additions to the transform graph before actually adding them.
-    """
     result = {}
 
     for frame_cls in frame_set:
@@ -56,15 +35,8 @@ def frame_attrs_from_set(frame_set):
 
     return result
 
-
 def frame_comps_from_set(frame_set):
-    """
-    A `set` of all component names every defined within any frame class in
-    this `~astropy.coordinates.TransformGraph`.
 
-    Broken out of the class so this can be called on a temporary frame set to
-    validate new additions to the transform graph before actually adding them.
-    """
     result = set()
 
     for frame_cls in frame_set:
@@ -75,11 +47,8 @@ def frame_comps_from_set(frame_set):
 
     return result
 
-
 class TransformGraph:
-    """
-    A graph representing the paths between coordinate frames.
-    """
+
 
     def __init__(self):
         self._graph = defaultdict(dict)
@@ -101,9 +70,7 @@ class TransformGraph:
 
     @property
     def frame_set(self):
-        """
-        A `set` of all the frame classes present in this TransformGraph.
-        """
+
         if self._cached_frame_set is None:
             self._cached_frame_set = set()
             for a in self._graph:
@@ -115,9 +82,7 @@ class TransformGraph:
 
     @property
     def frame_attributes(self):
-        """
-        A `dict` of all the attributes of all frame classes in this TransformGraph.
-        """
+
         if self._cached_frame_attributes is None:
             self._cached_frame_attributes = frame_attrs_from_set(self.frame_set)
 
@@ -125,22 +90,14 @@ class TransformGraph:
 
     @property
     def frame_component_names(self):
-        """
-        A `set` of all component names every defined within any frame class in
-        this TransformGraph.
-        """
+
         if self._cached_component_names is None:
             self._cached_component_names = frame_comps_from_set(self.frame_set)
 
         return self._cached_component_names
 
     def invalidate_cache(self):
-        """
-        Invalidates the cache that stores optimizations for traversing the
-        transform graph.  This is called automatically when transforms
-        are added or removed, but will need to be called manually if
-        weights on transforms are modified inplace.
-        """
+
         self._cached_names_dct = None
         self._cached_frame_set = None
         self._cached_frame_attributes = None
@@ -149,26 +106,7 @@ class TransformGraph:
         self._composite_cache = {}
 
     def add_transform(self, fromsys, tosys, transform):
-        """Add a new coordinate transformation to the graph.
 
-        Parameters
-        ----------
-        fromsys : class
-            The coordinate frame class to start from.
-        tosys : class
-            The coordinate frame class to transform into.
-        transform : `~astropy.coordinates.CoordinateTransform`
-            The transformation object. Typically a
-            `~astropy.coordinates.CoordinateTransform` object, although it may
-            be some other callable that is called with the same signature.
-
-        Raises
-        ------
-        TypeError
-            If ``fromsys`` or ``tosys`` are not classes or ``transform`` is
-            not callable.
-
-        """
         if not inspect.isclass(fromsys):
             raise TypeError("fromsys must be a class")
         if not inspect.isclass(tosys):
@@ -204,24 +142,7 @@ class TransformGraph:
         self.invalidate_cache()
 
     def remove_transform(self, fromsys, tosys, transform):
-        """
-        Removes a coordinate transform from the graph.
 
-        Parameters
-        ----------
-        fromsys : class or None
-            The coordinate frame *class* to start from. If `None`,
-            ``transform`` will be searched for and removed (``tosys`` must
-            also be `None`).
-        tosys : class or None
-            The coordinate frame *class* to transform into. If `None`,
-            ``transform`` will be searched for and removed (``fromsys`` must
-            also be `None`).
-        transform : callable or None
-            The transformation object to be removed or `None`.  If `None`
-            and ``tosys`` and ``fromsys`` are supplied, there will be no
-            check to ensure the correct object is removed.
-        """
         if fromsys is None or tosys is None:
             if not (tosys is None and fromsys is None):
                 raise ValueError("fromsys and tosys must both be None if either are")
@@ -260,28 +181,7 @@ class TransformGraph:
         self.invalidate_cache()
 
     def find_shortest_path(self, fromsys, tosys):
-        """
-        Computes the shortest distance along the transform graph from
-        one system to another.
 
-        Parameters
-        ----------
-        fromsys : class
-            The coordinate frame class to start from.
-        tosys : class
-            The coordinate frame class to transform into.
-
-        Returns
-        -------
-        path : list of class or None
-            The path from ``fromsys`` to ``tosys`` as an in-order sequence
-            of classes.  This list includes *both* ``fromsys`` and
-            ``tosys``. Is `None` if there is no possible path.
-        distance : float or int
-            The total distance/priority from ``fromsys`` to ``tosys``.  If
-            priorities are not set this is the number of transforms
-            needed. Is ``inf`` if there is no possible path.
-        """
         inf = float("inf")
 
         if tosys is fromsys:
@@ -291,14 +191,12 @@ class TransformGraph:
             t = self._graph[fromsys][tosys]
             return [fromsys, tosys], float(t.priority if hasattr(t, "priority") else 1)
 
-
         if fromsys in self._shortestpaths:
             fpaths = self._shortestpaths[fromsys]
             if tosys in fpaths:
                 return fpaths[tosys]
             else:
                 return None, inf
-
 
         nodes = []
         for a in self._graph:
@@ -356,32 +254,7 @@ class TransformGraph:
         return result[tosys]
 
     def get_transform(self, fromsys, tosys):
-        """Generates and returns the CompositeTransform for a transformation
-        between two coordinate systems.
 
-        Parameters
-        ----------
-        fromsys : class
-            The coordinate frame class to start from.
-        tosys : class
-            The coordinate frame class to transform into.
-
-        Returns
-        -------
-        trans : `~astropy.coordinates.CompositeTransform` or None
-            If there is a path from ``fromsys`` to ``tosys``, this is a
-            transform object for that path.   If no path could be found, this is
-            `None`.
-
-        Notes
-        -----
-        A `~astropy.coordinates.CompositeTransform` is always returned, because
-        `~astropy.coordinates.CompositeTransform` is slightly more adaptable in
-        the way it can be called than other transform classes. Specifically, it
-        takes care of intermediate steps of transformations in a way that is
-        consistent with 1-hop transformations.
-
-        """
         if not inspect.isclass(fromsys):
             raise TypeError("fromsys is not a class")
         if not inspect.isclass(tosys):
@@ -407,32 +280,11 @@ class TransformGraph:
         return self._composite_cache[fttuple]
 
     def lookup_name(self, name):
-        """
-        Tries to locate the coordinate class with the provided alias.
 
-        Parameters
-        ----------
-        name : str
-            The alias to look up.
-
-        Returns
-        -------
-        `BaseCoordinateFrame` subclass
-            The coordinate class corresponding to the ``name`` or `None` if
-            no such class exists.
-        """
         return self._cached_names.get(name, None)
 
     def get_names(self):
-        """
-        Returns all available transform names. They will all be
-        valid arguments to `lookup_name`.
 
-        Returns
-        -------
-        nms : list
-            The aliases for coordinate systems.
-        """
         return list(self._cached_names.keys())
 
     def to_dot_graph(
@@ -444,42 +296,7 @@ class TransformGraph:
         saveformat=None,
         color_edges=True,
     ):
-        """
-        Converts this transform graph to the graphviz_ DOT format.
 
-        Optionally saves it (requires `graphviz`_ be installed and on your path).
-
-        .. _graphviz: http://www.graphviz.org/
-
-        Parameters
-        ----------
-        priorities : bool
-            If `True`, show the priority values for each transform.  Otherwise,
-            the will not be included in the graph.
-        addnodes : sequence of str
-            Additional coordinate systems to add (this can include systems
-            already in the transform graph, but they will only appear once).
-        savefn : None or str
-            The file name to save this graph to or `None` to not save
-            to a file.
-        savelayout : str
-            The graphviz program to use to layout the graph (see
-            graphviz_ for details) or 'plain' to just save the DOT graph
-            content. Ignored if ``savefn`` is `None`.
-        saveformat : str
-            The graphviz output format. (e.g. the ``-Txxx`` option for
-            the command line program - see graphviz docs for details).
-            Ignored if ``savefn`` is `None`.
-        color_edges : bool
-            Color the edges between two nodes (frames) based on the type of
-            transform. ``FunctionTransform``: red, ``StaticMatrixTransform``:
-            blue, ``DynamicMatrixTransform``: green.
-
-        Returns
-        -------
-        dotgraph : str
-            A string with the DOT format graph.
-        """
         nodes = []
         for a in self._graph:
             if a not in nodes:
@@ -558,19 +375,7 @@ class TransformGraph:
         return dotgraph
 
     def to_networkx_graph(self):
-        """
-        Converts this transform graph into a networkx graph.
 
-        .. note::
-            You must have the `networkx <https://networkx.github.io/>`_
-            package installed for this to work.
-
-        Returns
-        -------
-        nxgraph : ``networkx.Graph``
-            This `~astropy.coordinates.TransformGraph` as a
-            `networkx.Graph <https://networkx.github.io/documentation/stable/reference/classes/graph.html>`_.
-        """
         import networkx as nx
 
         nxgraph = nx.Graph()
@@ -593,60 +398,7 @@ class TransformGraph:
         return nxgraph
 
     def transform(self, transcls, fromsys, tosys, priority=1, **kwargs):
-        """A function decorator for defining transformations.
 
-        .. note::
-            If decorating a static method of a class, ``@staticmethod``
-            should be  added *above* this decorator.
-
-        Parameters
-        ----------
-        transcls : class
-            The class of the transformation object to create.
-        fromsys : class
-            The coordinate frame class to start from.
-        tosys : class
-            The coordinate frame class to transform into.
-        priority : float or int
-            The priority if this transform when finding the shortest
-            coordinate transform path - large numbers are lower priorities.
-
-        Additional keyword arguments are passed into the ``transcls``
-        constructor.
-
-        Returns
-        -------
-        deco : function
-            A function that can be called on another function as a decorator
-            (see example).
-
-        Notes
-        -----
-        This decorator assumes the first argument of the ``transcls``
-        initializer accepts a callable, and that the second and third are
-        ``fromsys`` and ``tosys``. If this is not true, you should just
-        initialize the class manually and use
-        `~astropy.coordinates.TransformGraph.add_transform` instead of this
-        decorator.
-
-        Examples
-        --------
-        ::
-
-            graph = TransformGraph()
-
-            class Frame1(BaseCoordinateFrame):
-               ...
-
-            class Frame2(BaseCoordinateFrame):
-                ...
-
-            @graph.transform(FunctionTransform, Frame1, Frame2)
-            def f1_to_f2(f1_obj):
-                ... do something with f1_obj ...
-                return f2_obj
-
-        """
 
         def deco(func):
             transcls(
@@ -657,47 +409,7 @@ class TransformGraph:
         return deco
 
     def _add_merged_transform(self, fromsys, tosys, *furthersys, priority=1):
-        """
-        Add a single-step transform that encapsulates a multi-step transformation path,
-        using the transforms that already exist in the graph.
 
-        The created transform internally calls the existing transforms.  If all of the
-        transforms are affine, the merged transform is
-        `~astropy.coordinates.DynamicMatrixTransform` (if there are no
-        origin shifts) or `~astropy.coordinates.AffineTransform`
-        (otherwise).  If at least one of the transforms is not affine, the merged
-        transform is
-        `~astropy.coordinates.FunctionTransformWithFiniteDifference`.
-
-        This method is primarily useful for defining loopback transformations
-        (i.e., where ``fromsys`` and the final ``tosys`` are the same).
-
-        Parameters
-        ----------
-        fromsys : class
-            The coordinate frame class to start from.
-        tosys : class
-            The coordinate frame class to transform to.
-        *furthersys : class
-            Additional coordinate frame classes to transform to in order.
-        priority : number
-            The priority of this transform when finding the shortest
-            coordinate transform path - large numbers are lower priorities.
-
-        Notes
-        -----
-        Even though the created transform is a single step in the graph, it
-        will still internally call the constituent transforms.  Thus, there is
-        no performance benefit for using this created transform.
-
-        For Astropy's built-in frames, loopback transformations typically use
-        `~astropy.coordinates.ICRS` to be safe.  Transforming through an inertial
-        frame ensures that changes in observation time and observer
-        location/velocity are properly accounted for.
-
-        An error will be raised if a direct transform between ``fromsys`` and
-        ``tosys`` already exist.
-        """
         frames = [fromsys, tosys, *furthersys]
         lastsys = frames[-1]
         full_path = self.get_transform(fromsys, lastsys)
@@ -723,20 +435,7 @@ class TransformGraph:
 
     @contextmanager
     def impose_finite_difference_dt(self, dt):
-        """
-        Context manager to impose a finite-difference time step on all applicable transformations.
 
-        For each transformation in this transformation graph that has the attribute
-        ``finite_difference_dt``, that attribute is set to the provided value.  The only standard
-        transformation with this attribute is
-        `~astropy.coordinates.FunctionTransformWithFiniteDifference`.
-
-        Parameters
-        ----------
-        dt : `~astropy.units.Quantity` ['time'] or callable
-            If a quantity, this is the size of the differential used to do the finite difference.
-            If a callable, should accept ``(fromcoord, toframe)`` and return the ``dt`` value.
-        """
         key = "finite_difference_dt"
         saved_settings = []
 
@@ -752,29 +451,8 @@ class TransformGraph:
             for setting in saved_settings:
                 setattr(*setting)
 
-
-
-
 class CoordinateTransform(metaclass=ABCMeta):
-    """
-    An object that transforms a coordinate from one system to another.
-    Subclasses must implement `__call__` with the provided signature.
-    They should also call this superclass's ``__init__`` in their
-    ``__init__``.
 
-    Parameters
-    ----------
-    fromsys : `~astropy.coordinates.BaseCoordinateFrame` subclass
-        The coordinate frame class to start from.
-    tosys : `~astropy.coordinates.BaseCoordinateFrame` subclass
-        The coordinate frame class to transform into.
-    priority : float or int
-        The priority if this transform when finding the shortest
-        coordinate transform path - large numbers are lower priorities.
-    register_graph : `~astropy.coordinates.TransformGraph` or None
-        A graph to register this transformation with on creation, or
-        `None` to leave it unregistered.
-    """
 
     def __init__(self, fromsys, tosys, priority=1, register_graph=None):
         if not inspect.isclass(fromsys):
@@ -799,90 +477,19 @@ class CoordinateTransform(metaclass=ABCMeta):
                     overlap.append(from_nm)
 
     def register(self, graph):
-        """
-        Add this transformation to the requested Transformation graph,
-        replacing anything already connecting these two coordinates.
 
-        Parameters
-        ----------
-        graph : `~astropy.coordinates.TransformGraph` object
-            The graph to register this transformation with.
-        """
         graph.add_transform(self.fromsys, self.tosys, self)
 
     def unregister(self, graph):
-        """
-        Remove this transformation from the requested transformation
-        graph.
 
-        Parameters
-        ----------
-        graph : a TransformGraph object
-            The graph to unregister this transformation from.
-
-        Raises
-        ------
-        ValueError
-            If this is not currently in the transform graph.
-        """
         graph.remove_transform(self.fromsys, self.tosys, self)
 
     @abstractmethod
     def __call__(self, fromcoord, toframe):
-        """
-        Does the actual coordinate transformation from the ``fromsys`` class to
-        the ``tosys`` class.
-
-        Parameters
-        ----------
-        fromcoord : `~astropy.coordinates.BaseCoordinateFrame` subclass instance
-            An object of class matching ``fromsys`` that is to be transformed.
-        toframe : object
-            An object that has the attributes necessary to fully specify the
-            frame.  That is, it must have attributes with names that match the
-            keys of the dictionary ``tosys.frame_attributes``.
-            Typically this is of class ``tosys``, but it *might* be
-            some other class as long as it has the appropriate attributes.
-
-        Returns
-        -------
-        tocoord : `~astropy.coordinates.BaseCoordinateFrame` subclass instance
-            The new coordinate after the transform has been applied.
-        """
 
 
 class FunctionTransform(CoordinateTransform):
-    """
-    A coordinate transformation defined by a function that accepts a
-    coordinate object and returns the transformed coordinate object.
 
-    Parameters
-    ----------
-    func : callable
-        The transformation function. Should have a call signature
-        ``func(formcoord, toframe)``. Note that, unlike
-        `CoordinateTransform.__call__`, ``toframe`` is assumed to be of type
-        ``tosys`` for this function.
-    fromsys : class
-        The coordinate frame class to start from.
-    tosys : class
-        The coordinate frame class to transform into.
-    priority : float or int
-        The priority if this transform when finding the shortest
-        coordinate transform path - large numbers are lower priorities.
-    register_graph : `~astropy.coordinates.TransformGraph` or None
-        A graph to register this transformation with on creation, or
-        `None` to leave it unregistered.
-
-    Raises
-    ------
-    TypeError
-        If ``func`` is not callable.
-    ValueError
-        If ``func`` cannot accept two arguments.
-
-
-    """
 
     def __init__(self, func, fromsys, tosys, priority=1, register_graph=None):
         if not callable(func):
@@ -919,48 +526,8 @@ class FunctionTransform(CoordinateTransform):
             )
         return res
 
-
 class FunctionTransformWithFiniteDifference(FunctionTransform):
-    r"""Transormation based on functions using finite difference for velocities.
 
-    A coordinate transformation that works like a
-    `~astropy.coordinates.FunctionTransform`, but computes velocity shifts
-    based on the finite-difference relative to one of the frame attributes.
-    Note that the transform function should *not* change the differential at
-    all in this case, as any differentials will be overridden.
-
-    When a differential is in the from coordinate, the finite difference
-    calculation has two components. The first part is simple the existing
-    differential, but re-orientation (using finite-difference techniques) to
-    point in the direction the velocity vector has in the *new* frame. The
-    second component is the "induced" velocity.  That is, the velocity
-    intrinsic to the frame itself, estimated by shifting the frame using the
-    ``finite_difference_frameattr_name`` frame attribute a small amount
-    (``finite_difference_dt``) in time and re-calculating the position.
-
-    Parameters
-    ----------
-    finite_difference_frameattr_name : str or None
-        The name of the frame attribute on the frames to use for the finite
-        difference.  Both the to and the from frame will be checked for this
-        attribute, but only one needs to have it. If None, no velocity
-        component induced from the frame itself will be included - only the
-        re-orientation of any existing differential.
-    finite_difference_dt : `~astropy.units.Quantity` ['time'] or callable
-        If a quantity, this is the size of the differential used to do the
-        finite difference.  If a callable, should accept
-        ``(fromcoord, toframe)`` and return the ``dt`` value.
-    symmetric_finite_difference : bool
-        If True, the finite difference is computed as
-        :math:`\frac{x(t + \Delta t / 2) - x(t + \Delta t / 2)}{\Delta t}`, or
-        if False, :math:`\frac{x(t + \Delta t) - x(t)}{\Delta t}`.  The latter
-        case has slightly better performance (and more stable finite difference
-        behavior).
-
-    All other parameters are identical to the initializer for
-    `~astropy.coordinates.FunctionTransform`.
-
-    """
 
     def __init__(
         self,
@@ -1092,21 +659,8 @@ class FunctionTransformWithFiniteDifference(FunctionTransform):
         else:
             return supcall(fromcoord, toframe)
 
-
 class BaseAffineTransform(CoordinateTransform):
-    """Base class for common functionality between the ``AffineTransform``-type
-    subclasses.
 
-    This base class is needed because `~astropy.coordinates.AffineTransform`
-    and the matrix transform classes share the ``__call__()`` method, but
-    differ in how they generate the affine parameters.
-    `~astropy.coordinates.StaticMatrixTransform` passes in a matrix stored as a
-    class attribute, and both of the matrix transforms pass in ``None`` for the
-    offset. Hence, user subclasses would likely want to subclass this (rather
-    than `~astropy.coordinates.AffineTransform`) if they want to provide
-    alternative transformations using this machinery.
-
-    """
 
     def _apply_transform(self, fromcoord, matrix, offset):
         from .representation import (
@@ -1247,41 +801,8 @@ class BaseAffineTransform(CoordinateTransform):
     def _affine_params(self, fromcoord, toframe):
         pass
 
-
 class AffineTransform(BaseAffineTransform):
-    """
-    A coordinate transformation specified as a function that yields a 3 x 3
-    cartesian transformation matrix and a tuple of displacement vectors.
 
-    See `~astropy.coordinates.Galactocentric` for
-    an example.
-
-    Parameters
-    ----------
-    transform_func : callable
-        A callable that has the signature ``transform_func(fromcoord, toframe)``
-        and returns: a (3, 3) matrix that operates on ``fromcoord`` in a
-        Cartesian representation, and a ``CartesianRepresentation`` with
-        (optionally) an attached velocity ``CartesianDifferential`` to represent
-        a translation and offset in velocity to apply after the matrix
-        operation.
-    fromsys : class
-        The coordinate frame class to start from.
-    tosys : class
-        The coordinate frame class to transform into.
-    priority : float or int
-        The priority if this transform when finding the shortest
-        coordinate transform path - large numbers are lower priorities.
-    register_graph : `~astropy.coordinates.TransformGraph` or None
-        A graph to register this transformation with on creation, or
-        `None` to leave it unregistered.
-
-    Raises
-    ------
-    TypeError
-        If ``transform_func`` is not callable
-
-    """
 
     def __init__(self, transform_func, fromsys, tosys, priority=1, register_graph=None):
         if not callable(transform_func):
@@ -1295,39 +816,8 @@ class AffineTransform(BaseAffineTransform):
     def _affine_params(self, fromcoord, toframe):
         return self.transform_func(fromcoord, toframe)
 
-
 class StaticMatrixTransform(BaseAffineTransform):
-    """
-    A coordinate transformation defined as a 3 x 3 cartesian
-    transformation matrix.
 
-    This is distinct from DynamicMatrixTransform in that this kind of matrix is
-    independent of frame attributes.  That is, it depends *only* on the class of
-    the frame.
-
-    Parameters
-    ----------
-    matrix : array-like or callable
-        A 3 x 3 matrix for transforming 3-vectors. In most cases will
-        be unitary (although this is not strictly required). If a callable,
-        will be called *with no arguments* to get the matrix.
-    fromsys : class
-        The coordinate frame class to start from.
-    tosys : class
-        The coordinate frame class to transform into.
-    priority : float or int
-        The priority if this transform when finding the shortest
-        coordinate transform path - large numbers are lower priorities.
-    register_graph : `~astropy.coordinates.TransformGraph` or None
-        A graph to register this transformation with on creation, or
-        `None` to leave it unregistered.
-
-    Raises
-    ------
-    ValueError
-        If the matrix is not 3 x 3
-
-    """
 
     def __init__(self, matrix, fromsys, tosys, priority=1, register_graph=None):
         if callable(matrix):
@@ -1344,38 +834,8 @@ class StaticMatrixTransform(BaseAffineTransform):
     def _affine_params(self, fromcoord, toframe):
         return self.matrix, None
 
-
 class DynamicMatrixTransform(BaseAffineTransform):
-    """
-    A coordinate transformation specified as a function that yields a
-    3 x 3 cartesian transformation matrix.
 
-    This is similar to, but distinct from StaticMatrixTransform, in that the
-    matrix for this class might depend on frame attributes.
-
-    Parameters
-    ----------
-    matrix_func : callable
-        A callable that has the signature ``matrix_func(fromcoord, toframe)`` and
-        returns a 3 x 3 matrix that converts ``fromcoord`` in a cartesian
-        representation to the new coordinate system.
-    fromsys : class
-        The coordinate frame class to start from.
-    tosys : class
-        The coordinate frame class to transform into.
-    priority : float or int
-        The priority if this transform when finding the shortest
-        coordinate transform path - large numbers are lower priorities.
-    register_graph : `~astropy.coordinates.TransformGraph` or None
-        A graph to register this transformation with on creation, or
-        `None` to leave it unregistered.
-
-    Raises
-    ------
-    TypeError
-        If ``matrix_func`` is not callable
-
-    """
 
     def __init__(self, matrix_func, fromsys, tosys, priority=1, register_graph=None):
         if not callable(matrix_func):
@@ -1389,37 +849,8 @@ class DynamicMatrixTransform(BaseAffineTransform):
     def _affine_params(self, fromcoord, toframe):
         return self.matrix_func(fromcoord, toframe), None
 
-
 class CompositeTransform(CoordinateTransform):
-    """
-    A transformation constructed by combining together a series of single-step
-    transformations.
 
-    Note that the intermediate frame objects are constructed using any frame
-    attributes in ``toframe`` or ``fromframe`` that overlap with the intermediate
-    frame (``toframe`` favored over ``fromframe`` if there's a conflict).  Any frame
-    attributes that are not present use the defaults.
-
-    Parameters
-    ----------
-    transforms : sequence of `~astropy.coordinates.CoordinateTransform` object
-        The sequence of transformations to apply.
-    fromsys : class
-        The coordinate frame class to start from.
-    tosys : class
-        The coordinate frame class to transform into.
-    priority : float or int
-        The priority if this transform when finding the shortest
-        coordinate transform path - large numbers are lower priorities.
-    register_graph : `~astropy.coordinates.TransformGraph` or None
-        A graph to register this transformation with on creation, or
-        `None` to leave it unregistered.
-    collapse_static_mats : bool
-        If `True`, consecutive `~astropy.coordinates.StaticMatrixTransform`
-        will be collapsed into a single transformation to speed up the
-        calculation.
-
-    """
 
     def __init__(
         self,
@@ -1440,10 +871,7 @@ class CompositeTransform(CoordinateTransform):
         self.transforms = tuple(transforms)
 
     def _combine_statics(self, transforms):
-        """
-        Combines together sequences of StaticMatrixTransform's into a single
-        transform and returns it.
-        """
+
         newtrans = []
         for currtrans in transforms:
             lasttrans = newtrans[-1] if len(newtrans) > 0 else None
@@ -1478,18 +906,7 @@ class CompositeTransform(CoordinateTransform):
         return curr_coord
 
     def _as_single_transform(self):
-        """
-        Return an encapsulated version of the composite transform so that it appears to
-        be a single transform.
 
-        The returned transform internally calls the constituent transforms.  If all of
-        the transforms are affine, the merged transform is
-        `~astropy.coordinates.DynamicMatrixTransform` (if there are no
-        origin shifts) or `~astropy.coordinates.AffineTransform`
-        (otherwise).  If at least one of the transforms is not affine, the merged
-        transform is
-        `~astropy.coordinates.FunctionTransformWithFiniteDifference`.
-        """
         transforms = [
             t if not isinstance(t, CompositeTransform) else t._as_single_transform()
             for t in self.transforms
@@ -1558,15 +975,8 @@ class CompositeTransform(CoordinateTransform):
             single_transform, self.fromsys, self.tosys, priority=self.priority
         )
 
-
 def _combine_affine_params(params, next_params):
-    """
-    Combine two sets of affine parameters.
 
-    The parameters for an affine transformation are a 3 x 3 Cartesian
-    transformation matrix and a displacement vector, which can include an
-    attached velocity.  Either type of parameter can be ``None``.
-    """
     M, vec = params
     next_M, next_vec = next_params
 
@@ -1592,7 +1002,6 @@ def _combine_affine_params(params, next_params):
         new_vec = next_vec
 
     return new_M, new_vec
-
 
 trans_to_color = {}
 trans_to_color[AffineTransform] = "#555555"

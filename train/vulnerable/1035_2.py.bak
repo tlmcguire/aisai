@@ -34,7 +34,7 @@ _RUNTIME_CONTEXT = {
     "name": platform.python_implementation(),
     "version": "%s.%s.%s" % (sys.version_info[:3]),
     "build": sys.version,
-}  # type: dict[str, object]
+}
 
 
 class StdlibIntegration(Integration):
@@ -42,13 +42,11 @@ class StdlibIntegration(Integration):
 
     @staticmethod
     def setup_once():
-        # type: () -> None
         _install_httplib()
         _install_subprocess()
 
         @add_global_event_processor
         def add_python_runtime_context(event, hint):
-            # type: (Event, Hint) -> Optional[Event]
             if sentry_sdk.get_client().get_integration(StdlibIntegration) is not None:
                 contexts = event.setdefault("contexts", {})
                 if isinstance(contexts, dict) and "runtime" not in contexts:
@@ -58,12 +56,10 @@ class StdlibIntegration(Integration):
 
 
 def _install_httplib():
-    # type: () -> None
     real_putrequest = HTTPConnection.putrequest
     real_getresponse = HTTPConnection.getresponse
 
     def putrequest(self, method, url, *args, **kwargs):
-        # type: (HTTPConnection, str, str, *Any, **Any) -> Any
         host = self.host
         port = self.port
         default_port = self.default_port
@@ -112,12 +108,11 @@ def _install_httplib():
                 )
                 self.putheader(key, value)
 
-        self._sentrysdk_span = span  # type: ignore[attr-defined]
+        self._sentrysdk_span = span
 
         return rv
 
     def getresponse(self, *args, **kwargs):
-        # type: (HTTPConnection, *Any, **Any) -> Any
         span = getattr(self, "_sentrysdk_span", None)
 
         if span is None:
@@ -131,12 +126,11 @@ def _install_httplib():
 
         return rv
 
-    HTTPConnection.putrequest = putrequest  # type: ignore[method-assign]
-    HTTPConnection.getresponse = getresponse  # type: ignore[method-assign]
+    HTTPConnection.putrequest = putrequest
+    HTTPConnection.getresponse = getresponse
 
 
 def _init_argument(args, kwargs, name, position, setdefault_callback=None):
-    # type: (List[Any], Dict[Any, Any], str, int, Optional[Callable[[Any], Any]]) -> Any
     """
     given (*args, **kwargs) of a function call, retrieve (and optionally set a
     default for) an argument by either name or position.
@@ -167,25 +161,15 @@ def _init_argument(args, kwargs, name, position, setdefault_callback=None):
 
 
 def _install_subprocess():
-    # type: () -> None
     old_popen_init = subprocess.Popen.__init__
 
     @ensure_integration_enabled(StdlibIntegration, old_popen_init)
     def sentry_patched_popen_init(self, *a, **kw):
-        # type: (subprocess.Popen[Any], *Any, **Any) -> None
-        # Convert from tuple to list to be able to set values.
         a = list(a)
 
         args = _init_argument(a, kw, "args", 0) or []
         cwd = _init_argument(a, kw, "cwd", 9)
 
-        # if args is not a list or tuple (and e.g. some iterator instead),
-        # let's not use it at all. There are too many things that can go wrong
-        # when trying to collect an iterator into a list and setting that list
-        # into `a` again.
-        #
-        # Also invocations where `args` is not a sequence are not actually
-        # legal. They just happen to work under CPython.
         description = None
 
         if isinstance(args, (list, tuple)) and len(args) < 100:
@@ -219,13 +203,12 @@ def _install_subprocess():
             span.set_tag("subprocess.pid", self.pid)
             return rv
 
-    subprocess.Popen.__init__ = sentry_patched_popen_init  # type: ignore
+    subprocess.Popen.__init__ = sentry_patched_popen_init
 
     old_popen_wait = subprocess.Popen.wait
 
     @ensure_integration_enabled(StdlibIntegration, old_popen_wait)
     def sentry_patched_popen_wait(self, *a, **kw):
-        # type: (subprocess.Popen[Any], *Any, **Any) -> Any
         with sentry_sdk.start_span(
             op=OP.SUBPROCESS_WAIT,
             origin="auto.subprocess.stdlib.subprocess",
@@ -233,13 +216,12 @@ def _install_subprocess():
             span.set_tag("subprocess.pid", self.pid)
             return old_popen_wait(self, *a, **kw)
 
-    subprocess.Popen.wait = sentry_patched_popen_wait  # type: ignore
+    subprocess.Popen.wait = sentry_patched_popen_wait
 
     old_popen_communicate = subprocess.Popen.communicate
 
     @ensure_integration_enabled(StdlibIntegration, old_popen_communicate)
     def sentry_patched_popen_communicate(self, *a, **kw):
-        # type: (subprocess.Popen[Any], *Any, **Any) -> Any
         with sentry_sdk.start_span(
             op=OP.SUBPROCESS_COMMUNICATE,
             origin="auto.subprocess.stdlib.subprocess",
@@ -247,9 +229,8 @@ def _install_subprocess():
             span.set_tag("subprocess.pid", self.pid)
             return old_popen_communicate(self, *a, **kw)
 
-    subprocess.Popen.communicate = sentry_patched_popen_communicate  # type: ignore
+    subprocess.Popen.communicate = sentry_patched_popen_communicate
 
 
 def get_subprocess_traceparent_headers():
-    # type: () -> EnvironHeaders
     return EnvironHeaders(os.environ, prefix="SUBPROCESS_")

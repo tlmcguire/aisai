@@ -184,7 +184,7 @@ _NO_IMPORTS_VALIDATIONS = PALValidation(
 
 def test_math_question_1() -> None:
     """Test simple question."""
-    question = """Olivia has $23. She bought five bagels for $3 each. 
+    question = """Olivia has $23. She bought five bagels for $3 each.
                 How much money does she have left?"""
     prompt = MATH_PROMPT.format(question=question)
     queries = {prompt: _MATH_SOLUTION_1}
@@ -196,7 +196,7 @@ def test_math_question_1() -> None:
 
 def test_math_question_2() -> None:
     """Test simple question."""
-    question = """Michael had 58 golf balls. On tuesday, he lost 23 golf balls. 
+    question = """Michael had 58 golf balls. On tuesday, he lost 23 golf balls.
                 On wednesday, he lost 2 more. How many golf balls did he have 
                 at the end of wednesday?"""
     prompt = MATH_PROMPT.format(question=question)
@@ -225,7 +225,7 @@ def test_math_question_3() -> None:
 
 def test_math_question_infinite_loop() -> None:
     """Test simple question."""
-    question = """Michael had 58 golf balls. On tuesday, he lost 23 golf balls. 
+    question = """Michael had 58 golf balls. On tuesday, he lost 23 golf balls.
                 On wednesday, he lost 2 more. How many golf balls did he have 
                 at the end of wednesday?"""
     prompt = MATH_PROMPT.format(question=question)
@@ -238,7 +238,7 @@ def test_math_question_infinite_loop() -> None:
 
 def test_color_question_1() -> None:
     """Test simple question."""
-    question = """On the nightstand, you see the following items arranged in a row: 
+    question = """On the nightstand, you see the following items arranged in a row:
                 a teal plate, a burgundy keychain, a yellow scrunchiephone charger, 
                 an orange mug, a pink notebook, and a grey cup. How many non-orange 
                 items do you see to the left of the teal item?"""

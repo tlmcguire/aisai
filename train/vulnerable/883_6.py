@@ -42,7 +42,6 @@ from fides.api.util.saas_util import (
 from fides.api.util.unsafe_file_util import verify_svg, verify_zip
 from fides.config import CONFIG
 
-
 class ConnectorTemplateLoader(ABC):
     _instance: Optional["ConnectorTemplateLoader"] = None
 
@@ -55,18 +54,15 @@ class ConnectorTemplateLoader(ABC):
 
     @classmethod
     def get_connector_templates(cls) -> Dict[str, ConnectorTemplate]:
-        """Returns a map of connection templates."""
+
         return cls()._instance._templates
 
     @abstractmethod
     def _load_connector_templates(self) -> None:
-        """Load connector templates into the _templates dictionary"""
 
 
 class FileConnectorTemplateLoader(ConnectorTemplateLoader):
-    """
-    Loads SaaS connector templates from the data/saas directory.
-    """
+
 
     def _load_connector_templates(self) -> None:
         logger.info("Loading connectors templates from the data/saas directory")
@@ -100,11 +96,8 @@ class FileConnectorTemplateLoader(ConnectorTemplateLoader):
                 except Exception:
                     logger.exception("Unable to load {} connector", connector_type)
 
-
 class CustomConnectorTemplateLoader(ConnectorTemplateLoader):
-    """
-    Loads custom connector templates defined in the custom_connector_template database table.
-    """
+
 
     def _load_connector_templates(self) -> None:
         logger.info("Loading connectors templates from the database.")
@@ -126,9 +119,7 @@ class CustomConnectorTemplateLoader(ConnectorTemplateLoader):
 
     @staticmethod
     def _replacement_available(template: CustomConnectorTemplate) -> bool:
-        """
-        Check the connector templates in the FileConnectorTemplateLoader and return if a newer version is available.
-        """
+
         replacement_connector = (
             FileConnectorTemplateLoader.get_connector_templates().get(template.key)
         )
@@ -148,10 +139,7 @@ class CustomConnectorTemplateLoader(ConnectorTemplateLoader):
         cls,
         template: CustomConnectorTemplate,
     ) -> None:
-        """
-        Registers a custom connector template by converting it to a ConnectorTemplate,
-        registering any custom functions, and adding it to the loader's template dictionary.
-        """
+
         connector_template = ConnectorTemplate(
             config=template.config,
             dataset=template.dataset,
@@ -172,10 +160,7 @@ class CustomConnectorTemplateLoader(ConnectorTemplateLoader):
 
     @classmethod
     def save_template(cls, db: Session, zip_file: ZipFile) -> None:
-        """
-        Extracts and validates the contents of a zip file containing a
-        custom connector template, registers the template, and saves it to the database.
-        """
+
 
         verify_zip(zip_file)
 
@@ -273,15 +258,10 @@ class CustomConnectorTemplateLoader(ConnectorTemplateLoader):
             },
         )
 
-
 class ConnectorRegistry:
     @classmethod
     def _get_combined_templates(cls) -> Dict[str, ConnectorTemplate]:
-        """
-        Returns a combined map of connector templates from all registered loaders.
-        The resulting map is an aggregation of templates from the file loader and the custom loader,
-        with custom loader templates taking precedence in case of conflicts.
-        """
+
         return {
             **FileConnectorTemplateLoader.get_connector_templates(),
             **CustomConnectorTemplateLoader.get_connector_templates(),
@@ -289,16 +269,13 @@ class ConnectorRegistry:
 
     @classmethod
     def connector_types(cls) -> List[str]:
-        """List of registered SaaS connector types"""
+
         return list(cls._get_combined_templates().keys())
 
     @classmethod
     def get_connector_template(cls, connector_type: str) -> Optional[ConnectorTemplate]:
-        """
-        Returns an object containing the various SaaS connector artifacts
-        """
-        return cls._get_combined_templates().get(connector_type)
 
+        return cls._get_combined_templates().get(connector_type)
 
 def create_connection_config_from_template_no_save(
     db: Session,
@@ -306,7 +283,7 @@ def create_connection_config_from_template_no_save(
     template_values: SaasConnectionTemplateValues,
     system_id: Optional[str] = None,
 ) -> ConnectionConfig:
-    """Creates a SaaS connection config from a template without saving it."""
+
     config_from_template: Dict = replace_config_placeholders(
         template.config, "<instance_fides_key>", template_values.instance_key
     )
@@ -330,19 +307,13 @@ def create_connection_config_from_template_no_save(
 
     return connection_config
 
-
 def upsert_dataset_config_from_template(
     db: Session,
     connection_config: ConnectionConfig,
     template: ConnectorTemplate,
     template_values: SaasConnectionTemplateValues,
 ) -> DatasetConfig:
-    """
-    Creates a `DatasetConfig` from a template
-    and associates it with a ConnectionConfig.
-    If the `DatasetConfig` already exists in the db,
-    then the existing record is updated.
-    """
+
     dataset_from_template: Dict = replace_dataset_placeholders(
         template.dataset, "<instance_fides_key>", template_values.instance_key
     )
@@ -354,15 +325,8 @@ def upsert_dataset_config_from_template(
     dataset_config = DatasetConfig.upsert_with_ctl_dataset(db, data=data)
     return dataset_config
 
-
 def update_saas_configs(db: Session) -> None:
-    """
-    Updates SaaS config instances currently in the DB if to the
-    corresponding template in the registry are found.
 
-    Effectively an "update script" for SaaS config instances,
-    to be run on server bootstrap.
-    """
     for connector_type in ConnectorRegistry.connector_types():
         logger.debug(
             "Determining if any updates are needed for connectors of type {} based on templates...",
@@ -401,18 +365,13 @@ def update_saas_configs(db: Session) -> None:
                         saas_config_instance.fides_key,
                     )
 
-
 def update_saas_instance(
     db: Session,
     connection_config: ConnectionConfig,
     template: ConnectorTemplate,
     saas_config_instance: SaaSConfig,
 ) -> None:
-    """
-    Replace in the DB the existing SaaS instance configuration data
-    (SaaSConfig, DatasetConfig) associated with the given ConnectionConfig
-    with new instance configuration data based on the given ConnectorTemplate
-    """
+
     template_vals = SaasConnectionTemplateValues(
         name=connection_config.name,
         key=connection_config.key,
@@ -429,23 +388,8 @@ def update_saas_instance(
 
     upsert_dataset_config_from_template(db, connection_config, template, template_vals)
 
-
 def register_custom_functions(script: str) -> None:
-    """
-    Registers custom functions by executing the given script in a restricted environment.
 
-    The script is compiled and executed with RestrictedPython, which is designed to reduce
-    the risk of executing untrusted code. It provides a set of safe builtins to prevent
-    malicious or unintended behavior.
-
-    Args:
-        script (str): The Python script containing the custom functions to be registered.
-
-    Raises:
-        FidesopsException: If allow_custom_connector_functions is disabled.
-        SyntaxError: If the script contains a syntax error or uses restricted language features.
-        Exception: If an exception occurs during the execution of the script.
-    """
 
     if CONFIG.security.allow_custom_connector_functions:
         restricted_code = compile_restricted(
@@ -468,16 +412,11 @@ def register_custom_functions(script: str) -> None:
             message="The import of connector templates with custom functions is disabled by the 'security.allow_custom_connector_functions' setting."
         )
 
-
 class CustomRestrictingNodeTransformer(RestrictingNodeTransformer):
-    """
-    Custom node transformer class that extends RestrictedPython's RestrictingNodeTransformer
-    to allow the use of type annotations (AnnAssign) in restricted code.
-    """
+
 
     def visit_AnnAssign(self, node: AnnAssign) -> AST:
         return self.node_contents_visit(node)
-
 
 def custom_guarded_import(
     name: str,
@@ -486,9 +425,7 @@ def custom_guarded_import(
     fromlist: Optional[Tuple[str, ...]] = None,
     level: int = 0,
 ) -> Any:
-    """
-    A custom import function that prevents the import of certain potentially unsafe modules.
-    """
+
     if name in [
         "os",
         "sys",

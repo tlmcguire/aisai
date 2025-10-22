@@ -1,7 +1,7 @@
 import ipaddress
 
 def is_ip_allowed(ip, allowed_ranges):
-    """Check if the given IP is within the allowed ranges."""
+
     ip_obj = ipaddress.ip_address(ip)
     for ip_range in allowed_ranges:
         if ip_obj in ipaddress.ip_network(ip_range):
@@ -9,7 +9,7 @@ def is_ip_allowed(ip, allowed_ranges):
     return False
 
 def handle_third_party_invite(event, user_ip):
-    """Handle third-party invite events with IP validation."""
+
     allowed_ip_ranges = [
         '192.0.2.0/24',
         '203.0.113.0/24'

@@ -72,13 +72,13 @@ from gradio.utils import (
 )
 
 try:
-    import spaces  # type: ignore
+    import spaces
 except Exception:
     spaces = None
 
 set_documentation_group("blocks")
 
-if TYPE_CHECKING:  # Only import for type checking (is False at runtime).
+if TYPE_CHECKING:
     from fastapi.applications import FastAPI
 
     from gradio.components.base import Component
@@ -139,8 +139,6 @@ class Block:
 
         Only set classes whose metaclass is ComponentMeta
         """
-        # the _constructor_args list is appended based on the mro of the class
-        # so the first entry is for the bottom of the hierarchy
         return self._constructor_args[0] if self._constructor_args else {}
 
     @property
@@ -551,8 +549,6 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
         else:
             self.js = js
 
-        # For analytics_enabled and allow_flagging: (1) first check for
-        # parameter, (2) check for env variable, (3) default to True/"manual"
         self.analytics_enabled = (
             analytics_enabled
             if analytics_enabled is not None
@@ -586,7 +582,6 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
         self.title = title
         self.show_api = not wasm_utils.IS_WASM
 
-        # Only used when an Interface is loaded from a config
         self.predict = None
         self.input_components = None
         self.output_components = None
@@ -647,7 +642,6 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
         config = copy.deepcopy(config)
         components_config = config["components"]
         for component_config in components_config:
-            # for backwards compatibility, extract style into props
             if "style" in component_config["props"]:
                 component_config["props"].update(component_config["props"]["style"])
                 del component_config["props"]["style"]
@@ -663,9 +657,6 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
                 raise ValueError(f"Cannot find block with id {id}")
             cls = component_or_layout_class(block_config["type"])
 
-            # If a Gradio app B is loaded into a Gradio app A, and B itself loads a
-            # Gradio app C, then the proxy_urls of the components in A need to be the
-            # URL of C, not B. The else clause below handles this case.
             if block_config["props"].get("proxy_url") is None:
                 block_config["props"]["proxy_url"] = f"{proxy_url}/"
             postprocessed_value = block_config["props"].pop("value", None)
@@ -673,7 +664,7 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
             constructor_args = cls.recover_kwargs(block_config["props"])
             block = cls(**constructor_args)
             if postprocessed_value is not None:
-                block.value = postprocessed_value  # type: ignore
+                block.value = postprocessed_value
 
             block_proxy_url = block_config["props"]["proxy_url"]
             block.proxy_url = block_proxy_url
@@ -681,7 +672,7 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
             if (
                 _selectable := block_config["props"].pop("_selectable", None)
             ) is not None:
-                block._selectable = _selectable  # type: ignore
+                block._selectable = _selectable
 
             return block
 
@@ -704,27 +695,18 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
         derived_fields = ["types"]
 
         with Blocks(theme=theme) as blocks:
-            # ID 0 should be the root Blocks component
             original_mapping[0] = Context.root_block or blocks
 
             iterate_over_children(config["layout"]["children"])
 
             first_dependency = None
 
-            # add the event triggers
             for dependency, fn in zip(config["dependencies"], fns):
-                # We used to add a "fake_event" to the config to cache examples
-                # without removing it. This was causing bugs in calling gr.load
-                # We fixed the issue by removing "fake_event" from the config in examples.py
-                # but we still need to skip these events when loading the config to support
-                # older demos
                 if "trigger" in dependency and dependency["trigger"] == "fake_event":
                     continue
                 for field in derived_fields:
                     dependency.pop(field, None)
 
-                # older versions had a separate trigger field, but now it is part of the
-                # targets field
                 _targets = dependency.pop("targets")
                 trigger = dependency.pop("trigger", None)
                 targets = [
@@ -759,7 +741,6 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
                 if first_dependency is None:
                     first_dependency = dependency
 
-            # Allows some use of Interface-specific methods with loaded Spaces
             if first_dependency and Context.root_block:
                 blocks.predict = [fns[0]]
                 blocks.input_components = [
@@ -853,7 +834,6 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
             concurrency_id: If set, this is the id of the concurrency group. Events with the same concurrency_id will be limited by the lowest set concurrency_limit.
         Returns: dependency information, dependency index
         """
-        # Support for singular parameter
         _targets = [
             (
                 target.block._id if target.block and not no_target else None,
@@ -974,7 +954,6 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
                 )
             overlapping_ids = set(Context.root_block.blocks).intersection(self.blocks)
             for id in overlapping_ids:
-                # State components are allowed to be reused between Blocks
                 if not isinstance(self.blocks[id], components.State):
                     raise DuplicateBlockError(
                         "At least one block in this Blocks has already been rendered."
@@ -997,9 +976,6 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
                 ]
                 if dependency.get("trigger_after") is not None:
                     dependency["trigger_after"] += dependency_offset
-                # Recreate the cancel function so that it has the latest
-                # dependency fn indices. This is necessary to properly cancel
-                # events in the backend
                 if dependency["cancels"]:
                     updated_cancels = [
                         Context.root_block.dependencies[i]
@@ -1130,7 +1106,7 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
             request=request,
         )
 
-        if iterator is None:  # If not a generator function that has already run
+        if iterator is None:
             if block_fn.inputs_as_dict:
                 processed_input = [dict(zip(block_fn.inputs, processed_input))]
 
@@ -1240,9 +1216,6 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
 
         dep_inputs = dependency["inputs"]
 
-        # This handles incorrect inputs when args are changed by a JS function
-        # Only check not enough args case, ignore extra arguments (for now)
-        # TODO: make this stricter?
         if len(inputs) < len(dep_inputs):
             name = (
                 f" ({block_fn.name})"
@@ -1262,7 +1235,6 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
             wanted = ", ".join(wanted_args)
             received = ", ".join(received_args)
 
-            # JS func didn't pass enough arguments
             raise ValueError(
                 f"""An event handler{name} didn't receive enough input values (needed: {len(dep_inputs)}, got: {len(inputs)}).
 Check if the event handler calls a Javascript function, and make sure its return value is correct.
@@ -1303,10 +1275,10 @@ Received inputs:
                         inputs[i], block
                     )
                     if getattr(block, "data_model", None) and inputs_cached is not None:
-                        if issubclass(block.data_model, GradioModel):  # type: ignore
-                            inputs_cached = block.data_model(**inputs_cached)  # type: ignore
-                        elif issubclass(block.data_model, GradioRootModel):  # type: ignore
-                            inputs_cached = block.data_model(root=inputs_cached)  # type: ignore
+                        if issubclass(block.data_model, GradioModel):
+                            inputs_cached = block.data_model(**inputs_cached)
+                        elif issubclass(block.data_model, GradioRootModel):
+                            inputs_cached = block.data_model(root=inputs_cached)
                     processed_input.append(block.preprocess(inputs_cached))
         else:
             processed_input = inputs
@@ -1366,7 +1338,7 @@ Received outputs:
                 predictions,
             ]
 
-        self.validate_outputs(fn_index, predictions)  # type: ignore
+        self.validate_outputs(fn_index, predictions)
 
         output = []
         for i, output_id in enumerate(dependency["outputs"]):
@@ -1395,7 +1367,7 @@ Received outputs:
                 prediction_value = predictions[i]
                 if utils.is_update(
                     prediction_value
-                ):  # if update is passed directly (deprecated), remove Nones
+                ):
                     prediction_value = utils.delete_none(
                         prediction_value, skip_value=True
                     )
@@ -1427,7 +1399,7 @@ Received outputs:
                     prediction_value = block.postprocess(prediction_value)
                 outputs_cached = processing_utils.move_files_to_cache(
                     prediction_value,
-                    block,  # type: ignore
+                    block,
                     postprocess=True,
                 )
                 output.append(outputs_cached)
@@ -1582,7 +1554,7 @@ Received outputs:
             "head": self.head,
             "title": self.title or "Gradio",
             "space_id": self.space_id,
-            "enable_queue": True,  # launch attributes
+            "enable_queue": True,
             "show_error": getattr(self, "show_error", False),
             "show_api": self.show_api,
             "is_colab": utils.colab_check(),
@@ -1614,8 +1586,8 @@ Received outputs:
             )
 
             if not block.skip_api:
-                block_config["api_info"] = block.api_info()  # type: ignore
-                block_config["example_inputs"] = block.example_inputs()  # type: ignore
+                block_config["api_info"] = block.api_info()
+                block_config["example_inputs"] = block.example_inputs()
             config["components"].append(block_config)
         config["dependencies"] = self.dependencies
         return config
@@ -1635,7 +1607,6 @@ Received outputs:
             return
         super().fill_expected_parents()
         Context.block = self.parent
-        # Configure the load events before root_block is reset
         self.attach_load_events()
         if self.parent is None:
             Context.root_block = None
@@ -1801,8 +1772,7 @@ Received outputs:
             demo.launch(share=True, auth=("username", "password"))
         """
         if self._is_running_in_reload_thread:
-            # We have already launched the demo
-            return None, None, None  # type: ignore
+            return None, None, None
 
         if not self.exited:
             self.__exit__()
@@ -1858,11 +1828,6 @@ Received outputs:
                 local_url = ""
                 server = None
 
-                # In the Wasm environment, we only need the app object
-                # which the frontend app will directly communicate with through the Worker API,
-                # and we don't need to start a server.
-                # So we just create the app object and register it here,
-                # and avoid using `networking.start_server` that would start a server that don't work in the Wasm env.
                 from gradio.routes import App
 
                 app = App.create_app(self, app_kwargs=app_kwargs)
@@ -1888,7 +1853,7 @@ Received outputs:
             self.server_port = server_port
             self.server_app = (
                 self.app
-            ) = app  # server_app is included for backwards compatibility
+            ) = app
             self.server = server
             self.is_running = True
             self.is_colab = utils.colab_check()
@@ -1913,16 +1878,8 @@ Received outputs:
             self._queue.set_server_app(self.server_app)
 
             if not wasm_utils.IS_WASM:
-                # Cannot run async functions in background other than app's scope.
-                # Workaround by triggering the app endpoint
                 httpx.get(f"{self.local_url}startup-events", verify=ssl_verify)
             else:
-                # NOTE: One benefit of the code above dispatching `startup_events()` via a self HTTP request is
-                # that `self._queue.start()` is called in another thread which is managed by the HTTP server, `uvicorn`
-                # so all the asyncio tasks created by the queue runs in an event loop in that thread and
-                # will be cancelled just by stopping the server.
-                # In contrast, in the Wasm env, we can't do that because `threading` is not supported and all async tasks will run in the same event loop, `pyodide.webloop.WebLoop` in the main thread.
-                # So we need to manually cancel them. See `self.close()`..
                 self.startup_events()
 
         utils.launch_counter()
@@ -1951,8 +1908,6 @@ Received outputs:
         else:
             self.share = share
 
-        # If running in a colab or not able to access localhost,
-        # a shareable link must be created.
         if (
             _frontend
             and not wasm_utils.IS_WASM
@@ -2024,12 +1979,11 @@ Received outputs:
             link = self.share_url if self.share and self.share_url else self.local_url
             webbrowser.open(link)
 
-        # Check if running in a Python notebook in which case, display inline
         if inline is None:
             inline = utils.ipython_check()
         if inline:
             try:
-                from IPython.display import HTML, Javascript, display  # type: ignore
+                from IPython.display import HTML, Javascript, display
 
                 if self.share and self.share_url:
                     while not networking.url_ok(self.share_url):
@@ -2039,7 +1993,6 @@ Received outputs:
                     )
 
                 elif self.is_colab:
-                    # modified from /usr/local/lib/python3.7/dist-packages/google/colab/output/_util.py within Colab environment
                     code = """(async (port, path, width, height, cache, element) => {
                         if (!google.colab.kernel.accessAllowed && !cache) {
                             return;
@@ -2096,22 +2049,18 @@ Received outputs:
             }
             analytics.launched_analytics(self, data)
 
-        # Block main thread if debug==True
         if debug or int(os.getenv("GRADIO_DEBUG", 0)) == 1 and not wasm_utils.IS_WASM:
             self.block_thread()
-        # Block main thread if running in a script to stop script from exiting
         is_in_interactive_mode = bool(getattr(sys, "ps1", sys.flags.interactive))
 
         if (
             not prevent_thread_lock
             and not is_in_interactive_mode
-            # In the Wasm env, we don't have to block the main thread because the server won't be shut down after the execution finishes.
-            # Moreover, we MUST NOT do it because there is only one thread in the Wasm env and blocking it will stop the subsequent code from running.
             and not wasm_utils.IS_WASM
         ):
             self.block_thread()
 
-        return TupleNoPrint((self.server_app, self.local_url, self.share_url))  # type: ignore
+        return TupleNoPrint((self.server_app, self.local_url, self.share_url))
 
     def integrate(
         self,
@@ -2175,25 +2124,16 @@ Received outputs:
         """
         try:
             if wasm_utils.IS_WASM:
-                # NOTE:
-                # Normally, queue-related async tasks (e.g. continuous events created by `gr.Blocks.load(..., every=interval)`, whose async tasks are started at the `/queue/data` endpoint function)
-                # are running in an event loop in the server thread,
-                # so they will be cancelled by `self.server.close()` below.
-                # However, in the Wasm env, we don't have the `server` and
-                # all async tasks are running in the same event loop, `pyodide.webloop.WebLoop` in the main thread,
-                # so we have to cancel them explicitly so that these tasks won't run after a new app is launched.
                 self._queue._cancel_asyncio_tasks()
                 self.server_app._cancel_asyncio_tasks()
             self._queue.close()
             if self.server:
                 self.server.close()
             self.is_running = False
-            # So that the startup events (starting the queue)
-            # happen the next time the app is launched
             self.app.startup_events_triggered = False
             if verbose:
                 print(f"Closing server running on port: {self.server_port}")
-        except (AttributeError, OSError):  # can't close if not running
+        except (AttributeError, OSError):
             pass
 
     def block_thread(
@@ -2219,7 +2159,6 @@ Received outputs:
                     and component.load_event_to_attach
                 ):
                     load_fn, every = component.load_event_to_attach
-                    # Use set_event_trigger to avoid ambiguity between load class/instance method
 
                     dep = self.set_event_trigger(
                         [EventListenerMethod(self, "load")],
@@ -2227,10 +2166,6 @@ Received outputs:
                         None,
                         component,
                         no_target=True,
-                        # If every is None, for sure skip the queue
-                        # else, let the enable_queue parameter take precedence
-                        # this will raise a nice error message is every is used
-                        # without queue
                         queue=False if every is None else None,
                         every=every,
                     )[0]
@@ -2239,7 +2174,6 @@ Received outputs:
     def startup_events(self):
         """Events that should be run when the app containing this block starts up."""
         self._queue.start()
-        # So that processing can resume in case the queue was stopped
         self._queue.stopped = False
         self.create_limiter()
 
@@ -2264,15 +2198,12 @@ Received outputs:
                     if component["id"] == i:
                         break
                 else:
-                    skip_endpoint = True  # if component not found, skip endpoint
+                    skip_endpoint = True
                     break
                 type = component["type"]
                 if self.blocks[component["id"]].skip_api:
                     continue
                 label = component["props"].get("label", f"parameter_{i}")
-                # The config has the most specific API info (taking into account the parameters
-                # of the component), so we use that if it exists. Otherwise, we fallback to the
-                # Serializer's API info.
                 info = self.get_component(component["id"]).api_info()
                 example = self.get_component(component["id"]).example_inputs()
                 python_type = client_utils.json_schema_to_python_type(info)
@@ -2295,7 +2226,7 @@ Received outputs:
                     if component["id"] == o:
                         break
                 else:
-                    skip_endpoint = True  # if component not found, skip endpoint
+                    skip_endpoint = True
                     break
                 type = component["type"]
                 if self.blocks[component["id"]].skip_api:
@@ -2333,7 +2264,7 @@ Received outputs:
                 or mode == "interface"
                 or mode == "tabbed_interface"
             ):
-                pass  # Skip unnamed endpoints in interface mode
+                pass
             else:
                 api_info["unnamed_endpoints"][str(d)] = dependency_info
 

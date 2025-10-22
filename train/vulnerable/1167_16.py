@@ -1,12 +1,4 @@
-"""
-project: lollms
-file: lollms_discussion_events.py 
-author: ParisNeo
-description: 
-    This module contains a set of Socketio routes that provide information about the Lord of Large Language and Multimodal Systems (LoLLMs) Web UI
-    application. These routes are specific to discussion operation
 
-"""
 from fastapi import APIRouter, Request
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -35,7 +27,6 @@ from datetime import datetime
 router = APIRouter()
 lollmsElfServer:LOLLMSWebUI = LOLLMSWebUI.get_instance()
 
-
 def add_events(sio:socketio):
     @sio.on('create_empty_message')
     def create_empty_message(sid, data):
@@ -61,7 +52,6 @@ def add_events(sio:socketio):
                     lollmsElfServer.error("No model selected. Please make sure you select a model before starting generation", client_id=client_id)
                     return
                 lollmsElfServer.new_message(client_id, lollmsElfServer.personality.name, "[edit this to put your ai answer start]", open=True)
-
 
     @sio.on('add_webpage')
     def add_webpage(sid, data):
@@ -120,7 +110,6 @@ def add_events(sio:socketio):
             except Exception as e:
                 trace_exception(e)
                 run_async(partial(sio.emit,'picture_taken', {'status':False, 'error': str(e)}))
-
 
         except Exception as ex:
             trace_exception(ex)

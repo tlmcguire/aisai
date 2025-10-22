@@ -20,7 +20,6 @@ from typing import Any, Tuple, List
 import pytest
 import sys
 
-
 class TestLoadExternalDataBase(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -74,7 +73,6 @@ class TestLoadExternalDataBase(unittest.TestCase):
     def test_check_model(self) -> None:
         checker.check_model(self.model_filename)
 
-
 class TestLoadExternalData(TestLoadExternalDataBase):
 
     def test_load_external_data(self) -> None:
@@ -108,7 +106,6 @@ class TestLoadExternalData(TestLoadExternalDataBase):
 
         attribute_tensor = new_model.graph.node[0].attribute[0].t
         self.assertTrue(np.allclose(to_array(attribute_tensor), self.attribute_value))
-
 
 class TestLoadExternalDataSingleFile(TestLoadExternalDataBase):
 
@@ -156,7 +153,6 @@ class TestLoadExternalDataSingleFile(TestLoadExternalDataBase):
 
         attribute_tensor = new_model.graph.node[0].attribute[0].t
         self.assertTrue(np.allclose(to_array(attribute_tensor), self.attribute_value))
-
 
 class TestSaveAllTensorsAsExternalData(TestLoadExternalDataBase):
 
@@ -379,7 +375,6 @@ class TestSaveAllTensorsAsExternalData(TestLoadExternalDataBase):
         load_external_data_for_tensor(initializer_tensor, self.temp_dir)
         self.assertEqual(initializer_tensor.raw_data, original_raw_data)
 
-
 class TestExternalDataToArray(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir: str = tempfile.mkdtemp()
@@ -480,10 +475,8 @@ class TestExternalDataToArray(unittest.TestCase):
         self.assertTrue(small_shape_tensor.HasField("data_location"))
         self.assertTrue(np.allclose(to_array(small_shape_tensor, self.temp_dir), self.small_data))
 
-
 class TestNotAllowToLoadExternalDataOutsideModelDirectory(TestLoadExternalDataBase):
-    """Essential test to check that onnx (validate) C++ code will not allow to load external_data outside the model
-    directory. """
+
 
     def create_external_data_tensor(self, value: List[Any], tensor_name: str) -> TensorProto:
         tensor = from_array(np.array(value))
@@ -496,15 +489,13 @@ class TestNotAllowToLoadExternalDataOutsideModelDirectory(TestLoadExternalDataBa
         return tensor
 
     def test_check_model(self) -> None:
-        """We only test the model validation as onnxruntime uses this to load the model. """
+
         with self.assertRaises(onnx.checker.ValidationError):
             checker.check_model(self.model_filename)
 
-
 @pytest.mark.skipif(os.name != 'nt', reason='Skip Windows test')
 class TestNotAllowToLoadExternalDataOutsideModelDirectoryOnWindows(TestLoadExternalDataBase):
-    """Essential test to check that onnx (validate) C++ code will not allow to load external_data outside the model
-    directory. """
+
 
     def create_external_data_tensor(self, value: List[Any], tensor_name: str) -> TensorProto:
         tensor = from_array(np.array(value))
@@ -517,10 +508,9 @@ class TestNotAllowToLoadExternalDataOutsideModelDirectoryOnWindows(TestLoadExter
         return tensor
 
     def test_check_model(self) -> None:
-        """We only test the model validation as onnxruntime uses this to load the model. """
+
         with self.assertRaises(onnx.checker.ValidationError):
             checker.check_model(self.model_filename)
-
 
 if __name__ == '__main__':
     unittest.main()

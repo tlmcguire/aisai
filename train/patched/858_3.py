@@ -10,17 +10,14 @@ from synapse.util.caches.lrucache import LruCache
 
 logger = logging.getLogger(__name__)
 
-
 GLOB_REGEX = re.compile(r"\\\[(\\\!|)(.*)\\\]")
 IS_GLOB = re.compile(r"[\?\*\[\]]")
 INEQUALITY_EXPR = re.compile("^([=<>]*)([0-9]*)$")
-
 
 def _room_member_count(
     ev: EventBase, condition: Dict[str, Any], room_member_count: int
 ) -> bool:
     return _test_ineq_condition(condition, room_member_count)
-
 
 def _sender_notification_permission(
     ev: EventBase,
@@ -37,7 +34,6 @@ def _sender_notification_permission(
     room_notif_level = notif_levels.get(notif_level_key, 50)
 
     return sender_power_level >= room_notif_level
-
 
 def _test_ineq_condition(condition: Dict[str, Any], number: int) -> bool:
     if "is" not in condition:
@@ -64,29 +60,8 @@ def _test_ineq_condition(condition: Dict[str, Any], number: int) -> bool:
     else:
         return False
 
-
 def tweaks_for_actions(actions: List[Union[str, Dict]]) -> Dict[str, Any]:
-    """
-    Converts a list of actions into a `tweaks` dict (which can then be passed to
-        the push gateway).
 
-    This function ignores all actions other than `set_tweak` actions, and treats
-    absent `value`s as `True`, which agrees with the only spec-defined treatment
-    of absent `value`s (namely, for `highlight` tweaks).
-
-    Args:
-        actions: list of actions
-            e.g. [
-                {"set_tweak": "a", "value": "AAA"},
-                {"set_tweak": "b", "value": "BBB"},
-                {"set_tweak": "highlight"},
-                "notify"
-            ]
-
-    Returns:
-        dictionary of tweaks for those actions
-            e.g. {"a": "AAA", "b": "BBB", "highlight": True}
-    """
     tweaks = {}
     for a in actions:
         if not isinstance(a, dict):
@@ -94,7 +69,6 @@ def tweaks_for_actions(actions: List[Union[str, Dict]]) -> Dict[str, Any]:
         if "set_tweak" in a:
             tweaks[a["set_tweak"]] = a.get("value", True)
     return tweaks
-
 
 class PushRuleEvaluatorForEvent:
     def __init__(
@@ -176,21 +150,12 @@ class PushRuleEvaluatorForEvent:
     def _get_value(self, dotted_key: str) -> Optional[str]:
         return self._value_cache.get(dotted_key, None)
 
-
 regex_cache = LruCache(
     50000, "regex_push_cache"
 )
 
-
 def _glob_matches(glob: str, value: str, word_boundary: bool = False) -> bool:
-    """Tests if value matches glob.
 
-    Args:
-        glob
-        value: String to test against glob.
-        word_boundary: Whether to match against word boundaries or entire
-            string. Defaults to False.
-    """
 
     try:
         r = regex_cache.get((glob, True, word_boundary), None)
@@ -201,7 +166,6 @@ def _glob_matches(glob: str, value: str, word_boundary: bool = False) -> bool:
     except re.error:
         logger.warning("Failed to parse glob to regex: %r", glob)
         return False
-
 
 def _flatten_dict(
     d: Union[EventBase, dict],

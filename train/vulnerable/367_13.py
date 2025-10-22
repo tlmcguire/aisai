@@ -1,6 +1,4 @@
-"""
-Functions for generating and verifying JSON Web Tokens.
-"""
+
 
 from datetime import datetime, timedelta
 from calendar import timegm
@@ -10,52 +8,14 @@ from jwcrypto.common import base64url_encode, base64url_decode, \
                             json_encode, json_decode
 
 class _JWTError(Exception):
-    """ Exception raised if claim doesn't pass. Private to this module because
-        jwcrypto throws many exceptions too. """
+
     pass
 
 def generate_jwt(claims, priv_key=None,
                  algorithm='PS512', lifetime=None, expires=None,
                  not_before=None,
                  jti_size=16, other_headers=None):
-    """
-    Generate a JSON Web Token.
 
-    :param claims: The claims you want included in the signature.
-    :type claims: dict
-
-    :param priv_key: The private key to be used to sign the token. Note: if you pass ``None`` then the token will be returned with an empty cryptographic signature and :obj:`algorithm` will be forced to the value ``none``.
-    :type priv_key: `jwcrypto.jwk.JWK <https://jwcrypto.readthedocs.io/en/latest/jwk.html>`_
-
-    :param algorithm: The algorithm to use for generating the signature. ``RS256``, ``RS384``, ``RS512``, ``PS256``, ``PS384``, ``PS512``, ``ES256``, ``ES384``, ``ES512``, ``HS256``, ``HS384``, ``HS512`` and ``none`` are supported.
-    :type algorithm: str
-
-    :param lifetime: How long the token is valid for.
-    :type lifetime: datetime.timedelta
-
-    :param expires: When the token expires (if :obj:`lifetime` isn't specified)
-    :type expires: datetime.datetime
-
-    :param not_before: When the token is valid from. Defaults to current time (if ``None`` is passed).
-    :type not_before: datetime.datetime
-
-    :param jti_size: Size in bytes of the unique token ID to put into the token (can be used to detect replay attacks). Defaults to 16 (128 bits). Specify 0 or ``None`` to omit the JTI from the token.
-    :type jti_size: int
-
-    :param other_headers: Any headers other than "typ" and "alg" may be specified, they will be included in the header.
-    :type other_headers: dict
-
-    :rtype: unicode
-    :returns: The JSON Web Token. Note this includes a header, the claims and a cryptographic signature. The following extra claims are added, per the `JWT spec <http://self-issued.info/docs/draft-ietf-oauth-json-web-token.html>`_:
-
-    - **exp** (*IntDate*) -- The UTC expiry date and time of the token, in number of seconds from 1970-01-01T0:0:0Z UTC.
-    - **iat** (*IntDate*) -- The UTC date and time at which the token was generated.
-    - **nbf** (*IntDate*) -- The UTC valid-from date and time of the token.
-    - **jti** (*str*) -- A unique identifier for the token.
-
-    :raises:
-        ValueError: If other_headers contains either the "typ" or "alg" header
-    """
     header = {
         'typ': 'JWT',
         'alg': algorithm if priv_key else 'none'
@@ -96,48 +56,13 @@ def generate_jwt(claims, priv_key=None,
         signature
     )
 
-
 def verify_jwt(jwt,
                pub_key=None,
                allowed_algs=None,
                iat_skew=timedelta(),
                checks_optional=False,
                ignore_not_implemented=False):
-    """
-    Verify a JSON Web Token.
 
-    :param jwt: The JSON Web Token to verify.
-    :type jwt: str or unicode
-
-    :param pub_key: The public key to be used to verify the token. Note: if you pass ``None`` and **allowed_algs** contains ``none`` then the token's signature will not be verified.
-    :type pub_key: `jwcrypto.jwk.JWK <https://jwcrypto.readthedocs.io/en/latest/jwk.html>`_
-
-    :param allowed_algs: Algorithms expected to be used to sign the token. The ``in`` operator is used to test membership.
-    :type allowed_algs: list or NoneType (meaning an empty list)
-
-    :param iat_skew: The amount of leeway to allow between the issuer's clock and the verifier's clock when verifying that the token was generated in the past. Defaults to no leeway.
-    :type iat_skew: datetime.timedelta
-
-    :param checks_optional: If ``False``, then the token must contain the **typ** header property and the **iat**, **nbf** and **exp** claim properties.
-    :type checks_optional: bool
-
-    :param ignore_not_implemented: If ``False``, then the token must *not* contain the **jku**, **jwk**, **x5u**, **x5c** or **x5t** header properties.
-    :type ignore_not_implemented: bool
-
-    :rtype: tuple
-    :returns: ``(header, claims)`` if the token was verified successfully. The token must pass the following tests:
-
-    - Its header must contain a property **alg** with a value in **allowed_algs**.
-    - Its signature must verify using **pub_key** (unless its algorithm is ``none`` and ``none`` is in **allowed_algs**).
-    - If the corresponding property is present or **checks_optional** is ``False``:
-
-      - Its header must contain a property **typ** with the value ``JWT``.
-      - Its claims must contain a property **iat** which represents a date in the past (taking into account :obj:`iat_skew`).
-      - Its claims must contain a property **nbf** which represents a date in the past.
-      - Its claims must contain a property **exp** which represents a date in the future.
-
-    :raises: If the token failed to verify.
-    """
     if allowed_algs is None:
         allowed_algs = []
 
@@ -203,19 +128,8 @@ def verify_jwt(jwt,
 
     return parsed_header, parsed_claims
 
-
 def process_jwt(jwt):
-    """
-    Process a JSON Web Token without verifying it.
 
-    Call this before :func:`verify_jwt` if you need access to the header or claims in the token before verifying it. For example, the claims might identify the issuer such that you can retrieve the appropriate public key.
-
-    :param jwt: The JSON Web Token to verify.
-    :type jwt: str or unicode
-
-    :rtype: tuple
-    :returns: ``(header, claims)``
-    """
     header, claims, _ = jwt.split('.')
     parsed_header = json_decode(base64url_decode(header))
     parsed_claims = json_decode(base64url_decode(claims))

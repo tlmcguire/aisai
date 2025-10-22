@@ -1,10 +1,4 @@
-#!/usr/bin/python3
 
-# This program is free software; you can redistribute it and/or modify it under
-# the terms of the GNU Lesser General Public License as published by the Free
-# Software Foundation; either version 3 of the License, or (at your option) any
-# later version.  See http://www.gnu.org/copyleft/lgpl.html for the full text
-# of the license.
 
 __author__ = 'Martin Pitt'
 __email__ = 'martin.pitt@ubuntu.com'
@@ -58,7 +52,6 @@ class TestAPI(dbusmock.DBusTestCase):
         self.dbus_mock.AddMethod('', 'Do', '', '', '')
         self.assertEqual(self.dbus_test.Do(), None)
 
-        # check that it's logged correctly
         with open(self.mock_log.name) as f:
             self.assertRegex(f.read(), '^[0-9.]+ Do$')
 
@@ -68,7 +61,6 @@ class TestAPI(dbusmock.DBusTestCase):
         self.dbus_mock.AddMethod('', 'Do', 's', '', '')
         self.assertEqual(self.dbus_test.Do('Hello'), None)
 
-        # check that it's logged correctly
         with open(self.mock_log.name) as f:
             self.assertRegex(f.read(), '^[0-9.]+ Do "Hello"$')
 
@@ -84,7 +76,6 @@ class TestAPI(dbusmock.DBusTestCase):
         self.dbus_mock.AddMethod('', 'Do', 'si', 's', 'ret = args[0] * args[1]')
         self.assertEqual(self.dbus_test.Do('foo', 3), 'foofoofoo')
 
-        # check that it's logged correctly
         with open(self.mock_log.name) as f:
             self.assertRegex(f.read(), '^[0-9.]+ Do "foo" 3$')
 
@@ -101,7 +92,6 @@ assert args[2] == 5
 ''')
         self.assertEqual(self.dbus_test.Do(-1, ['/foo'], 5), None)
 
-        # check that it's logged correctly
         with open(self.mock_log.name) as f:
             self.assertRegex(f.read(), '^[0-9.]+ Do -1 \["/foo"\] 5$')
 
@@ -117,7 +107,6 @@ assert args[2] == 5
 ''')
         self.assertEqual(self.dbus_test.Do(-1, {'foo': 42}, 5), None)
 
-        # check that it's logged correctly
         with open(self.mock_log.name) as f:
             self.assertRegex(f.read(), '^[0-9.]+ Do -1 {"foo": 42} 5$')
 
@@ -129,16 +118,13 @@ assert args[2] == 5
                                   [('OtherDo2', '', '', ''),
                                    ('OtherDo3', 'i', 'i', 'ret = args[0]')])
 
-        # should not be on the main interface
         self.assertRaises(dbus.exceptions.DBusException,
                           self.dbus_test.OtherDo)
 
-        # should be on the other interface
         self.assertEqual(self.obj_test.OtherDo(dbus_interface='org.freedesktop.Test.Other'), None)
         self.assertEqual(self.obj_test.OtherDo2(dbus_interface='org.freedesktop.Test.Other'), None)
         self.assertEqual(self.obj_test.OtherDo3(42, dbus_interface='org.freedesktop.Test.Other'), 42)
 
-        # check that it's logged correctly
         with open(self.mock_log.name) as f:
             self.assertRegex(f.read(), '^[0-9.]+ OtherDo\n[0-9.]+ OtherDo2\n[0-9.]+ OtherDo3 42$')
 
@@ -148,19 +134,15 @@ assert args[2] == 5
         self.dbus_mock.AddMethod('org.iface1', 'Do', 'i', 'i', 'ret = args[0] + 2')
         self.dbus_mock.AddMethod('org.iface2', 'Do', 'i', 'i', 'ret = args[0] + 3')
 
-        # should not be on the main interface
         self.assertRaises(dbus.exceptions.DBusException,
                           self.dbus_test.Do)
 
-        # should be on the other interface
         self.assertEqual(self.obj_test.Do(10, dbus_interface='org.iface1'), 12)
         self.assertEqual(self.obj_test.Do(11, dbus_interface='org.iface2'), 14)
 
-        # check that it's logged correctly
         with open(self.mock_log.name) as f:
             self.assertRegex(f.read(), '^[0-9.]+ Do 10\n[0-9.]+ Do 11$')
 
-        # now add it to the primary interface, too
         self.dbus_mock.AddMethod('', 'Do', 'i', 'i', 'ret = args[0] + 1')
         self.assertEqual(self.obj_test.Do(9, dbus_interface='org.freedesktop.Test.Main'), 10)
         self.assertEqual(self.obj_test.Do(10, dbus_interface='org.iface1'), 12)
@@ -178,15 +160,12 @@ assert args[2] == 5
             except dbus.exceptions.DBusException as e:
                 self.assertTrue(err in str(e), e)
 
-        # not enough arguments
         check('i', [], 'TypeError: More items found')
         check('is', [1], 'TypeError: More items found')
 
-        # too many arguments
         check('', [1], 'TypeError: Fewer items found')
         check('i', [1, 'hello'], 'TypeError: Fewer items found')
 
-        # type mismatch
         check('u', [-1], 'convert negative value to unsigned')
         check('i', ['hello'], 'TypeError: an integer is required')
         check('s', [1], 'TypeError: Expected a string')
@@ -206,13 +185,11 @@ assert args[2] == 5
         dbus_sub = dbus.Interface(obj1, 'org.freedesktop.Test.Sub')
         dbus_props = dbus.Interface(obj1, dbus.PROPERTIES_IFACE)
 
-        # check properties
         self.assertEqual(dbus_props.Get('org.freedesktop.Test.Sub', 'state'), 'online')
         self.assertEqual(dbus_props.Get('org.freedesktop.Test.Sub', 'cute'), True)
         self.assertEqual(dbus_props.GetAll('org.freedesktop.Test.Sub'),
                          {'state': 'online', 'cute': True})
 
-        # add new method
         obj1.AddMethod('', 'Do', '', 's', 'ret = "hello"',
                        dbus_interface=dbusmock.MOCK_IFACE)
         self.assertEqual(dbus_sub.Do(), 'hello')
@@ -229,7 +206,6 @@ assert args[2] == 5
                           {},
                           [])
 
-        # try to add the main object again
         self.assertRaises(dbus.exceptions.DBusException,
                           self.dbus_mock.AddObject,
                           '/',
@@ -261,10 +237,8 @@ assert args[2] == 5
     def test_properties(self):
         '''add and change properties'''
 
-        # no properties by default
         self.assertEqual(self.dbus_props.GetAll('org.freedesktop.Test.Main'), {})
 
-        # no such property
         with self.assertRaises(dbus.exceptions.DBusException) as ctx:
             self.dbus_props.Get('org.freedesktop.Test.Main', 'version')
         self.assertEqual(ctx.exception.get_dbus_name(),
@@ -281,7 +255,6 @@ assert args[2] == 5
         self.dbus_mock.AddProperty('org.freedesktop.Test.Main',
                                    'version',
                                    dbus.Int32(2, variant_level=1))
-        # once again on default interface
         self.dbus_mock.AddProperty('',
                                    'connected',
                                    dbus.Boolean(True, variant_level=1))
@@ -299,12 +272,10 @@ assert args[2] == 5
         self.assertEqual(ctx.exception.get_dbus_message(),
                          'no such interface org.freedesktop.Test.Bogus')
 
-        # change property
         self.dbus_props.Set('org.freedesktop.Test.Main', 'version',
                             dbus.Int32(4, variant_level=1))
         self.assertEqual(self.dbus_props.Get('org.freedesktop.Test.Main', 'version'), 4)
 
-        # check that the Get/Set calls get logged
         with open(self.mock_log.name) as f:
             contents = f.read()
             self.assertRegex(contents, '\n[0-9.]+ Get org.freedesktop.Test.Main.version\n')
@@ -312,7 +283,6 @@ assert args[2] == 5
             self.assertRegex(contents, '\n[0-9.]+ GetAll org.freedesktop.Test.Main\n')
             self.assertRegex(contents, '\n[0-9.]+ Set org.freedesktop.Test.Main.version 4\n')
 
-        # add property to different interface
         self.dbus_mock.AddProperty('org.freedesktop.Test.Other',
                                    'color',
                                    dbus.String('yellow', variant_level=1))
@@ -345,7 +315,6 @@ assert args[2] == 5
       <arg direction="out" type="i" />
     </method>''' in xml_method, xml_method)
 
-    # properties in introspection are not supported by dbus-python right now
     def test_introspection_properties(self):
         '''dynamically added properties appear in introspection'''
 
@@ -388,8 +357,6 @@ assert args[2] == 5
             if kwargs['interface'].startswith('org.freedesktop.Test'):
                 caught.append((args, kwargs))
             if len(caught) == 3:
-                # we caught everything there is to catch, don't wait for the
-                # timeout
                 ml.quit()
 
         self.dbus_con.add_signal_receiver(catch,
@@ -398,23 +365,19 @@ assert args[2] == 5
                                           member_keyword='member')
 
         GLib.timeout_add(200, do_emit)
-        # ensure that the loop quits even when we catch fewer than 2 signals
         GLib.timeout_add(3000, ml.quit)
         ml.run()
 
-        # check SigNoArgs
         self.assertEqual(caught[0][0], ())
         self.assertEqual(caught[0][1]['member'], 'SigNoArgs')
         self.assertEqual(caught[0][1]['path'], '/')
         self.assertEqual(caught[0][1]['interface'], 'org.freedesktop.Test.Main')
 
-        # check SigTwoArgs
         self.assertEqual(caught[1][0], ('hello', 42))
         self.assertEqual(caught[1][1]['member'], 'SigTwoArgs')
         self.assertEqual(caught[1][1]['path'], '/')
         self.assertEqual(caught[1][1]['interface'], 'org.freedesktop.Test.Sub')
 
-        # check data types in SigTypeTest
         self.assertEqual(caught[2][1]['member'], 'SigTypeTest')
         self.assertEqual(caught[2][1]['path'], '/')
         args = caught[2][0]
@@ -436,7 +399,6 @@ assert args[2] == 5
         self.assertEqual(type(args[3][0]), dbus.ObjectPath)
         self.assertEqual(args[3][0].variant_level, 0)
 
-        # check correct logging
         with open(self.mock_log.name) as f:
             log = f.read()
         self.assertRegex(log, '[0-9.]+ emit org.freedesktop.Test.Main.SigNoArgs\n')
@@ -455,15 +417,12 @@ assert args[2] == 5
             except dbus.exceptions.DBusException as e:
                 self.assertTrue(err in str(e), e)
 
-        # not enough arguments
         check('i', [], 'TypeError: More items found')
         check('is', [1], 'TypeError: More items found')
 
-        # too many arguments
         check('', [1], 'TypeError: Fewer items found')
         check('i', [1, 'hello'], 'TypeError: Fewer items found')
 
-        # type mismatch
         check('u', [-1], 'convert negative value to unsigned')
         check('i', ['hello'], 'TypeError: an integer is required')
         check('s', [1], 'TypeError: Expected a string')
@@ -478,7 +437,7 @@ assert args[2] == 5
         self.assertEqual(self.dbus_test.Do(), None)
         mock_log = self.dbus_mock.GetCalls()
         self.assertEqual(len(mock_log), 1)
-        self.assertGreater(mock_log[0][0], 10000)  # timestamp
+        self.assertGreater(mock_log[0][0], 10000)
         self.assertEqual(mock_log[0][1], 'Do')
         self.assertEqual(mock_log[0][2], [])
 
@@ -490,7 +449,7 @@ assert args[2] == 5
         self.assertEqual(self.dbus_test.Wop('bar'), 'hello')
         mock_log = self.dbus_mock.GetCalls()
         self.assertEqual(len(mock_log), 2)
-        self.assertGreater(mock_log[0][0], 10000)  # timestamp
+        self.assertGreater(mock_log[0][0], 10000)
         self.assertEqual(mock_log[0][1], 'Wop')
         self.assertEqual(mock_log[0][2], ['foo'])
         self.assertEqual(mock_log[1][1], 'Wop')
@@ -517,9 +476,9 @@ assert args[2] == 5
 
         mock_calls = self.dbus_mock.GetMethodCalls('Wop')
         self.assertEqual(len(mock_calls), 2)
-        self.assertGreater(mock_calls[0][0], 10000)  # timestamp
+        self.assertGreater(mock_calls[0][0], 10000)
         self.assertEqual(mock_calls[0][1], ['foo'])
-        self.assertGreater(mock_calls[1][0], 10000)  # timestamp
+        self.assertGreater(mock_calls[1][0], 10000)
         self.assertEqual(mock_calls[1][1], ['bar'])
 
     def test_dbus_method_called(self):
@@ -555,11 +514,8 @@ assert args[2] == 5
 
         self.dbus_mock.Reset()
 
-        # resets properties and keeps the initial object
         self.assertEqual(self.dbus_props.GetAll(''), {})
-        # resets methods
         self.assertRaises(dbus.exceptions.DBusException, self.dbus_test.Do)
-        # resets other objects
         obj1 = self.dbus_con.get_object('org.freedesktop.Test', '/obj1')
         self.assertRaises(dbus.exceptions.DBusException, obj1.GetAll, '')
 
@@ -594,12 +550,10 @@ def load(mock, parameters):
 
         self.assertEqual(dbus_ultimate.Answer(), 42)
 
-        # should appear in introspection
         xml = dbus_ultimate.Introspect()
         self.assertIn('<interface name="universe.Ultimate">', xml)
         self.assertIn('<method name="Answer">', xml)
 
-        # should not have ObjectManager API by default
         self.assertRaises(dbus.exceptions.DBusException,
                           dbus_ultimate.GetManagedObjects)
 
@@ -631,7 +585,6 @@ def Answer(self):
 
         self.assertEqual(dbus_ultimate.Answer(), 42)
 
-        # should appear in introspection
         xml = dbus_ultimate.Introspect()
         self.assertIn('<interface name="universe.Ultimate">', xml)
         self.assertIn('<method name="Answer">', xml)
@@ -661,12 +614,10 @@ def load(mock, parameters):
             self.addCleanup(p_mock.terminate)
             self.addCleanup(p_mock.stdout.close)
 
-        # should have the two Things, but not the Peer
         self.assertEqual(dbus_objmgr.GetManagedObjects(),
                          {'/org/test/Things/Thing1': {'org.test.Do': {'name': 'one'}},
                           '/org/test/Things/Thing2': {'org.test.Do': {'name': 'two'}}})
 
-        # should appear in introspection
         xml = dbus_objmgr.Introspect()
         self.assertIn('<interface name="org.freedesktop.DBus.ObjectManager">', xml)
         self.assertIn('<method name="GetManagedObjects">', xml)
@@ -682,7 +633,6 @@ def load(mock, parameters):
         self.addCleanup(p_mock.terminate)
         self.addCleanup(p_mock.stdout.close)
 
-        # do some property, method, and object changes
         obj_logind.Set('org.freedesktop.login1.Manager', 'IdleAction', 'frob')
         mock_logind = dbus.Interface(obj_logind, dbusmock.MOCK_IFACE)
         mock_logind.AddProperty('org.Test.Other', 'walk', 'silly')
@@ -691,21 +641,17 @@ def load(mock, parameters):
 
         mock_logind.Reset()
 
-        # keeps the objects from the template
         dbus_con = self.get_dbus(system_bus=True)
         obj_logind = dbus_con.get_object('org.freedesktop.login1',
                                          '/org/freedesktop/login1')
         self.assertEqual(obj_logind.CanSuspend(), 'yes')
 
-        # resets properties
         self.assertRaises(dbus.exceptions.DBusException,
                           obj_logind.GetAll, 'org.Test.Other')
         self.assertEqual(
             obj_logind.Get('org.freedesktop.login1.Manager', 'IdleAction'),
             'ignore')
-        # resets methods
         self.assertRaises(dbus.exceptions.DBusException, obj_logind.DoWalk)
-        # resets other objects
         obj1 = dbus_con.get_object('org.freedesktop.login1', '/obj1')
         self.assertRaises(dbus.exceptions.DBusException, obj1.GetAll, '')
 
@@ -722,7 +668,6 @@ class TestCleanup(dbusmock.DBusTestCase):
                                    'org.freedesktop.Test.Main')
         self.stop_dbus(self.session_bus_pid)
 
-        # give the mock 2 seconds to terminate
         timeout = 20
         while timeout > 0:
             if p_mock.poll() is not None:
@@ -731,7 +676,6 @@ class TestCleanup(dbusmock.DBusTestCase):
             time.sleep(0.1)
 
         if p_mock.poll() is None:
-            # clean up manually
             p_mock.terminate()
             p_mock.wait()
             self.fail('mock process did not terminate after 2 seconds')
@@ -780,5 +724,4 @@ class TestSubclass(dbusmock.DBusTestCase):
 
 
 if __name__ == '__main__':
-    # avoid writing to stderr
     unittest.main(testRunner=unittest.TextTestRunner(stream=sys.stdout, verbosity=2))

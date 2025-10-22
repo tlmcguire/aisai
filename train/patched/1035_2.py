@@ -29,13 +29,11 @@ if TYPE_CHECKING:
 
     from sentry_sdk._types import Event, Hint
 
-
 _RUNTIME_CONTEXT = {
     "name": platform.python_implementation(),
     "version": "%s.%s.%s" % (sys.version_info[:3]),
     "build": sys.version,
 }
-
 
 class StdlibIntegration(Integration):
     identifier = "stdlib"
@@ -53,7 +51,6 @@ class StdlibIntegration(Integration):
                     contexts["runtime"] = _RUNTIME_CONTEXT
 
             return event
-
 
 def _install_httplib():
     real_putrequest = HTTPConnection.putrequest
@@ -129,16 +126,8 @@ def _install_httplib():
     HTTPConnection.putrequest = putrequest
     HTTPConnection.getresponse = getresponse
 
-
 def _init_argument(args, kwargs, name, position, setdefault_callback=None):
-    """
-    given (*args, **kwargs) of a function call, retrieve (and optionally set a
-    default for) an argument by either name or position.
 
-    This is useful for wrapping functions with complex type signatures and
-    extracting a few arguments without needing to redefine that function's
-    entire type signature.
-    """
 
     if name in kwargs:
         rv = kwargs[name]
@@ -158,7 +147,6 @@ def _init_argument(args, kwargs, name, position, setdefault_callback=None):
             kwargs[name] = rv
 
     return rv
-
 
 def _install_subprocess():
     old_popen_init = subprocess.Popen.__init__
@@ -234,7 +222,6 @@ def _install_subprocess():
             return old_popen_communicate(self, *a, **kw)
 
     subprocess.Popen.communicate = sentry_patched_popen_communicate
-
 
 def get_subprocess_traceparent_headers():
     return EnvironHeaders(os.environ, prefix="SUBPROCESS_")

@@ -2,7 +2,6 @@ import yaml
 try:
     from ansible.utils.vault import VaultLib
 except ImportError:
-    # Ansible 2.0 has changed the vault location
     from ansible.parsing.vault import VaultLib
 
 

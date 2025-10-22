@@ -135,7 +135,6 @@ def _ValidateSettingsStruct(data, struct):
     :type struct: dict.
     :raises: InvalidConfigError
     """
-    # Validate required elements of the setting.
     for key in struct:
         if struct[key]["required"]:
             _ValidateSettingsElement(data, struct, key)
@@ -152,7 +151,6 @@ def _ValidateSettingsElement(data, struct, key):
     :type key: str.
     :raises: InvalidConfigError
     """
-    # Check if data exists. If not, check if default value exists.
     value = data.get(key)
     data_type = struct[key]["type"]
     if value is None:
@@ -162,13 +160,10 @@ def _ValidateSettingsElement(data, struct, key):
             raise InvalidConfigError("Missing required setting %s" % key)
         else:
             data[key] = default
-    # If data exists, Check type of the data
     elif not isinstance(value, data_type):
         raise InvalidConfigError(f"Setting {key} should be type {data_type}")
-    # If type of this data is dict, check if structure of the data is valid.
     if data_type is dict:
         _ValidateSettingsStruct(data[key], struct[key]["struct"])
-    # If type of this data is list, check if all values in the list is valid.
     elif data_type is list:
         for element in data[key]:
             if not isinstance(element, struct[key]["struct"]):
@@ -176,7 +171,6 @@ def _ValidateSettingsElement(data, struct, key):
                     "Setting %s should be list of %s"
                     % (key, struct[key]["struct"])
                 )
-    # Check dependency of this attribute.
     dependencies = struct[key].get("dependency")
     if dependencies:
         for dependency in dependencies:

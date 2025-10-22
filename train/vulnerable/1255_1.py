@@ -1,21 +1,14 @@
 import os
 
 def is_path_allowed(filepath, allowed_paths):
-  """
-  Checks if a filepath is within allowed paths (vulnerable version).
 
-  This version DOES NOT perform case normalization, making it vulnerable.
-  """
   for allowed_path in allowed_paths:
       if filepath.startswith(allowed_path):
           return True
   return False
 
-
 def serve_file(filepath, allowed_paths):
-    """
-    Simulates serving a file, but with the vulnerability.
-    """
+
 
     if is_path_allowed(filepath, allowed_paths):
         try:
@@ -25,7 +18,6 @@ def serve_file(filepath, allowed_paths):
            return "File not found."
     else:
         return "Access Denied."
-
 
 if __name__ == '__main__':
     allowed_directories = ["/safe_data"]

@@ -11,7 +11,7 @@ class Hashing():
         return "Hashing Funcitions In Here"
 
     def Standard_Multi_Hash(self,Data:str):
-        '''Inreversable Salted Hash Function Don't Use If U Want To Get The Content Back'''
+
         assert isinstance(Data, str), "Expected string, got " + type(Data).__name__
         a = hashlib.sha256(); a.update(bytes(Data.encode())); b = []
         base = hashlib.sha512()

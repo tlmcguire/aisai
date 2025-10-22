@@ -19,37 +19,11 @@ XDG_CONFIG_HOME_ENV_VAR = 'XDG_CONFIG_HOME'
 
 DEFAULT_ABSOLUTE_MINIMUM_PART_SIZE = 5000000
 
-
 class SqliteAccountInfo(UrlPoolAccountInfo):
-    """
-    Store account information in an `sqlite3 <https://www.sqlite.org>`_ database which is
-    used to manage concurrent access to the data.
 
-    The ``update_done`` table tracks the schema updates that have been
-    completed.
-    """
 
     def __init__(self, file_name=None, last_upgrade_to_run=None):
-        """
-        Initialize SqliteAccountInfo.
 
-        The exact algorithm used to determine the location of the database file is not API in any sense.
-        If the location of the database file is required (for cleanup, etc), do not assume a specific resolution:
-        instead, use ``self.filename`` to get the actual resolved location.
-
-        SqliteAccountInfo currently checks locations in the following order:
-
-        * ``file_name``, if truthy
-        * ``{B2_ACCOUNT_INFO_ENV_VAR}`` env var's value, if set
-        * ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``, if it exists
-        * ``{XDG_CONFIG_HOME_ENV_VAR}/b2/account_info``, if ``{XDG_CONFIG_HOME_ENV_VAR}`` env var is set
-        * ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``, as default
-
-        If the directory ``{XDG_CONFIG_HOME_ENV_VAR}/b2`` does not exist (and is needed), it is created.
-
-        :param str file_name: The sqlite file to use; overrides the default.
-        :param int last_upgrade_to_run: For testing only, override the auto-update on the db.
-        """
         self.thread_local = threading.local()
 
         if file_name:
@@ -84,9 +58,7 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
         )
 
     def _validate_database(self, last_upgrade_to_run=None):
-        """
-        Make sure that the database is openable.  Removes the file if it's not.
-        """
+
         if not os.path.exists(self.filename):
             self._create_database(last_upgrade_to_run)
             return
@@ -127,9 +99,7 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
         raise CorruptAccountInfo(self.filename)
 
     def _get_connection(self):
-        """
-        Connections to sqlite cannot be shared across threads.
-        """
+
         try:
             return self.thread_local.connection
         except AttributeError:
@@ -140,10 +110,7 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
         return sqlite3.connect(self.filename, isolation_level='EXCLUSIVE')
 
     def _create_database(self, last_upgrade_to_run):
-        """
-        Make sure that the database is created and has appropriate file permissions.
-        This should be done before storing any sensitive data in it.
-        """
+
         fd = os.open(
             self.filename,
             flags=os.O_RDWR | os.O_CREAT,
@@ -300,12 +267,7 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
             )
 
     def _ensure_update(self, update_number, update_commands: List[str]):
-        """
-        Run the update with the given number if it hasn't been done yet.
 
-        Does the update and stores the number as a single transaction,
-        so they will always be in sync.
-        """
         with self._get_connection() as conn:
             conn.execute('BEGIN')
             cursor = conn.execute(
@@ -321,9 +283,7 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
                 )
 
     def clear(self):
-        """
-        Remove all info about accounts and buckets.
-        """
+
         with self._get_connection() as conn:
             conn.execute('DELETE FROM account;')
             conn.execute('DELETE FROM bucket;')
@@ -381,17 +341,7 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
         application_key,
         realm,
     ):
-        """
-        Set authentication data for tests.
 
-        :param str account_id: an account ID
-        :param str auth_token: an authentication token
-        :param str api_url: an API URL
-        :param str download_url: a download URL
-        :param int minimum_part_size: a minimum part size
-        :param str application_key: an application key
-        :param str realm: a realm to authorize account in
-        """
         with self._get_connection() as conn:
             conn.execute('DELETE FROM account;')
             conn.execute('DELETE FROM bucket;')
@@ -421,17 +371,7 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
         return self._get_account_info_or_raise('account_id')
 
     def get_application_key_id(self):
-        """
-        Return an application key ID.
-        The 'account_id_or_app_key_id' column was not in the original schema, so it may be NULL.
 
-        Nota bene - this is the only place where we are not renaming account_id_or_app_key_id to application_key_id
-        because it requires a column change.
-
-        application_key_id == account_id_or_app_key_id
-
-        :rtype: str
-        """
         result = self._get_account_info_or_raise('account_id_or_app_key_id')
         if result is None:
             return self.get_account_id()
@@ -457,26 +397,7 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
         return self._get_account_info_or_raise('absolute_minimum_part_size')
 
     def get_allowed(self):
-        """
-        Return 'allowed' dictionary info.
-        Example:
 
-        .. code-block:: python
-
-            {
-                "bucketId": null,
-                "bucketName": null,
-                "capabilities": [
-                    "listKeys",
-                    "writeKeys"
-                ],
-                "namePrefix": null
-            }
-
-        The 'allowed' column was not in the original schema, so it may be NULL.
-
-        :rtype: dict
-        """
         allowed_json = self._get_account_info_or_raise('allowed')
         if allowed_json is None:
             return self.DEFAULT_ALLOWED

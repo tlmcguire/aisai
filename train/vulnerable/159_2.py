@@ -5,7 +5,6 @@ import re
 import io
 from PIL import Image, ImageFile, _binary
 
-
 i32 = _binary.i32le
 o32 = _binary.o32le
 
@@ -29,7 +28,7 @@ if sys.platform.startswith('win'):
         gs_windows_binary = False
 
 def Ghostscript(tile, size, fp, scale=1):
-    """Render an image using Ghostscript"""
+
 
     decoder, tile, offset, data = tile[0]
     length, bbox = data
@@ -80,9 +79,8 @@ def Ghostscript(tile, size, fp, scale=1):
 
     return im
 
-
 class PSFile:
-    """Wrapper that treats either CR or LF as end of line."""
+
     def __init__(self, fp):
         self.fp = fp
         self.char = None
@@ -116,19 +114,16 @@ class PSFile:
                 self.char = None
         return s.decode('latin-1') + "\n"
 
-
 def _accept(prefix):
     return prefix[:4] == b"%!PS" or i32(prefix) == 0xC6D3D0C5
 
-
 class EpsImageFile(ImageFile.ImageFile):
-    """EPS File Parser for the Python Imaging Library"""
+
 
     format = "EPS"
     format_description = "Encapsulated Postscript"
 
     def _open(self):
-
 
         fp = PSFile(self.fp)
 
@@ -150,7 +145,6 @@ class EpsImageFile(ImageFile.ImageFile):
 
         self.mode = "RGB"
         self.size = 1, 1
-
 
         s = fp.readline()
 
@@ -203,8 +197,6 @@ class EpsImageFile(ImageFile.ImageFile):
 
             if s[:1] != "%":
                 break
-
-
 
         while s[0] == "%":
 
@@ -275,9 +267,8 @@ class EpsImageFile(ImageFile.ImageFile):
         self.size = self.im.size
         self.tile = []
 
-
 def _save(im, fp, filename, eps=1):
-    """EPS Writer for the Python Imaging Library."""
+
 
     im.load()
 
@@ -326,7 +317,6 @@ def _save(im, fp, filename, eps=1):
     fp.write("\n%%%%EndBinary\n")
     fp.write("grestore end\n")
     fp.flush()
-
 
 Image.register_open(EpsImageFile.format, EpsImageFile, _accept)
 

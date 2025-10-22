@@ -2,11 +2,7 @@ import os
 import stat
 
 def secure_cache_file(file_path):
-    """
-    Ensures the cache file has restricted permissions on Linux systems.
-    This function aims to mimic the fix for CVE-2025-24795, although it's not
-    the exact implementation from Snowflake.
-    """
+
     if os.name == 'posix':
         try:
             os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
@@ -15,18 +11,13 @@ def secure_cache_file(file_path):
     else:
       print(f"Not on a posix based system. Permission checks can be skipped")
 
-
 def write_cache_file(cache_file_path, data):
-    """
-    Mimics the action that would cause a vulnerability.
-    """
+
     with open(cache_file_path, "w") as f:
         f.write(data)
 
 def create_and_secure_cache(cache_file_path, credential_data):
-  """
-  Mimics the fix of the vulnerability, by creating and securing a cache.
-  """
+
   write_cache_file(cache_file_path, credential_data)
   secure_cache_file(cache_file_path)
 

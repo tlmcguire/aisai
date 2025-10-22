@@ -45,8 +45,6 @@ class Form:
         self.form = form
         self._submit_chosen = False
 
-        # Aliases for backwards compatibility
-        # (Included specifically in __init__ to suppress them in Sphinx docs)
         self.attach = self.set_input
         self.input = self.set_input
         self.textarea = self.set_textarea
@@ -114,28 +112,23 @@ class Form:
             the HTML is served.
         """
         for (name, value) in data.items():
-            # Case-insensitive search for type=checkbox
             selector = 'input[type="checkbox" i][name="{}"]'.format(name)
             checkboxes = self.form.select(selector)
             if not checkboxes:
                 raise InvalidFormMethod("No input checkbox named " + name)
 
-            # uncheck if requested
             if uncheck_other_boxes:
                 self.uncheck_all(name)
 
-            # Wrap individual values (e.g. int, str) in a 1-element tuple.
             if not isinstance(value, list) and not isinstance(value, tuple):
                 value = (value,)
 
-            # Check or uncheck one or more boxes
             for choice in value:
-                choice_str = str(choice)  # Allow for example literal numbers
+                choice_str = str(choice)
                 for checkbox in checkboxes:
                     if checkbox.attrs.get("value", "on") == choice_str:
                         checkbox["checked"] = ""
                         break
-                    # Allow specifying True or False to check/uncheck
                     elif choice is True:
                         checkbox["checked"] = ""
                         break
@@ -159,16 +152,13 @@ class Form:
             Only one radio button in the family can be checked.
         """
         for (name, value) in data.items():
-            # Case-insensitive search for type=radio
             selector = 'input[type="radio" i][name="{}"]'.format(name)
             radios = self.form.select(selector)
             if not radios:
                 raise InvalidFormMethod("No input radio named " + name)
 
-            # only one radio button can be checked
             self.uncheck_all(name)
 
-            # Check the appropriate radio button (value cannot be a list/tuple)
             for radio in radios:
                 if radio.attrs.get("value", "on") == str(value):
                     radio["checked"] = ""
@@ -209,13 +199,10 @@ class Form:
             if not select:
                 raise InvalidFormMethod("No select named " + name)
 
-            # Deselect all options first
             for option in select.find_all("option"):
                 if "selected" in option.attrs:
                     del option.attrs["selected"]
 
-            # Wrap individual values in a 1-element tuple.
-            # If value is a list/tuple, select must be a <select multiple>.
             if not isinstance(value, list) and not isinstance(value, tuple):
                 value = (value,)
             elif "multiple" not in select.attrs:
@@ -224,7 +211,6 @@ class Form:
             for choice in value:
                 option = select.find("option", {"value": choice})
 
-                # try to find with text instead of value
                 if not option:
                     option = select.find("option", string=choice)
 
@@ -287,15 +273,9 @@ class Form:
 
         The arguments set the attributes of the new element.
         """
-        # Remove existing input-like elements with the same name
         for tag in ('input', 'textarea', 'select'):
             for old in self.form.find_all(tag, {'name': name}):
                 old.decompose()
-        # We don't have access to the original soup object (just the
-        # Tag), so we instantiate a new BeautifulSoup() to call
-        # new_tag(). We're only building the soup object, not parsing
-        # anything, so the parser doesn't matter. Specify the one
-        # included in Python to avoid having dependency issue.
         control = BeautifulSoup("", "html.parser").new_tag('input')
         control['type'] = type
         control['name'] = name
@@ -330,20 +310,15 @@ class Form:
             form.choose_submit('form_name_attr')
             browser.submit_selected()
         """
-        # Since choose_submit is destructive, it doesn't make sense to call
-        # this method twice unless no submit is specified.
         if self._submit_chosen:
             if submit is None:
                 return
             else:
                 raise Exception('Submit already chosen. Cannot change submit!')
 
-        # All buttons NOT of type (button,reset) are valid submits
-        # Case-insensitive search for type=submit
         inps = [i for i in self.form.select('input[type="submit" i], button')
                 if i.get("type", "").lower() not in ('button', 'reset')]
 
-        # If no submit specified, choose the first one
         if submit is None and inps:
             submit = inps[0]
 
@@ -357,13 +332,9 @@ class Form:
                 found = True
             elif inp == submit:
                 if found:
-                    # Ignore submit element since it is an exact
-                    # duplicate of the one we're looking at.
                     del inp['name']
                 found = True
             else:
-                # Delete any non-matching element's name so that it will be
-                # omitted from the submitted form data.
                 del inp['name']
 
         if not found and submit is not None and submit is not False:
@@ -380,8 +351,6 @@ class Form:
         for input in self.form.find_all(
                 ("input", "textarea", "select", "button")):
             input_copy = copy.copy(input)
-            # Text between the opening tag and the closing tag often
-            # contains a lot of spaces that we don't want here.
             for subtag in input_copy.find_all() + [input_copy]:
                 if subtag.string:
                     subtag.string = subtag.string.strip()

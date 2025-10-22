@@ -15,16 +15,14 @@ from utils import (mock_get, open_legacy_httpbin, prepare_mock_browser,
 import mechanicalsoup
 import requests
 
-
 def test_request_forward():
     data = [('var1', 'val1'), ('var2', 'val2')]
     browser, url = setup_mock_browser(expected_post=data)
     r = browser.request('POST', url + '/post', data=data)
     assert r.text == 'Success!'
 
-
 def test_properties():
-    """Check that properties return the same value as the getter."""
+
     browser = mechanicalsoup.StatefulBrowser()
     browser.open_fake_page('<form></form>', url="http://example.com")
     assert browser.page == browser.get_current_page()
@@ -35,7 +33,6 @@ def test_properties():
     assert browser.form == browser.get_current_form()
     assert browser.form is not None
 
-
 def test_get_selected_form_unselected():
     browser = mechanicalsoup.StatefulBrowser()
     browser.open_fake_page('<form></form>')
@@ -43,9 +40,8 @@ def test_get_selected_form_unselected():
         browser.form
     assert browser.get_current_form() is None
 
-
 def test_submit_online(httpbin):
-    """Complete and submit the pizza form at http://httpbin.org/forms/post """
+
     browser = mechanicalsoup.StatefulBrowser()
     browser.set_user_agent('testing MechanicalSoup')
     browser.open(httpbin.url)
@@ -77,12 +73,10 @@ def test_submit_online(httpbin):
                         'Accept', 'User-Agent', 'Accept-Encoding')
     assert set(expected_headers).issubset(json["headers"].keys())
 
-
 def test_no_404(httpbin):
     browser = mechanicalsoup.StatefulBrowser()
     resp = browser.open(httpbin + "/nosuchpage")
     assert resp.status_code == 404
-
 
 def test_404(httpbin):
     browser = mechanicalsoup.StatefulBrowser(raise_on_404=True)
@@ -91,12 +85,10 @@ def test_404(httpbin):
     resp = browser.open(httpbin.url)
     assert resp.status_code == 200
 
-
 def test_user_agent(httpbin):
     browser = mechanicalsoup.StatefulBrowser(user_agent='007')
     resp = browser.open(httpbin + "/user-agent")
     assert resp.json() == {'user-agent': '007'}
-
 
 def test_open_relative(httpbin):
     browser = mechanicalsoup.StatefulBrowser()
@@ -109,7 +101,6 @@ def test_open_relative(httpbin):
     resp = browser.open_relative("/basic-auth/me/123", auth=('me', '123'))
     assert browser.url == httpbin + "/basic-auth/me/123"
     assert resp.json() == {"authenticated": True, "user": "me"}
-
 
 def test_links():
     browser = mechanicalsoup.StatefulBrowser()
@@ -133,7 +124,6 @@ def test_links():
     assert len(two_links) == 2
     assert two_links == BeautifulSoup(html, "lxml").find_all('a')
 
-
 @pytest.mark.parametrize("expected_post", [
     pytest.param(
         [
@@ -149,7 +139,7 @@ def test_links():
         ], id='button'),
 ])
 def test_submit_btnName(expected_post):
-    '''Tests that the btnName argument chooses the submit button.'''
+
     browser, url = setup_mock_browser(expected_post=expected_post)
     browser.open(url)
     browser.select_form('#choose-submit-form')
@@ -159,7 +149,6 @@ def test_submit_btnName(expected_post):
     res = browser.submit_selected(btnName=expected_post[2][0])
     assert res.status_code == 200 and res.text == 'Success!'
     assert initial_state != browser._StatefulBrowser__state
-
 
 @pytest.mark.parametrize("expected_post", [
     pytest.param(
@@ -174,7 +163,7 @@ def test_submit_btnName(expected_post):
         ], id='button'),
 ])
 def test_submit_no_btn(expected_post):
-    '''Tests that no submit inputs are posted when btnName=False.'''
+
     browser, url = setup_mock_browser(expected_post=expected_post)
     browser.open(url)
     browser.select_form('#choose-submit-form')
@@ -185,11 +174,8 @@ def test_submit_no_btn(expected_post):
     assert res.status_code == 200 and res.text == 'Success!'
     assert initial_state != browser._StatefulBrowser__state
 
-
 def test_submit_dont_modify_kwargs():
-    """Test that submit_selected() doesn't modify the caller's passed-in
-    kwargs, for example when adding a Referer header.
-    """
+
     kwargs = {'headers': {'Content-Type': 'text/html'}}
     saved_kwargs = copy.deepcopy(kwargs)
 
@@ -199,7 +185,6 @@ def test_submit_dont_modify_kwargs():
     browser.submit_selected(**kwargs)
 
     assert kwargs == saved_kwargs
-
 
 def test_submit_dont_update_state():
     expected_post = [
@@ -214,13 +199,11 @@ def test_submit_dont_update_state():
     assert res.status_code == 200 and res.text == 'Success!'
     assert initial_state == browser._StatefulBrowser__state
 
-
 def test_get_set_debug():
     browser = mechanicalsoup.StatefulBrowser()
     assert not browser.get_debug()
     browser.set_debug(True)
     assert browser.get_debug()
-
 
 def test_list_links(capsys):
     browser = mechanicalsoup.StatefulBrowser()
@@ -233,7 +216,6 @@ def test_list_links(capsys):
     out, err = capsys.readouterr()
     expected = f'Links in the current page:{links}'
     assert out == expected
-
 
 def test_launch_browser(mocker):
     browser = mechanicalsoup.StatefulBrowser()
@@ -248,16 +230,14 @@ def test_launch_browser(mocker):
         browser.select_form('nosuchlink')
     assert webbrowser.open.call_count == 1
 
-
 def test_find_link():
     browser = mechanicalsoup.StatefulBrowser()
     browser.open_fake_page('<html></html>')
     with pytest.raises(mechanicalsoup.LinkNotFoundError):
         browser.find_link('nosuchlink')
 
-
 def test_verbose(capsys):
-    '''Tests that the btnName argument chooses the submit button.'''
+
     browser, url = setup_mock_browser()
     browser.open(url)
     out, err = capsys.readouterr()
@@ -276,7 +256,6 @@ def test_verbose(capsys):
     assert out == "mock://form.com\n"
     assert err == ""
     assert browser.get_verbose() == 2
-
 
 def test_new_control(httpbin):
     browser = mechanicalsoup.StatefulBrowser()
@@ -305,7 +284,6 @@ def test_new_control(httpbin):
     assert data["comments"] == "This is an override comment"
     assert data["foo"] == "valval"
 
-
 submit_form_noaction = '''
 <html>
   <body>
@@ -318,14 +296,12 @@ submit_form_noaction = '''
 </html>
 '''
 
-
 def test_form_noaction():
     browser, url = setup_mock_browser()
     browser.open_fake_page(submit_form_noaction)
     browser.select_form('#choose-submit-form')
     with pytest.raises(ValueError, match="no URL to submit to"):
         browser.submit_selected()
-
 
 submit_form_noname = '''
 <html>
@@ -342,14 +318,12 @@ submit_form_noname = '''
 </html>
 '''
 
-
 def test_form_noname():
     browser, url = setup_mock_browser(expected_post=[])
     browser.open_fake_page(submit_form_noname, url=url)
     browser.select_form('#choose-submit-form')
     response = browser.submit_selected()
     assert response.status_code == 200 and response.text == 'Success!'
-
 
 submit_form_multiple = '''
 <html>
@@ -365,7 +339,6 @@ submit_form_multiple = '''
 </html>
 '''
 
-
 def test_form_multiple():
     browser, url = setup_mock_browser(expected_post=[('foo', 'tofu'),
                                                      ('foo', 'tempeh')])
@@ -373,7 +346,6 @@ def test_form_multiple():
     browser.select_form('#choose-submit-form')
     response = browser.submit_selected()
     assert response.status_code == 200 and response.text == 'Success!'
-
 
 def test_upload_file(httpbin):
     browser = mechanicalsoup.StatefulBrowser()
@@ -405,12 +377,8 @@ def test_upload_file(httpbin):
     assert files["first"] == "first file content"
     assert files["second"] == "second file content"
 
-
 def test_upload_file_with_malicious_default(httpbin):
-    """Check for CVE-2023-34457 by setting the form input value directly to a
-    file that the user does not explicitly consent to upload, as a malicious
-    server might do.
-    """
+
     browser = mechanicalsoup.StatefulBrowser()
     sensitive_path = tempfile.mkstemp()[1]
     with open(sensitive_path, "w", encoding="utf-8") as fd:
@@ -428,9 +396,7 @@ def test_upload_file_with_malicious_default(httpbin):
     os.remove(sensitive_path)
 
 def test_upload_file_raise_on_string_input():
-    """Check for use of the file upload API that was modified to remediate
-    CVE-2023-34457. Users must now open files manually to upload them.
-    """
+
     browser = mechanicalsoup.StatefulBrowser()
     file_input_form = """
     <form enctype="multipart/form-data">
@@ -444,16 +410,14 @@ def test_upload_file_raise_on_string_input():
     with pytest.raises(ValueError, match="CVE-2023-34457"):
         browser.new_control("file", "upload2", "/path/to/file")
 
-
 def test_with():
-    """Test that __enter__/__exit__ properly create/close the browser."""
+
     with mechanicalsoup.StatefulBrowser() as browser:
         assert browser.session is not None
     assert browser.session is None
 
-
 def test_select_form_nr():
-    """Test the nr option of select_form."""
+
     forms = """<form id="a"></form><form id="b"></form><form id="c"></form>"""
     with mechanicalsoup.StatefulBrowser() as browser:
         browser.open_fake_page(forms)
@@ -466,9 +430,8 @@ def test_select_form_nr():
         with pytest.raises(mechanicalsoup.LinkNotFoundError):
             browser.select_form(nr=3)
 
-
 def test_select_form_tag_object():
-    """Test tag object as selector parameter type"""
+
     forms = """<form id="a"></form><form id="b"></form><p></p>"""
     soup = BeautifulSoup(forms, "lxml")
     with mechanicalsoup.StatefulBrowser() as browser:
@@ -478,9 +441,8 @@ def test_select_form_tag_object():
         with pytest.raises(mechanicalsoup.LinkNotFoundError):
             browser.select_form(soup.find("p"))
 
-
 def test_select_form_associated_elements():
-    """Test associated elements outside the form tag"""
+
     forms = """<form id="a"><input><textarea></form><input form="a">
                <textarea form="a"/><input form="b">
                <form id="ab" action="/test.php"><input></form>
@@ -502,7 +464,6 @@ def test_select_form_associated_elements():
         assert set([str(element) for element in form_by_css.form.find_all((
             "input", "textarea"))]) == elements_form_ab
 
-
 def test_referer_follow_link(httpbin):
     browser = mechanicalsoup.StatefulBrowser()
     open_legacy_httpbin(browser, httpbin)
@@ -512,7 +473,6 @@ def test_referer_follow_link(httpbin):
     actual_ref = re.sub('/*$', '', referer)
     expected_ref = re.sub('/*$', '', start_url)
     assert actual_ref == expected_ref
-
 
 submit_form_headers = '''
 <html>
@@ -526,7 +486,6 @@ submit_form_headers = '''
 </html>
 '''
 
-
 def test_referer_submit(httpbin):
     browser = mechanicalsoup.StatefulBrowser()
     ref = "https://example.com/my-referer"
@@ -539,13 +498,9 @@ def test_referer_submit(httpbin):
     actual_ref = re.sub('/*$', '', referer)
     assert actual_ref == ref
 
-
 @pytest.mark.parametrize("referer_header", ["Referer", "referer"])
 def test_referer_submit_override(httpbin, referer_header):
-    """Ensure the caller can override the Referer header that
-    mechanicalsoup would normally add. Because headers are case insensitive,
-    test with both 'Referer' and 'referer'.
-    """
+
 
     browser = mechanicalsoup.StatefulBrowser()
     ref = "https://example.com/my-referer"
@@ -558,7 +513,6 @@ def test_referer_submit_override(httpbin, referer_header):
     referer = headers["Referer"]
     actual_ref = re.sub('/*$', '', referer)
     assert actual_ref == ref_override
-
 
 def test_referer_submit_headers(httpbin):
     browser = mechanicalsoup.StatefulBrowser()
@@ -574,7 +528,6 @@ def test_referer_submit_headers(httpbin):
     assert actual_ref == ref
     assert headers['X-Test-Header'] == 'x-test-value'
 
-
 @pytest.mark.parametrize('expected, kwargs', [
     pytest.param('/foo', {}, id='none'),
     pytest.param('/get', {'string': 'Link'}, id='string'),
@@ -587,9 +540,8 @@ def test_follow_link_arg(httpbin, expected, kwargs):
     browser.follow_link(bs4_kwargs=kwargs)
     assert browser.url == httpbin + expected
 
-
 def test_follow_link_excess(httpbin):
-    """Ensure that excess args are passed to BeautifulSoup"""
+
     browser = mechanicalsoup.StatefulBrowser()
     html = '<a href="/foo">Bar</a><a href="/get">Link</a>'
     browser.open_fake_page(html, httpbin.url)
@@ -601,10 +553,8 @@ def test_follow_link_excess(httpbin):
     with pytest.raises(ValueError, match="link parameter cannot be .*"):
         browser.follow_link('foo', url_regex='bar')
 
-
 def test_follow_link_ua(httpbin):
-    """Tests passing requests parameters to follow_link() by
-    setting the User-Agent field."""
+
     browser = mechanicalsoup.StatefulBrowser()
     open_legacy_httpbin(browser, httpbin)
     bs4_kwargs = {'url_regex': 'user-agent'}
@@ -615,21 +565,18 @@ def test_follow_link_ua(httpbin):
     assert resp.json() == {'user-agent': '007'}
     assert resp.request.headers['user-agent'] == '007'
 
-
 def test_link_arg_multiregex(httpbin):
     browser = mechanicalsoup.StatefulBrowser()
     browser.open_fake_page('<a href="/get">Link</a>', httpbin.url)
     with pytest.raises(ValueError, match="link parameter cannot be .*"):
         browser.follow_link('foo', bs4_kwargs={'url_regex': 'bar'})
 
-
 def file_get_contents(filename):
     with open(filename, "rb") as fd:
         return fd.read()
 
-
 def test_download_link(httpbin):
-    """Test downloading the contents of a link to file."""
+
     browser = mechanicalsoup.StatefulBrowser()
     open_legacy_httpbin(browser, httpbin)
     tmpdir = tempfile.mkdtemp()
@@ -645,9 +592,8 @@ def test_download_link(httpbin):
     assert file_get_contents(tmpfile) == response.content
     assert response.content[:4] == b'\x89PNG'
 
-
 def test_download_link_nofile(httpbin):
-    """Test downloading the contents of a link without saving it."""
+
     browser = mechanicalsoup.StatefulBrowser()
     open_legacy_httpbin(browser, httpbin)
     current_url = browser.url
@@ -659,9 +605,8 @@ def test_download_link_nofile(httpbin):
 
     assert response.content[:4] == b'\x89PNG'
 
-
 def test_download_link_nofile_bs4(httpbin):
-    """Test downloading the contents of a link without saving it."""
+
     browser = mechanicalsoup.StatefulBrowser()
     open_legacy_httpbin(browser, httpbin)
     current_url = browser.url
@@ -673,9 +618,8 @@ def test_download_link_nofile_bs4(httpbin):
 
     assert response.content[:4] == b'\x89PNG'
 
-
 def test_download_link_nofile_excess(httpbin):
-    """Test downloading the contents of a link without saving it."""
+
     browser = mechanicalsoup.StatefulBrowser()
     open_legacy_httpbin(browser, httpbin)
     current_url = browser.url
@@ -687,9 +631,8 @@ def test_download_link_nofile_excess(httpbin):
 
     assert response.content[:4] == b'\x89PNG'
 
-
 def test_download_link_nofile_ua(httpbin):
-    """Test downloading the contents of a link without saving it."""
+
     browser = mechanicalsoup.StatefulBrowser()
     open_legacy_httpbin(browser, httpbin)
     current_url = browser.url
@@ -704,9 +647,8 @@ def test_download_link_nofile_ua(httpbin):
 
     assert response.request.headers['user-agent'] == '007'
 
-
 def test_download_link_to_existing_file(httpbin):
-    """Test downloading the contents of a link to an existing file."""
+
     browser = mechanicalsoup.StatefulBrowser()
     open_legacy_httpbin(browser, httpbin)
     tmpdir = tempfile.mkdtemp()
@@ -724,9 +666,8 @@ def test_download_link_to_existing_file(httpbin):
     assert file_get_contents(tmpfile) == response.content
     assert response.content[:4] == b'\x89PNG'
 
-
 def test_download_link_404(httpbin):
-    """Test downloading the contents of a broken link."""
+
     browser = mechanicalsoup.StatefulBrowser(raise_on_404=True)
     browser.open_fake_page('<a href="/no-such-page-404">Link</a>',
                            url=httpbin.url)

@@ -77,7 +77,6 @@ R = TypeVar("R")
 
 DIFF_TIME = re.compile(r"\t[\d\-:+\. ]+")
 
-
 @contextmanager
 def cache_dir(exists: bool = True) -> Iterator[Path]:
     with TemporaryDirectory() as workspace:
@@ -86,7 +85,6 @@ def cache_dir(exists: bool = True) -> Iterator[Path]:
             cache_dir = cache_dir / "new"
         with patch("black.cache.CACHE_DIR", cache_dir):
             yield cache_dir
-
 
 @contextmanager
 def event_loop() -> Iterator[None]:
@@ -99,9 +97,8 @@ def event_loop() -> Iterator[None]:
     finally:
         loop.close()
 
-
 class FakeContext(click.Context):
-    """A fake click Context for when calling functions that need it."""
+
 
     def __init__(self) -> None:
         self.default_map: Dict[str, Any] = {}
@@ -109,20 +106,17 @@ class FakeContext(click.Context):
         self.command: click.Command = black.main
         self.obj: Dict[str, Any] = {"root": PROJECT_ROOT}
 
-
 class FakeParameter(click.Parameter):
-    """A fake click Parameter for when calling functions that need it."""
+
 
     def __init__(self) -> None:
         pass
 
-
 class BlackRunner(CliRunner):
-    """Make sure STDOUT and STDERR are kept separate when testing Black via its CLI."""
+
 
     def __init__(self) -> None:
         super().__init__(mix_stderr=False)
-
 
 def invokeBlack(
     args: List[str], exit_code: int = 0, ignore_config: bool = True
@@ -140,7 +134,6 @@ def invokeBlack(
         f"exception: {result.exception}"
     )
     assert result.exit_code == exit_code, msg
-
 
 class BlackTestCase(BlackBaseTestCase):
     invokeBlack = staticmethod(invokeBlack)

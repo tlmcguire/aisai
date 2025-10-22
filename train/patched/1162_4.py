@@ -23,9 +23,8 @@ from nautobot.extras.models.customfields import CustomField, CustomFieldChoice
 from nautobot.extras.registry import registry
 from nautobot.users.models import ObjectPermission
 
-
 class GetReturnURLMixinTestCase(TestCase):
-    """Tests for the API of GetReturnURLMixin."""
+
 
     @classmethod
     def setUpTestData(cls):
@@ -45,9 +44,6 @@ class GetReturnURLMixinTestCase(TestCase):
         self.assertEqual(self.mixin.get_return_url(request=request, obj=None), reverse("home"))
 
     def test_get_return_url_explicit_punycode(self):
-        """
-        Replace the 'i' in '/dcim/' with a unicode dotless 'ı' and make sure we're not fooled by it.
-        """  # noqa: RUF002  # ambiguous-unicode-character-docstring -- fully intentional here!
         request = self.factory.get("/", {"return_url": "/dcım/devices/"})
         self.assertEqual(self.mixin.get_return_url(request=request, obj=None), "/dc%C4%B1m/devices/")
 
@@ -55,7 +51,6 @@ class GetReturnURLMixinTestCase(TestCase):
         request = self.factory.get("/")
         location = Location.objects.first()
         self.assertEqual(self.mixin.get_return_url(request=request, obj=location), location.get_absolute_url())
-
 
 class HomeViewTestCase(TestCase):
     def test_home(self):
@@ -141,7 +136,6 @@ class HomeViewTestCase(TestCase):
         response_content = response.content.decode(response.charset).replace("\n", "")
         self.assertNotRegex(response_content, footer_hostname_version_pattern)
 
-
 @override_settings(BRANDING_TITLE="Nautobot")
 class SearchFieldsTestCase(TestCase):
     def test_search_bar_redirect_to_login(self):
@@ -168,7 +162,6 @@ class SearchFieldsTestCase(TestCase):
             '<input type="text" name="q" class="form-control" placeholder="Search Nautobot">',
             response.content.decode(response.charset),
         )
-
 
 class FilterFormsTestCase(TestCase):
     def test_support_for_both_default_and_dynamic_filter_form_in_ui(self):
@@ -202,7 +195,7 @@ class FilterFormsTestCase(TestCase):
         )
 
     def test_filtering_on_custom_select_filter_field(self):
-        """Assert CustomField select and multiple select fields can be filtered using multiple entries"""
+
         self.add_permissions("dcim.view_location")
 
         multi_select_cf = CustomField.objects.create(
@@ -234,7 +227,7 @@ class FilterFormsTestCase(TestCase):
         self.assertInHTML(locations[1].name, response_content)
 
     def test_filtering_crafted_query_params(self):
-        """Test for reflected-XSS vulnerability GHSA-jxgr-gcj5-cqqg."""
+
         self.add_permissions("dcim.view_location")
         query_param = "?location_type=1 onmouseover=alert('hi') foo=bar"
         url = reverse("dcim:location_list") + query_param
@@ -251,9 +244,8 @@ class FilterFormsTestCase(TestCase):
             response_content,
         )
 
-
 class ForceScriptNameTestcase(TestCase):
-    """Basic test to assert that `settings.FORCE_SCRIPT_NAME` works as intended."""
+
 
     @override_settings(
         FORCE_SCRIPT_NAME="/nautobot/",
@@ -268,7 +260,6 @@ class ForceScriptNameTestcase(TestCase):
             url = reverse(route)
             self.assertTrue(url.startswith(prefix))
 
-
 class NavAppsUITestCase(TestCase):
     def setUp(self):
         super().setUp()
@@ -281,7 +272,7 @@ class NavAppsUITestCase(TestCase):
         return response.content.decode(response.charset)
 
     def test_installed_apps_visible(self):
-        """The "Installed Apps" menu item should be available to an authenticated user regardless of permissions."""
+
         response_content = self.make_request()
         self.assertInHTML(
             f"""
@@ -292,7 +283,6 @@ class NavAppsUITestCase(TestCase):
             """,
             response_content,
         )
-
 
 class LoginUITestCase(TestCase):
     def setUp(self):
@@ -313,7 +303,7 @@ class LoginUITestCase(TestCase):
         return sso_login_pattern.search(response.content.decode(response.charset))
 
     def test_sso_login_button_not_visible(self):
-        """Test Continue with SSO button not visible if SSO is enabled"""
+
         self.client.logout()
 
         sso_login_search_result = self.make_request()
@@ -331,7 +321,7 @@ class LoginUITestCase(TestCase):
         self.assertIsNotNone(sso_login_search_result)
 
     def test_graphql_redirects_back_to_login_unauthenticated(self):
-        """Assert that graphql redirects to login page if user is unauthenticated."""
+
         self.client.logout()
         headers = {"HTTP_ACCEPT": "text/html"}
         url = reverse("graphql")
@@ -343,7 +333,7 @@ class LoginUITestCase(TestCase):
             self.assertNotIn(footer_text, response_content)
 
     def test_api_docs_403_unauthenticated(self):
-        """Assert that api docs return a 403 Forbidden if user is unauthenticated."""
+
         self.client.logout()
         urls = [
             reverse("api_docs"),
@@ -356,7 +346,6 @@ class LoginUITestCase(TestCase):
             response = self.client.get(url)
             self.assertHttpStatus(response, 403)
 
-
 class MetricsViewTestCase(TestCase):
     def query_and_parse_metrics(self):
         response = self.client.get(reverse("metrics"))
@@ -365,7 +354,7 @@ class MetricsViewTestCase(TestCase):
         return text_string_to_metric_families(page_content)
 
     def test_metrics_extensibility(self):
-        """Assert that the example metric from the Example App shows up _exactly_ when the app is enabled."""
+
         test_metric_name = "nautobot_example_metric_count"
         metrics_with_app = self.query_and_parse_metrics()
         metric_names_with_app = {metric.name for metric in metrics_with_app}
@@ -378,17 +367,16 @@ class MetricsViewTestCase(TestCase):
         metric_names_with_app.remove(test_metric_name)
         self.assertSetEqual(metric_names_with_app, metric_names_without_app)
 
-
 class AuthenticateMetricsTestCase(APITestCase):
     def test_metrics_authentication(self):
-        """Assert that if metrics require authentication, a user not logged in gets a 403."""
+
         self.client.logout()
         headers = {}
         response = self.client.get(reverse("metrics"), **headers)
         self.assertHttpStatus(response, 403, msg="/metrics should return a 403 HTTP status code.")
 
     def test_metrics(self):
-        """Assert that if metrics don't require authentication, a user not logged in gets a 200."""
+
         self.factory = RequestFactory()
         self.client.logout()
 
@@ -396,13 +384,12 @@ class AuthenticateMetricsTestCase(APITestCase):
         response = NautobotMetricsView.as_view()(request)
         self.assertHttpStatus(response, 200, msg="/metrics should return a 200 HTTP status code.")
 
-
 class ErrorPagesTestCase(TestCase):
-    """Tests for 4xx and 5xx error page rendering."""
+
 
     @override_settings(DEBUG=False)
     def test_404_default_support_message(self):
-        """Nautobot's custom 404 page should be used and should include a default support message."""
+
         with self.assertTemplateUsed("404.html"):
             response = self.client.get("/foo/bar")
         self.assertContains(response, "Network to Code", status_code=404)
@@ -416,7 +403,7 @@ class ErrorPagesTestCase(TestCase):
 
     @override_settings(DEBUG=False, SUPPORT_MESSAGE="Hello world!")
     def test_404_custom_support_message(self):
-        """Nautobot's custom 404 page should be used and should include a custom support message if defined."""
+
         with self.assertTemplateUsed("404.html"):
             response = self.client.get("/foo/bar")
         self.assertNotContains(response, "Network to Code", status_code=404)
@@ -426,7 +413,7 @@ class ErrorPagesTestCase(TestCase):
     @override_settings(DEBUG=False)
     @mock.patch("nautobot.core.views.HomeView.get", side_effect=Exception)
     def test_500_default_support_message(self, mock_get):
-        """Nautobot's custom 500 page should be used and should include a default support message."""
+
         url = reverse("home")
         with self.assertTemplateUsed("500.html"):
             self.client.raise_request_exception = False
@@ -443,7 +430,7 @@ class ErrorPagesTestCase(TestCase):
     @override_settings(DEBUG=False, SUPPORT_MESSAGE="Hello world!")
     @mock.patch("nautobot.core.views.HomeView.get", side_effect=Exception)
     def test_500_custom_support_message(self, mock_get):
-        """Nautobot's custom 500 page should be used and should include a custom support message if defined."""
+
         url = reverse("home")
         with self.assertTemplateUsed("500.html"):
             self.client.raise_request_exception = False
@@ -452,9 +439,8 @@ class ErrorPagesTestCase(TestCase):
         response_content = response.content.decode(response.charset)
         self.assertInHTML("Hello world!", response_content)
 
-
 class DBFileStorageViewTestCase(TestCase):
-    """Test authentication/permission enforcement for django_db_file_storage views."""
+
 
     def setUp(self):
         super().setUp()
@@ -493,9 +479,8 @@ class DBFileStorageViewTestCase(TestCase):
         response = self.client.get(url)
         self.assertHttpStatus(response, 404)
 
-
 class SilkUIAccessTestCase(TestCase):
-    """Test access control related to the django-silk UI"""
+
 
     def test_access_for_non_superuser(self):
         self.user.is_superuser = False

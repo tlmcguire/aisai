@@ -1,25 +1,14 @@
 import hashlib
 
 def fixed_hash(input_str):
-    """
-    A more secure hashing function to mitigate hash collision vulnerabilities.
-    Uses SHA-256 for stronger collision resistance and includes a salt.
-    """
+
     salt = "your_secret_salt"
     combined_str = salt + str(input_str)
     hashed_str = hashlib.sha256(combined_str.encode('utf-8')).hexdigest()
     return hashed_str
 
-
 def prefix_caching(prompt, cache):
-    """
-    Demonstrates prefix caching with a fix for potential hash collisions.
 
-    Args:
-        prompt: The input prompt string.
-        cache: A dictionary representing the cache.  Keys are hash values,
-               values are the cached results.
-    """
     hash_value = fixed_hash(prompt)
 
     if hash_value in cache:
@@ -30,7 +19,6 @@ def prefix_caching(prompt, cache):
         result = f"Result for: {prompt}"
         cache[hash_value] = result
         return result
-
 
 if __name__ == '__main__':
     cache = {}

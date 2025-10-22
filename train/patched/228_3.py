@@ -20,9 +20,7 @@ from requests.packages.urllib3.util.retry import Retry
 logger = logging.getLogger(__name__)
 
 class SnowflakeHTTPAdapter(HTTPAdapter):
-    """
-    Transport Adapter that retries on specific HTTP status codes.
-    """
+
 
     def __init__(self, max_retries=3, *args, **kwargs):
         retry = Retry(
@@ -53,9 +51,7 @@ class SnowflakeHTTPAdapter(HTTPAdapter):
              return super(SnowflakeHTTPAdapter, self).send(request, **kwargs)
 
 def _get_default_user_agent():
-    """
-    Construct the user agent string to be sent to Snowflake
-    """
+
     try:
         import platform
         import sys
@@ -83,22 +79,7 @@ def _create_http_session(
     proxy_password: Optional[str] = None,
     use_openssl_only: bool = False,
 ) -> requests.Session:
-    """Creates a HTTP session.
 
-    Args:
-        max_connection_pool (int): Max number of connections in the pool
-        connect_timeout (int): Connection timeout in seconds
-        request_timeout (int): Request timeout in seconds
-        user_agent (str): User agent
-        proxy_host (str): Proxy server host name
-        proxy_port (int): Proxy server port number
-        proxy_user (str): Proxy server user
-        proxy_password (str): Proxy server password
-        use_openssl_only (bool): Use OpenSSL only if set True
-
-    Returns:
-        requests.Session: HTTP session
-    """
     session = requests.Session()
     session.headers.update({"User-Agent": user_agent or _get_default_user_agent()})
     adapter = SnowflakeHTTPAdapter()
@@ -116,7 +97,6 @@ def _create_http_session(
         session.proxies.update({"http": proxy_url, "https": proxy_url})
 
     return session
-
 
 class RetryCounter:
     def __init__(self):
@@ -136,9 +116,7 @@ class RetryCounter:
             self._count = 0
 
 class SnowflakeRestAPI:
-    """
-    Snowflake Rest API
-    """
+
 
     _URL_BASE = "/v1"
     _URL_LOGIN_REQUEST = _URL_BASE + "/login-request"
@@ -214,23 +192,7 @@ class SnowflakeRestAPI:
         _request_id: Optional[str] = None,
 
     ) -> requests.Response:
-        """Sends a request to the server.
 
-        Args:
-            url (str): URL
-            method (str): HTTP method
-            headers (dict): HTTP headers
-            json (dict): JSON data
-            data (str): Raw data
-            params (dict): Query parameters
-            timeout (tuple): Timeout
-            is_raw_text (bool): If the response must be decoded as raw text
-            no_retry (bool): If the request should not be retried
-            _request_id (str): Request ID for logging
-
-        Returns:
-            requests.Response: HTTP response object
-        """
         headers = headers or {}
         if self._application:
             headers["X-Snowflake-Application"] = self._application
@@ -280,21 +242,7 @@ class SnowflakeRestAPI:
         no_retry: bool = False,
         _request_id: Optional[str] = None
     ) -> requests.Response:
-            """Sends a POST request to the server.
 
-            Args:
-                url (str): URL
-                headers (dict): HTTP headers
-                json (dict): JSON data
-                data (str): Raw data
-                params (dict): Query parameters
-                timeout (tuple): Timeout
-                is_raw_text (bool): If the response must be decoded as raw text
-                no_retry (bool): If the request should not be retried
-                _request_id (str): Request ID for logging
-            Returns:
-                requests.Response: HTTP response object
-            """
             return self._request(
                url=url,
                 method="POST",
@@ -318,20 +266,7 @@ class SnowflakeRestAPI:
         no_retry: bool = False,
         _request_id: Optional[str] = None
     ) -> requests.Response:
-        """Sends a GET request to the server.
 
-        Args:
-            url (str): URL
-            headers (dict): HTTP headers
-            params (dict): Query parameters
-            timeout (tuple): Timeout
-            is_raw_text (bool): If the response must be decoded as raw text
-            no_retry (bool): If the request should not be retried
-            _request_id (str): Request ID for logging
-
-        Returns:
-            requests.Response: HTTP response object
-        """
         return self._request(
             url=url,
             method="GET",
@@ -354,21 +289,7 @@ class SnowflakeRestAPI:
         no_retry: bool = False,
         _request_id: Optional[str] = None
     ) -> requests.Response:
-        """Sends a PUT request to the server.
 
-        Args:
-            url (str): URL
-            headers (dict): HTTP headers
-            data (str): Raw data
-            params (dict): Query parameters
-            timeout (tuple): Timeout
-            is_raw_text (bool): If the response must be decoded as raw text
-            no_retry (bool): If the request should not be retried
-            _request_id (str): Request ID for logging
-
-        Returns:
-            requests.Response: HTTP response object
-        """
         return self._request(
             url=url,
             method="PUT",
@@ -391,20 +312,7 @@ class SnowflakeRestAPI:
         no_retry: bool = False,
         _request_id: Optional[str] = None
     ) -> requests.Response:
-        """Sends a DELETE request to the server.
 
-        Args:
-            url (str): URL
-            headers (dict): HTTP headers
-            params (dict): Query parameters
-            timeout (tuple): Timeout
-            is_raw_text (bool): If the response must be decoded as raw text
-            no_retry (bool): If the request should not be retried
-            _request_id (str): Request ID for logging
-
-        Returns:
-            requests.Response: HTTP response object
-        """
         return self._request(
             url=url,
             method="DELETE",
@@ -417,62 +325,26 @@ class SnowflakeRestAPI:
         )
 
     def _build_url(self, url_path: str) -> str:
-        """Builds a URL.
 
-        Args:
-            url_path (str): URL path
-
-        Returns:
-            str: URL
-        """
         return f"{self._base_url}{url_path}"
 
     def login_request(self, json: Dict) -> requests.Response:
-        """Sends a login request.
 
-        Args:
-            json (dict): JSON data
-
-        Returns:
-            requests.Response: HTTP response object
-        """
         url = self._build_url(SnowflakeRestAPI._URL_LOGIN_REQUEST)
         return self.post_request(url, json=json)
 
     def authenticator_request(self, json: Dict) -> requests.Response:
-        """Sends an authenticator request.
 
-        Args:
-            json (dict): JSON data
-
-        Returns:
-            requests.Response: HTTP response object
-        """
         url = self._build_url(SnowflakeRestAPI._URL_AUTHENTICATOR_REQUEST)
         return self.post_request(url, json=json)
 
     def query(self, json: Dict, _request_id: Optional[str] = None) -> requests.Response:
-        """Sends a query request.
 
-        Args:
-            json (dict): JSON data
-            _request_id (str): Request ID for logging
-
-        Returns:
-            requests.Response: HTTP response object
-        """
         url = self._build_url(SnowflakeRestAPI._URL_QUERY)
         return self.post_request(url, json=json, _request_id=_request_id)
 
     def query_cancel(self, json: Dict) -> requests.Response:
-        """Sends a query cancel request.
 
-        Args:
-            json (dict): JSON data
-
-        Returns:
-            requests.Response: HTTP response object
-        """
         url = self._build_url(SnowflakeRestAPI._URL_QUERY_CANCEL)
         return self.post_request(url, json=json)
 
@@ -482,16 +354,7 @@ class SnowflakeRestAPI:
         data: Union[str, bytes],
         params: Dict[str, str],
     ) -> requests.Response:
-        """Sends an upload request.
 
-        Args:
-            headers (dict): HTTP headers
-            data (str): Raw data
-            params (dict): Query parameters
-
-        Returns:
-            requests.Response: HTTP response object
-        """
         url = self._build_url(SnowflakeRestAPI._URL_UPLOAD)
         return self.put_request(url, headers=headers, data=data, params=params)
 
@@ -500,27 +363,12 @@ class SnowflakeRestAPI:
         headers: Dict[str, str],
         params: Dict[str, str],
     ) -> requests.Response:
-        """Sends a download request.
 
-        Args:
-            headers (dict): HTTP headers
-            params (dict): Query parameters
-
-        Returns:
-            requests.Response: HTTP response object
-        """
         url = self._build_url(SnowflakeRestAPI._URL_DOWNLOAD)
         return self.get_request(url, headers=headers, params=params)
 
     def sf_storage(self, json: Dict) -> requests.Response:
-        """Sends a sfstorage request.
 
-        Args:
-            json (dict): JSON data
-
-        Returns:
-            requests.Response: HTTP response object
-        """
         url = self._build_url(SnowflakeRestAPI._URL_SF_STORAGE)
         return self.post_request(url, json=json)
 
@@ -530,16 +378,7 @@ class SnowflakeRestAPI:
         json: Optional[Dict] = None,
         params: Optional[Dict[str, str]] = None,
     ) -> requests.Response:
-        """Sends a session request.
 
-        Args:
-            method (str): HTTP method
-            json (dict): JSON data
-            params (dict): Query parameters
-
-        Returns:
-            requests.Response: HTTP response object
-        """
         url = self._build_url(SnowflakeRestAPI._URL_SESSION)
         if method == "POST":
             return self.post_request(url, json=json, params=params)
@@ -556,19 +395,7 @@ class SnowflakeRestAPI:
         no_retry: bool = False,
         _request_id: Optional[str] = None,
     ) -> requests.Response:
-        """Sends a data request.
 
-        Args:
-            headers (dict): HTTP headers
-            params (dict): Query parameters
-            is_raw_text (bool): If the response must be decoded as raw text
-            no_retry (bool): If the request should not be retried
-            _request_id (str): Request ID for logging
-            
-
-        Returns:
-            requests.Response: HTTP response object
-        """
         url = self._build_url(SnowflakeRestAPI._URL_DATA)
         return self.get_request(
              url=url,
@@ -580,45 +407,20 @@ class SnowflakeRestAPI:
         )
 
     def ocsp_response(self, params: Dict) -> requests.Response:
-        """Sends an OCSP response request.
 
-        Args:
-            params (dict): Query parameters
-
-        Returns:
-            requests.Response: HTTP response object
-        """
         url = self._build_url(SnowflakeRestAPI._URL_OCSP_RESPONSE)
         return self.get_request(url, params=params)
 
     def get_latest_telemetry(self, json: Dict) -> requests.Response:
-        """Sends a get latest telemetry request.
 
-        Args:
-            json (dict): JSON data
-
-        Returns:
-            requests.Response: HTTP response object
-        """
         url = self._build_url(SnowflakeRestAPI._URL_GET_LATEST_TELEMETRY)
         return self.post_request(url, json=json)
 
     def insert_telemetry(self, json: Dict) -> requests.Response:
-        """Sends an insert telemetry request.
 
-        Args:
-            json (dict): JSON data
-
-        Returns:
-            requests.Response: HTTP response object
-        """
         url = self._build_url(SnowflakeRestAPI._URL_INSERT_TELEMETRY)
         return self.post_request(url, json=json)
 
     def set_request_guid(self, request_guid: str) -> None:
-        """Sets request guid.
-        
-        Args:
-            request_guid (str): Request GUID
-        """
+
         self._request_guid = request_guid

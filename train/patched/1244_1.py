@@ -4,10 +4,7 @@ import psycopg2
 from psycopg2 import sql
 
 def get_schemas_fixed(conn: psycopg2.extensions.connection) -> List[str]:
-    """
-    Retrieves a list of schema names from the database.
-    This version uses parameterized queries to prevent SQL injection.
-    """
+
     try:
         with conn.cursor() as cur:
            cur.execute(sql.SQL("SELECT schema_name FROM information_schema.schemata"))
@@ -17,13 +14,8 @@ def get_schemas_fixed(conn: psycopg2.extensions.connection) -> List[str]:
         print(f"Error retrieving schemas: {e}")
         return []
 
-
-
 def get_tables_fixed(conn: psycopg2.extensions.connection, schema_name: str) -> List[str]:
-    """
-    Retrieves a list of table names within a given schema.
-    This version uses parameterized queries to prevent SQL injection.
-    """
+
     try:
         with conn.cursor() as cur:
             cur.execute(
@@ -36,12 +28,8 @@ def get_tables_fixed(conn: psycopg2.extensions.connection, schema_name: str) -> 
         print(f"Error retrieving tables: {e}")
         return []
 
-
 def get_columns_fixed(conn: psycopg2.extensions.connection, schema_name: str, table_name: str) -> List[Dict[str, Any]]:
-    """
-    Retrieves column metadata for a given table within a schema.
-    This version uses parameterized queries to prevent SQL injection.
-    """
+
     try:
         with conn.cursor() as cur:
             cur.execute(
@@ -64,7 +52,6 @@ def get_columns_fixed(conn: psycopg2.extensions.connection, schema_name: str, ta
     except Exception as e:
         print(f"Error retrieving columns: {e}")
         return []
-
 
 if __name__ == '__main__':
     try:

@@ -28,7 +28,6 @@ from gradio.utils import LRUCache, run_coro_in_background, safe_get_lock, set_ta
 if TYPE_CHECKING:
     from gradio.blocks import BlockFunction
 
-
 class Event:
     def __init__(
         self,
@@ -46,7 +45,6 @@ class Event:
         self.progress: Progress | None = None
         self.progress_pending: bool = False
         self.alive = True
-
 
 class Queue:
     def __init__(
@@ -123,13 +121,7 @@ class Queue:
         messages.put_nowait({"msg": message_type, "event_id": event._id, **data})
 
     def _resolve_concurrency_limit(self, default_concurrency_limit):
-        """
-        Handles the logic of resolving the default_concurrency_limit as this can be specified via a combination
-        of the `default_concurrency_limit` parameter of the `Blocks.queue()` or the `GRADIO_DEFAULT_CONCURRENCY_LIMIT`
-        environment variable. The parameter in `Blocks.queue()` takes precedence over the environment variable.
-        Parameters:
-            default_concurrency_limit: The default concurrency limit, as specified by a user in `Blocks.queu()`.
-        """
+
         if default_concurrency_limit != "not_set":
             return default_concurrency_limit
         if default_concurrency_limit_env := os.environ.get(
@@ -268,11 +260,7 @@ class Queue:
                 await asyncio.sleep(self.sleep_when_free)
 
     async def start_progress_updates(self) -> None:
-        """
-        Because progress updates can be very frequent, we do not necessarily want to send a message per update.
-        Rather, we check for progress updates at regular intervals, and send a message if there is a pending update.
-        Consecutive progress updates between sends will overwrite each other so only the most recent update will be sent.
-        """
+
         while not self.stopped:
             events = [
                 evt for job in self.active_jobs if job is not None for evt in job
@@ -350,9 +338,7 @@ class Queue:
                 self.event_queue.remove(event)
 
     async def notify_clients(self) -> None:
-        """
-        Notify clients about events statuses in the queue periodically.
-        """
+
         while not self.stopped:
             await asyncio.sleep(self.update_intervals)
             if self.event_queue:
@@ -370,14 +356,7 @@ class Queue:
     async def send_estimation(
         self, event: Event, estimation: Estimation, rank: int
     ) -> Estimation:
-        """
-        Send estimation about ETA to the client.
 
-        Parameters:
-            event:
-            estimation:
-            rank:
-        """
         estimation.rank = rank
 
         if self.avg_concurrent_process_time is not None:
@@ -391,12 +370,7 @@ class Queue:
         return estimation
 
     def update_estimation(self, duration: float) -> None:
-        """
-        Update estimation by last x element's average duration.
 
-        Parameters:
-            duration:
-        """
         self.duration_history_total += duration
         self.duration_history_count += 1
         self.avg_process_time = (

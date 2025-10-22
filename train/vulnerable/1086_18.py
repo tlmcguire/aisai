@@ -11,7 +11,6 @@ import warnings
 from glob import glob, escape
 import _osx_support
 
-
 try:
     import subprocess
     del subprocess
@@ -21,7 +20,6 @@ except ImportError:
     sys.modules['subprocess'] = _bootsubprocess
     del _bootsubprocess
     SUBPROCESS_BOOTSTRAP = True
-
 
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore", "The distutils package is deprecated",
@@ -36,13 +34,11 @@ with warnings.catch_warnings():
     from distutils.errors import CCompilerError, DistutilsError
     from distutils.spawn import find_executable
 
-
 TEST_EXTENSIONS = (sysconfig.get_config_var('TEST_MODULES') == 'yes')
 
 DISABLED_MODULE_LIST = []
 
 LIST_MODULE_NAMES = False
-
 
 def get_platform():
     if "_PYTHON_HOST_PLATFORM" in os.environ:
@@ -52,7 +48,6 @@ def get_platform():
         return 'osf1'
     return sys.platform
 
-
 CROSS_COMPILING = ("_PYTHON_HOST_PLATFORM" in os.environ)
 HOST_PLATFORM = get_platform()
 MS_WINDOWS = (HOST_PLATFORM == 'win32')
@@ -60,7 +55,6 @@ CYGWIN = (HOST_PLATFORM == 'cygwin')
 MACOS = (HOST_PLATFORM == 'darwin')
 AIX = (HOST_PLATFORM.startswith('aix'))
 VXWORKS = ('vxworks' in HOST_PLATFORM)
-
 
 SUMMARY = """
 Python is an interpreted, interactive, object-oriented programming
@@ -90,25 +84,17 @@ Programming Language :: Python
 Topic :: Software Development
 """
 
-
 def run_command(cmd):
     status = os.system(cmd)
     return os.waitstatus_to_exitcode(status)
-
 
 def set_compiler_flags(compiler_flags, compiler_py_flags_nodist):
     flags = sysconfig.get_config_var(compiler_flags)
     py_flags_nodist = sysconfig.get_config_var(compiler_py_flags_nodist)
     sysconfig.get_config_vars()[compiler_flags] = flags + ' ' + py_flags_nodist
 
-
 def add_dir_to_list(dirlist, dir):
-    """Add the directory 'dir' to the list 'dirlist' (after any relative
-    directories) if:
 
-    1) 'dir' is not already in 'dirlist'
-    2) 'dir' actually exists, and is a directory.
-    """
     if dir is None or not os.path.isdir(dir) or dir in dirlist:
         return
     for i, path in enumerate(dirlist):
@@ -117,15 +103,8 @@ def add_dir_to_list(dirlist, dir):
             return
     dirlist.insert(0, dir)
 
-
 def sysroot_paths(make_vars, subdirs):
-    """Get the paths of sysroot sub-directories.
 
-    * make_vars: a sequence of names of variables of the Makefile where
-      sysroot may be set.
-    * subdirs: a sequence of names of subdirectories used as the location for
-      headers or libraries.
-    """
 
     dirs = []
     for var_name in make_vars:
@@ -143,22 +122,11 @@ def sysroot_paths(make_vars, subdirs):
                 break
     return dirs
 
-
 MACOS_SDK_ROOT = None
 MACOS_SDK_SPECIFIED = None
 
 def macosx_sdk_root():
-    """Return the directory of the current macOS SDK.
 
-    If no SDK was explicitly configured, call the compiler to find which
-    include files paths are being searched by default.  Use '/' if the
-    compiler is searching /usr/include (meaning system header files are
-    installed) or use the root of an SDK if that is being searched.
-    (The SDK may be supplied via Xcode or via the Command Line Tools).
-    The SDK paths used by Apple-supplied tool chains depend on the
-    setting of various variables; see the xcrun man page for more info.
-    Also sets MACOS_SDK_SPECIFIED for use by macosx_sdk_specified().
-    """
     global MACOS_SDK_ROOT, MACOS_SDK_SPECIFIED
 
     if MACOS_SDK_ROOT:
@@ -176,18 +144,8 @@ def macosx_sdk_root():
 
     return MACOS_SDK_ROOT
 
-
 def macosx_sdk_specified():
-    """Returns true if an SDK was explicitly configured.
 
-    True if an SDK was selected at configure time, either by specifying
-    --enable-universalsdk=(something other than no or /) or by adding a
-    -isysroot option to CFLAGS.  In some cases, like when making
-    decisions about macOS Tk framework paths, we need to be able to
-    know whether the user explicitly asked to build with an SDK versus
-    the implicit use of an SDK when header files are no longer
-    installed on a running system by the Command Line Tools.
-    """
     global MACOS_SDK_SPECIFIED
 
     if MACOS_SDK_SPECIFIED:
@@ -196,15 +154,11 @@ def macosx_sdk_specified():
     macosx_sdk_root()
     return MACOS_SDK_SPECIFIED
 
-
 def is_macosx_sdk_path(path):
-    """
-    Returns True if 'path' can be located in an OSX SDK
-    """
+
     return ( (path.startswith('/usr/') and not path.startswith('/usr/local'))
                 or path.startswith('/System/')
                 or path.startswith('/Library/') )
-
 
 def grep_headers_for(function, headers):
     for header in headers:
@@ -214,16 +168,7 @@ def grep_headers_for(function, headers):
     return False
 
 def find_file(filename, std_dirs, paths):
-    """Searches for the directory where a given file is located,
-    and returns a possibly-empty list of additional directories, or None
-    if the file couldn't be found at all.
 
-    'filename' is the name of a file, such as readline.h or libcrypto.a.
-    'std_dirs' is the list of standard system directories; if the
-        file is found in one of them, no additional directives are needed.
-    'paths' is a list of additional locations to check; if the file is
-        found in one of them, the resulting list will contain the directory.
-    """
     if MACOS:
         sysroot = macosx_sdk_root()
 
@@ -245,7 +190,6 @@ def find_file(filename, std_dirs, paths):
             return [dir]
 
     return None
-
 
 def find_library_file(compiler, libname, std_dirs, paths):
     result = compiler.find_library_file(std_dirs + paths, libname)
@@ -291,15 +235,13 @@ def validate_tzpath():
                          + f'{bad_paths!r}')
 
 def find_module_file(module, dirlist):
-    """Find a module in a set of possible folders. If it is not found
-    return the unadorned filename"""
+
     list = find_file(module, [], dirlist)
     if not list:
         return module
     if len(list) > 1:
         log.info("WARNING: multiple copies of %s found", module)
     return os.path.join(list[0], module)
-
 
 class PyBuildExt(build_ext):
 
@@ -792,7 +734,6 @@ class PyBuildExt(build_ext):
         self.add(Extension("_queue", ["_queuemodule.c"]))
         self.add(Extension("_statistics", ["_statisticsmodule.c"]))
 
-
         libs = []
         if (self.config_h_vars.get('FLOCK_NEEDS_LIBBSD', False)):
             libs = ['bsd']
@@ -814,7 +755,6 @@ class PyBuildExt(build_ext):
         self.add(Extension('syslog', ['syslogmodule.c']))
 
         self.add(Extension('_xxsubinterpreters', ['_xxsubinterpretersmodule.c']))
-
 
         self.add(Extension('audioop', ['audioop.c'],
                            libraries=['m']))
@@ -989,17 +929,12 @@ class PyBuildExt(build_ext):
 
     def detect_dbm_gdbm(self):
 
-
         max_db_ver = (5, 3)
         min_db_ver = (3, 3)
         db_setup_debug = False
 
         def allow_db_ver(db_ver):
-            """Returns a boolean if the given BerkeleyDB version is acceptable.
 
-            Args:
-              db_ver: A tuple of the version to verify.
-            """
             if not (min_db_ver <= db_ver <= max_db_ver):
                 return False
             return True
@@ -1459,7 +1394,6 @@ class PyBuildExt(build_ext):
                            sources=['pyexpat.c'] + expat_sources,
                            depends=expat_depends))
 
-
         if os.path.isfile(os.path.join(self.srcdir, 'Modules', '_elementtree.c')):
             define_macros.append(('USE_PYEXPAT_CAPI', None))
             self.add(Extension('_elementtree',
@@ -1543,7 +1477,6 @@ class PyBuildExt(build_ext):
         if not self.detect_tkinter():
             self.missing.append('_tkinter')
         self.detect_uuid()
-
 
         if not sysconfig.get_config_var('Py_TRACE_REFS'):
             self.add(Extension('xxlimited', ['xxlimited.c']))
@@ -1671,7 +1604,6 @@ class PyBuildExt(build_ext):
             self.announce("INFO: Can't locate Tcl/Tk libs and/or headers", 2)
             return False
 
-
         include_dirs = []
         libs = []
         defs = []
@@ -1713,7 +1645,6 @@ class PyBuildExt(build_ext):
 
         if not CYGWIN:
             libs.append('X11')
-
 
         self.add(Extension('_tkinter', ['_tkinter.c', 'tkappinit.c'],
                            define_macros=[('WITH_APPINIT', 1)] + defs,
@@ -2102,7 +2033,6 @@ class PyBuildExt(build_ext):
                            library_dirs=library_dirs,
                            include_dirs=includes_dirs))
 
-
 class PyBuildInstall(install):
     def initialize_options (self):
         install.initialize_options(self)
@@ -2112,7 +2042,6 @@ class PyBuildInstall(install):
                     ('install_headers', install.has_headers),
                     ('install_scripts', install.has_scripts),
                     ('install_data', install.has_data)]
-
 
 class PyBuildInstallLib(install_lib):
 
@@ -2141,7 +2070,6 @@ class PyBuildInstallLib(install_lib):
             log.info("changing mode of %s to %o", dirpath, mode)
             if not self.dry_run: os.chmod(dirpath, mode)
 
-
 class PyBuildScripts(build_scripts):
     def copy_scripts(self):
         outfiles, updated_files = build_scripts.copy_scripts(self)
@@ -2161,7 +2089,6 @@ class PyBuildScripts(build_scripts):
                 newupdated_files.append(newfilename)
         return newoutfiles, newupdated_files
 
-
 def main():
     global LIST_MODULE_NAMES
 
@@ -2173,7 +2100,7 @@ def main():
     set_compiler_flags('LDFLAGS', 'PY_LDFLAGS_NODIST')
 
     class DummyProcess:
-        """Hack for parallel build"""
+
         ProcessPoolExecutor = None
 
     sys.modules['concurrent.futures.process'] = DummyProcess

@@ -76,7 +76,6 @@ R = TypeVar("R")
 
 DIFF_TIME = re.compile(r"\t[\d\-:+\. ]+")
 
-
 @contextmanager
 def cache_dir(exists: bool = True) -> Iterator[Path]:
     with TemporaryDirectory() as workspace:
@@ -85,7 +84,6 @@ def cache_dir(exists: bool = True) -> Iterator[Path]:
             cache_dir = cache_dir / "new"
         with patch("black.cache.CACHE_DIR", cache_dir):
             yield cache_dir
-
 
 @contextmanager
 def event_loop() -> Iterator[None]:
@@ -98,9 +96,8 @@ def event_loop() -> Iterator[None]:
     finally:
         loop.close()
 
-
 class FakeContext(click.Context):
-    """A fake click Context for when calling functions that need it."""
+
 
     def __init__(self) -> None:
         self.default_map: Dict[str, Any] = {}
@@ -108,20 +105,17 @@ class FakeContext(click.Context):
         self.command: click.Command = black.main
         self.obj: Dict[str, Any] = {"root": PROJECT_ROOT}
 
-
 class FakeParameter(click.Parameter):
-    """A fake click Parameter for when calling functions that need it."""
+
 
     def __init__(self) -> None:
         pass
 
-
 class BlackRunner(CliRunner):
-    """Make sure STDOUT and STDERR are kept separate when testing Black via its CLI."""
+
 
     def __init__(self) -> None:
         super().__init__(mix_stderr=False)
-
 
 def invokeBlack(
     args: List[str], exit_code: int = 0, ignore_config: bool = True
@@ -139,7 +133,6 @@ def invokeBlack(
         f"exception: {result.exception}"
     )
     assert result.exit_code == exit_code, msg
-
 
 class BlackTestCase(BlackBaseTestCase):
     invokeBlack = staticmethod(invokeBlack)
@@ -1755,14 +1748,14 @@ class BlackTestCase(BlackBaseTestCase):
     def compare_results(
         result: click.testing.Result, expected_value: str, expected_exit_code: int
     ) -> None:
-        """Helper method to test the value and exit code of a click Result."""
+
         assert (
             result.output == expected_value
         ), "The output did not match the expected value."
         assert result.exit_code == expected_exit_code, "The exit code is incorrect."
 
     def test_code_option(self) -> None:
-        """Test the code option with no changes."""
+
         code = 'print("Hello world")\n'
         args = ["--code", code]
         result = CliRunner().invoke(black.main, args)
@@ -1770,7 +1763,7 @@ class BlackTestCase(BlackBaseTestCase):
         self.compare_results(result, code, 0)
 
     def test_code_option_changed(self) -> None:
-        """Test the code option when changes are required."""
+
         code = "print('hello world')"
         formatted = black.format_str(code, mode=DEFAULT_MODE)
 
@@ -1780,19 +1773,19 @@ class BlackTestCase(BlackBaseTestCase):
         self.compare_results(result, formatted, 0)
 
     def test_code_option_check(self) -> None:
-        """Test the code option when check is passed."""
+
         args = ["--check", "--code", 'print("Hello world")\n']
         result = CliRunner().invoke(black.main, args)
         self.compare_results(result, "", 0)
 
     def test_code_option_check_changed(self) -> None:
-        """Test the code option when changes are required, and check is passed."""
+
         args = ["--check", "--code", "print('hello world')"]
         result = CliRunner().invoke(black.main, args)
         self.compare_results(result, "", 1)
 
     def test_code_option_diff(self) -> None:
-        """Test the code option when diff is passed."""
+
         code = "print('hello world')"
         formatted = black.format_str(code, mode=DEFAULT_MODE)
         result_diff = diff(code, formatted, "STDIN", "STDOUT")
@@ -1806,7 +1799,7 @@ class BlackTestCase(BlackBaseTestCase):
         assert result.exit_code == 0, "The exit code is incorrect."
 
     def test_code_option_color_diff(self) -> None:
-        """Test the code option when color and diff are passed."""
+
         code = "print('hello world')"
         formatted = black.format_str(code, mode=DEFAULT_MODE)
 
@@ -1823,7 +1816,7 @@ class BlackTestCase(BlackBaseTestCase):
 
     @pytest.mark.incompatible_with_mypyc
     def test_code_option_safe(self) -> None:
-        """Test that the code option throws an error when the sanity checks fail."""
+
         with patch.object(black, "assert_equivalent", side_effect=AssertionError):
             code = 'print("Hello world")'
             error_msg = f"{code}\nerror: cannot format <string>: \n"
@@ -1834,7 +1827,7 @@ class BlackTestCase(BlackBaseTestCase):
             self.compare_results(result, error_msg, 123)
 
     def test_code_option_fast(self) -> None:
-        """Test that the code option ignores errors when the sanity checks fail."""
+
         with patch.object(black, "assert_equivalent", side_effect=AssertionError):
             code = 'print("Hello world")'
             formatted = black.format_str(code, mode=DEFAULT_MODE)
@@ -1846,9 +1839,7 @@ class BlackTestCase(BlackBaseTestCase):
 
     @pytest.mark.incompatible_with_mypyc
     def test_code_option_config(self) -> None:
-        """
-        Test that the code option finds the pyproject.toml in the current directory.
-        """
+
         with patch.object(black, "parse_pyproject_toml", return_value={}) as parse:
             args = ["--code", "print"]
             with change_directory(PROJECT_ROOT):
@@ -1866,9 +1857,7 @@ class BlackTestCase(BlackBaseTestCase):
 
     @pytest.mark.incompatible_with_mypyc
     def test_code_option_parent_config(self) -> None:
-        """
-        Test that the code option finds the pyproject.toml in the parent directory.
-        """
+
         with patch.object(black, "parse_pyproject_toml", return_value={}) as parse:
             with change_directory(THIS_DIR):
                 args = ["--code", "print"]
@@ -1885,9 +1874,7 @@ class BlackTestCase(BlackBaseTestCase):
                 ), "Incorrect config loaded."
 
     def test_for_handled_unexpected_eof_error(self) -> None:
-        """
-        Test that an unexpected EOF SyntaxError is nicely presented.
-        """
+
         with pytest.raises(black.parsing.InvalidInput) as exc_info:
             black.lib2to3_parse("print(", {})
 
@@ -1974,7 +1961,6 @@ class BlackTestCase(BlackBaseTestCase):
         assert (
             b"Cannot use line-ranges in the pyproject.toml file." in result.stderr_bytes
         )
-
 
 class TestCaching:
     def test_get_cache_dir(
@@ -2224,7 +2210,6 @@ class TestCaching:
             two = black.Cache.read(short_mode)
             assert two.is_changed(path)
 
-
 def assert_collected_sources(
     src: Sequence[Union[str, Path]],
     expected: Sequence[Union[str, Path]],
@@ -2257,7 +2242,6 @@ def assert_collected_sources(
         stdin_filename=stdin_filename,
     )
     assert sorted(collected) == sorted(gs_expected)
-
 
 class TestFileCollection:
     def test_include_exclude(self) -> None:
@@ -2679,14 +2663,8 @@ class TestFileCollection:
                     stdin_filename=stdin_filename,
                 )
 
-
 class TestDeFactoAPI:
-    """Test that certain symbols that are commonly used externally keep working.
 
-    We don't (yet) formally expose an API (see issue #779), but we should endeavor to
-    keep certain functions that external users commonly rely on working.
-
-    """
 
     def test_format_str(self) -> None:
         assert (
@@ -2708,7 +2686,6 @@ class TestDeFactoAPI:
 
         with pytest.raises(black.NothingChanged):
             black.format_file_contents("x = 1\n", fast=True, mode=black.Mode())
-
 
 class TestASTSafety(BlackBaseTestCase):
     def check_ast_equivalence(
@@ -2757,7 +2734,6 @@ class TestASTSafety(BlackBaseTestCase):
                 """
 
                 docstring
-
 
                 """
             ''',
@@ -2810,7 +2786,6 @@ class TestASTSafety(BlackBaseTestCase):
         err.match("invalid character")
         err.match(r"\(<unknown>, line 1\)")
 
-
 try:
     with open(black.__file__, "r", encoding="utf-8") as _bf:
         black_source_lines = _bf.readlines()
@@ -2818,14 +2793,10 @@ except UnicodeDecodeError:
     if not black.COMPILED:
         raise
 
-
 def tracefunc(
     frame: types.FrameType, event: str, arg: Any
 ) -> Callable[[types.FrameType, str, Any], Any]:
-    """Show function calls `from black/__init__.py` as they happen.
 
-    Register this with `sys.settrace()` in a test you're debugging.
-    """
     if event != "call":
         return tracefunc
 

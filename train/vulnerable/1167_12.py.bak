@@ -26,13 +26,11 @@ import os
 import platform
 import string
 import re
-import subprocess   
+import subprocess
 from typing import Optional
 
-# Regular expression pattern to validate file paths
 FILE_PATH_REGEX = r'^[a-zA-Z0-9_\-\\\/]+$'
 
-# Function to validate file paths using the regex pattern
 def validate_file_path(path):
     return re.match(FILE_PATH_REGEX, path)
 
@@ -47,7 +45,6 @@ from utilities.execution_engines.graphviz_execution_engine import execute_graphv
 
 
 
-# ----------------------- Defining router and main class ------------------------------
 
 router = APIRouter()
 lollmsElfServer:LOLLMSWebUI = LOLLMSWebUI.get_instance()
@@ -122,7 +119,7 @@ async def execute_code(request: CodeRequest):
         trace_exception(ex)
         lollmsElfServer.error(ex)
         return {"status":False,"error":str(ex)}
-    
+
 
 
 class FilePath(BaseModel):
@@ -148,19 +145,16 @@ async def open_file(file_path: FilePath):
 
     forbid_remote_access(lollmsElfServer)
     try:
-        # Validate the 'path' parameter
         path = sanitize_path(file_path.path)
         if not validate_file_path(path):
             return {"status":False,"error":"Invalid file path"}
-        
-        # Sanitize the 'path' parameter
+
         path = os.path.realpath(path)
-        
-        # Use subprocess.Popen to safely open the file
+
         subprocess.Popen(["start", path])
-        
+
         return {"status": True, "execution_time": 0}
-    
+
     except Exception as ex:
         trace_exception(ex)
         lollmsElfServer.error(ex)
@@ -191,13 +185,10 @@ async def open_folder(file_path: FilePath):
 
     forbid_remote_access(lollmsElfServer)
     try:
-        # Validate the 'path' parameter
         path = file_path.path
-       
-        # Sanitize the 'path' parameter
+
         path = os.path.realpath(path)
-        
-        # Use subprocess.Popen to safely open the file
+
         if platform.system() == 'Windows':
             subprocess.Popen(f'explorer "{path}"')
         elif platform.system() == 'Linux':
@@ -205,9 +196,9 @@ async def open_folder(file_path: FilePath):
         elif platform.system() == 'Darwin':
             subprocess.run(['open', str(path)], check=True)
 
-        
+
         return {"status": True, "execution_time": 0}
-    
+
     except Exception as ex:
         trace_exception(ex)
         lollmsElfServer.error(ex)
@@ -235,14 +226,14 @@ async def open_code_folder_in_vs_code(request: OpenCodeFolderInVsCodeRequestMode
             return {"status":False,"error":"User refused the execution!"}
 
     try:
-        if request.discussion_id:        
+        if request.discussion_id:
             ASCIIColors.info("Opening folder:")
             root_folder = client.discussion.discussion_folder
             root_folder.mkdir(parents=True,exist_ok=True)
             tmp_file = root_folder/f"ai_code_{request.message_id}.py"
             with open(tmp_file,"w") as f:
                 f.write(request.code)
-            
+
             if os.path.isdir(root_folder):
                 path = '"'+str(root_folder)+'"'.replace("\\","/")
                 subprocess.run(['code', path], shell=True)
@@ -253,7 +244,7 @@ async def open_code_folder_in_vs_code(request: OpenCodeFolderInVsCodeRequestMode
         trace_exception(ex)
         lollmsElfServer.error(str(ex))
         return {"status":False,"error":"An error occurred during processing."}
-    
+
 class VSCodeData(BaseModel):
     client_id: str = Field(...)
     discussion_id: Optional[int] = Field(None, ge=0)
@@ -285,23 +276,21 @@ async def open_code_in_vs_code(vs_code_data: VSCodeData):
         code = vs_code_data.code
 
         ASCIIColors.info("Opening folder:")
-        # Create a temporary file.
         root_folder = client.discussion.discussion_folder
 
         root_folder.mkdir(parents=True,exist_ok=True)
         tmp_file = root_folder/f"ai_code_{message_id}.py"
         with open(tmp_file,"w") as f:
             f.write(code)
-        
-        # Use subprocess.Popen to safely open the file
+
         subprocess.Popen(["code", str(tmp_file)], shell=True)
-        
+
         return {"status": True, "execution_time": 0}
     except Exception as ex:
         trace_exception(ex)
         lollmsElfServer.error(ex)
         return {"status":False,"error":str(ex)}
-    
+
 class FolderRequest(BaseModel):
     client_id: str = Field(...)
     discussion_id: Optional[int] = Field(None, title="The discussion ID")
@@ -321,14 +310,13 @@ async def open_code_folder(request: FolderRequest):
 
     if lollmsElfServer.config.host!="localhost" and lollmsElfServer.config.host!="127.0.0.1":
         return {"status":False,"error":"Open code folder is blocked when the server is exposed outside for very obvious reasons!"}
-    
+
     if lollmsElfServer.config.turn_on_open_file_validation:
         if not show_yes_no_dialog("Validation","Do you validate the opening of a folder?"):
             return {"status":False,"error":"User refused the opeining folder!"}
 
     try:
         ASCIIColors.info("Opening folder:")
-        # Create a temporary file.
         root_folder = client.discussion.discussion_folder
         root_folder.mkdir(parents=True, exist_ok=True)
         if platform.system() == 'Windows':

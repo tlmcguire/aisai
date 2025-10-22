@@ -1,6 +1,4 @@
-"""
-Defines helper methods useful for setting up ports, launching servers, and handling `ngrok`
-"""
+
 
 import os
 import socket
@@ -63,7 +61,6 @@ login_manager.init_app(app)
 cli = sys.modules['flask.cli']
 cli.show_server_banner = lambda *x: None
 
-
 class User:
     def __init__(self, id):
         self.is_authenticated = True
@@ -74,11 +71,9 @@ class User:
     def get_id(self):
         return self.id
 
-
 @login_manager.user_loader
 def load_user(_id):
     return User(_id)
-
 
 def login_check(func):
     @wraps(func)
@@ -93,7 +88,6 @@ def login_check(func):
             return func(*args, **kwargs)
     return wrapper
 
-
 def get_local_ip_address():
     try:
         ip_address = requests.get('https://api.ipify.org', timeout=3).text
@@ -101,17 +95,10 @@ def get_local_ip_address():
         ip_address = "No internet connection"
     return ip_address
 
-
 IP_ADDRESS = get_local_ip_address()
 
-
 def get_first_available_port(initial, final):
-    """
-    Gets the first open port in a specified range of port numbers
-    :param initial: the initial value in the range of port numbers
-    :param final: final (exclusive) value in the range of port numbers, should be greater than `initial`
-    :return:
-    """
+
     for port in range(initial, final):
         try:
             s = socket.socket()
@@ -126,13 +113,11 @@ def get_first_available_port(initial, final):
         )
     )
 
-
 @app.route("/", methods=["GET"])
 @login_check
 def main():
     session["state"] = None
     return render_template("frontend/index.html", config=app.interface.config)
-
 
 @app.route("/static/<path:path>", methods=["GET"])
 def static_resource(path):
@@ -140,7 +125,6 @@ def static_resource(path):
         return redirect(GRADIO_STATIC_ROOT + path)
     else:
         return send_file(safe_join(STATIC_PATH_LIB, path))
-
 
 @app.route('/login', methods=["GET", "POST"])
 def login():
@@ -157,14 +141,12 @@ def login():
         else:
             return abort(401)
 
-
 @app.route("/config/", methods=["GET"])
 def get_config():
     if app.interface.auth is None or current_user.is_authenticated:
         return jsonify(app.interface.config)
     else:
         return {"auth_required": True, "auth_message": app.interface.auth_message}
-
 
 @app.route("/enable_sharing/<path:path>", methods=["GET"])
 @login_check
@@ -174,7 +156,6 @@ def enable_sharing(path):
     app.interface.config["share_url"] = path
     return jsonify(success=True)
 
-
 @app.route("/shutdown", methods=['GET'])
 def shutdown():
     shutdown_func = request.environ.get('werkzeug.server.shutdown')
@@ -182,7 +163,6 @@ def shutdown():
         raise RuntimeError('Not running werkzeug')
     shutdown_func()
     return "Shutting down..."
-
 
 @app.route("/api/predict/", methods=["POST"])
 @login_check
@@ -215,7 +195,6 @@ def predict():
             pass
     return jsonify(output)
 
-
 def get_types(cls_set, component):
     docset = []
     types = []
@@ -232,7 +211,6 @@ def get_types(cls_set, component):
             docset.append(doc_lines[-1].split(":")[-1])
             types.append(doc_lines[-1].split(")")[0].split("(")[-1])
     return docset, types
-
 
 @app.route("/api/", methods=["GET"])
 def api_docs():
@@ -258,7 +236,6 @@ def api_docs():
     }
     return render_template("api_docs.html", **docs)
 
-
 def log_feature_analytics(feature):
     if app.interface.analytics_enabled:
         try:
@@ -268,7 +245,6 @@ def log_feature_analytics(feature):
                               'feature': feature}, timeout=3)
         except (requests.ConnectionError, requests.exceptions.ReadTimeout):
             pass
-
 
 def flag_data(input_data, output_data, flag_option=None, flag_index=None, username=None, flag_path=None):
     if flag_path is None:
@@ -357,7 +333,6 @@ def flag():
         current_user.id if current_user.is_authenticated else None)
     return jsonify(success=True)
 
-
 @app.route("/api/interpret/", methods=["POST"])
 @login_check
 def interpret():
@@ -369,7 +344,6 @@ def interpret():
         "interpretation_scores": interpretation_scores,
         "alternative_outputs": alternative_outputs
     })
-
 
 @app.route("/file/<path:path>", methods=["GET"])
 @login_check
@@ -384,7 +358,6 @@ def file(path):
     else:
         return send_file(os.path.join(app.cwd, path))
 
-
 @app.route("/api/queue/push/", methods=["POST"])
 @login_check
 def queue_push():
@@ -393,14 +366,12 @@ def queue_push():
     job_hash, queue_position = queue.push({"data": data}, action)
     return {"hash": job_hash, "queue_position": queue_position}
 
-
 @app.route("/api/queue/status/", methods=["POST"])
 @login_check
 def queue_status():
     hash = request.json['hash']
     status, data = queue.get_status(hash)
     return {"status": status, "data": data}
-
 
 def queue_thread(path_to_local_server, test_mode=False):
     while True:
@@ -422,7 +393,6 @@ def queue_thread(path_to_local_server, test_mode=False):
             pass
         if test_mode:
             break
-
 
 def start_server(interface, server_name, server_port=None, auth=None, ssl=None):
     if server_port is None:
@@ -470,7 +440,6 @@ def close_server(process):
     process.terminate()
     process.join()
 
-
 def url_request(url):
     try:
         req = urllib.request.Request(
@@ -480,7 +449,6 @@ def url_request(url):
         return res
     except Exception as e:
         raise RuntimeError(str(e))
-
 
 def setup_tunnel(local_server_port, endpoint):
     response = url_request(
@@ -492,7 +460,6 @@ def setup_tunnel(local_server_port, endpoint):
 
         except Exception as e:
             raise RuntimeError(str(e))
-
 
 def url_ok(url):
     try:

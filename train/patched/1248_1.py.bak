@@ -29,7 +29,6 @@ def process_command(command):
      Here we are just simulating that part by saving the command and reading it.
     """
 
-    # Use subprocess.run to execute the command safely
     try:
         result = subprocess.run(command, shell=False, capture_output=True, text=True, check=True)
         processed_result = f"Command processed: {result.stdout}"

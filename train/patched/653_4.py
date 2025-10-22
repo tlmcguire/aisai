@@ -1,11 +1,10 @@
-"""Tests for DLPack functions."""
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
 from absl.testing import parameterized
 import numpy as np
-
 
 from tensorflow.python.dlpack import dlpack
 from tensorflow.python.framework import constant_op
@@ -25,10 +24,8 @@ dlpack_dtypes = int_dtypes + float_dtypes + [dtypes.bfloat16]
 
 testcase_shapes = [(), (1,), (2, 3), (2, 0), (0, 7), (4, 1, 2)]
 
-
 def FormatShapeAndDtype(shape, dtype):
   return "_{}[{}]".format(str(dtype), ",".join(map(str, shape)))
-
 
 def GetNamedTestParameters():
   result = []
@@ -40,7 +37,6 @@ def GetNamedTestParameters():
           "shape": shape
       })
   return result
-
 
 class DLPackTest(parameterized.TestCase, test.TestCase):
 
@@ -96,7 +92,6 @@ class DLPackTest(parameterized.TestCase, test.TestCase):
         errors.InvalidArgumentError,
         "The argument to `to_dlpack` must be a TF tensor, not Python object"):
       dlpack.to_dlpack([1])
-
 
 if __name__ == "__main__":
   ops.enable_eager_execution()

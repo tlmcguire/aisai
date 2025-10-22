@@ -167,7 +167,6 @@ def test_example_caching_relaunch(connect):
             "hello Eve",
         )
 
-    # Let the server shut down
     time.sleep(1)
 
     with connect(demo) as client:
@@ -331,7 +330,7 @@ class TestProcessExamples:
         len_input_audio = len(AudioSegment.from_wav(audio))
         len_output_audio = len(AudioSegment.from_wav(prediction[0].path))
         length_ratio = len_output_audio / len_input_audio
-        assert round(length_ratio, 1) == 3.0  # might not be exactly 3x
+        assert round(length_ratio, 1) == 3.0
         assert float(prediction[1]) == 10.0
 
     def test_caching_with_async_generators(self):

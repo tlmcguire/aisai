@@ -80,7 +80,6 @@ def _execute_child(
 
 
 if __name__ == "__main__":
-    # Example usage:
     return_code = _execute_child(
         ["ls", "-l"],
         env={"MY_VAR": "my_value"},

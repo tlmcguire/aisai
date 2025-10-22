@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 
 import asyncio
 import inspect
@@ -49,7 +48,6 @@ from black.output import color_diff, diff
 from black.parsing import ASTSafetyError
 from black.report import Report
 
-# Import other test classes
 from tests.util import (
     DATA_DIR,
     DEFAULT_MODE,
@@ -76,7 +74,6 @@ DEFAULT_INCLUDE = black.re_compile_maybe_verbose(black.const.DEFAULT_INCLUDES)
 T = TypeVar("T")
 R = TypeVar("R")
 
-# Match the time output in a diff, but nothing else
 DIFF_TIME = re.compile(r"\t[\d\-:+\. ]+")
 
 
@@ -109,7 +106,6 @@ class FakeContext(click.Context):
         self.default_map: Dict[str, Any] = {}
         self.params: Dict[str, Any] = {}
         self.command: click.Command = black.main
-        # Dummy root, since most of the tests don't care about it
         self.obj: Dict[str, Any] = {"root": PROJECT_ROOT}
 
 
@@ -169,9 +165,6 @@ class BlackTestCase(BlackBaseTestCase):
             expected = nl
             tmp_file = Path(black.dump_to_file(nl))
             if system() == "Windows":
-                # Writing files in text mode automatically uses the system newline,
-                # but in this case we don't want this for testing reasons. See:
-                # https://github.com/psf/black/pull/3348
                 with open(tmp_file, "wb") as f:
                     f.write(nl.encode("utf-8"))
             try:
@@ -221,7 +214,7 @@ class BlackTestCase(BlackBaseTestCase):
         )
         self.assertEqual(result.exit_code, 0)
         actual = diff_header.sub(DETERMINISTIC_HEADER, result.output)
-        actual = actual.rstrip() + "\n"  # the diff output has a trailing space
+        actual = actual.rstrip() + "\n"
         self.assertEqual(expected, actual)
 
     def test_piping_diff_with_color(self) -> None:
@@ -238,7 +231,6 @@ class BlackTestCase(BlackBaseTestCase):
             black.main, args, input=BytesIO(source.encode("utf-8"))
         )
         actual = result.output
-        # Again, the contents are checked in a different test, so only look for colors.
         self.assertIn("\033[1m", actual)
         self.assertIn("\033[36m", actual)
         self.assertIn("\033[32m", actual)
@@ -313,8 +305,6 @@ class BlackTestCase(BlackBaseTestCase):
         finally:
             os.unlink(tmp_file)
         actual = result.output
-        # We check the contents of the diff in `test_expression_diff`. All
-        # we need to check here is that color codes exist in the result.
         self.assertIn("\033[1m", actual)
         self.assertIn("\033[36m", actual)
         self.assertIn("\033[32m", actual)
@@ -342,7 +332,6 @@ class BlackTestCase(BlackBaseTestCase):
         features = black.get_features_used(root)
         self.assertNotIn(black.Feature.DEBUG_F_STRINGS, features)
 
-        # We don't yet support feature version detection in nested f-strings
         root = black.lib2to3_parse(
             """f"heard a rumour that { f'{1+1=}' } ... seems like it could be true" """
         )
@@ -363,9 +352,7 @@ class BlackTestCase(BlackBaseTestCase):
     def test_skip_source_first_line(self) -> None:
         source, _ = read_data("miscellaneous", "invalid_header")
         tmp_file = Path(black.dump_to_file(source))
-        # Full source should fail (invalid syntax at header)
         self.invokeBlack([str(tmp_file), "--diff", "--check"], exit_code=123)
-        # So, skipping the first line should work
         result = BlackRunner().invoke(
             black.main, [str(tmp_file), "-x", f"--config={EMPTY_CONFIG}"]
         )
@@ -402,7 +389,7 @@ class BlackTestCase(BlackBaseTestCase):
             os.unlink(tmp_file)
         actual = result.output
         actual = diff_header.sub(DETERMINISTIC_HEADER, actual)
-        actual = actual.rstrip() + "\n"  # the diff output has a trailing space
+        actual = actual.rstrip() + "\n"
         if expected != actual:
             dump = black.dump_to_file(actual)
             msg = (
@@ -423,9 +410,7 @@ class BlackTestCase(BlackBaseTestCase):
         if major < 3 or (major <= 3 and minor < 7):
             black.assert_equivalent(source, actual)
         black.assert_stable(source, actual, DEFAULT_MODE)
-        # ensure black can parse this when the target is 3.6
         self.invokeBlack([str(source_path), "--target-version", "py36"])
-        # but not on 3.7, because async/await is no longer an identifier
         self.invokeBlack([str(source_path), "--target-version", "py37"], exit_code=123)
 
     @patch("black.dump_to_file", dump_to_stderr)
@@ -438,9 +423,7 @@ class BlackTestCase(BlackBaseTestCase):
         if major > 3 or (major == 3 and minor >= 7):
             black.assert_equivalent(source, actual)
         black.assert_stable(source, actual, DEFAULT_MODE)
-        # ensure black can parse this when the target is 3.7
         self.invokeBlack([str(source_path), "--target-version", "py37"])
-        # but not on 3.6, because we use async as a reserved keyword
         self.invokeBlack([str(source_path), "--target-version", "py36"], exit_code=123)
 
     def test_tab_comment_indentation(self) -> None:
@@ -454,7 +437,6 @@ class BlackTestCase(BlackBaseTestCase):
         self.assertFormatEqual(contents_spc, fs(contents_spc))
         self.assertFormatEqual(contents_spc, fs(contents_tab))
 
-        # mixed tabs and spaces (valid Python 2 code)
         contents_tab = "if 1:\n        if 2:\n\t\tpass\n\t# comment\n        pass\n"
         contents_spc = "if 1:\n    if 2:\n        pass\n    # comment\n    pass\n"
         self.assertFormatEqual(contents_spc, fs(contents_spc))
@@ -466,11 +448,6 @@ class BlackTestCase(BlackBaseTestCase):
         self.assertFormatEqual(contents_spc, fs(contents_tab))
 
     def test_false_positive_symlink_output_issue_3384(self) -> None:
-        # Emulate the behavior when using the CLI (`black ./child  --verbose`), which
-        # involves patching some `pathlib.Path` methods. In particular, `is_dir` is
-        # patched only on its first call: when checking if "./child" is a directory it
-        # should return True. The "./child" folder exists relative to the cwd when
-        # running from CLI, but fails when running the tests because cwd is different
         project_root = Path(THIS_DIR / "data" / "nested_gitignore_tests")
         working_directory = project_root / "root"
         target_abspath = working_directory / "child"
@@ -487,8 +464,6 @@ class BlackTestCase(BlackBaseTestCase):
         with patch("pathlib.Path.iterdir", return_value=target_contents), patch(
             "pathlib.Path.resolve", return_value=target_abspath
         ), patch("pathlib.Path.is_dir", side_effect=mock_n_calls([True])):
-            # Note that the root folder (project_root) isn't the folder
-            # named "root" (aka working_directory)
             report = MagicMock(verbose=True)
             black.get_sources(
                 root=project_root,
@@ -821,12 +796,7 @@ class BlackTestCase(BlackBaseTestCase):
         black.lib2to3_parse(py3_only, {TargetVersion.PY36})
 
     def test_get_features_used_decorator(self) -> None:
-        # Test the feature detection of new decorator syntax
-        # since this makes some test cases of test_get_features_used()
-        # fails if it fails, this is tested first so that a useful case
-        # is identified
         simples, relaxed = read_data("miscellaneous", "decorators")
-        # skip explanation comments at the top of the file
         for simple_test in simples.split("##")[1:]:
             node = black.lib2to3_parse(simple_test)
             decorator = str(node.children[0].children[0]).strip()
@@ -836,10 +806,8 @@ class BlackTestCase(BlackBaseTestCase):
                 msg=(
                     f"decorator '{decorator}' follows python<=3.8 syntax"
                     "but is detected as 3.9+"
-                    # f"The full node is\n{node!r}"
                 ),
             )
-        # skip the '# output' comment at the top of the output part
         for relaxed_test in relaxed.split("##")[1:]:
             node = black.lib2to3_parse(relaxed_test)
             decorator = str(node.children[0].children[0]).strip()
@@ -849,7 +817,6 @@ class BlackTestCase(BlackBaseTestCase):
                 msg=(
                     f"decorator '{decorator}' uses python3.9+ syntax"
                     "but is detected as python<=3.8"
-                    # f"The full node is\n{node!r}"
                 ),
             )
 
@@ -1105,13 +1072,10 @@ class BlackTestCase(BlackBaseTestCase):
     @event_loop()
     def test_check_diff_use_together(self) -> None:
         with cache_dir():
-            # Files which will be reformatted.
             src1 = get_case_path("miscellaneous", "string_quotes")
             self.invokeBlack([str(src1), "--diff", "--check"], exit_code=1)
-            # Files which will not be reformatted.
             src2 = get_case_path("cases", "composition")
             self.invokeBlack([str(src2), "--diff", "--check"])
-            # Multi file command.
             self.invokeBlack([str(src1), str(src2), "--diff", "--check"], exit_code=1)
 
     def test_no_src_fails(self) -> None:
@@ -1139,7 +1103,6 @@ class BlackTestCase(BlackBaseTestCase):
             path.write_text(contents, encoding="utf-8")
             self.invokeBlack([str(path), "--pyi"])
             actual = path.read_text(encoding="utf-8")
-            # verify cache with --pyi is separate
             pyi_cache = black.Cache.read(pyi_mode)
             assert not pyi_cache.is_changed(path)
             normal_cache = black.Cache.read(DEFAULT_MODE)
@@ -1164,7 +1127,6 @@ class BlackTestCase(BlackBaseTestCase):
             for path in paths:
                 actual = path.read_text(encoding="utf-8")
                 self.assertEqual(actual, expected)
-            # verify cache with --pyi is separate
             pyi_cache = black.Cache.read(pyi_mode)
             normal_cache = black.Cache.read(reg_mode)
             for path in paths:
@@ -1189,7 +1151,6 @@ class BlackTestCase(BlackBaseTestCase):
             path.write_text(source, encoding="utf-8")
             self.invokeBlack([str(path), *PY36_ARGS])
             actual = path.read_text(encoding="utf-8")
-            # verify cache with --target-version is separate
             py36_cache = black.Cache.read(py36_mode)
             assert not py36_cache.is_changed(path)
             normal_cache = black.Cache.read(reg_mode)
@@ -1212,7 +1173,6 @@ class BlackTestCase(BlackBaseTestCase):
             for path in paths:
                 actual = path.read_text(encoding="utf-8")
                 self.assertEqual(actual, expected)
-            # verify cache with --target-version is separate
             pyi_cache = black.Cache.read(py36_mode)
             normal_cache = black.Cache.read(reg_mode)
             for path in paths:
@@ -1268,7 +1228,6 @@ class BlackTestCase(BlackBaseTestCase):
             fsts.assert_called_once_with(
                 fast=True, write_back=black.WriteBack.YES, mode=DEFAULT_MODE, lines=()
             )
-            # __BLACK_STDIN_FILENAME__ should have been stripped
             report.done.assert_called_with(expected, black.Changed.YES)
 
     @pytest.mark.incompatible_with_mypyc
@@ -1294,7 +1253,6 @@ class BlackTestCase(BlackBaseTestCase):
                 mode=replace(DEFAULT_MODE, is_pyi=True),
                 lines=(),
             )
-            # __BLACK_STDIN_FILENAME__ should have been stripped
             report.done.assert_called_with(expected, black.Changed.YES)
 
     @pytest.mark.incompatible_with_mypyc
@@ -1320,7 +1278,6 @@ class BlackTestCase(BlackBaseTestCase):
                 mode=replace(DEFAULT_MODE, is_ipynb=True),
                 lines=(),
             )
-            # __BLACK_STDIN_FILENAME__ should have been stripped
             report.done.assert_called_with(expected, black.Changed.YES)
 
     @pytest.mark.incompatible_with_mypyc
@@ -1330,10 +1287,7 @@ class BlackTestCase(BlackBaseTestCase):
             return_value=lambda *args, **kwargs: black.Changed.YES,
         ) as fsts:
             report = MagicMock()
-            # Even with an existing file, since we are forcing stdin, black
-            # should output to stdout and not modify the file inplace
             p = THIS_DIR / "data" / "cases" / "collections.py"
-            # Make sure is_file actually returns True
             self.assertTrue(p.is_file())
             path = Path(f"__BLACK_STDIN_FILENAME__{p}")
             expected = Path(p)
@@ -1345,7 +1299,6 @@ class BlackTestCase(BlackBaseTestCase):
                 report=report,
             )
             fsts.assert_called_once()
-            # __BLACK_STDIN_FILENAME__ should have been stripped
             report.done.assert_called_with(expected, black.Changed.YES)
 
     def test_reformat_one_with_stdin_empty(self) -> None:
@@ -1363,12 +1316,7 @@ class BlackTestCase(BlackBaseTestCase):
         ) -> Callable[[Any, Any], io.TextIOWrapper]:
             def get_output(*args: Any, **kwargs: Any) -> io.TextIOWrapper:
                 if args == (sys.stdout.buffer,):
-                    # It's `format_stdin_to_stdout()` calling `io.TextIOWrapper()`,
-                    # return our mock object.
                     return output
-                # It's something else (i.e. `decode_bytes()`) calling
-                # `io.TextIOWrapper()`, pass through to the original implementation.
-                # See discussion in https://github.com/psf/black/pull/2489
                 return io_TextIOWrapper(*args, **kwargs)
 
             return get_output
@@ -1386,13 +1334,12 @@ class BlackTestCase(BlackBaseTestCase):
                         mode=DEFAULT_MODE,
                     )
                 except io.UnsupportedOperation:
-                    pass  # StringIO does not support detach
+                    pass
                 assert output.getvalue() == expected
 
     def test_cli_unstable(self) -> None:
         self.invokeBlack(["--unstable", "-c", "0"], exit_code=0)
         self.invokeBlack(["--preview", "-c", "0"], exit_code=0)
-        # Must also pass --preview
         self.invokeBlack(
             ["--enable-unstable-feature", "string_processing", "-c", "0"], exit_code=1
         )
@@ -1694,11 +1641,10 @@ class BlackTestCase(BlackBaseTestCase):
             src_sub.mkdir()
 
             src_sub_pyproject = src_sub / "pyproject.toml"
-            src_sub_pyproject.touch()  # empty
+            src_sub_pyproject.touch()
 
             src_sub_python = src_sub / "bar.py"
 
-            # we skip src_sub_pyproject since it is missing the [tool.black] section
             self.assertEqual(
                 black.find_project_root((src_sub_python,)),
                 (src_dir.resolve(), "pyproject.toml"),
@@ -1727,7 +1673,6 @@ class BlackTestCase(BlackBaseTestCase):
         if system() == "Windows":
             return
 
-        # Test if XDG_CONFIG_HOME is checked
         with TemporaryDirectory() as workspace:
             tmp_user_config = Path(workspace) / "black"
             with patch.dict("os.environ", {"XDG_CONFIG_HOME": workspace}):
@@ -1735,7 +1680,6 @@ class BlackTestCase(BlackBaseTestCase):
                     black.files.find_user_pyproject_toml(), tmp_user_config.resolve()
                 )
 
-        # Test fallback for XDG_CONFIG_HOME
         with patch.dict("os.environ"):
             os.environ.pop("XDG_CONFIG_HOME", None)
             fallback_user_config = Path("~/.config").expanduser() / "black"
@@ -1756,8 +1700,6 @@ class BlackTestCase(BlackBaseTestCase):
         if system() == "Windows":
             return
 
-        # https://bugs.python.org/issue33660
-        # Can be removed when we drop support for Python 3.8.5
         root = Path("/")
         with change_directory(root):
             path = Path("workspace") / "project"
@@ -1781,7 +1723,6 @@ class BlackTestCase(BlackBaseTestCase):
             resolves_outside = black.resolves_outside_root_or_cannot_stat(
                 junction_dir, root, report
             )
-            # Manually delete for Python < 3.8
             os.system(f"rmdir {junction_dir}")
 
             self.assertIs(resolves_outside, True)
@@ -1792,10 +1733,8 @@ class BlackTestCase(BlackBaseTestCase):
         black.assert_stable(source, output, mode=DEFAULT_MODE)
 
     def test_bpo_2142_workaround(self) -> None:
-        # https://bugs.python.org/issue2142
 
         source, _ = read_data("miscellaneous", "missing_final_newline")
-        # read_data adds a trailing newline
         source = source.rstrip()
         expected, _ = read_data("miscellaneous", "missing_final_newline.diff")
         tmp_file = Path(black.dump_to_file(source, ensure_final_newline=False))
@@ -1861,7 +1800,6 @@ class BlackTestCase(BlackBaseTestCase):
         args = ["--diff", "--code", code]
         result = CliRunner().invoke(black.main, args)
 
-        # Remove time from diff
         output = DIFF_TIME.sub("", result.output)
 
         assert output == result_diff, "The output did not match the expected value."
@@ -1878,7 +1816,6 @@ class BlackTestCase(BlackBaseTestCase):
         args = ["--diff", "--color", "--code", code]
         result = CliRunner().invoke(black.main, args)
 
-        # Remove time from diff
         output = DIFF_TIME.sub("", result.output)
 
         assert output == result_diff, "The output did not match the expected value."
@@ -1887,7 +1824,6 @@ class BlackTestCase(BlackBaseTestCase):
     @pytest.mark.incompatible_with_mypyc
     def test_code_option_safe(self) -> None:
         """Test that the code option throws an error when the sanity checks fail."""
-        # Patch black.assert_equivalent to ensure the sanity checks fail
         with patch.object(black, "assert_equivalent", side_effect=AssertionError):
             code = 'print("Hello world")'
             error_msg = f"{code}\nerror: cannot format <string>: \n"
@@ -1899,7 +1835,6 @@ class BlackTestCase(BlackBaseTestCase):
 
     def test_code_option_fast(self) -> None:
         """Test that the code option ignores errors when the sanity checks fail."""
-        # Patch black.assert_equivalent to ensure the sanity checks fail
         with patch.object(black, "assert_equivalent", side_effect=AssertionError):
             code = 'print("Hello world")'
             formatted = black.format_str(code, mode=DEFAULT_MODE)
@@ -1916,7 +1851,6 @@ class BlackTestCase(BlackBaseTestCase):
         """
         with patch.object(black, "parse_pyproject_toml", return_value={}) as parse:
             args = ["--code", "print"]
-            # This is the only directory known to contain a pyproject.toml
             with change_directory(PROJECT_ROOT):
                 CliRunner().invoke(black.main, args)
                 pyproject_path = Path(Path.cwd(), "pyproject.toml").resolve()
@@ -2048,38 +1982,30 @@ class TestCaching:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        # Create multiple cache directories
         workspace1 = tmp_path / "ws1"
         workspace1.mkdir()
         workspace2 = tmp_path / "ws2"
         workspace2.mkdir()
 
-        # Force user_cache_dir to use the temporary directory for easier assertions
         patch_user_cache_dir = patch(
             target="black.cache.user_cache_dir",
             autospec=True,
             return_value=str(workspace1),
         )
 
-        # If BLACK_CACHE_DIR is not set, use user_cache_dir
         monkeypatch.delenv("BLACK_CACHE_DIR", raising=False)
         with patch_user_cache_dir:
             assert get_cache_dir().parent == workspace1
 
-        # If it is set, use the path provided in the env var.
         monkeypatch.setenv("BLACK_CACHE_DIR", str(workspace2))
         assert get_cache_dir().parent == workspace2
 
     def test_cache_file_length(self) -> None:
         cases = [
             DEFAULT_MODE,
-            # all of the target versions
             Mode(target_versions=set(TargetVersion)),
-            # all of the features
             Mode(enabled_features=set(Preview)),
-            # all of the magics
             Mode(python_cell_magics={f"magic{i}" for i in range(500)}),
-            # all of the things
             Mode(
                 target_versions=set(TargetVersion),
                 enabled_features=set(Preview),
@@ -2088,10 +2014,6 @@ class TestCaching:
         ]
         for case in cases:
             cache_file = get_cache_file(case)
-            # Some common file systems enforce a maximum path length
-            # of 143 (issue #4174). We can't do anything if the directory
-            # path is too long, but ensure the name of the cache file itself
-            # doesn't get too crazy.
             assert len(cache_file.name) <= 96
 
     def test_cache_broken_file(self) -> None:
@@ -2168,8 +2090,6 @@ class TestCaching:
                 if color:
                     cmd.append("--color")
                 invokeBlack(cmd, exit_code=0)
-                # this isn't quite doing what we want, but if it _isn't_
-                # called then we cannot be using the lock it provides
                 mgr.assert_called()
 
     def test_no_cache_when_stdin(self) -> None:
@@ -2239,7 +2159,6 @@ class TestCaching:
             assert done == {src}
             assert cached_file_data.st_mtime == st.st_mtime
 
-            # Modify st_mtime
             cached_file_data = cache.file_data[str(src)] = FileData(
                 cached_file_data.st_mtime - 1,
                 cached_file_data.st_size,
@@ -2252,7 +2171,6 @@ class TestCaching:
             assert cached_file_data.st_size == st.st_size
             assert cached_file_data.hash == black.Cache.hash_digest(src)
 
-            # Modify contents
             src.write_text("print('hello world')", encoding="utf-8")
             new_st = src.stat()
             todo, done = cache.filtered_cached([src])
@@ -2376,9 +2294,6 @@ class TestFileCollection:
 
     @patch("black.find_project_root", lambda *args: (THIS_DIR.resolve(), None))
     def test_exclude_for_issue_1572(self) -> None:
-        # Exclude shouldn't touch files that were explicitly given to Black through the
-        # CLI. Exclude is supposed to only apply to the recursive discovery of files.
-        # https://github.com/psf/black/issues/1572
         path = DATA_DIR / "include_exclude_tests"
         src = [path / "b/exclude/a.py"]
         expected = [path / "b/exclude/a.py"]
@@ -2444,7 +2359,6 @@ class TestFileCollection:
         assert sorted(expected) == sorted(sources)
 
     def test_nested_gitignore_directly_in_source_directory(self) -> None:
-        # https://github.com/psf/black/issues/2598
         path = Path(DATA_DIR / "nested_gitignore_tests")
         src = Path(path / "root" / "child")
         expected = [src / "a.py", src / "c.py"]
@@ -2483,12 +2397,10 @@ class TestFileCollection:
         )
 
     def test_gitignore_that_ignores_subfolders(self) -> None:
-        # If gitignore with */* is in root
         root = Path(DATA_DIR / "ignore_subfolders_gitignore_tests" / "subdir")
         expected = [root / "b.py"]
         assert_collected_sources([root], expected, root=root)
 
-        # If .gitignore with */* is nested
         root = Path(DATA_DIR / "ignore_subfolders_gitignore_tests")
         expected = [
             root / "a.py",
@@ -2496,7 +2408,6 @@ class TestFileCollection:
         ]
         assert_collected_sources([root], expected, root=root)
 
-        # If command is executed from outer dir
         root = Path(DATA_DIR / "ignore_subfolders_gitignore_tests")
         target = root / "subdir"
         expected = [target / "b.py"]
@@ -2518,7 +2429,6 @@ class TestFileCollection:
             Path(path / ".gitignore"),
             Path(path / "pyproject.toml"),
         ]
-        # Setting exclude explicitly to an empty string to block .gitignore usage.
         assert_collected_sources(src, expected, include="", exclude="")
 
     def test_include_absolute_path(self) -> None:
@@ -2578,14 +2488,12 @@ class TestFileCollection:
         ignored_symlink.is_dir.return_value = False
         ignored_symlink.is_file.return_value = True
 
-        # A symlink that has an excluded name, but points to an included name
         symlink_excluded_name = MagicMock()
         symlink_excluded_name.relative_to.return_value = Path("excluded_name")
         symlink_excluded_name.resolve.return_value = root / "included_name.py"
         symlink_excluded_name.is_dir.return_value = False
         symlink_excluded_name.is_file.return_value = True
 
-        # A symlink that has an included name, but points to an excluded name
         symlink_included_name = MagicMock()
         symlink_included_name.relative_to.return_value = Path("included_name.py")
         symlink_included_name.resolve.return_value = root / "excluded_name"
@@ -2649,7 +2557,6 @@ class TestFileCollection:
                     expected=[absolute_module],
                 )
 
-                # a few tricky tests for force_exclude
                 flat_symlink = symlink_proj / "symlink_module.py"
                 flat_symlink.symlink_to(actual_proj / "module.py")
                 assert_collected_sources(
@@ -2716,9 +2623,6 @@ class TestFileCollection:
         )
 
     def test_get_sources_with_stdin_filename_and_exclude(self) -> None:
-        # Exclude shouldn't exclude stdin_filename since it is mimicking the
-        # file being passed directly. This is the same as
-        # test_exclude_for_issue_1572
         path = DATA_DIR / "include_exclude_tests"
         src = ["-"]
         stdin_filename = str(path / "b/exclude/a.py")
@@ -2732,9 +2636,6 @@ class TestFileCollection:
         )
 
     def test_get_sources_with_stdin_filename_and_extend_exclude(self) -> None:
-        # Extend exclude shouldn't exclude stdin_filename since it is mimicking the
-        # file being passed directly. This is the same as
-        # test_exclude_for_issue_1572
         src = ["-"]
         path = THIS_DIR / "data" / "include_exclude_tests"
         stdin_filename = str(path / "b/exclude/a.py")
@@ -2748,8 +2649,6 @@ class TestFileCollection:
         )
 
     def test_get_sources_with_stdin_filename_and_force_exclude(self) -> None:
-        # Force exclude should exclude the file when passing it through
-        # stdin_filename
         path = THIS_DIR / "data" / "include_exclude_tests"
         stdin_filename = str(path / "b/exclude/a.py")
         assert_collected_sources(
@@ -2763,7 +2662,6 @@ class TestFileCollection:
     def test_get_sources_with_stdin_filename_and_force_exclude_and_symlink(
         self,
     ) -> None:
-        # Force exclude should exclude a symlink based on the symlink, not its target
         with TemporaryDirectory() as tempdir:
             tmp = Path(tempdir).resolve()
             (tmp / "exclude").mkdir()
@@ -2791,24 +2689,19 @@ class TestDeFactoAPI:
     """
 
     def test_format_str(self) -> None:
-        # format_str and Mode should keep working
         assert (
             black.format_str("print('hello')", mode=black.Mode()) == 'print("hello")\n'
         )
 
-        # you can pass line length
         assert (
             black.format_str("print('hello')", mode=black.Mode(line_length=42))
             == 'print("hello")\n'
         )
 
-        # invalid input raises InvalidInput
         with pytest.raises(black.InvalidInput):
             black.format_str("syntax error", mode=black.Mode())
 
     def test_format_file_contents(self) -> None:
-        # You probably should be using format_str() instead, but let's keep
-        # this one around since people do use it
         assert (
             black.format_file_contents("x=1", fast=True, mode=black.Mode()) == "x = 1\n"
         )
@@ -2821,9 +2714,6 @@ class TestASTSafety(BlackBaseTestCase):
     def check_ast_equivalence(
         self, source: str, dest: str, *, should_fail: bool = False
     ) -> None:
-        # If we get a failure, make sure it's not because the code itself
-        # is invalid, since that will also cause assert_equivalent() to throw
-        # ASTSafetyError.
         source = textwrap.dedent(source)
         dest = textwrap.dedent(dest)
         black.parse_ast(source)
@@ -2901,7 +2791,6 @@ class TestASTSafety(BlackBaseTestCase):
         major, minor = sys.version_info[:2]
         if major < 3 or (major == 3 and minor < 12):
             pytest.skip("relies on 3.12+ syntax")
-        # https://github.com/psf/black/issues/4268
         self.check_ast_equivalence(
             """print(f"{"|".join([a,b,c])}")""",
             """print(f"{" | ".join([a,b,c])}")""",
@@ -2918,8 +2807,6 @@ class TestASTSafety(BlackBaseTestCase):
             black.assert_equivalent("a«»a  = 1", "a«»a  = 1")
 
         err.match("--safe")
-        # Unfortunately the SyntaxError message has changed in newer versions so we
-        # can't match it directly.
         err.match("invalid character")
         err.match(r"\(<unknown>, line 1\)")
 

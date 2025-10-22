@@ -11,20 +11,18 @@ from ..models.an_enum import AnEnum
 from ..models.body_upload_file_tests_upload_post import BodyUploadFileTestsUploadPost
 from ..models.http_validation_error import HTTPValidationError
 
-
 def get_user_list(
     *, client: Client, an_enum_value: List[AnEnum], some_date: Union[datetime.date, datetime.datetime],
 ) -> Union[
     List[AModel], HTTPValidationError,
 ]:
 
-    """ Get a list of things  """
+
     url = f"{client.base_url}/tests/"
 
     headers: Dict[str, Any] = client.get_headers()
 
     json_an_enum_value = [an_enum_value_item.value for an_enum_value_item in an_enum_value]
-
 
     json_some_date = some_date.isoformat()
 
@@ -42,14 +40,13 @@ def get_user_list(
     else:
         raise ApiResponseError(response=response)
 
-
 def upload_file_tests_upload_post(
     *, client: Client, multipart_data: BodyUploadFileTestsUploadPost, keep_alive: Optional[bool] = None,
 ) -> Union[
     None, HTTPValidationError,
 ]:
 
-    """ Upload a file  """
+
     url = f"{client.base_url}/tests/upload"
 
     headers: Dict[str, Any] = client.get_headers()
@@ -65,14 +62,13 @@ def upload_file_tests_upload_post(
     else:
         raise ApiResponseError(response=response)
 
-
 def json_body_tests_json_body_post(
     *, client: Client, json_body: AModel,
 ) -> Union[
     None, HTTPValidationError,
 ]:
 
-    """ Try sending a JSON body  """
+
     url = f"{client.base_url}/tests/json_body"
 
     headers: Dict[str, Any] = client.get_headers()
@@ -87,7 +83,6 @@ def json_body_tests_json_body_post(
         return HTTPValidationError.from_dict(cast(Dict[str, Any], response.json()))
     else:
         raise ApiResponseError(response=response)
-
 
 def test_defaults_tests_test_defaults_post(
     *,
@@ -108,7 +103,7 @@ def test_defaults_tests_test_defaults_post(
     None, HTTPValidationError,
 ]:
 
-    """  """
+
     url = f"{client.base_url}/tests/test_defaults"
 
     headers: Dict[str, Any] = client.get_headers()
@@ -118,7 +113,6 @@ def test_defaults_tests_test_defaults_post(
     json_date_prop = date_prop.isoformat() if date_prop else None
 
     json_list_prop = [list_prop_item.value for list_prop_item in list_prop] if list_prop else None
-
 
     if union_prop is None:
         json_union_prop: Optional[Union[Optional[float], Optional[str]]] = None

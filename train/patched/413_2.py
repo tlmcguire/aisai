@@ -3,9 +3,8 @@ import shutil
 import zipfile
 import tarfile
 
-
 def safe_extract_archive(filename, extract_dir):
-    """Safely extracts archive files, preventing path traversal vulnerabilities."""
+
     if not os.path.exists(extract_dir):
         os.makedirs(extract_dir)
 

@@ -31,7 +31,6 @@ if TYPE_CHECKING:
 unhandled_errors_logger = logging.getLogger("saleor.graphql.errors.unhandled")
 handled_errors_logger = logging.getLogger("saleor.graphql.errors.handled")
 
-
 ERROR_COULD_NO_RESOLVE_GLOBAL_ID = (
     "Could not resolve to a node with the global id list of '%s'."
 )
@@ -50,7 +49,6 @@ ALLOWED_ERRORS = [
 ]
 
 INTERNAL_ERROR_MESSAGE = "Internal Server Error"
-
 
 def resolve_global_ids_to_primary_keys(
     ids: Iterable[str], graphene_type=None, raise_error: bool = False
@@ -83,13 +81,11 @@ def resolve_global_ids_to_primary_keys(
 
     return used_type, pks
 
-
 def _resolve_graphene_type(schema, type_name):
     type_from_schema = schema.get_type(type_name)
     if type_from_schema:
         return type_from_schema.graphene_type
     raise GraphQLError("Could not resolve the type {}".format(type_name))
-
 
 def get_nodes(
     ids,
@@ -98,15 +94,7 @@ def get_nodes(
     qs=None,
     schema=None,
 ):
-    """Return a list of nodes.
 
-    If the `graphene_type` argument is provided, the IDs will be validated
-    against this type. If the type was not provided, it will be looked up in
-    the schema. Raises an error if not all IDs are of the same
-    type.
-
-    If the `graphene_type` is of type str, the model keyword argument must be provided.
-    """
     nodes_type, pks = resolve_global_ids_to_primary_keys(
         ids, graphene_type, raise_error=True
     )
@@ -141,7 +129,6 @@ def get_nodes(
         )
     return nodes
 
-
 def _get_node_for_types_with_double_id(qs, pks, graphene_type):
     uuid_pks = []
     old_pks = []
@@ -165,14 +152,8 @@ def _get_node_for_types_with_double_id(qs, pks, graphene_type):
         ),
     )
 
-
 def format_permissions_for_display(permissions):
-    """Transform permissions queryset into Permission list.
 
-    Keyword Arguments:
-        permissions - queryset with permissions
-
-    """
     permissions_data = permissions.annotate(
         formated_codename=Concat("content_type__app_label", Value("."), "codename")
     ).values("name", "formated_codename")
@@ -185,49 +166,15 @@ def format_permissions_for_display(permissions):
     ]
     return formatted_permissions
 
-
 def get_user_or_app_from_context(context: "SaleorContext") -> Union[App, User, None]:
     return context.app or context.user
 
-
 def requestor_is_superuser(requestor):
-    """Return True if requestor is superuser."""
+
     return getattr(requestor, "is_superuser", False)
 
-
 def query_identifier(document: GraphQLDocument) -> str:
-    """Generate a fingerprint for a GraphQL query.
 
-    For queries identifier is sorted set of all root objects separated by `,`.
-    e.g
-    query AnyQuery {
-        product {
-            id
-        }
-        order {
-            id
-        }
-        Product2: product {
-            id
-        }
-        Myself: me {
-            email
-        }
-    }
-    identifier: me, order, product
-
-    For mutations identifier is mutation type name.
-    e.g.
-    mutation CreateToken{
-        tokenCreate(...){
-            token
-        }
-        deleteWarehouse(...){
-            ...
-        }
-    }
-    identifier: deleteWarehouse, tokenCreate
-    """
     labels = []
     for definition in document.document_ast.definitions:
         if getattr(definition, "operation", None) in {
@@ -241,9 +188,8 @@ def query_identifier(document: GraphQLDocument) -> str:
         return "undefined"
     return ", ".join(sorted(set(labels)))
 
-
 def query_fingerprint(document: GraphQLDocument) -> str:
-    """Generate a fingerprint for a GraphQL query."""
+
     label = "unknown"
     for definition in document.document_ast.definitions:
         if getattr(definition, "operation", None) in {
@@ -258,7 +204,6 @@ def query_fingerprint(document: GraphQLDocument) -> str:
             break
     query_hash = hashlib.md5(document.document_string.encode("utf-8")).hexdigest()
     return f"{label}:{query_hash}"
-
 
 def format_error(error, handled_exceptions):
     result: Dict[str, Any]

@@ -89,7 +89,6 @@ def validation_error_to_error_type(
     err_list = []
     error_class_fields = set(error_type_class._meta.fields.keys())
     if hasattr(validation_error, "error_dict"):
-        # convert field errors
         for field_label, field_errors in validation_error.error_dict.items():
             field = (
                 None
@@ -105,7 +104,6 @@ def validation_error_to_error_type(
                 attach_error_params(error, err.params, error_class_fields)
                 err_list.append(error)
     else:
-        # convert non-field errors
         for err in validation_error.error_list:
             error = error_type_class(
                 message=err.messages[0],
@@ -119,8 +117,6 @@ def validation_error_to_error_type(
 def attach_error_params(error, params: Optional[dict], error_class_fields: set):
     if not params:
         return {}
-    # If some of the params key overlap with error class fields
-    # attach param value to the error
     error_fields_in_params = set(params.keys()) & error_class_fields
     for error_field in error_fields_in_params:
         setattr(error, error_field, params[error_field])
@@ -224,8 +220,6 @@ class BaseMutation(graphene.Mutation):
         if qs is not None:
             lookup = Q(pk=pk)
             if pk is not None and str(graphene_type) in TYPES_WITH_DOUBLE_ID_AVAILABLE:
-                # This is temporary solution that allows fetching objects with use of
-                # new and old id.
                 try:
                     UUID(str(pk))
                 except ValueError:
@@ -337,11 +331,6 @@ class BaseMutation(graphene.Mutation):
         code: str = "not_found",
     ) -> Optional[Model]:
         if not node_id:
-            # FIXME: this is weird behavior and we should drop it
-            # the function now has three possible outcomes:
-            # * Null
-            # * the object you asked for
-            # * ValidationError
             return None
 
         try:
@@ -434,8 +423,6 @@ class BaseMutation(graphene.Mutation):
             instance.full_clean()
         except ValidationError as error:
             if hasattr(cls._meta, "exclude"):
-                # Ignore validation errors for fields that are specified as
-                # excluded.
                 new_error_dict = {}
                 for field, errors in error.error_dict.items():
                     if field not in cls._meta.exclude:
@@ -472,10 +459,6 @@ class BaseMutation(graphene.Mutation):
                 continue
             data = cleaned_data[f.name]
             if data is None:
-                # We want to reset the file field value when None was passed
-                # in the input, but `FileField.save_form_data` ignores None
-                # values. In that case we manually pass False which clears
-                # the file.
                 if isinstance(f, FileField):
                     data = False
                 if not f.null:
@@ -678,7 +661,6 @@ class ModelMutation(BaseMutation):
             if field_name in data:
                 value = data[field_name]
 
-                # handle list of IDs field
                 if value is not None and is_list_of_ids(field_item):
                     instances = (
                         cls.get_nodes_or_error(value, field_name, schema=info.schema)
@@ -687,17 +669,14 @@ class ModelMutation(BaseMutation):
                     )
                     cleaned_input[field_name] = instances
 
-                # handle ID field
                 elif value is not None and is_id_field(field_item):
                     instance = cls.get_node_or_error(info, value, field=field_name)
                     cleaned_input[field_name] = instance
 
-                # handle uploaded files
                 elif value is not None and is_upload_field(field_item):
                     value = info.context.FILES.get(value)
                     cleaned_input[field_name] = value
 
-                # handle other fields
                 else:
                     cleaned_input[field_name] = value
         return cleaned_input
@@ -820,7 +799,7 @@ class ModelDeleteMutation(ModelMutation):
         """
 
     @classmethod
-    def perform_mutation(  # type: ignore[override]
+    def perform_mutation(
         cls, _root, info: ResolveInfo, /, *, external_reference=None, id=None
     ):
         """Perform a mutation that deletes a model instance."""
@@ -830,8 +809,6 @@ class ModelDeleteMutation(ModelMutation):
         db_id = instance.id
         instance.delete()
 
-        # After the instance is deleted, set its ID to the original database's
-        # ID so that the success response contains ID of the deleted object.
         instance.id = db_id
         cls.post_save_action(info, instance, None)
         return cls.success_response(instance)
@@ -883,13 +860,12 @@ class BaseBulkMutation(BaseMutation):
         raise NotImplementedError
 
     @classmethod
-    def perform_mutation(  # type: ignore[override]
+    def perform_mutation(
         cls, _root, info: ResolveInfo, /, *, ids, **data
     ) -> Tuple[int, Optional[ValidationError]]:
         """Perform a mutation that deletes a list of model instances."""
         clean_instance_ids = []
         errors_dict: Dict[str, List[ValidationError]] = {}
-        # Allow to pass empty list for dummy mutation
         if not ids:
             return 0, None
         instance_model = cls._meta.model
@@ -909,8 +885,6 @@ class BaseBulkMutation(BaseMutation):
         for instance, node_id in zip(instances, ids):
             instance_errors = []
 
-            # catch individual validation errors to raise them later as
-            # a single error
             try:
                 cls.clean_instance(info, instance)
             except ValidationError as e:
@@ -987,16 +961,13 @@ class FileUpload(BaseMutation):
         )
 
     @classmethod
-    def perform_mutation(  # type: ignore[override]
+    def perform_mutation(
         cls, _root, info: ResolveInfo, /, file
     ):
         file_data: UploadedFile = cast(UploadedFile, info.context.FILES[file])
 
-        # add unique text fragment to the file name to prevent file overriding
         file_name, format = os.path.splitext(file_data.name or "")
 
-        # replace spaced with an underscore to prevent replacing the spaces with encoded
-        # values by storage
         file_name = file_name.replace(" ", "_")
 
         hash = secrets.token_hex(nbytes=4)

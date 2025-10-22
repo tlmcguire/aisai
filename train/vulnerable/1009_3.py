@@ -12,7 +12,6 @@ from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.stmt import parse_body
 from vyper.semantics.types import TupleT
 
-
 def _register_function_args(context: Context, sig: FunctionSignature) -> List[IRnode]:
     ret = []
 
@@ -47,12 +46,10 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[IR
 
     return ret
 
-
 def _annotated_method_id(abi_sig):
     method_id = util.method_id_int(abi_sig)
     annotation = f"{hex(method_id)}: {abi_sig}"
     return IRnode(method_id, annotation=annotation)
-
 
 def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[Any]:
 
@@ -72,7 +69,6 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
         args_abi_t = calldata_args_t.abi_type
         calldata_min_size = args_abi_t.min_size() + 4
         ret.append(["assert", ["ge", "calldatasize", calldata_min_size]])
-
 
         n_base_args = len(sig.base_args)
 
@@ -122,12 +118,8 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
 
     return ret
 
-
 def generate_ir_for_external_function(code, sig, context, skip_nonpayable_check):
-    """Return the IR for an external function. Includes code to inspect the method_id,
-    enter the function (nonpayable and reentrancy checks), handle kwargs and exit
-    the function (clean up reentrancy storage variables)
-    """
+
     func_type = code._metadata["type"]
 
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_type)

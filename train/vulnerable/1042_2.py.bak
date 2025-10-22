@@ -100,7 +100,7 @@ class Association(models.Model, DjangoAssociationMixin):
 
     server_url = models.CharField(max_length=ASSOCIATION_SERVER_URL_LENGTH)
     handle = models.CharField(max_length=ASSOCIATION_HANDLE_LENGTH)
-    secret = models.CharField(max_length=255)  # Stored base64 encoded
+    secret = models.CharField(max_length=255)
     issued = models.IntegerField()
     lifetime = models.IntegerField()
     assoc_type = models.CharField(max_length=64)

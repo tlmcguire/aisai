@@ -2,11 +2,8 @@ from .extensions import *
 from .filters import *
 from .loaders import *
 
-
 def render_jinja2(template, context, trim=False, lstrip=False):
-    """
-    Render the template using Jinja2.
-    """
+
     import traceback
 
     from django.conf import settings

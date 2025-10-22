@@ -49,11 +49,10 @@ def decrypt_with_pyrage(identity, ciphertext):
          os.remove(plaintext_path)
 
 if __name__ == '__main__':
-    # Example usage (assuming you have a keypair)
-    recipient_key = "age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # Replace with valid recipient public key
-    identity_key  = "AGE-SECRET-KEY-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # Replace with valid private key
+    recipient_key = "age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    identity_key  = "AGE-SECRET-KEY-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     plaintext_to_encrypt = "This is a secret message."
-    
+
     ciphertext = encrypt_with_pyrage(recipient_key, plaintext_to_encrypt)
     print(f"Ciphertext: {ciphertext.decode('latin-1')}")
 

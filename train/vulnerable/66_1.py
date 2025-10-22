@@ -1,14 +1,7 @@
 import json
 
 def load_config_unsafely(config_data):
-    """Loads configuration data from a string, unsafely allowing code execution.
 
-    Args:
-        config_data (str): The configuration data as a string.
-
-    Returns:
-        dict: The parsed configuration data as a dictionary.
-    """
 
     try:
         config = json.loads(config_data)

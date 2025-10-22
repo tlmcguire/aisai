@@ -48,7 +48,7 @@ class GetReturnURLMixinTestCase(TestCase):
         """
         Replace the 'i' in '/dcim/' with a unicode dotless 'ı' and make sure we're not fooled by it.
         """  # noqa: RUF002  # ambiguous-unicode-character-docstring -- fully intentional here!
-        request = self.factory.get("/", {"return_url": "/dcım/devices/"})  # noqa: RUF001  # ambiguous-unicode-character-string -- fully intentional here!
+        request = self.factory.get("/", {"return_url": "/dcım/devices/"})
         self.assertEqual(self.mixin.get_return_url(request=request, obj=None), "/dc%C4%B1m/devices/")
 
     def test_get_return_url_default_with_obj(self):
@@ -74,7 +74,6 @@ class HomeViewTestCase(TestCase):
         self.assertHttpStatus(response, 200)
 
     def test_appropriate_models_included_in_global_search(self):
-        # Gather core app configs
         existing_models = []
         global_searchable_models = []
         for app_name in ["circuits", "dcim", "extras", "ipam", "tenancy", "virtualization"]:
@@ -82,11 +81,9 @@ class HomeViewTestCase(TestCase):
             existing_models += [model._meta.model_name for model in app_config.get_models()]
             global_searchable_models += app_config.searchable_models
 
-        # Remove those models that are not searchable
         existing_models = [model for model in existing_models if model not in GLOBAL_SEARCH_EXCLUDE_LIST]
         existing_models.sort()
 
-        # See if there are any models that are missing from global search
         difference = [model for model in existing_models if model not in global_searchable_models]
         if difference:
             self.fail(
@@ -98,7 +95,6 @@ class HomeViewTestCase(TestCase):
         url = reverse("home")
         response = self.client.get(url)
 
-        # Search bar in nav
         nav_search_bar_pattern = re.compile(
             '<nav.*<form action="/search/" method="get" class="navbar-form" id="navbar_search" role="search">.*</form>.*</nav>'
         )
@@ -106,7 +102,6 @@ class HomeViewTestCase(TestCase):
             response.content.decode(response.charset).replace("\n", "")
         )
 
-        # Global search bar in body/container-fluid wrapper
         body_search_bar_pattern = re.compile(
             '<div class="container-fluid wrapper" id="main-content">.*<form action="/search/" method="get" class="form-inline">.*</form>.*</div>',
             re.DOTALL,
@@ -152,14 +147,11 @@ class SearchFieldsTestCase(TestCase):
     def test_search_bar_redirect_to_login(self):
         self.client.logout()
         response = self.client.get(reverse("search") + "?q=prefix")
-        # Assert that if the user is not logged in
-        # SearchForm will redirect the user to the login Page
         self.assertEqual(response.status_code, 302)
 
     def test_global_and_model_search_bar(self):
         self.add_permissions("dcim.view_location", "dcim.view_device")
 
-        # Assert model search bar present in list UI
         response = self.client.get(reverse("dcim:location_list"))
         self.assertInHTML(
             '<input type="text" name="q" class="form-control" required placeholder="Search Locations" id="id_q">',
@@ -172,7 +164,6 @@ class SearchFieldsTestCase(TestCase):
             response.content.decode(response.charset),
         )
 
-        # Assert global search bar present in UI
         self.assertInHTML(
             '<input type="text" name="q" class="form-control" placeholder="Search Nautobot">',
             response.content.decode(response.charset),
@@ -250,7 +241,6 @@ class FilterFormsTestCase(TestCase):
         response = self.client.get(url)
         self.assertHttpStatus(response, 200)
         response_content = response.content.decode(response.charset)
-        # The important thing here is that the data-field-parent and data-field-value are correctly quoted
         self.assertInHTML(
             """
 <span class="filter-selection-choice-remove remove-filter-param"
@@ -270,16 +260,9 @@ class ForceScriptNameTestcase(TestCase):
     )
     @override_script_prefix("/nautobot/")
     def test_subdirectory_routes(self):
-        # We must call `set_script_prefix()` to set the URL resolver script prefix outside of the
-        # request/response cycle (e.g. in scripts/tests) to generate correct URLs when `SCRIPT_NAME`
-        # is not `/`.
-        #
-        # We must then call it again to reset the script pefix after we're done because
-        # the state is stored in the thread-local scope and will "infect" other tests.
         prefix = get_script_prefix()
         self.assertEqual(prefix, "/nautobot/")
 
-        # And that routes will start w/ the prefix vs. just "/" (the default).
         routes = ("home", "login", "search", "api-root")
         for route in routes:
             url = reverse(route)
@@ -291,7 +274,7 @@ class NavAppsUITestCase(TestCase):
         super().setUp()
 
         self.url = reverse("apps:apps_list")
-        self.item_weight = 100  # TODO: not easy to introspect from the nav menu struct, so hard-code it here for now
+        self.item_weight = 100
 
     def make_request(self):
         response = self.client.get(reverse("home"))
@@ -388,8 +371,6 @@ class MetricsViewTestCase(TestCase):
         metric_names_with_app = {metric.name for metric in metrics_with_app}
         self.assertIn(test_metric_name, metric_names_with_app)
         with override_settings(PLUGINS=[]):
-            # Clear out the app metric registry because it is not updated when settings are changed but Nautobot is not
-            # restarted.
             registry["app_metrics"].clear()
             metrics_without_app = self.query_and_parse_metrics()
             metric_names_without_app = {metric.name for metric in metrics_without_app}
@@ -517,25 +498,19 @@ class SilkUIAccessTestCase(TestCase):
     """Test access control related to the django-silk UI"""
 
     def test_access_for_non_superuser(self):
-        # Login as non-superuser
         self.user.is_superuser = False
         self.user.save()
         self.client.force_login(self.user)
 
-        # Attempt to access the view
         response = self.client.get(reverse("silk:summary"))
 
-        # Check for redirect or forbidden status code (302 or 403)
         self.assertIn(response.status_code, [302, 403])
 
     def test_access_for_superuser(self):
-        # Login as superuser
         self.user.is_superuser = True
         self.user.save()
         self.client.force_login(self.user)
 
-        # Attempt to access the view
         response = self.client.get(reverse("silk:summary"))
 
-        # Check for success status code (e.g., 200)
         self.assertEqual(response.status_code, 200)

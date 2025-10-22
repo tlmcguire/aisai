@@ -1,16 +1,3 @@
-# Copyright The OpenTelemetry Authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 from timeit import default_timer
 from unittest.mock import Mock, patch
@@ -43,7 +30,6 @@ from opentelemetry.util.http import (
     get_excluded_urls,
 )
 
-# pylint: disable=import-error
 from .base_test import InstrumentationTest
 
 
@@ -137,7 +123,6 @@ class TestProgrammatic(InstrumentationTest, WsgiTestBase):
         self.assertEqual(len(span_list), 0)
         FlaskInstrumentor().uninstrument()
 
-    # pylint: disable=no-member
     def test_only_strings_in_environ(self):
         """
         Some WSGI servers (such as Gunicorn) expect keys in the environ object
@@ -442,7 +427,6 @@ class TestProgrammaticHooksWithoutApp(InstrumentationTest, WsgiTestBase):
         FlaskInstrumentor().instrument(
             request_hook=request_hook_test, response_hook=response_hook_test
         )
-        # pylint: disable=import-outside-toplevel,reimported,redefined-outer-name
         from flask import Flask
 
         self.app = Flask(__name__)
@@ -512,7 +496,6 @@ class TestProgrammaticCustomTracerProviderWithoutApp(
         self.memory_exporter = exporter
 
         FlaskInstrumentor().instrument(tracer_provider=tracer_provider)
-        # pylint: disable=import-outside-toplevel,reimported,redefined-outer-name
         from flask import Flask
 
         self.app = Flask(__name__)

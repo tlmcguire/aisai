@@ -27,22 +27,12 @@ DEFAULT_LINK_REGEX = (
     rf"href=[\"']{PREFIXES_TO_IGNORE_REGEX}((?:{SUFFIXES_TO_IGNORE_REGEX}.)*?)[\#'\"]"
 )
 
-
 def find_all_links(
     raw_html: str, *, pattern: Union[str, re.Pattern, None] = None
 ) -> List[str]:
-    """Extract all links from a raw html string.
 
-    Args:
-        raw_html: original html.
-        pattern: Regex to use for extracting links from raw html.
-
-    Returns:
-        List[str]: all links
-    """
     pattern = pattern or DEFAULT_LINK_REGEX
     return list(set(re.findall(pattern, raw_html)))
-
 
 def extract_sub_links(
     raw_html: str,
@@ -53,20 +43,7 @@ def extract_sub_links(
     prevent_outside: bool = True,
     exclude_prefixes: Sequence[str] = (),
 ) -> List[str]:
-    """Extract all links from a raw html string and convert into absolute paths.
 
-    Args:
-        raw_html: original html.
-        url: the url of the html.
-        base_url: the base url to check for outside links against.
-        pattern: Regex to use for extracting links from raw html.
-        prevent_outside: If True, ignore external links which are not children
-            of the base url.
-        exclude_prefixes: Exclude any URLs that start with one of these prefixes.
-
-    Returns:
-        List[str]: sub links
-    """
     base_url_to_use = base_url if base_url is not None else url
     parsed_base_url = urlparse(base_url_to_use)
     all_links = find_all_links(raw_html, pattern=pattern)

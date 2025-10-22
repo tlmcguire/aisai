@@ -8,18 +8,8 @@ from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import get_index_value, type_from_annotation
 
-
 class _SubscriptableT(VyperType):
-    """
-    Base class for subscriptable types such as arrays and mappings.
 
-    Attributes
-    ----------
-    key_type: VyperType
-        Type representing the index for this object.
-    value_type : VyperType
-        Type representing the value(s) contained in this object.
-    """
 
     def __init__(self, key_type: VyperType, value_type: VyperType) -> None:
         super().__init__()
@@ -35,7 +25,6 @@ class _SubscriptableT(VyperType):
         from vyper.semantics.analysis.utils import validate_expected_type
 
         validate_expected_type(node, self.key_type)
-
 
 class HashMapT(_SubscriptableT):
     _id = "HashMap"
@@ -80,16 +69,8 @@ class HashMapT(_SubscriptableT):
 
         return cls(key_type, value_type)
 
-
 class _SequenceT(_SubscriptableT):
-    """
-    Private base class for sequence types (i.e., index is an int)
 
-    Arguments
-    ---------
-    length : int
-        Number of items in the type.
-    """
 
     _equality_attrs: tuple = ("value_type", "length")
 
@@ -104,9 +85,7 @@ class _SequenceT(_SubscriptableT):
 
     @property
     def count(self):
-        """
-        Alias for API compatibility
-        """
+
         return self.length
 
     def validate_index_type(self, node):
@@ -123,16 +102,12 @@ class _SequenceT(_SubscriptableT):
     def get_subscripted_type(self, node):
         return self.value_type
 
-
 def _set_first_key(xs: Dict[str, Any], k: str, val: Any) -> dict:
     xs.pop(k, None)
     return {k: val, **xs}
 
-
 class SArrayT(_SequenceT):
-    """
-    Static array type
-    """
+
 
     def __init__(self, value_type: VyperType, length: int) -> None:
         super().__init__(value_type, length)
@@ -159,9 +134,7 @@ class SArrayT(_SequenceT):
 
     @property
     def subtype(self):
-        """
-        Alias for API compatibility with codegen
-        """
+
         return self.value_type
 
     def get_subscripted_type(self, node):
@@ -189,11 +162,8 @@ class SArrayT(_SequenceT):
         length = get_index_value(node.slice)
         return cls(value_type, length)
 
-
 class DArrayT(_SequenceT):
-    """
-    Dynamic array type
-    """
+
 
     _valid_literal = (vy_ast.List,)
     _as_array = True
@@ -212,16 +182,12 @@ class DArrayT(_SequenceT):
 
     @property
     def subtype(self):
-        """
-        Alias for backwards compatibility.
-        """
+
         return self.value_type
 
     @property
     def count(self):
-        """
-        Alias for backwards compatibility.
-        """
+
         return self.length
 
     @property
@@ -265,14 +231,8 @@ class DArrayT(_SequenceT):
         max_length = node.slice.value.elements[1].value
         return cls(value_type, max_length)
 
-
 class TupleT(VyperType):
-    """
-    Tuple type definition.
 
-    This class is used to represent multiple return values from
-    functions.
-    """
 
     _equality_attrs = ("members",)
 

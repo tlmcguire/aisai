@@ -1,6 +1,4 @@
-# Copyright (c) ONNX Project Contributors
 
-# SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
 import os
@@ -66,13 +64,13 @@ class TestLoadExternalDataBase(unittest.TestCase):
             inputs=[],
             outputs=["values"],
             value=self.create_external_data_tensor(
-                self.attribute_value, "attribute_value"  # type: ignore[arg-type]
+                self.attribute_value, "attribute_value"
             ),
         )
 
         initializers = [
             self.create_external_data_tensor(
-                self.initializer_value, "input_value", location  # type: ignore[arg-type]
+                self.initializer_value, "input_value", location
             )
         ]
         inputs = [
@@ -238,8 +236,8 @@ class TestSaveAllTensorsAsExternalData(unittest.TestCase):
     def create_test_model_proto(self) -> ModelProto:
         tensors = self.create_data_tensors(
             [
-                (self.attribute_value, "attribute_value"),  # type: ignore[list-item]
-                (self.initializer_value, "input_value"),  # type: ignore[list-item]
+                (self.attribute_value, "attribute_value"),
+                (self.initializer_value, "input_value"),
             ]
         )
 
@@ -305,7 +303,6 @@ class TestSaveAllTensorsAsExternalData(unittest.TestCase):
 
         model = onnx.load_model(model_file_path, self.serialization_format)
 
-        # test convert model from external data
         convert_model_from_external_data(model)
         model_file_path = self.get_temp_model_filename()
         onnx.save_model(model, model_file_path, self.serialization_format)
@@ -461,7 +458,6 @@ class TestSaveAllTensorsAsExternalData(unittest.TestCase):
             size_threshold=0,
             convert_attribute=False,
         )
-        # Save without load_external_data
         model = onnx.load_model(
             model_file_path, self.serialization_format, load_external_data=False
         )
@@ -474,7 +470,6 @@ class TestSaveAllTensorsAsExternalData(unittest.TestCase):
             size_threshold=0,
             convert_attribute=False,
         )
-        # Load the saved model again; Only works if the saved path is under the same directory
         model = onnx.load_model(model_file_path, self.serialization_format)
 
         initializer_tensor = model.graph.initializer[0]
@@ -502,7 +497,6 @@ class TestSaveAllTensorsAsExternalData(unittest.TestCase):
         )
         initializer_tensor = model.graph.initializer[0]
         initializer_tensor.raw_data = b"dummpy_raw_data"
-        # If raw_data and external tensor exist at the same time, override existing raw_data
         load_external_data_for_tensor(initializer_tensor, self.temp_dir)
         self.assertEqual(initializer_tensor.raw_data, original_raw_data)
 
@@ -589,9 +583,6 @@ class TestExternalDataToArray(unittest.TestCase):
         model_without_external_data = onnx.load(
             self.model_file_path, self.serialization_format, load_external_data=False
         )
-        # Shape inference of Reshape uses ParseData
-        # ParseData cannot handle external data and should throw the error as follows:
-        # Cannot parse data from external tensors. Please load external data into raw data for tensor: Shape
         self.assertRaises(
             shape_inference.InferenceError,
             shape_inference.infer_shapes,
@@ -608,18 +599,13 @@ class TestExternalDataToArray(unittest.TestCase):
             all_tensors_to_one_file=False,
             size_threshold=0,
         )
-        # raw_data of external tensor is not loaded
         model = onnx.load(
             self.model_file_path, self.serialization_format, load_external_data=False
         )
-        # Specify self.temp_dir to load external tensor
         loaded_large_data = to_array(model.graph.initializer[0], self.temp_dir)
         np.testing.assert_allclose(loaded_large_data, self.large_data)
 
     def test_save_model_with_external_data_multiple_times(self) -> None:
-        # Test onnx.save should respectively handle typical tensor and external tensor properly
-        # 1st save: save two tensors which have raw_data
-        # Only w_large will be stored as external tensors since it's larger than 1024
         onnx.save_model(
             self.model,
             self.model_file_path,
@@ -643,8 +629,6 @@ class TestExternalDataToArray(unittest.TestCase):
         self.assertTrue(not small_shape_tensor.HasField("data_location"))
         np.testing.assert_allclose(to_array(small_shape_tensor), self.small_data)
 
-        # 2nd save: one tensor has raw_data (small); one external tensor (large)
-        # Save them both as external tensors this time
         onnx.save_model(
             model_without_loading_external,
             self.model_file_path,

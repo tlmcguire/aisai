@@ -36,7 +36,7 @@ from typing import (
     cast,
 )
 
-from yarl import URL, __version__ as yarl_version  # type: ignore[attr-defined]
+from yarl import URL, __version__ as yarl_version
 
 from . import hdrs
 from .abc import AbstractMatchInfo, AbstractRouter, AbstractView
@@ -127,11 +127,11 @@ class AbstractResource(Sized, Iterable["AbstractRoute"]):
 
         """
 
-    @abc.abstractmethod  # pragma: no branch
+    @abc.abstractmethod
     def url_for(self, **kwargs: str) -> URL:
         """Construct url for resource with additional params."""
 
-    @abc.abstractmethod  # pragma: no branch
+    @abc.abstractmethod
     async def resolve(self, request: Request) -> _Resolve:
         """Resolve resource.
 
@@ -230,7 +230,7 @@ class AbstractRoute(abc.ABC):
     def get_info(self) -> _InfoDict:
         """Return a dict with additional info useful for introspection"""
 
-    @abc.abstractmethod  # pragma: no branch
+    @abc.abstractmethod
     def url_for(self, *args: str, **kwargs: str) -> URL:
         """Construct url for route with additional params."""
 
@@ -262,7 +262,7 @@ class UrlMappingMatchInfo(BaseDict, AbstractMatchInfo):
     def http_exception(self) -> Optional[HTTPException]:
         return None
 
-    def get_info(self) -> _InfoDict:  # type: ignore[override]
+    def get_info(self) -> _InfoDict:
         return self._route.get_info()
 
     @property
@@ -284,7 +284,7 @@ class UrlMappingMatchInfo(BaseDict, AbstractMatchInfo):
 
     @contextmanager
     def set_current_app(self, app: "Application") -> Generator[None, None, None]:
-        if DEBUG:  # pragma: no cover
+        if DEBUG:
             if app not in self._apps:
                 raise RuntimeError(
                     "Expected one of the following apps {!r}, got {!r}".format(
@@ -383,7 +383,7 @@ class Resource(AbstractResource):
 
     @abc.abstractmethod
     def _match(self, path: str) -> Optional[Dict[str, str]]:
-        pass  # pragma: no cover
+        pass
 
     def __len__(self) -> int:
         return len(self._routes)
@@ -391,7 +391,6 @@ class Resource(AbstractResource):
     def __iter__(self) -> Iterator["ResourceRoute"]:
         return iter(self._routes)
 
-    # TODO: implement all abstract methods
 
 
 class PlainResource(Resource):
@@ -415,7 +414,6 @@ class PlainResource(Resource):
         self._path = prefix + self._path
 
     def _match(self, path: str) -> Optional[Dict[str, str]]:
-        # string comparison is about 10 times faster than regexp matching
         if self._path == path:
             return {}
         else:
@@ -427,7 +425,7 @@ class PlainResource(Resource):
     def get_info(self) -> _InfoDict:
         return {"path": self._path}
 
-    def url_for(self) -> URL:  # type: ignore[override]
+    def url_for(self) -> URL:
         return URL.build(path=self._path, encoded=True)
 
     def __repr__(self) -> str:
@@ -533,7 +531,6 @@ class PrefixResource(AbstractResource):
     def raw_match(self, prefix: str) -> bool:
         return False
 
-    # TODO: impl missing abstract methods
 
 
 class StaticResource(PrefixResource):
@@ -577,7 +574,7 @@ class StaticResource(PrefixResource):
             ),
         }
 
-    def url_for(  # type: ignore[override]
+    def url_for(
         self,
         *,
         filename: PathLike,
@@ -588,7 +585,6 @@ class StaticResource(PrefixResource):
         filename = str(filename).lstrip("/")
 
         url = URL.build(path=self._prefix, encoded=True)
-        # filename is not encoded
         if YARL_VERSION < (1, 6):
             url = url / filename.replace("%", "%25")
         else:
@@ -605,12 +601,8 @@ class StaticResource(PrefixResource):
                     filepath = unresolved_path.resolve()
                     filepath.relative_to(self._directory)
             except (ValueError, FileNotFoundError):
-                # ValueError for case when path point to symlink
-                # with follow_symlinks is False
-                return url  # relatively safe
+                return url
             if filepath.is_file():
-                # TODO cache file content
-                # with file watcher for cache invalidation
                 with filepath.open("rb") as f:
                     file_bytes = f.read()
                 h = self._get_file_hash(file_bytes)
@@ -620,7 +612,7 @@ class StaticResource(PrefixResource):
 
     @staticmethod
     def _get_file_hash(byte_array: bytes) -> str:
-        m = hashlib.sha256()  # todo sha256 can be configurable param
+        m = hashlib.sha256()
         m.update(byte_array)
         b64 = base64.urlsafe_b64encode(m.digest())
         return b64.decode("ascii")
@@ -663,9 +655,6 @@ class StaticResource(PrefixResource):
         try:
             filename = Path(rel_url)
             if filename.anchor:
-                # rel_url is an absolute name like
-                # /static/\\machine_name\c$ or /static/D:\path
-                # where the static dir is totally different
                 raise HTTPForbidden()
             unresolved_path = self._directory.joinpath(filename)
             if self._follow_symlinks:
@@ -676,16 +665,13 @@ class StaticResource(PrefixResource):
                 filepath = unresolved_path.resolve()
                 filepath.relative_to(self._directory)
         except (ValueError, FileNotFoundError) as error:
-            # relatively safe
             raise HTTPNotFound() from error
         except HTTPForbidden:
             raise
         except Exception as error:
-            # perm error or other kind!
             request.app.logger.exception(error)
             raise HTTPNotFound() from error
 
-        # on opening a dir, load its contents if allowed
         if filepath.is_dir():
             if self._show_index:
                 try:
@@ -702,9 +688,7 @@ class StaticResource(PrefixResource):
             raise HTTPNotFound
 
     def _directory_as_html(self, filepath: Path) -> str:
-        # returns directory's index as html
 
-        # sanity check
         assert filepath.is_dir()
 
         relative_path_to_dir = filepath.relative_to(self._directory).as_posix()
@@ -714,11 +698,9 @@ class StaticResource(PrefixResource):
         index_list = []
         dir_index = filepath.iterdir()
         for _file in sorted(dir_index):
-            # show file url as relative to static path
             rel_path = _file.relative_to(self._directory).as_posix()
             file_url = self._prefix + "/" + rel_path
 
-            # if file is a directory, add '/' to the end of the name
             if _file.is_dir():
                 file_name = f"{_file.name}/"
             else:
@@ -789,16 +771,16 @@ class PrefixedSubAppResource(PrefixResource):
 
 
 class AbstractRuleMatching(abc.ABC):
-    @abc.abstractmethod  # pragma: no branch
+    @abc.abstractmethod
     async def match(self, request: Request) -> bool:
         """Return bool if the request satisfies the criteria"""
 
-    @abc.abstractmethod  # pragma: no branch
+    @abc.abstractmethod
     def get_info(self) -> _InfoDict:
         """Return a dict with additional info useful for introspection"""
 
     @property
-    @abc.abstractmethod  # pragma: no branch
+    @abc.abstractmethod
     def canonical(self) -> str:
         """Return a str"""
 
@@ -1087,7 +1069,6 @@ class UrlDispatcher(AbstractRouter, Mapping[str, AbstractResource]):
     def add_resource(self, path: str, *, name: Optional[str] = None) -> Resource:
         if path and not path.startswith("/"):
             raise ValueError("path should be started with / or be empty")
-        # Reuse last added resource if path and name are the same
         if self._resources:
             resource = self._resources[-1]
             if resource.name == name and resource.raw_match(path):
@@ -1224,8 +1205,6 @@ def _unquote_path(value: str) -> str:
 
 
 def _requote_path(value: str) -> str:
-    # Quote non-ascii characters and other characters which must be quoted,
-    # but preserve existing %-sequences.
     result = _quote_path(value)
     if "%" in value:
         result = result.replace("%25", "%")

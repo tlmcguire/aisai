@@ -32,7 +32,6 @@ from opentelemetry.util.http import (
 
 from .base_test import InstrumentationTest
 
-
 def expected_attributes(override_attributes):
     default_attributes = {
         SpanAttributes.HTTP_METHOD: "GET",
@@ -48,7 +47,6 @@ def expected_attributes(override_attributes):
         default_attributes[key] = val
     return default_attributes
 
-
 _expected_metric_names = [
     "http.server.active_requests",
     "http.server.duration",
@@ -57,7 +55,6 @@ _recommended_attrs = {
     "http.server.active_requests": _active_requests_count_attrs,
     "http.server.duration": _duration_attrs,
 }
-
 
 class TestProgrammatic(InstrumentationTest, WsgiTestBase):
     def setUp(self):
@@ -124,12 +121,7 @@ class TestProgrammatic(InstrumentationTest, WsgiTestBase):
         FlaskInstrumentor().uninstrument()
 
     def test_only_strings_in_environ(self):
-        """
-        Some WSGI servers (such as Gunicorn) expect keys in the environ object
-        to be strings
 
-        OpenTelemetry should adhere to this convention.
-        """
         nonstring_keys = set()
 
         def assert_environ():
@@ -359,7 +351,6 @@ class TestProgrammatic(InstrumentationTest, WsgiTestBase):
                         if isinstance(point, HistogramDataPoint):
                             self.assertEqual(point.count, 1)
 
-
 class TestProgrammaticHooks(InstrumentationTest, WsgiTestBase):
     def setUp(self):
         super().setUp()
@@ -407,7 +398,6 @@ class TestProgrammaticHooks(InstrumentationTest, WsgiTestBase):
         self.assertEqual(span_list[0].attributes, expected_attrs)
         self.assertEqual(resp.headers["hook_attr"], "hello otel")
 
-
 class TestProgrammaticHooksWithoutApp(InstrumentationTest, WsgiTestBase):
     def setUp(self):
         super().setUp()
@@ -454,7 +444,6 @@ class TestProgrammaticHooksWithoutApp(InstrumentationTest, WsgiTestBase):
         self.assertEqual(span_list[0].attributes, expected_attrs)
         self.assertEqual(resp.headers["hook_attr"], "hello otel without app")
 
-
 class TestProgrammaticCustomTracerProvider(InstrumentationTest, WsgiTestBase):
     def setUp(self):
         super().setUp()
@@ -483,7 +472,6 @@ class TestProgrammaticCustomTracerProvider(InstrumentationTest, WsgiTestBase):
         self.assertEqual(
             span_list[0].resource.attributes["service.name"], "flask-api"
         )
-
 
 class TestProgrammaticCustomTracerProviderWithoutApp(
     InstrumentationTest, WsgiTestBase
@@ -517,7 +505,6 @@ class TestProgrammaticCustomTracerProviderWithoutApp(
             "flask-api-no-app",
         )
 
-
 class TestProgrammaticWrappedWithOtherFramework(
     InstrumentationTest, WsgiTestBase
 ):
@@ -544,7 +531,6 @@ class TestProgrammaticWrappedWithOtherFramework(
         self.assertEqual(
             span_list[0].parent.span_id, span_list[1].context.span_id
         )
-
 
 @patch.dict(
     "os.environ",

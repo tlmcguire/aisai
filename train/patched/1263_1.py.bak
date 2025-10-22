@@ -34,23 +34,21 @@ def fixed_urlsplit(url):
 
 
 if __name__ == '__main__':
-    
-    # Example URLs showing the vulnerability
+
     vulnerable_urls = [
-        "http://[example].com",  
-        "http://test.[example].com", 
+        "http://[example].com",
+        "http://test.[example].com",
         "http://[evil].example.com",
         "http://example[.]com",
         "http://example.[com]",
          "http://[example.com]",
     ]
-    
-    # Test the 'fixed' functions
+
     print("Testing with fixed_urlparse:")
     for url in vulnerable_urls:
       parsed_url = fixed_urlparse(url)
       print(f"URL: {url}, Result: {parsed_url}")
-    
+
     print("\nTesting with fixed_urlsplit:")
     for url in vulnerable_urls:
       parsed_url = fixed_urlsplit(url)

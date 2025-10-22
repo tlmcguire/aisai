@@ -1,15 +1,3 @@
-##############################################################################
-#
-# Copyright (c) 2002 Zope Foundation and Contributors.
-#
-# This software is subject to the provisions of the Zope Public License,
-# Version 2.1 (ZPL).  A copy of the ZPL should accompany this distribution.
-# THIS SOFTWARE IS PROVIDED "AS IS" AND ANY AND ALL EXPRESS OR IMPLIED
-# WARRANTIES ARE DISCLAIMED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF TITLE, MERCHANTABILITY, AGAINST INFRINGEMENT, AND FITNESS
-# FOR A PARTICULAR PURPOSE
-#
-##############################################################################
 """
 transformer module:
 
@@ -25,7 +13,6 @@ import textwrap
 from ._compat import IS_PY38_OR_GREATER
 
 
-# For AugAssign the operator must be converted to a string.
 IOPERATOR_TO_STR = {
     ast.Add: '+=',
     ast.Sub: '-=',
@@ -42,8 +29,6 @@ IOPERATOR_TO_STR = {
     ast.MatMult: '@=',
 }
 
-# For creation allowed magic method names. See also
-# https://docs.python.org/3/reference/datamodel.html#special-method-names
 ALLOWED_FUNC_NAMES = frozenset([
     '__init__',
     '__contains__',
@@ -63,26 +48,19 @@ FORBIDDEN_FUNC_NAMES = frozenset([
     'breakpoint',
 ])
 
-# inspect attributes. See also
-# https://docs.python.org/3/library/inspect.html
 INSPECT_ATTRIBUTES = frozenset([
-    # traceback
     "tb_frame",
     "tb_next",
-    # code
     "co_code",
-    # frame
     "f_back",
     "f_builtins",
     "f_code",
     "f_globals",
     "f_locals",
     "f_trace",
-    # generator
     "gi_frame",
     "gi_code",
     "gi_yieldfrom",
-    # coroutine
     "cr_await",
     "cr_frame",
     "cr_code",
@@ -90,9 +68,6 @@ INSPECT_ATTRIBUTES = frozenset([
 ])
 
 
-# When new ast nodes are generated they have no 'lineno', 'end_lineno',
-# 'col_offset' and 'end_col_offset'. This function copies these fields from the
-# incoming node:
 def copy_locations(new_node, old_node):
     assert 'lineno' in new_node._attributes
     new_node.lineno = old_node.lineno
@@ -138,21 +113,13 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         self.errors = [] if errors is None else errors
         self.warnings = [] if warnings is None else warnings
 
-        # All the variables used by the incoming source.
-        # Internal names/variables, like the ones from 'gen_tmp_name', don't
-        # have to be added.
-        # 'used_names' is for example needed by 'RestrictionCapableEval' to
-        # know wich names it has to supply when calling the final code.
         self.used_names = {} if used_names is None else used_names
 
-        # Global counter to construct temporary variable names.
         self._tmp_idx = 0
 
         self.print_info = PrintInfo()
 
     def gen_tmp_name(self):
-        # 'check_name' ensures that no variable is prefixed with '_'.
-        # => Its safe to use '_tmp..' as a temporary variable.
         name = '_tmp%i' % self._tmp_idx
         self._tmp_idx += 1
         return name
@@ -253,18 +220,10 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         spec.keys.append(ast.Str('childs'))
         spec.values.append(ast.Tuple([], ast.Load()))
 
-        # starred elements in a sequence do not contribute into the min_len.
-        # For example a, b, *c = g
-        # g must have at least 2 elements, not 3. 'c' is empyt if g has only 2.
         min_len = len([ob for ob in tpl.elts if not self.is_starred(ob)])
         offset = 0
 
         for idx, val in enumerate(tpl.elts):
-            # After a starred element specify the child index from the back.
-            # Since it is unknown how many elements from the sequence are
-            # consumed by the starred element.
-            # For example a, *b, (c, d) = g
-            # Then (c, d) has the index '-1'
             if self.is_starred(val):
                 offset = min_len + 1
 
@@ -304,30 +263,17 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
                    into the original target.
         """
 
-        # Generate a tmp name to replace the tuple with.
         tmp_name = self.gen_tmp_name()
 
-        # Generates an expressions which protects the unpack.
-        # converter looks like 'wrapper(tmp_name)'.
-        # 'wrapper' takes care to protect sequence unpacking with _getiter_.
         converter = self.protect_unpack_sequence(
             target,
             ast.Name(tmp_name, ast.Load()))
 
-        # Assign the expression to the original names.
-        # Cleanup the temporary variable.
-        # Generates:
-        # try:
-        #     # converter is 'wrapper(tmp_name)'
-        #     arg = converter
-        # finally:
-        #     del tmp_arg
         try_body = [ast.Assign(targets=[target], value=converter)]
         finalbody = [self.gen_del_stmt(tmp_name)]
         cleanup = ast.Try(
             body=try_body, finalbody=finalbody, handlers=[], orelse=[])
 
-        # This node is used to catch the tuple in a tmp variable.
         tmp_target = ast.Name(tmp_name, ast.Store())
 
         copy_locations(tmp_target, node)
@@ -350,14 +296,12 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         """
 
         if isinstance(slice_, ast.expr):
-            # Python 3.9+
             return slice_
 
         elif isinstance(slice_, ast.Index):
             return slice_.value
 
         elif isinstance(slice_, ast.Slice):
-            # Create a python slice object.
             args = []
 
             if slice_.lower:
@@ -386,8 +330,7 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
                 dims.elts.append(self.transform_slice(item))
             return dims
 
-        else:  # pragma: no cover
-            # Index, Slice and ExtSlice are only defined Slice types.
+        else:
             raise NotImplementedError(f"Unknown slice type: {slice_}")
 
     def check_name(self, node, name, allow_magic_methods=False):
@@ -450,8 +393,6 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         printed_used = self.print_info.printed_used
 
         if print_used or printed_used:
-            # Add '_print = _print_(_getattr_)' add the top of a
-            # function/module.
             _print = ast.Assign(
                 targets=[ast.Name('_print', ast.Store())],
                 value=ast.Call(
@@ -477,7 +418,6 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
             elif not print_used:
                 self.warn(node, "Doesn't print, but reads 'printed' variable.")
 
-    # Special Functions for an ast.NodeTransformer
 
     def generic_visit(self, node):
         """Reject ast nodes which do not have a corresponding `visit_` method.
@@ -503,7 +443,6 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         """Visit the contents of a node."""
         return super().generic_visit(node)
 
-    # ast for Literals
 
     if IS_PY38_OR_GREATER:
 
@@ -515,11 +454,6 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
             :see: https://docs.python.org/dev/whatsnew/3.8.html#deprecated
             """
             if node.value is Ellipsis:
-                # Deny using `...`.
-                # Special handling necessary as ``self.not_allowed(node)``
-                # would return the Error Message:
-                # 'Constant statements are not allowed.'
-                # which is only partial true.
                 self.error(node, 'Ellipsis statements are not allowed.')
                 return
             return self.node_contents_visit(node)
@@ -587,7 +521,6 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         """Allow joined string without restrictions."""
         return self.node_contents_visit(node)
 
-    # ast for Variables
 
     def visit_Name(self, node):
         """Prevents access to protected names.
@@ -647,7 +580,6 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         """
         return self.node_contents_visit(node)
 
-    # Expressions
 
     def visit_Expression(self, node):
         """Allow Expression statements without restrictions.
@@ -898,12 +830,10 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
             node.value = new_value
             return node
 
-        else:  # pragma: no cover
-            # Impossible Case only ctx Load, Store and Del are defined in ast.
+        else:
             raise NotImplementedError(
                 f"Unknown ctx type: {type(node.ctx)}")
 
-    # Subscripting
 
     def visit_Subscript(self, node):
         """Transforms all kinds of subscripts.
@@ -921,10 +851,6 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         """
         node = self.node_contents_visit(node)
 
-        # 'AugStore' and 'AugLoad' are defined in 'Python.asdl' as possible
-        # 'expr_context'. However, according to Python/ast.c
-        # they are NOT used by the implementation => No need to worry here.
-        # Instead ast.c creates 'AugAssign' nodes, which can be visited.
 
         if isinstance(node.ctx, ast.Load):
             new_node = ast.Call(
@@ -945,8 +871,7 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
             node.value = new_value
             return node
 
-        else:  # pragma: no cover
-            # Impossible Case only ctx Load, Store and Del are defined in ast.
+        else:
             raise NotImplementedError(
                 f"Unknown ctx type: {type(node.ctx)}")
 
@@ -968,7 +893,6 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         """
         return self.node_contents_visit(node)
 
-    # Comprehensions
 
     def visit_ListComp(self, node):
         """
@@ -1000,7 +924,6 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         """
         return self.guard_iter(node)
 
-    # Statements
 
     def visit_Assign(self, node):
         """
@@ -1012,30 +935,9 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         if not any(isinstance(t, ast.Tuple) for t in node.targets):
             return node
 
-        # Handle sequence unpacking.
-        # For briefness this example omits cleanup of the temporary variables.
-        # Check 'transform_tuple_assign' how its done.
-        #
-        # - Single target (with nested support)
-        # (a, (b, (c, d))) = <exp>
-        # is converted to
-        # (a, t1) = _getiter_(<exp>)
-        # (b, t2) = _getiter_(t1)
-        # (c, d) = _getiter_(t2)
-        #
-        # - Multi targets
-        # (a, b) = (c, d) = <exp>
-        # is converted to
-        # (c, d) = _getiter_(<exp>)
-        # (a, b) = _getiter_(<exp>)
-        # Why is this valid ? The original bytecode for this multi targets
-        # behaves the same way.
 
-        # ast.NodeTransformer works with list results.
-        # He injects it at the right place of the node's parent statements.
         new_nodes = []
 
-        # python fills the right most target first.
         for target in reversed(node.targets):
             if isinstance(target, ast.Tuple):
                 wrapper = ast.Assign(
@@ -1093,12 +995,7 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
 
             copy_locations(new_node, node)
             return new_node
-        else:  # pragma: no cover
-            # Impossible Case - Only Node Types:
-            # * Name
-            # * Attribute
-            # * Subscript
-            # defined, those are checked before.
+        else:
             raise NotImplementedError(
                 f"Unknown target type: {type(node.target)}")
 
@@ -1118,7 +1015,6 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         """Allow `pass` statements without restrictions."""
         return self.node_contents_visit(node)
 
-    # Imports
 
     def visit_Import(self, node):
         """Allow `import` statements with restrictions.
@@ -1134,7 +1030,6 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         """Allow `as` statements in import and import from statements."""
         return self.node_contents_visit(node)
 
-    # Control flow
 
     def visit_If(self, node):
         """Allow `if` statements without restrictions."""
@@ -1189,7 +1084,6 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         """Allow `with` statements (context managers) without restrictions."""
         return self.node_contents_visit(node)
 
-    # Function and class definitions
 
     def visit_FunctionDef(self, node):
         """Allow function definitions (`def`) with some restrictions."""
@@ -1259,9 +1153,8 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         """Add the print_collector (only if print is used) at the top."""
         node = self.node_contents_visit(node)
 
-        # Inject the print collector after 'from __future__ import ....'
         position = 0
-        for position, child in enumerate(node.body):  # pragma: no branch
+        for position, child in enumerate(node.body):
             if not isinstance(child, ast.ImportFrom):
                 break
 
@@ -1271,7 +1164,6 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         self.inject_print_collector(node, position)
         return node
 
-    # Async und await
 
     def visit_AsyncFunctionDef(self, node):
         """Deny async functions."""
@@ -1289,18 +1181,9 @@ class RestrictingNodeTransformer(ast.NodeTransformer):
         """Deny async functionality."""
         self.not_allowed(node)
 
-    # Assignment expressions (walrus operator ``:=``)
-    # New in 3.8
     def visit_NamedExpr(self, node):
         """Allow assignment expressions under some circumstances."""
-        # while the grammar requires ``node.target`` to be a ``Name``
-        # the abstract syntax is more permissive and allows an ``expr``.
-        # We support only a ``Name``.
-        # This is safe as the expression can only add/modify local
-        # variables. While this may hide global variables, an
-        # (implicitly performed) name check guarantees (as usual)
-        # that no essential global variable is hidden.
-        node = self.node_contents_visit(node)  # this checks ``node.target``
+        node = self.node_contents_visit(node)
         target = node.target
         if not isinstance(target, ast.Name):
             self.error(

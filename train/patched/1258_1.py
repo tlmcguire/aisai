@@ -37,9 +37,8 @@ class RestrictedPythonVisitor(ast.NodeVisitor):
                raise TypeError(f"Node type '{type(node).__name__}' is not allowed.")
         return super().generic_visit(node)
 
-
 def safe_eval(code):
-  """Evaluates python code with restricted operations."""
+
   try:
       tree = ast.parse(code)
   except SyntaxError as e:

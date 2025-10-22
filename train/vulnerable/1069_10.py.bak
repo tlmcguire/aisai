@@ -26,7 +26,7 @@ class TestTempFileManagement:
         f = processing_utils.save_file_to_cache(
             "gradio/test_data/cheetah1.jpg", cache_dir=gradio_temp_dir
         )
-        try:  # Delete if already exists from before this test
+        try:
             os.remove(f)
         except OSError:
             pass
@@ -56,7 +56,7 @@ class TestTempFileManagement:
         f = processing_utils.save_base64_to_cache(
             base64_file_1, cache_dir=gradio_temp_dir
         )
-        try:  # Delete if already exists from before this test
+        try:
             os.remove(f)
         except OSError:
             pass
@@ -82,7 +82,7 @@ class TestTempFileManagement:
         url2 = "https://raw.githubusercontent.com/gradio-app/gradio/main/gradio/test_data/cheetah1.jpg"
 
         f = processing_utils.save_url_to_cache(url1, cache_dir=gradio_temp_dir)
-        try:  # Delete if already exists from before this test
+        try:
             os.remove(f)
         except OSError:
             pass
@@ -124,7 +124,7 @@ class TestImagePreprocessing:
     def test_encode_pil_to_base64(self):
         img = Image.open("gradio/test_data/test_image.png")
         img = img.convert("RGB")
-        img.info = {}  # Strip metadata
+        img.info = {}
         output_base64 = processing_utils.encode_pil_to_base64(img)
         assert output_base64 == deepcopy(media_data.ARRAY_TO_BASE64_IMAGE)
 
@@ -149,12 +149,10 @@ class TestImagePreprocessing:
         ) == processing_utils.save_img_array_to_cache(arr, cache_dir=gradio_temp_dir)
 
     def test_encode_pil_to_temp_file_metadata_color_profile(self, gradio_temp_dir):
-        # Read image
         img = Image.open("gradio/test_data/test_image.png")
         img_metadata = Image.open("gradio/test_data/test_image.png")
         img_metadata.info = {"key1": "value1", "key2": "value2"}
 
-        # Creating sRGB profile
         profile = ImageCms.createProfile("sRGB")
         profile2 = ImageCms.ImageCmsProfile(profile)
         img.save(
@@ -162,7 +160,6 @@ class TestImagePreprocessing:
         )
         img_cp1 = Image.open(str(gradio_temp_dir / "img_color_profile.png"))
 
-        # Creating XYZ profile
         profile = ImageCms.createProfile("XYZ")
         profile2 = ImageCms.ImageCmsProfile(profile)
         img.save(
@@ -208,7 +205,6 @@ class TestAudioPreprocessing:
         os.remove("test_audio_to_file")
 
     def test_convert_to_16_bit_wav(self):
-        # Generate a random audio sample and set the amplitude
         audio = np.random.randint(-100, 100, size=(100), dtype="int16")
         audio[0] = -32767
         audio[1] = 32766
@@ -244,7 +240,6 @@ class TestOutputPreprocessing:
         """Test any conversion from a float dtype to an other."""
 
         x = np.array([-1, 1])
-        # Test all combinations of dtypes conversions
         dtype_combin = np.array(
             np.meshgrid(
                 TestOutputPreprocessing.float_dtype_list,
@@ -312,7 +307,6 @@ class TestVideoProcessing:
                 playable_vid = processing_utils.convert_video_to_playable_mp4(
                     tmp_not_playable_vid.name
                 )
-            # check tempfile got deleted
             assert not Path(mock_remove.call_args[0][0]).exists()
             assert processing_utils.video_is_playable(playable_vid)
 
@@ -329,7 +323,6 @@ class TestVideoProcessing:
             playable_vid = processing_utils.convert_video_to_playable_mp4(
                 tmp_not_playable_vid.name
             )
-            # If the conversion succeeded it'd be .mp4
             assert Path(playable_vid).suffix == ".avi"
 
 

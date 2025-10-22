@@ -22,7 +22,6 @@ except ImportError:
 
 default_namespace = constants.namespaces["html"]
 
-
 class JsonWalker(TreeWalker):
     def __iter__(self):
         for token in self.tree:
@@ -65,10 +64,7 @@ class JsonWalker(TreeWalker):
                 raise ValueError("Unknown token type: " + type)
 
     def _convertAttrib(self, attribs):
-        """html5lib tree-walkers use a dict of (namespace, name): value for
-        attributes, but JSON cannot represent this. Convert from the format
-        in the serializer tests (a list of dicts with "namespace", "name",
-        and "value" as keys) to html5lib's tree-walker format."""
+
         attrs = {}
         for attrib in attribs:
             name = (attrib["namespace"], attrib["name"])
@@ -76,13 +72,11 @@ class JsonWalker(TreeWalker):
             attrs[name] = attrib["value"]
         return attrs
 
-
 def serialize_html(input, options):
     options = dict([(str(k), v) for k, v in options.items()])
     stream = Lint(JsonWalker(input), False)
     serializer = HTMLSerializer(alphabetical_attributes=True, **options)
     return serializer.render(stream, options.get("encoding", None))
-
 
 def runSerializerTest(input, expected, options):
     encoding = options.get("encoding", None)
@@ -96,60 +90,47 @@ def runSerializerTest(input, expected, options):
     elif result not in expected:
         assert False, "Expected: %s, Received: %s" % (expected, result)
 
-
 def throwsWithLatin1(input):
     with pytest.raises(UnicodeEncodeError):
         serialize_html(input, {"encoding": "iso-8859-1"})
 
-
 def testDoctypeName():
     throwsWithLatin1([["Doctype", "\u0101"]])
-
 
 def testDoctypePublicId():
     throwsWithLatin1([["Doctype", "potato", "\u0101"]])
 
-
 def testDoctypeSystemId():
     throwsWithLatin1([["Doctype", "potato", "potato", "\u0101"]])
-
 
 def testCdataCharacters():
     runSerializerTest([["StartTag", "http://www.w3.org/1999/xhtml", "style", {}], ["Characters", "\u0101"]],
                       ["<style>&amacr;"], {"encoding": "iso-8859-1"})
 
-
 def testCharacters():
     runSerializerTest([["Characters", "\u0101"]],
                       ["&amacr;"], {"encoding": "iso-8859-1"})
 
-
 def testStartTagName():
     throwsWithLatin1([["StartTag", "http://www.w3.org/1999/xhtml", "\u0101", []]])
 
-
 def testAttributeName():
     throwsWithLatin1([["StartTag", "http://www.w3.org/1999/xhtml", "span", [{"namespace": None, "name": "\u0101", "value": "potato"}]]])
-
 
 def testAttributeValue():
     runSerializerTest([["StartTag", "http://www.w3.org/1999/xhtml", "span",
                         [{"namespace": None, "name": "potato", "value": "\u0101"}]]],
                       ["<span potato=&amacr;>"], {"encoding": "iso-8859-1"})
 
-
 def testEndTagName():
     throwsWithLatin1([["EndTag", "http://www.w3.org/1999/xhtml", "\u0101"]])
-
 
 def testComment():
     throwsWithLatin1([["Comment", "\u0101"]])
 
-
 @pytest.fixture
 def lxml_parser():
     return etree.XMLParser(resolve_entities=False)
-
 
 @pytest.mark.skipif("lxml" not in optionals_loaded, reason="lxml not importable")
 def testEntityReplacement(lxml_parser):
@@ -158,14 +139,12 @@ def testEntityReplacement(lxml_parser):
     result = serialize(tree, tree="lxml", omit_optional_tags=False)
     assert result == '<!DOCTYPE html SYSTEM "about:legacy-compat"><html>\u03B2</html>'
 
-
 @pytest.mark.skipif("lxml" not in optionals_loaded, reason="lxml not importable")
 def testEntityXML(lxml_parser):
     doc = '<!DOCTYPE html SYSTEM "about:legacy-compat"><html>&gt;</html>'
     tree = etree.fromstring(doc, parser=lxml_parser).getroottree()
     result = serialize(tree, tree="lxml", omit_optional_tags=False)
     assert result == '<!DOCTYPE html SYSTEM "about:legacy-compat"><html>&gt;</html>'
-
 
 @pytest.mark.skipif("lxml" not in optionals_loaded, reason="lxml not importable")
 def testEntityNoResolve(lxml_parser):
@@ -174,7 +153,6 @@ def testEntityNoResolve(lxml_parser):
     result = serialize(tree, tree="lxml", omit_optional_tags=False,
                                   resolve_entities=False)
     assert result == '<!DOCTYPE html SYSTEM "about:legacy-compat"><html>&beta;</html>'
-
 
 def test_serializer():
     for filename in get_data_files('serializer-testdata', '*.test', os.path.dirname(__file__)):

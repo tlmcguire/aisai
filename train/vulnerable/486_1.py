@@ -4,7 +4,7 @@ import zipfile
 from urllib.request import urlretrieve
 
 def unsafe_get_file(url, cache_dir='.', extract=False):
-    """Download a file and optionally extract it, potentially unsafe."""
+
     filename = os.path.join(cache_dir, os.path.basename(url))
 
     urlretrieve(url, filename)

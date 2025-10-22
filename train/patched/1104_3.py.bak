@@ -23,11 +23,8 @@ def render_jinja2(template, context, trim=False, lstrip=False):
             continue
         environment.add_extension(extension)
 
-    # Add custom filters to our environment
     environment.filters.update(FILTER_DICT)
 
-    # Try rendering the template, return a message about syntax issues if there
-    # are any
     try:
         jinja2_template = environment.from_string(template)
         return jinja2_template.render(**context)

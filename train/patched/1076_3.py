@@ -36,7 +36,7 @@ import warnings
 import xml.etree.ElementTree
 
 def safe_path_join(base, filename):
-    """Safely joins a base path and a filename, preventing directory traversal."""
+
     if not isinstance(filename, str):
         raise TypeError("filename must be a string")
 
@@ -50,7 +50,7 @@ def safe_path_join(base, filename):
     return os.path.join(base, filename)
 
 def safe_open(filename, mode="r", encoding=None):
-    """Safely opens a file, preventing directory traversal."""
+
     if not isinstance(filename, str):
         raise TypeError("filename must be a string")
 
@@ -65,9 +65,7 @@ def safe_open(filename, mode="r", encoding=None):
        if parent_dir and not os.path.isdir(parent_dir):
            raise OSError(f"Parent directory {parent_dir} does not exist.")
 
-
     return open(filename, mode, encoding=encoding)
-
 
 class SafeArgumentParser(argparse.ArgumentParser):
     def __init__(self, *args, **kwargs):
@@ -85,14 +83,12 @@ class SafeArgumentParser(argparse.ArgumentParser):
         parsed_args = super().parse_args(args, namespace)
         return parsed_args
 
-
 def process_input(user_input):
   if not isinstance(user_input, str):
       raise TypeError("Input must be a string")
 
   if len(user_input) > 1024:
       raise ValueError("Input string is too long.")
-
 
   user_input = user_input.replace("\n", "").strip()
 
@@ -101,7 +97,7 @@ def process_input(user_input):
   return user_input
 
 def safe_compile(source, filename, mode, flags=0, dont_inherit=False, optimize=-1):
-    """Safely compiles source code, preventing potential injection."""
+
     if not isinstance(source, str):
         raise TypeError("source must be a string")
 
@@ -114,11 +110,8 @@ def safe_compile(source, filename, mode, flags=0, dont_inherit=False, optimize=-
     if len(source) > 4096:
         raise ValueError("source code too long")
 
-
-
     if not source.strip():
         raise ValueError("source code cannot be empty")
-
 
     if mode not in ("exec", "eval", "single"):
         raise ValueError("invalid mode")
@@ -131,7 +124,7 @@ def safe_compile(source, filename, mode, flags=0, dont_inherit=False, optimize=-
     return code
 
 def safe_eval(source, globals=None, locals=None):
-    """Safely evaluates a string, preventing potential injection."""
+
     if not isinstance(source, str):
         raise TypeError("source must be a string")
 
@@ -141,8 +134,6 @@ def safe_eval(source, globals=None, locals=None):
     if not source.strip():
       raise ValueError("source code cannot be empty")
 
-
-
     try:
         code = safe_compile(source, "<string>", 'eval')
         result = eval(code, globals, locals)
@@ -150,9 +141,8 @@ def safe_eval(source, globals=None, locals=None):
         raise ValueError(f"Invalid expression: {e}")
     return result
 
-
 def safe_exec(source, globals=None, locals=None):
-    """Safely executes a string, preventing potential injection."""
+
     if not isinstance(source, str):
         raise TypeError("source must be a string")
 
@@ -179,7 +169,6 @@ def safe_pickle_loads(data):
       return marshal.loads(data)
     except Exception as e:
         raise ValueError("Invalid pickle data")
-
 
 def safe_sqlite_query(conn, query, params=None):
   if not isinstance(query, str):
@@ -225,7 +214,7 @@ def safe_base64_decode(encoded_string):
         raise ValueError(f"Invalid base64 encoding: {e}")
 
 def safe_tar_extract(tar_file, dest_dir):
-    """Safely extracts a tar archive, preventing directory traversal."""
+
     import tarfile
     if not isinstance(tar_file, str):
         raise TypeError("tar_file must be a string")
@@ -259,7 +248,7 @@ def safe_tar_extract(tar_file, dest_dir):
       raise ValueError("Invalid tar file") from e
 
 def safe_zip_extract(zip_file, dest_dir):
-    """Safely extracts a zip archive, preventing directory traversal."""
+
     import zipfile
     if not isinstance(zip_file, str):
       raise TypeError("zip_file must be a string")
@@ -293,7 +282,7 @@ def safe_zip_extract(zip_file, dest_dir):
       raise ValueError("Invalid zip file") from e
 
 def safe_yaml_load(yaml_string):
-    """Safely loads YAML data, preventing potential injection."""
+
     import yaml
     if not isinstance(yaml_string, str):
       raise TypeError("yaml_string must be a string")
@@ -309,7 +298,7 @@ def safe_yaml_load(yaml_string):
         raise ValueError(f"Invalid YAML data: {e}")
 
 def safe_json_load(json_string):
-    """Safely loads JSON data, preventing potential injection."""
+
     import json
     if not isinstance(json_string, str):
       raise TypeError("json_string must be a string")
@@ -325,7 +314,7 @@ def safe_json_load(json_string):
         raise ValueError(f"Invalid JSON data: {e}")
 
 def safe_subprocess_run(command, input=None, timeout=None):
-    """Safely runs a subprocess, preventing shell injection."""
+
     if not isinstance(command, list):
        raise TypeError("command must be a list")
 
@@ -335,7 +324,6 @@ def safe_subprocess_run(command, input=None, timeout=None):
     for cmd in command:
         if not isinstance(cmd, str):
              raise TypeError("command items must be strings")
-
 
     if input is not None and not isinstance(input, (str, bytes)):
          raise TypeError("input must be a string or bytes")
@@ -356,7 +344,7 @@ def safe_subprocess_run(command, input=None, timeout=None):
         raise ValueError(f"An unexpected error occurred: {e}") from e
 
 def safe_ssl_wrap_socket(sock, server_side=False, ssl_version=None, certfile=None, keyfile=None, cert_reqs=None, ca_certs=None):
-    """Safely wraps a socket with SSL/TLS, preventing potential insecure options."""
+
     import ssl
 
     if ssl_version is not None and not isinstance(ssl_version, int):
@@ -373,8 +361,6 @@ def safe_ssl_wrap_socket(sock, server_side=False, ssl_version=None, certfile=Non
 
     if keyfile is not None and not isinstance(keyfile, str):
         raise TypeError("keyfile must be a string")
-
-
 
     context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH if server_side else ssl.Purpose.CLIENT_AUTH)
 

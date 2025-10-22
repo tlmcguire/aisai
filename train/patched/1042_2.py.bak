@@ -58,8 +58,6 @@ class AbstractUserSocialAuth(models.Model, DjangoUserMixin):
         for social in cls.objects.select_related("user").filter(
             provider=provider, uid=uid
         ):
-            # We need to compare to filter out case-insensitive lookups in
-            # some databases (MySQL/MariaDB)
             if social.uid == uid:
                 return social
         return None
@@ -104,7 +102,7 @@ class Association(models.Model, DjangoAssociationMixin):
 
     server_url = models.CharField(max_length=ASSOCIATION_SERVER_URL_LENGTH)
     handle = models.CharField(max_length=ASSOCIATION_HANDLE_LENGTH)
-    secret = models.CharField(max_length=255)  # Stored base64 encoded
+    secret = models.CharField(max_length=255)
     issued = models.IntegerField()
     lifetime = models.IntegerField()
     assoc_type = models.CharField(max_length=64)

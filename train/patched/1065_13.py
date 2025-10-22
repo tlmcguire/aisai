@@ -1,20 +1,4 @@
-'''
-A script that benchmarks the queue performance, can be used to compare the performance 
-of the queue on a given branch vs the main branch. By default, runs 100 jobs in batches
-of 20 and prints the average time per job. The inference time for each job (without the
-network overhead of sending/receiving the data) is 0.5 seconds. Each job sends one of:
-a text, image, audio, or video input and the output is the same as the input.
 
-Navigate to the root directory of the gradio repo and run:
->> python scripts/benchmark_queue.py
-
-You can specify the number of jobs to run and the batch size with the -n parameter:
->> python scripts/benchmark_queue.py -n 1000
-
-The results are printed to the console, but you can specify a path to save the results 
-to with the -o parameter:
->> python scripts/benchmark_queue.py -n 1000 -o results.json
-'''
 
 import argparse
 import asyncio
@@ -29,11 +13,9 @@ import websockets
 import gradio as gr
 from gradio_client import media_data
 
-
 def identity_with_sleep(x):
     time.sleep(0.5)
     return x
-
 
 with gr.Blocks() as demo:
     with gr.Row():
@@ -59,14 +41,12 @@ with gr.Blocks() as demo:
             submit_video.click(identity_with_sleep, input_video, output_video, api_name="video")
 demo.queue(max_size=50).launch(prevent_thread_lock=True, quiet=True)
 
-
 FN_INDEX_TO_DATA = {
     "text": (0, "A longish text " * 15),
     "image": (1, media_data.BASE64_IMAGE),
     "audio": (2, media_data.BASE64_AUDIO),
     "video": (3, media_data.BASE64_VIDEO)
 }
-
 
 async def get_prediction(host):
     async with websockets.connect(host) as ws:
@@ -86,7 +66,6 @@ async def get_prediction(host):
                 end = time.time()
                 return {"fn_to_hit": name, "duration": end - start}
 
-
 async def main(host, n_results=100):
     results = []
     while len(results) < n_results:
@@ -100,7 +79,6 @@ async def main(host, n_results=100):
     data = data.reset_index()
     data = {"fn_to_hit": data["fn_to_hit"].to_list(), "duration": data["duration"].to_list()}
     return data
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Upload a demo to a space")

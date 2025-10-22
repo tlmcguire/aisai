@@ -23,7 +23,6 @@ from typing import Any, Optional
 from pydantic import BaseModel, ValidationError
 import json
 
-# ----------------------- Defining router and main class ------------------------------
 
 router = APIRouter()
 lollmsElfServer:LOLLMSWebUI = LOLLMSWebUI.get_instance()
@@ -44,7 +43,7 @@ async def edit_message(edit_params: EditMessageParameters):
         lollmsElfServer.session.get_client(client_id).discussion.edit_message(message_id, new_message, new_metadata=metadata)
         return {"status": True}
     except Exception as ex:
-        trace_exception(ex)  # Assuming 'trace_exception' function logs the error
+        trace_exception(ex)
         return {"status": False, "error": "There was an error editing the message"}
 
 
@@ -62,7 +61,7 @@ async def message_rank_up(rank_params: MessageRankParameters):
         new_rank = lollmsElfServer.session.get_client(client_id).discussion.message_rank_up(message_id)
         return {"status": True, "new_rank": new_rank}
     except Exception as ex:
-        trace_exception(ex)  # Assuming 'trace_exception' function logs the error
+        trace_exception(ex)
         return {"status": False, "error": "There was an error ranking up the message"}
 
 
@@ -93,7 +92,7 @@ async def delete_message(delete_params: MessageDeleteParameters):
             ASCIIColors.yellow("Message deleted")
             return {"status":True,"new_rank": new_rank}
         except Exception as ex:
-            trace_exception(ex)  # Assuming 'trace_exception' function logs the error
+            trace_exception(ex)
             return {"status": False, "error": "There was an error deleting the message"}
 
 

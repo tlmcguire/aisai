@@ -1,6 +1,4 @@
-"""
-Defines helper methods useful for loading and caching Interface examples.
-"""
+
 
 from __future__ import annotations
 
@@ -34,7 +32,6 @@ if TYPE_CHECKING:
 
 LOG_FILE = "log.csv"
 
-
 def create_examples(
     examples: list[Any] | list[list[Any]] | str,
     inputs: Component | list[Component],
@@ -52,7 +49,7 @@ def create_examples(
     batch: bool = False,
     _defer_caching: bool = False,
 ):
-    """Top-level synchronous function that creates Examples. Provided for backwards compatibility, i.e. so that gr.Examples(...) can be used to create the Examples component."""
+
     examples_obj = Examples(
         examples=examples,
         inputs=inputs,
@@ -74,18 +71,9 @@ def create_examples(
     examples_obj.create()
     return examples_obj
 
-
 @document()
 class Examples:
-    """
-    This class is a wrapper over the Dataset component and can be used to create Examples
-    for Blocks / Interfaces. Populates the Dataset component with examples and
-    assigns event listener so that clicking on an example populates the input/output
-    components. Optionally handles example caching for fast inference.
 
-    Demos: fake_gan
-    Guides: more-on-examples-and-flagging, using-hugging-face-integrations, image-classification-in-pytorch, image-classification-in-tensorflow, image-classification-with-vision-transformers, create-your-own-friends-with-a-gan
-    """
 
     def __init__(
         self,
@@ -106,22 +94,7 @@ class Examples:
         _defer_caching: bool = False,
         _initiated_directly: bool = True,
     ):
-        """
-        Parameters:
-            examples: example inputs that can be clicked to populate specific components. Should be nested list, in which the outer list consists of samples and each inner list consists of an input corresponding to each input component. A string path to a directory of examples can also be provided but it should be within the directory with the python file running the gradio app. If there are multiple input components and a directory is provided, a log.csv file must be present in the directory to link corresponding inputs.
-            inputs: the component or list of components corresponding to the examples
-            outputs: optionally, provide the component or list of components corresponding to the output of the examples. Required if `cache_examples` is not False.
-            fn: optionally, provide the function to run to generate the outputs corresponding to the examples. Required if `cache_examples` is not False. Also required if `run_on_click` is True.
-            cache_examples: If True, caches examples in the server for fast runtime in examples. If "lazy", then examples are cached after their first use. Can also be set by the GRADIO_CACHE_EXAMPLES environment variable, which takes a case-insensitive value, one of: {"true", "lazy", or "false"} (for the first two to take effect, `fn` and `outputs` should also be provided). In HuggingFace Spaces, this is True (as long as `fn` and `outputs` are also provided). The default option otherwise is False.
-            examples_per_page: how many examples to show per page.
-            label: the label to use for the examples component (by default, "Examples")
-            elem_id: an optional string that is assigned as the id of this component in the HTML DOM.
-            run_on_click: if cache_examples is False, clicking on an example does not run the function when an example is clicked. Set this to True to run the function when an example is clicked. Has no effect if cache_examples is True.
-            preprocess: if True, preprocesses the example input before running the prediction function and caching the output. Only applies if `cache_examples` is not False.
-            postprocess: if True, postprocesses the example output after running the prediction function and before caching. Only applies if `cache_examples` is not False.
-            api_name: Defines how the event associated with clicking on the examples appears in the API docs. Can be a string or False. If set to a string, the endpoint will be exposed in the API docs with the given name. If False, the endpoint will not be exposed in the API docs and downstream apps (including those that `gr.load` this app) will not be able to use the example function.
-            batch: If True, then the function should process a batch of inputs, meaning that it should accept a list of input values for each parameter. Used only if cache_examples is not False.
-        """
+
         if _initiated_directly:
             warnings.warn(
                 "Please use gr.Examples(...) instead of gr.examples.Examples(...) to create the Examples.",
@@ -274,8 +247,7 @@ class Examples:
         self.run_on_click = run_on_click
 
     def create(self) -> None:
-        """Caches the examples if self.cache_examples is True and creates the Dataset
-        component to hold the examples"""
+
 
         async def load_example(example_id):
             processed_example = self.non_none_processed_examples[example_id]
@@ -314,12 +286,7 @@ class Examples:
             self._start_caching()
 
     async def _postprocess_output(self, output) -> list:
-        """
-        This is a way that we can postprocess the data manually, since we set postprocess=False in the lazy_cache
-        event handler. The reason we did that is because we don't want to postprocess data if we are loading from
-        the cache, since that has already been postprocessed. We postprocess this data manually if we are calling
-        the function using the _handle_callable_as_generator() method.
-        """
+
         import gradio as gr
 
         with gr.Blocks() as demo:
@@ -421,9 +388,7 @@ class Examples:
             f.write(f"{example_index}\n")
 
     async def cache(self) -> None:
-        """
-        Caches examples so that their predictions can be shown immediately.
-        """
+
         if Context.root_block is None:
             raise ValueError("Cannot cache examples if not in a Blocks context")
         if Path(self.cached_file).exists():
@@ -513,10 +478,7 @@ class Examples:
         self.load_input_event_id = len(Context.root_block.fns) - 1
 
     def load_from_cache(self, example_id: int) -> list[Any]:
-        """Loads a particular cached example for the interface.
-        Parameters:
-            example_id: The id of the example to process (zero-indexed).
-        """
+
         with open(self.cached_file, encoding="utf-8") as cache:
             examples = list(csv.reader(cache))
         example = examples[example_id + 1]
@@ -537,7 +499,6 @@ class Examples:
             except (ValueError, TypeError, SyntaxError):
                 output.append(component.read_from_flag(value_to_use))
         return output
-
 
 def merge_generated_values_into_output(
     components: list[Component], generated_values: list, output: list
@@ -571,7 +532,6 @@ def merge_generated_values_into_output(
 
     return output
 
-
 class TrackedIterable:
     def __init__(
         self,
@@ -591,34 +551,15 @@ class TrackedIterable:
         self._tqdm = _tqdm
         self.progress = progress
 
-
 @document("__call__", "tqdm")
 class Progress(Iterable):
-    """
-    The Progress class provides a custom progress tracker that is used in a function signature.
-    To attach a Progress tracker to a function, simply add a parameter right after the input parameters that has a default value set to a `gradio.Progress()` instance.
-    The Progress tracker can then be updated in the function by calling the Progress object or using the `tqdm` method on an Iterable.
-    The Progress tracker is currently only available with `queue()`.
-    Example:
-        import gradio as gr
-        import time
-        def my_function(x, progress=gr.Progress()):
-            progress(0, desc="Starting...")
-            time.sleep(1)
-            for i in progress.tqdm(range(100)):
-                time.sleep(0.1)
-            return x
-        gr.Interface(my_function, gr.Textbox(), gr.Textbox()).queue().launch()
-    """
+
 
     def __init__(
         self,
         track_tqdm: bool = False,
     ):
-        """
-        Parameters:
-            track_tqdm: If True, the Progress object will track any tqdm.tqdm iterations with the tqdm library in the function.
-        """
+
         if track_tqdm:
             patch_tqdm()
         self.track_tqdm = track_tqdm
@@ -631,9 +572,7 @@ class Progress(Iterable):
         return self
 
     def __next__(self):
-        """
-        Updates progress tracker with next item in iterable.
-        """
+
         callback = self._progress_callback()
         if callback:
             current_iterable = self.iterables[-1]
@@ -662,14 +601,7 @@ class Progress(Iterable):
         unit: str = "steps",
         _tqdm=None,
     ):
-        """
-        Updates progress tracker with progress and message text.
-        Parameters:
-            progress: If float, should be between 0 and 1 representing completion. If Tuple, first number represents steps completed, and second value represents total steps or None if unknown. If None, hides progress bar.
-            desc: description to display.
-            total: estimated total number of steps.
-            unit: unit of iterations.
-        """
+
         callback = self._progress_callback()
         if callback:
             if isinstance(progress, tuple):
@@ -692,14 +624,7 @@ class Progress(Iterable):
         unit: str = "steps",
         _tqdm=None,
     ):
-        """
-        Attaches progress tracker to iterable, like tqdm.
-        Parameters:
-            iterable: iterable to attach progress tracker to.
-            desc: description to display.
-            total: estimated total number of steps.
-            unit: unit of iterations.
-        """
+
         callback = self._progress_callback()
         if callback:
             if iterable is None:
@@ -714,11 +639,7 @@ class Progress(Iterable):
         return self
 
     def update(self, n=1):
-        """
-        Increases latest iterable with specified number of steps.
-        Parameters:
-            n: number of steps completed.
-        """
+
         callback = self._progress_callback()
         if callback and len(self.iterables) > 0:
             current_iterable = self.iterables[-1]
@@ -730,9 +651,7 @@ class Progress(Iterable):
             return
 
     def close(self, _tqdm):
-        """
-        Removes iterable with given _tqdm.
-        """
+
         callback = self._progress_callback()
         if callback:
             for i in range(len(self.iterables)):
@@ -750,7 +669,6 @@ class Progress(Iterable):
         if not (blocks and event_id):
             return None
         return partial(blocks._queue.set_progress, event_id)
-
 
 def patch_tqdm() -> None:
     try:
@@ -807,7 +725,6 @@ def patch_tqdm() -> None:
     if hasattr(_tqdm, "auto") and hasattr(_tqdm.auto, "tqdm"):
         _tqdm.auto.tqdm = _tqdm.tqdm
 
-
 def create_tracker(fn, track_tqdm):
     progress = Progress(track_tqdm=track_tqdm)
     if not track_tqdm:
@@ -820,24 +737,13 @@ def create_tracker(fn, track_tqdm):
         after_args=(None,),
     )
 
-
 def special_args(
     fn: Callable,
     inputs: list[Any] | None = None,
     request: routes.Request | None = None,
     event_data: EventData | None = None,
 ) -> tuple[list, int | None, int | None]:
-    """
-    Checks if function has special arguments Request or EventData (via annotation) or Progress (via default value).
-    If inputs is provided, these values will be loaded into the inputs array.
-    Parameters:
-        fn: function to check.
-        inputs: array to load special arguments into.
-        request: request to load into inputs.
-        event_data: event-related data to load into inputs.
-    Returns:
-        updated inputs, progress index, event data index.
-    """
+
     try:
         signature = inspect.signature(fn)
     except ValueError:
@@ -925,29 +831,13 @@ def special_args(
                 inputs.append(param.default)
     return inputs or [], progress_index, event_data_index
 
-
 def update(
     elem_id: str | None = None,
     elem_classes: list[str] | str | None = None,
     visible: bool | None = None,
     **kwargs,
 ) -> dict:
-    """
-    Updates a component's properties. When a function passed into a Gradio Interface or a Blocks events returns a value, it typically updates the value of the output component. But it is also possible to update the *properties* of an output component (such as the number of lines of a `Textbox` or the visibility of an `Row`) by returning a component and passing in the parameters to update in the constructor of the component. Alternatively, you can return `gr.update(...)` with any arbitrary parameters to update. (This is useful as a shorthand or if the same function can be called with different components to update.)
 
-    Parameters:
-        elem_id: Use this to update the id of the component in the HTML DOM
-        elem_classes: Use this to update the classes of the component in the HTML DOM
-        visible: Use this to update the visibility of the component
-        kwargs: Any other keyword arguments to update the component's properties.
-    Example:
-        import gradio as gr
-        with gr.Blocks() as demo:
-            radio = gr.Radio([1, 2, 4], label="Set the value of the number")
-            number = gr.Number(value=2, interactive=True)
-            radio.change(fn=lambda value: gr.update(value=value), inputs=radio, outputs=number)
-        demo.launch()
-    """
     kwargs["__type__"] = "update"
     if elem_id is not None:
         kwargs["elem_id"] = elem_id
@@ -957,10 +847,8 @@ def update(
         kwargs["visible"] = visible
     return kwargs
 
-
 def skip() -> dict:
     return {"__type__": "update"}
-
 
 @document()
 def make_waveform(
@@ -974,20 +862,7 @@ def make_waveform(
     bar_width: float = 0.6,
     animate: bool = False,
 ) -> str:
-    """
-    Generates a waveform video from an audio file. Useful for creating an easy to share audio visualization. The output should be passed into a `gr.Video` component.
-    Parameters:
-        audio: Audio file path or tuple of (sample_rate, audio_data)
-        bg_color: Background color of waveform (ignored if bg_image is provided)
-        bg_image: Background image of waveform
-        fg_alpha: Opacity of foreground waveform
-        bars_color: Color of waveform bars. Can be a single color or a tuple of (start_color, end_color) of gradient
-        bar_count: Number of bars in waveform
-        bar_width: Width of bars in waveform. 1 represents full width, 0.5 represents half width, etc.
-        animate: If true, the audio waveform overlay will be animated, if false, it will be static.
-    Returns:
-        A filepath to the output video in mp4 format.
-    """
+
     import matplotlib.pyplot as plt
     from matplotlib.animation import FuncAnimation
 
@@ -1195,7 +1070,6 @@ def make_waveform(
     subprocess.check_call(ffmpeg_cmd)
     return output_mp4.name
 
-
 def log_message(message: str, level: Literal["info", "warning"] = "info"):
     from gradio.context import LocalContext
 
@@ -1209,42 +1083,12 @@ def log_message(message: str, level: Literal["info", "warning"] = "info"):
         return
     blocks._queue.log_message(event_id=event_id, log=message, level=level)
 
-
 @document(documentation_group="modals")
 def Warning(message: str = "Warning issued."):
-    """
-    This function allows you to pass custom warning messages to the user. You can do so simply by writing `gr.Warning('message here')` in your function, and when that line is executed the custom message will appear in a modal on the demo. The modal is yellow by default and has the heading: "Warning." Queue must be enabled for this behavior; otherwise, the warning will be printed to the console using the `warnings` library.
-    Demos: blocks_chained_events
-    Parameters:
-        message: The warning message to be displayed to the user.
-    Example:
-        import gradio as gr
-        def hello_world():
-            gr.Warning('This is a warning message.')
-            return "hello world"
-        with gr.Blocks() as demo:
-            md = gr.Markdown()
-            demo.load(hello_world, inputs=None, outputs=[md])
-        demo.queue().launch()
-    """
-    log_message(message, level="warning")
 
+    log_message(message, level="warning")
 
 @document(documentation_group="modals")
 def Info(message: str = "Info issued."):
-    """
-    This function allows you to pass custom info messages to the user. You can do so simply by writing `gr.Info('message here')` in your function, and when that line is executed the custom message will appear in a modal on the demo. The modal is gray by default and has the heading: "Info." Queue must be enabled for this behavior; otherwise, the message will be printed to the console.
-    Demos: blocks_chained_events
-    Parameters:
-        message: The info message to be displayed to the user.
-    Example:
-        import gradio as gr
-        def hello_world():
-            gr.Info('This is some info.')
-            return "hello world"
-        with gr.Blocks() as demo:
-            md = gr.Markdown()
-            demo.load(hello_world, inputs=None, outputs=[md])
-        demo.queue().launch()
-    """
+
     log_message(message, level="info")

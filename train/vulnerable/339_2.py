@@ -9,17 +9,13 @@ from .address_space import AddressSpace
 from .users import User, UserRole
 from .subscription_service import SubscriptionService
 
-
 class SessionState(Enum):
     Created = 0
     Activated = 1
     Closed = 2
 
-
 class InternalSession:
-    """
 
-    """
     max_connections = 1000
     _current_connections = 0
     _counter = 10
@@ -156,7 +152,7 @@ class InternalSession:
         return self.aspace.add_method_callback(methodid, callback)
 
     async def call(self, params):
-        """COROUTINE"""
+
         return await self.iserver.method_service.call(params)
 
     async def create_subscription(self, params, callback=None):
@@ -165,7 +161,7 @@ class InternalSession:
         return result
 
     async def create_monitored_items(self, params: ua.CreateMonitoredItemsParameters):
-        """Returns Future"""
+
         subscription_result = await self.subscription_service.create_monitored_items(params)
         await self.iserver.callback_service.dispatch(CallbackType.ItemSubscriptionCreated,
                                                      ServerItemCallback(params, subscription_result, None,

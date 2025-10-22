@@ -22,11 +22,9 @@ from ops._private import yaml
 from ops.model import _ModelBackend
 from test.test_helpers import FakeScript
 
-
 @pytest.fixture
 def fake_script(request: pytest.FixtureRequest) -> FakeScript:
     return FakeScript(request)
-
 
 class TestModel:
     @pytest.fixture
@@ -71,7 +69,7 @@ class TestModel:
         name: str = 'db1',
         relation_id: typing.Optional[int] = None,
     ) -> ops.Relation:
-        """Wrapper around harness.model.get_relation that enforces that None is not returned."""
+
         rel_db1 = harness.model.get_relation(name, relation_id)
         assert rel_db1 is not None
         assert rel_db1 is not None
@@ -1081,9 +1079,8 @@ class TestModel:
             container.push_path(push_path, '/')
         assert container.exists('/src.txt'), 'push_path failed: file "src.txt" missing'
 
-
 class PushPullCase:
-    """Test case for table-driven tests."""
+
 
     def __init__(
         self,
@@ -1107,7 +1104,6 @@ class PushPullCase:
         self.want = want or set()
         self.want_dirs = want_dirs or set()
 
-
 recursive_list_cases = [
     PushPullCase(
         name='basic recursive list',
@@ -1129,7 +1125,6 @@ recursive_list_cases = [
     ),
 ]
 
-
 class ConstFileInfoArgs(typing.TypedDict):
     last_modified: datetime.datetime
     permissions: int
@@ -1138,7 +1133,6 @@ class ConstFileInfoArgs(typing.TypedDict):
     user: str
     group_id: int
     group: str
-
 
 @pytest.mark.parametrize('case', recursive_list_cases)
 def test_recursive_list(case: PushPullCase):
@@ -1199,7 +1193,6 @@ def test_recursive_list(case: PushPullCase):
             _, path = f.path, ops.Container._build_destpath(f.path, case.path, case.dst)
         files.add(path)
     assert case.want == files, f'case {case.name!r} has wrong files: want {case.want}, got {files}'
-
 
 recursive_push_pull_cases = [
     PushPullCase(
@@ -1275,7 +1268,6 @@ recursive_push_pull_cases = [
     ),
 ]
 
-
 @pytest.mark.parametrize('case', recursive_push_pull_cases)
 def test_recursive_push_and_pull(case: PushPullCase):
     harness = ops.testing.Harness(
@@ -1349,7 +1341,6 @@ def test_recursive_push_and_pull(case: PushPullCase):
     for fdir in case.want_dirs:
         assert c.isdir(fdir), f'pull_path failed: dir {fdir} missing at destination'
 
-
 @pytest.mark.parametrize(
     'case',
     [
@@ -1409,7 +1400,6 @@ def test_push_path_relative(case: PushPullCase):
                 assert content == 'test'
         finally:
             os.chdir(cwd)
-
 
 class TestApplication:
     @pytest.fixture
@@ -1499,13 +1489,7 @@ class TestApplication:
             harness.set_planned_units(-3423000102312321090)
 
     def test_planned_units_override(self, harness: ops.testing.Harness[ops.CharmBase]):
-        """Verify that we override the calculated value of planned_units when we set it manually.
 
-        When a charm author writes a test that explicitly calls set_planned_units, we assume that
-        their intent is to override the calculated return value. Often, this will be because the
-        charm author is composing a charm without peer relations, and the harness's count of
-        planned units, which is based on the number of peer relations, will not be accurate.
-        """
         peer_rel_id = harness.add_relation('db2', 'db2')
 
         harness.set_planned_units(10)
@@ -1518,7 +1502,6 @@ class TestApplication:
 
         harness.reset_planned_units()
         assert app.planned_units() == 4
-
 
 class TestContainers:
     @pytest.fixture
@@ -1566,7 +1549,6 @@ containers:
         with pytest.raises(RuntimeError):
             other_unit = model.get_unit('other')
             other_unit.get_container('foo')
-
 
 class TestContainerPebble:
     @pytest.fixture
@@ -2113,11 +2095,9 @@ containers:
             )
         ]
 
-
 class MockPebbleBackend(_ModelBackend):
     def get_pebble(self, socket_path: str):
         return MockPebbleClient(socket_path)
-
 
 class MockPebbleClient:
     def __init__(self, socket_path: str):
@@ -2243,7 +2223,6 @@ class MockPebbleClient:
         self.requests.append(('get_notices', kwargs))
         return self.responses.pop(0)
 
-
 class TestModelBindings:
     @pytest.fixture
     def model(self, fake_script: FakeScript):
@@ -2322,13 +2301,13 @@ class TestModelBindings:
     def ensure_relation(
         self, model: ops.Model, name: str = 'db1', relation_id: typing.Optional[int] = None
     ):
-        """Wrapper around model.get_relation that enforces that None is not returned."""
+
         rel_db1 = model.get_relation(name, relation_id)
         assert rel_db1 is not None, rel_db1
         return rel_db1
 
     def ensure_binding(self, model: ops.Model, binding_key: typing.Union[str, ops.Relation]):
-        """Wrapper around self.model.get_binding that enforces that None is not returned."""
+
         binding = model.get_binding(binding_key)
         assert binding is not None
         assert binding is not None
@@ -2541,16 +2520,13 @@ class TestModelBindings:
         binding = self.ensure_binding(model, self.ensure_relation(model, binding_name))
         assert binding.network.ingress_addresses == ['foo.bar.baz.com']
 
-
 _MetricAndLabelPair = typing.Tuple[typing.Dict[str, float], typing.Dict[str, str]]
-
 
 _ValidMetricsTestCase = typing.Tuple[
     typing.Mapping[str, typing.Union[int, float]],
     typing.Mapping[str, str],
     typing.List[typing.List[str]],
 ]
-
 
 class TestModelBackend:
     @property
@@ -3194,7 +3170,6 @@ echo '{
         )
         assert self.backend.planned_units() == 1
 
-
 class TestLazyMapping:
     def test_invalidate(self):
         loaded: typing.List[int] = []
@@ -3212,7 +3187,6 @@ class TestLazyMapping:
         map._invalidate()
         assert map['foo'] == 'bar'
         assert loaded == [1, 1]
-
 
 class TestSecrets:
     @pytest.fixture
@@ -3410,7 +3384,6 @@ class TestSecrets:
             ['secret-get', 'secret://modeluuid/125', '--format=json'],
         ]
 
-
 class TestSecretInfo:
     def test_init(self):
         info = ops.SecretInfo(
@@ -3468,7 +3441,6 @@ class TestSecretInfo:
         info = ops.SecretInfo.from_dict('5', {'revision': 9})
         assert info.id == 'secret:5'
         assert info.revision == 9
-
 
 class TestSecretClass:
     @pytest.fixture
@@ -3731,7 +3703,6 @@ class TestSecretClass:
             ['secret-remove', 'secret:z'],
         ]
 
-
 class TestPorts:
     @pytest.fixture
     def unit(self):
@@ -3887,7 +3858,6 @@ class TestPorts:
             ['opened-ports', ''],
         ]
 
-
 class TestUnit:
     def test_reboot(self, fake_script: FakeScript):
         model = ops.model.Model(ops.charm.CharmMeta(), ops.model._ModelBackend('myapp/0'))
@@ -3907,7 +3877,6 @@ class TestUnit:
             model.get_unit('other').reboot()
         with pytest.raises(RuntimeError):
             model.get_unit('other').reboot(now=True)
-
 
 class TestLazyNotice:
     def test_lazy_notice(self):
@@ -3955,7 +3924,6 @@ class TestLazyNotice:
         n = ops.model.LazyNotice(workload, '123', 'foobar', 'example.com/a')
         assert repr(n) == "LazyNotice(id='123', type='foobar', key='example.com/a')"
 
-
 class TestCloudCredential:
     def test_from_dict(self):
         d = {
@@ -3976,7 +3944,6 @@ class TestCloudCredential:
         assert cloud_cred.auth_type == d['auth-type']
         assert cloud_cred.attributes == d['attrs']
         assert cloud_cred.redacted == d['redacted']
-
 
 class TestCloudSpec:
     def test_from_dict(self):
@@ -4049,7 +4016,6 @@ class TestCloudSpec:
         assert not cloud_spec.skip_tls_verify
         assert cloud_spec.is_controller_cloud
 
-
 class TestGetCloudSpec:
     @pytest.fixture
     def model(self):
@@ -4069,7 +4035,6 @@ class TestGetCloudSpec:
         with pytest.raises(ops.ModelError) as excinfo:
             model.get_cloud_spec()
         assert str(excinfo.value) == 'ERROR cannot access cloud credentials\n'
-
 
 if __name__ == '__main__':
     unittest.main()

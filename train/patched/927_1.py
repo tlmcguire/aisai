@@ -27,9 +27,7 @@ user_datastore = SQLAlchemyUserDatastore(db, User, Role)
 security = Security(app, user_datastore)
 
 def is_safe_url(target):
-    """
-    Check if the target URL is safe for redirects.
-    """
+
     ref_url = urlparse(request.host_url)
     test_url = urlparse(urljoin(request.host_url, target))
     return test_url.scheme in ('http', 'https') and \

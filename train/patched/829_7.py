@@ -23,23 +23,17 @@ from RestrictedPython import compile_restricted
 from RestrictedPython.Guards import safe_builtins, guarded_getattr, full_write_guarded
 from .util import useChameleonEngine
 
-
 class AqPageTemplate(Implicit, PageTemplate):
     pass
-
 
 class AqZopePageTemplate(Implicit, ZopePageTemplate):
     pass
 
-
 class Folder(util.Base):
     pass
 
-
 class UnitTestSecurityPolicy:
-    """
-        Stub out the existing security policy for unit testing purposes.
-    """
+
     def validate(self,
                  accessed=None,
                  container=None,
@@ -52,7 +46,6 @@ class UnitTestSecurityPolicy:
 
     def checkPermission(self, permission, object, context):
         return 1
-
 
 class HTMLTests(zope.component.testing.PlacelessSetup, unittest.TestCase):
     PREFIX = None

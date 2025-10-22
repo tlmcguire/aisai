@@ -6,7 +6,7 @@ from jsonschema import validate
 CACHE_DIR = ".check-jsonschema-cache"
 
 def get_schema(schema_url):
-    """Fetches a schema from a URL, caching it if possible."""
+
     os.makedirs(CACHE_DIR, exist_ok=True)
 
     cache_filename = os.path.join(CACHE_DIR, os.path.basename(schema_url))
@@ -23,9 +23,8 @@ def get_schema(schema_url):
 
     return schema
 
-
 def validate_json(json_data, schema_url):
-    """Validates JSON data against a schema from a URL."""
+
     schema = get_schema(schema_url)
     try:
       import json
@@ -35,10 +34,8 @@ def validate_json(json_data, schema_url):
     except Exception as e:
       return False
 
-
 malicious_schema_url = "https://example.evil.org/schema.json"
 benign_schema_url = "https://example.org/schema.json"
-
 
 json_data = {"a": 1}
 

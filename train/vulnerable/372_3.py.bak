@@ -1,12 +1,3 @@
-######################################################################
-#
-# File: b2sdk/account_info/sqlite_account_info.py
-#
-# Copyright 2019 Backblaze Inc. All Rights Reserved.
-#
-# License https://www.backblaze.com/using_b2_code.html
-#
-######################################################################
 
 import json
 import logging
@@ -26,8 +17,7 @@ B2_ACCOUNT_INFO_ENV_VAR = 'B2_ACCOUNT_INFO'
 B2_ACCOUNT_INFO_DEFAULT_FILE = '~/.b2_account_info'
 XDG_CONFIG_HOME_ENV_VAR = 'XDG_CONFIG_HOME'
 
-DEFAULT_ABSOLUTE_MINIMUM_PART_SIZE = 5000000  # this value is used ONLY in migrating db, and in v1 wrapper, it is not
-# meant to be a default for other applications
+DEFAULT_ABSOLUTE_MINIMUM_PART_SIZE = 5000000
 
 
 class SqliteAccountInfo(UrlPoolAccountInfo):
@@ -84,8 +74,7 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
             self._create_tables(conn, last_upgrade_to_run)
         super(SqliteAccountInfo, self).__init__()
 
-    # dirty trick to use parameters in the docstring
-    if getattr(__init__, '__doc__', None):  # don't break when using `python -oo`
+    if getattr(__init__, '__doc__', None):
         __init__.__doc__ = __init__.__doc__.format(
             **dict(
                 B2_ACCOUNT_INFO_ENV_VAR=B2_ACCOUNT_INFO_ENV_VAR,
@@ -98,22 +87,17 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
         """
         Make sure that the database is openable.  Removes the file if it's not.
         """
-        # If there is no file there, that's fine.  It will get created when
-        # we connect.
         if not os.path.exists(self.filename):
             self._create_database(last_upgrade_to_run)
             return
 
-        # If we can connect to the database, and do anything, then all is good.
         try:
             with self._connect() as conn:
                 self._create_tables(conn, last_upgrade_to_run)
                 return
         except sqlite3.DatabaseError:
-            pass  # fall through to next case
+            pass
 
-        # If the file contains JSON with the right stuff in it, convert from
-        # the old representation.
         try:
             with open(self.filename, 'rb') as f:
                 data = json.loads(f.read().decode('utf-8'))
@@ -122,11 +106,8 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
                     'download_url', 'minimum_part_size', 'realm'
                 ]
             if all(k in data for k in keys):
-                # remove the json file
                 os.unlink(self.filename)
-                # create a database
                 self._create_database(last_upgrade_to_run)
-                # add the data from the JSON file
                 with self._connect() as conn:
                     self._create_tables(conn, last_upgrade_to_run)
                     insert_statement = """
@@ -135,19 +116,14 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
                          recommended_part_size, realm, absolute_minimum_part_size)
                         values (?, ?, ?, ?, ?, ?, ?, ?);
                     """
-                    # Migrating from old schema is a little confusing, but the values change as:
-                    # minimum_part_size -> recommended_part_size
-                    # new column absolute_minimum_part_size = DEFAULT_ABSOLUTE_MINIMUM_PART_SIZE
                     conn.execute(
                         insert_statement,
                         (*(data[k] for k in keys), DEFAULT_ABSOLUTE_MINIMUM_PART_SIZE)
                     )
-                # all is happy now
                 return
-        except ValueError:  # includes json.decoder.JSONDecodeError
+        except ValueError:
             pass
 
-        # Remove the corrupted file and create a new database
         raise CorruptAccountInfo(self.filename)
 
     def _get_connection(self):
@@ -168,7 +144,6 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
         Make sure that the database is created and sets the file permissions.
         This should be done before storing any sensitive data in it.
         """
-        # Create the tables in the database
         conn = self._connect()
         try:
             with conn:
@@ -176,7 +151,6 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
         finally:
             conn.close()
 
-        # Set the file permissions
         os.chmod(self.filename, stat.S_IRUSR | stat.S_IWUSR)
 
     def _create_tables(self, conn, last_upgrade_to_run):
@@ -211,9 +185,6 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
            );
         """
         )
-        # This table is not used any more.  We may use it again
-        # someday if we save upload URLs across invocations of
-        # the command-line tool.
         conn.execute(
             """
            CREATE TABLE IF NOT EXISTS
@@ -224,17 +195,13 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
            );
         """
         )
-        # By default, we run all the upgrades
         last_upgrade_to_run = 4 if last_upgrade_to_run is None else last_upgrade_to_run
-        # Add the 'allowed' column if it hasn't been yet.
         if 1 <= last_upgrade_to_run:
             self._ensure_update(1, ['ALTER TABLE account ADD COLUMN allowed TEXT;'])
-        # Add the 'account_id_or_app_key_id' column if it hasn't been yet
         if 2 <= last_upgrade_to_run:
             self._ensure_update(
                 2, ['ALTER TABLE account ADD COLUMN account_id_or_app_key_id TEXT;']
             )
-        # Add the 's3_api_url' column if it hasn't been yet
         if 3 <= last_upgrade_to_run:
             self._ensure_update(3, ['ALTER TABLE account ADD COLUMN s3_api_url TEXT;'])
         if 4 <= last_upgrade_to_run:
@@ -566,7 +533,7 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
             with self._get_connection() as conn:
                 cursor = conn.execute(query, params)
                 return cursor.fetchone()[0]
-        except TypeError:  # TypeError: 'NoneType' object is unsubscriptable
+        except TypeError:
             return None
         except sqlite3.Error:
             return None

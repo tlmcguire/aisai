@@ -9,12 +9,8 @@ from fides.api.service.authentication.authentication_strategy_oauth2_authorizati
 )
 from fides.api.util.saas_util import load_config_from_string, load_dataset_from_string
 
-
 class ConnectorTemplate(BaseModel):
-    """
-    A collection of artifacts that make up a complete
-    SaaS connector (SaaS config, dataset, icon, functions, etc.)
-    """
+
 
     config: str
     dataset: str
@@ -24,7 +20,7 @@ class ConnectorTemplate(BaseModel):
 
     @validator("config")
     def validate_config(cls, config: str) -> str:
-        """Validates the config at the given path"""
+
         saas_config = SaaSConfig(**load_config_from_string(config))
         if saas_config.fides_key != "<instance_fides_key>":
             raise ValueError(
@@ -34,7 +30,7 @@ class ConnectorTemplate(BaseModel):
 
     @validator("dataset")
     def validate_dataset(cls, dataset: str) -> str:
-        """Validates the dataset at the given path"""
+
         saas_dataset = Dataset(**load_dataset_from_string(dataset))
         if saas_dataset.fides_key != "<instance_fides_key>":
             raise ValueError(
@@ -44,7 +40,7 @@ class ConnectorTemplate(BaseModel):
 
     @property
     def authorization_required(self) -> bool:
-        """Determines if the auth strategy for the given connector template requires authorization."""
+
 
         config = SaaSConfig(**load_config_from_string(self.config))
         authentication = config.client_config.authentication

@@ -6,7 +6,7 @@ import base64
 users = {"user": "password"}
 
 def constant_time_compare(val1, val2):
-    """Compares two values in constant time."""
+
     return hmac.compare_digest(val1, val2)
 
 def basic_auth(username, password):
@@ -16,7 +16,7 @@ def basic_auth(username, password):
     return constant_time_compare(stored_password, password)
 
 def parse_auth_header(auth_header):
-    """Parses the Basic Auth header and returns the username and password."""
+
     if not auth_header.startswith("Basic "):
         return None, None
 

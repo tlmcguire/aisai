@@ -35,22 +35,17 @@ WELL_KNOWN_GRACE_PERIOD_FACTOR = 0.2
 
 WELL_KNOWN_RETRY_ATTEMPTS = 3
 
-
 logger = logging.getLogger(__name__)
-
 
 _well_known_cache = TTLCache("well-known")
 _had_valid_well_known_cache = TTLCache("had-valid-well-known")
-
 
 @attr.s(slots=True, frozen=True)
 class WellKnownLookupResult:
     delegated_server = attr.ib()
 
-
 class WellKnownResolver:
-    """Handles well-known lookups for matrix servers.
-    """
+
 
     def __init__(
         self,
@@ -75,14 +70,7 @@ class WellKnownResolver:
         self.user_agent = user_agent
 
     async def get_well_known(self, server_name: bytes) -> WellKnownLookupResult:
-        """Attempt to fetch and parse a .well-known file for the given server
 
-        Args:
-            server_name: name of the server, from the requested url
-
-        Returns:
-            The result of the lookup
-        """
         try:
             prev_result, expiry, ttl = self._well_known_cache.get_with_expiry(
                 server_name
@@ -122,17 +110,7 @@ class WellKnownResolver:
         return WellKnownLookupResult(delegated_server=result)
 
     async def _fetch_well_known(self, server_name: bytes) -> Tuple[bytes, float]:
-        """Actually fetch and parse a .well-known, without checking the cache
 
-        Args:
-            server_name: name of the server, from the requested url
-
-        Raises:
-            _FetchWellKnownFailure if we fail to lookup a result
-
-        Returns:
-            The lookup result and cache period.
-        """
 
         had_valid_well_known = self._had_valid_well_known_cache.get(server_name, False)
 
@@ -178,18 +156,7 @@ class WellKnownResolver:
     async def _make_well_known_request(
         self, server_name: bytes, retry: bool
     ) -> Tuple[IResponse, bytes]:
-        """Make the well known request.
 
-        This will retry the request if requested and it fails (with unable
-        to connect or receives a 5xx error).
-
-        Args:
-            server_name: name of the server, from the requested url
-            retry: Whether to retry the request if it fails.
-
-        Returns:
-            Returns the response object and body. Response may be a non-200 response.
-        """
         uri = b"https://%s/.well-known/matrix/server" % (server_name,)
         uri_str = uri.decode("ascii")
 
@@ -225,7 +192,6 @@ class WellKnownResolver:
 
             await self._clock.sleep(0.5)
 
-
 def _cache_period_from_headers(
     headers: Headers, time_now: Callable[[], float] = time.time
 ) -> Optional[float]:
@@ -252,7 +218,6 @@ def _cache_period_from_headers(
 
     return None
 
-
 def _parse_cache_control(headers: Headers) -> Dict[bytes, Optional[bytes]]:
     cache_controls = {}
     for hdr in headers.getRawHeaders(b"cache-control", []):
@@ -262,7 +227,6 @@ def _parse_cache_control(headers: Headers) -> Dict[bytes, Optional[bytes]]:
             v = splits[1] if len(splits) > 1 else None
             cache_controls[k] = v
     return cache_controls
-
 
 @attr.s(slots=True)
 class _FetchWellKnownFailure(Exception):

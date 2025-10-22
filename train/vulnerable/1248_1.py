@@ -2,7 +2,7 @@ import os
 import subprocess
 
 def execute_command_and_log(command):
-    """Executes a command and logs the output to a temporary file."""
+
     try:
 
         process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -19,7 +19,6 @@ def execute_command_and_log(command):
 
 def main():
 
-
     commands_to_run = [
         "echo 'This is a test command'",
         "ls -la /home/user/",
@@ -31,7 +30,6 @@ def main():
 
     for command in commands_to_run:
       execute_command_and_log(command)
-
 
 if __name__ == "__main__":
     main()

@@ -22,7 +22,6 @@ class FilteringCogTests(unittest.IsolatedAsyncioTestCase):
             "no matches": False,
             "TOKEN": True,
 
-            # See advisory https://github.com/python-discord/bot/security/advisories/GHSA-j8c3-8x46-8pp6
             "https://google.com TOKEN": True,
             "https://google.com something else": False,
         }

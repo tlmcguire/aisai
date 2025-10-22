@@ -42,14 +42,12 @@ class HomeView(AccessMixin, TemplateView):
     use_new_ui = True
 
     def render_additional_content(self, request, context, details):
-        # Collect all custom data using callback functions.
         for key, data in details.get("custom_data", {}).items():
             if callable(data):
                 context[key] = data(request)
             else:
                 context[key] = data
 
-        # Create standalone template
         path = os.path.join(details["template_path"], details["custom_template"])
         if not os.path.isfile(path):
              raise TemplateDoesNotExist(path)
@@ -64,10 +62,8 @@ class HomeView(AccessMixin, TemplateView):
         return mark_safe(template.render(additional_context))
 
     def get(self, request, *args, **kwargs):
-        # Redirect user to login page if not authenticated and HIDE_RESTRICTED_UI is set to True
         if not request.user.is_authenticated and get_settings_or_config("HIDE_RESTRICTED_UI"):
             return self.handle_no_permission()
-        # Check whether a new release is available. (Only for staff/superusers.)
         new_release = None
         if request.user.is_staff or request.user.is_superuser:
             latest_release, release_url = get_latest_release()
@@ -87,7 +83,6 @@ class HomeView(AccessMixin, TemplateView):
             }
         )
 
-        # Loop over homepage layout to collect all additional data and create custom panels.
         for panel_details in registry["homepage_layout"]["panels"].values():
             if panel_details.get("custom_template"):
                 panel_details["rendered_html"] = self.render_additional_content(request, context, panel_details)
@@ -98,11 +93,9 @@ class HomeView(AccessMixin, TemplateView):
                         item_details["rendered_html"] = self.render_additional_content(request, context, item_details)
 
                     elif item_details.get("model"):
-                        # If there is a model attached collect object count.
                         item_details["count"] = item_details["model"].objects.restrict(request.user, "view").count()
 
                     elif item_details.get("items"):
-                        # Collect count for grouped objects.
                         for group_item_details in item_details["items"].values():
                             if group_item_details.get("custom_template"):
                                 group_item_details["rendered_html"] = self.render_additional_content(
@@ -118,12 +111,9 @@ class HomeView(AccessMixin, TemplateView):
 
 class SearchView(AccessMixin, View):
     def get(self, request):
-        # if user is not authenticated, redirect to login page
-        # when attempting to search
         if not request.user.is_authenticated:
             return self.handle_no_permission()
 
-        # No query
         if "q" not in request.GET:
             return render(
                 request,
@@ -137,37 +127,26 @@ class SearchView(AccessMixin, View):
         results = []
 
         if form.is_valid():
-            # Build the list of (app_label, modelname) tuples, representing all models included in the global search,
-            # based on the `app_config.searchable_models` list (if any) defined by each app
             searchable_models = []
             for app_config in apps.get_app_configs():
                 if hasattr(app_config, "searchable_models"):
                     searchable_models += [(app_config.label, modelname) for modelname in app_config.searchable_models]
 
             if form.cleaned_data["obj_type"]:
-                # Searching for a single type of object
                 obj_types = [form.cleaned_data["obj_type"]]
             else:
-                # Searching all object types
                 obj_types = [model_info[1] for model_info in searchable_models]
 
             for label, modelname in searchable_models:
                 if modelname not in obj_types:
                     continue
-                # Based on the label and modelname, reverse-lookup the list URL, then the view or UIViewSet
-                # corresponding to that URL, and finally the queryset, filterset, and table classes needed
-                # to find and display the model search results.
                 url = get_route_for_model(f"{label}.{modelname}", "list")
                 view_func = resolve(reverse(url)).func
-                # For a UIViewSet, view_func.cls gets what we need; for an ObjectListView, view_func.view_class is it.
                 view_or_viewset = getattr(view_func, "cls", getattr(view_func, "view_class", None))
                 queryset = view_or_viewset.queryset.restrict(request.user, "view")
-                # For a UIViewSet, .filterset_class, for an ObjectListView, .filterset.
                 filterset = getattr(view_or_viewset, "filterset_class", getattr(view_or_viewset, "filterset", None))
-                # For a UIViewSet, .table_class, for an ObjectListView, .table.
                 table = getattr(view_or_viewset, "table_class", getattr(view_or_viewset, "table", None))
 
-                # Construct the results table for this object type
                 filtered_queryset = filterset({"q": form.cleaned_data["q"]}, queryset=queryset).qs
                 table = table(filtered_queryset, orderable=False)
                 table.paginate(per_page=SEARCH_MAX_RESULTS)
@@ -289,14 +268,10 @@ def nautobot_metrics_view(request):
         multiprocess.MultiProcessCollector(prometheus_registry)
     else:
         prometheus_registry = prometheus_client.REGISTRY
-    # Instantiate and register the collector. Note that this has to be done every time this view is accessed, because
-    # the registry for multiprocess metrics is also instantiated every time this view is accessed. As a result, the
-    # same goes for the registration of the collector to the registry.
     try:
         nb_app_collector = NautobotAppMetricsCollector()
         prometheus_registry.register(nb_app_collector)
     except ValueError:
-        # Collector already registered, we are running without multiprocessing
         pass
     metrics_page = prometheus_client.generate_latest(prometheus_registry)
     return HttpResponse(metrics_page, content_type=prometheus_client.CONTENT_TYPE_LATEST)
@@ -305,7 +280,6 @@ def nautobot_metrics_view(request):
 @permission_required(get_permission_for_model(FileProxy, "view"), raise_exception=True)
 def get_file_with_authorization(request, *args, **kwargs):
     """Patch db_file_storage view with authentication."""
-    # Make sure user has permissions
     queryset = FileProxy.objects.restrict(request.user, "view")
     get_object_or_404(queryset, file=request.GET.get("name"))
 

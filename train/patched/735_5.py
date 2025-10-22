@@ -8,7 +8,7 @@ from thrift.Thrift import *
 
 class TProtocolException(TException):
 
-    """Custom Protocol Exception class"""
+
 
     UNKNOWN = 0
     INVALID_DATA = 1
@@ -24,7 +24,7 @@ class TProtocolException(TException):
 
 class TProtocolBase:
 
-    """Base class for Thrift protocol driver."""
+
 
     def __init__(self, trans):
         self.trans = trans

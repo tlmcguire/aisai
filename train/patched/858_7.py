@@ -2,23 +2,8 @@ import re
 
 from tests.unittest import TestCase
 
-
 def glob_to_regex(glob):
-    """
-    Convert a simple glob pattern to a compiled regex.
 
-    The only wildcards supported are:
-      * - matches zero or more characters
-      ? - matches exactly one character
-
-    The regex will always be anchored, and will be case-insensitive.
-
-    Args:
-        glob (str): The glob pattern to convert
-
-    Returns:
-        re.Pattern: The compiled regex.
-    """
     regex = ""
     i = 0
     while i < len(glob):
@@ -71,10 +56,9 @@ def glob_to_regex(glob):
             i += 1
     return re.compile(r"\A%s\Z" % regex, re.IGNORECASE)
 
-
 class GlobToRegexTestCase(TestCase):
     def test_literal_match(self):
-        """patterns without wildcards should match"""
+
         pat = glob_to_regex("foobaz")
         self.assertTrue(
             pat.match("FoobaZ"), "patterns should match and be case-insensitive"
@@ -96,7 +80,7 @@ class GlobToRegexTestCase(TestCase):
         self.assertFalse(pat.match("fiiobaz"), "? should not match 2 characters")
 
     def test_multi_wildcard(self):
-        """patterns with multiple wildcards in a row should match"""
+
         pat = glob_to_regex("**baz")
         self.assertTrue(pat.match("agsgsbaz"), "** should match any string")
         self.assertTrue(pat.match("baz"), "** should match the empty string")

@@ -1,4 +1,3 @@
-# Define all the service endpoint handlers here.
 import json
 import logging
 import os
@@ -204,22 +203,6 @@ def _is_servable_proxied_run_artifact_root(run_artifact_root):
              can respond to list and download requests for the artifact). ``False`` otherwise.
     """
     parsed_run_artifact_root = urllib.parse.urlparse(run_artifact_root)
-    # NB: If the run artifact root is a proxied artifact root (has scheme `http`, `https`, or
-    # `mlflow-artifacts`) *and* the MLflow server is configured to serve artifacts, the MLflow
-    # server always assumes that it has access to the underlying storage location for the proxied
-    # artifacts. This may not always be accurate. For example:
-    #
-    # An organization may initially use the MLflow server to serve Tracking API requests and proxy
-    # access to artifacts stored in Location A (via `mlflow server --serve-artifacts`). Then, for
-    # scalability and / or security purposes, the organization may decide to store artifacts in a
-    # new location B and set up a separate server (e.g. `mlflow server --artifacts-only`) to proxy
-    # access to artifacts stored in Location B.
-    #
-    # In this scenario, requests for artifacts stored in Location B that are sent to the original
-    # MLflow server will fail if the original MLflow server does not have access to Location B
-    # because it will assume that it can serve all proxied artifacts regardless of the underlying
-    # location. Such failures can be remediated by granting the original MLflow server access to
-    # Location B.
     return (
         parsed_run_artifact_root.scheme in ["http", "https", "mlflow-artifacts"]
         and _is_serving_proxied_artifacts()
@@ -242,16 +225,8 @@ def _get_proxied_run_artifact_destination_path(proxied_artifact_root, relative_p
     assert parsed_proxied_artifact_root.scheme in ["http", "https", "mlflow-artifacts"]
 
     if parsed_proxied_artifact_root.scheme == "mlflow-artifacts":
-        # If the proxied artifact root is an `mlflow-artifacts` URI, the run artifact root path is
-        # simply the path component of the URI, since the fully-qualified format of an
-        # `mlflow-artifacts` URI is `mlflow-artifacts://<netloc>/path/to/artifact`
         proxied_run_artifact_root_path = parsed_proxied_artifact_root.path.lstrip("/")
     else:
-        # In this case, the proxied artifact root is an HTTP(S) URL referring to an mlflow-artifacts
-        # API route that can be used to download the artifact. These routes are always anchored at
-        # `/api/2.0/mlflow-artifacts/artifacts`. Accordingly, we split the path on this route anchor
-        # and interpret the rest of the path (everything after the route anchor) as the run artifact
-        # root path
         mlflow_artifacts_http_route_anchor = "/api/2.0/mlflow-artifacts/artifacts/"
         assert mlflow_artifacts_http_route_anchor in parsed_proxied_artifact_root.path
 
@@ -335,8 +310,6 @@ def _assert_array(x):
 
 def _assert_required(x):
     assert x is not None
-    # When parsing JSON payloads via proto, absent string fields
-    # are expressed as empty strings
     assert x != ""
 
 
@@ -410,19 +383,8 @@ def _get_request_message(request_message, flask_request=request, schema=None):
     from querystring_parser import parser
 
     if flask_request.method == "GET" and len(flask_request.query_string) > 0:
-        # This is a hack to make arrays of length 1 work with the parser.
-        # for example experiment_ids%5B%5D=0 should be parsed to {experiment_ids: [0]}
-        # but it gets parsed to {experiment_ids: 0}
-        # but it doesn't. However, experiment_ids%5B0%5D=0 will get parsed to the right
-        # result.
         query_string = re.sub("%5B%5D", "%5B0%5D", flask_request.query_string.decode("utf-8"))
         request_dict = parser.parse(query_string, normalized=True)
-        # Convert atomic values of repeated fields to lists before calling protobuf deserialization.
-        # Context: We parse the parameter string into a dictionary outside of protobuf since
-        # protobuf does not know how to read the query parameters directly. The query parser above
-        # has no type information and hence any parameter that occurs exactly once is parsed as an
-        # atomic value. Since protobuf requires that the values of repeated fields are lists,
-        # deserialization will fail unless we do the fix below.
         for field in request_message.DESCRIPTOR.fields:
             if (
                 field.label == descriptor.FieldDescriptor.LABEL_REPEATED
@@ -435,14 +397,9 @@ def _get_request_message(request_message, flask_request=request, schema=None):
 
     request_json = _get_request_json(flask_request)
 
-    # Older clients may post their JSON double-encoded as strings, so the get_json
-    # above actually converts it to a string. Therefore, we check this condition
-    # (which we can tell for sure because any proper request should be a dictionary),
-    # and decode it a second time.
     if is_string_type(request_json):
         request_json = json.loads(request_json)
 
-    # If request doesn't have json body then assume it's empty.
     if request_json is None:
         request_json = {}
 
@@ -482,8 +439,6 @@ def _response_with_file_attachment_headers(file_path, response):
 
 def _send_artifact(artifact_repository, path):
     file_path = os.path.abspath(artifact_repository.download_artifacts(path))
-    # Always send artifacts as attachments to prevent the browser from displaying them on our web
-    # server's domain, which might enable XSS.
     mime_type = _guess_mime_type(file_path)
     file_sender_response = send_file(file_path, mimetype=mime_type, as_attachment=True)
     return _response_with_file_attachment_headers(file_path, file_sender_response)
@@ -593,7 +548,6 @@ def _not_implemented():
     return response
 
 
-# Tracking Server APIs
 
 
 @catch_mlflow_exception
@@ -1143,7 +1097,6 @@ def search_datasets_handler():
 def gateway_proxy_handler():
     gateway_uri = MLFLOW_GATEWAY_URI.get()
     if not gateway_uri:
-        # Pretend an empty gateway service is running
         return {"routes": []}
 
     args = request.args if request.method == "GET" else request.json
@@ -1208,7 +1161,6 @@ def create_promptlab_run_handler():
     assert_arg_exists("mlflow_version", mlflow_version)
     user_id = args.get("user_id", "unknown")
 
-    # use current time if not provided
     start_time = args.get("start_time", int(time.time() * 1000))
 
     store = _get_tracking_store()
@@ -1409,7 +1361,6 @@ def _wrap_response(response_message):
     return response
 
 
-# Model Registry APIs
 
 
 @catch_mlflow_exception
@@ -1594,8 +1545,6 @@ def _validate_non_local_source_contains_relative_paths(source: str):
     if "\x00" in source_path:
         raise MlflowException(invalid_source_error_message, INVALID_PARAMETER_VALUE)
     resolved_source = pathlib.Path(source_path).resolve().as_posix()
-    # NB: drive split is specifically for Windows since WindowsPath.resolve() will append the
-    # drive path of the pwd to a given path. We don't care about the drive here, though.
     _, resolved_path = os.path.splitdrive(resolved_source)
 
     if resolved_path != source_path:
@@ -1619,9 +1568,6 @@ def _validate_source(source: str, run_id: str) -> None:
             INVALID_PARAMETER_VALUE,
         )
 
-    # There might be file URIs that are local but can bypass the above check. To prevent this, we
-    # disallow using file URIs as model version sources by default unless it's explicitly allowed
-    # by setting the MLFLOW_ALLOW_FILE_URI_AS_MODEL_VERSION_SOURCE environment variable to True.
     if not MLFLOW_ALLOW_FILE_URI_AS_MODEL_VERSION_SOURCE.get() and is_file_uri(source):
         raise MlflowException(
             f"Invalid model version source: '{source}'. MLflow tracking server doesn't allow using "
@@ -1631,8 +1577,6 @@ def _validate_source(source: str, run_id: str) -> None:
             INVALID_PARAMETER_VALUE,
         )
 
-    # Checks if relative paths are present in the source (a security threat). If any are present,
-    # raises an Exception.
     _validate_non_local_source_contains_relative_paths(source)
 
 
@@ -1891,7 +1835,6 @@ def _get_model_version_by_alias():
     return _wrap_response(response_message)
 
 
-# MLflow Artifacts APIs
 
 
 @catch_mlflow_exception
@@ -1906,8 +1849,7 @@ def _download_artifact(artifact_path):
     artifact_repo = _get_artifact_repo_mlflow_artifacts()
     dst = artifact_repo.download_artifacts(artifact_path, tmp_dir.name)
 
-    # Ref: https://stackoverflow.com/a/24613980/6943581
-    file_handle = open(dst, "rb")  # noqa: SIM115
+    file_handle = open(dst, "rb")
 
     def stream_and_remove_file():
         yield from file_handle
@@ -1931,7 +1873,7 @@ def _upload_artifact(artifact_path):
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = os.path.join(tmp_dir, tail)
         with open(tmp_path, "wb") as f:
-            chunk_size = 1024 * 1024  # 1 MB
+            chunk_size = 1024 * 1024
             while True:
                 chunk = request.stream.read(chunk_size)
                 if len(chunk) == 0:
@@ -2143,7 +2085,6 @@ def get_endpoints(get_handler=get_handler):
 
 
 HANDLERS = {
-    # Tracking Server APIs
     CreateExperiment: _create_experiment,
     GetExperiment: _get_experiment,
     GetExperimentByName: _get_experiment_by_name,
@@ -2167,7 +2108,6 @@ HANDLERS = {
     GetMetricHistory: _get_metric_history,
     SearchExperiments: _search_experiments,
     LogInputs: _log_inputs,
-    # Model Registry APIs
     CreateRegisteredModel: _create_registered_model,
     GetRegisteredModel: _get_registered_model,
     DeleteRegisteredModel: _delete_registered_model,
@@ -2189,7 +2129,6 @@ HANDLERS = {
     SetRegisteredModelAlias: _set_registered_model_alias,
     DeleteRegisteredModelAlias: _delete_registered_model_alias,
     GetModelVersionByAlias: _get_model_version_by_alias,
-    # MLflow Artifacts APIs
     DownloadArtifact: _download_artifact,
     UploadArtifact: _upload_artifact,
     ListArtifactsMlflowArtifacts: _list_artifacts_mlflow_artifacts,

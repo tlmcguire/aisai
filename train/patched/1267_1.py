@@ -6,21 +6,14 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 def as_wazuh_object_vulnerable(data):
-    """
-    Vulnerable deserialization function.  DO NOT USE IN PRODUCTION.
-    This function is only provided to demonstrate the CVE.
-    """
+
     try:
         return pickle.loads(base64.b64decode(data['__unhandled_exc__']))
     except KeyError:
         return data
 
-
 def as_wazuh_object_fixed(data):
-    """
-    Safe deserialization function.  This function avoids the vulnerability
-    by explicitly checking and sanitizing the input data.
-    """
+
     if isinstance(data, dict):
         if '__unhandled_exc__' in data:
             logging.error("Detected potentially malicious key '__unhandled_exc__' in data. Request rejected.")
@@ -34,15 +27,9 @@ def as_wazuh_object_fixed(data):
     else:
         return data
 
-
 safe_data = {"message": "This is a safe message"}
 fixed_data = as_wazuh_object_fixed(safe_data)
 print(f"Fixed data (safe): {fixed_data}")
-
-
-
-
-
 
 try:
     vulnerable_data = {"__unhandled_exc__": "arbitrary_data"}

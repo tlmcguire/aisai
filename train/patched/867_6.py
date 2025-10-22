@@ -38,7 +38,6 @@ logger = logging.getLogger(__name__)
 
 test_server_connection_factory = None
 
-
 def get_connection_factory():
     global test_server_connection_factory
     if test_server_connection_factory is None:
@@ -53,13 +52,11 @@ def get_connection_factory():
         )
     return test_server_connection_factory
 
-
 def generate_resolve_service(result):
     async def resolve_service(_):
         return result
 
     return resolve_service
-
 
 class MatrixFederationAgentTests(unittest.TestCase):
     def setUp(self):
@@ -95,11 +92,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         )
 
     def _make_connection(self, client_factory, expected_sni):
-        """Builds a test server, and completes the outgoing client connection
 
-        Returns:
-            HTTPChannel: the test server
-        """
 
         server_tls_protocol = _build_test_server(get_connection_factory())
 
@@ -129,9 +122,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
 
     @defer.inlineCallbacks
     def _make_get_request(self, uri):
-        """
-        Sends a simple GET request via the agent, and checks its logcontext management
-        """
+
         with LoggingContext("one") as context:
             fetch_d = self.agent.request(b"GET", uri)
 
@@ -151,16 +142,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
     def _handle_well_known_connection(
         self, client_factory, expected_sni, content, response_headers={}
     ):
-        """Handle an outgoing HTTPs connection: wire it up to a server, check that the
-        request is for a .well-known, and send the response.
 
-        Args:
-            client_factory (IProtocolFactory): outgoing connection
-            expected_sni (bytes): SNI that we expect the outgoing connection to send
-            content (bytes): content to send back as the .well-known
-        Returns:
-            HTTPChannel: server impl
-        """
         well_known_server = self._make_connection(
             client_factory, expected_sni=expected_sni
         )
@@ -173,9 +155,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         return well_known_server
 
     def _send_well_known_response(self, request, content, headers={}):
-        """Check that an incoming request looks like a valid .well-known request, and
-        send back the response.
-        """
+
         self.assertEqual(request.method, b"GET")
         self.assertEqual(request.path, b"/.well-known/matrix/server")
         self.assertEqual(request.requestHeaders.getRawHeaders(b"host"), [b"testserv"])
@@ -187,9 +167,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.reactor.pump((0.1,))
 
     def test_get(self):
-        """
-        happy-path test of a GET request with an explicit port
-        """
+
         self.reactor.lookups["testserv"] = "1.2.3.4"
         test_d = self._make_get_request(b"matrix://testserv:8448/foo/bar")
 
@@ -236,9 +214,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.assertEqual(json, {"a": 1})
 
     def test_get_ip_address(self):
-        """
-        Test the behaviour when the server name contains an explicit IP (with no port)
-        """
+
         self.reactor.lookups["1.2.3.4"] = "1.2.3.4"
 
         test_d = self._make_get_request(b"matrix://1.2.3.4/foo/bar")
@@ -264,10 +240,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.successResultOf(test_d)
 
     def test_get_ipv6_address(self):
-        """
-        Test the behaviour when the server name contains an explicit IPv6 address
-        (with no port)
-        """
+
 
         self.reactor.lookups["::1"] = "::1"
 
@@ -294,10 +267,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.successResultOf(test_d)
 
     def test_get_ipv6_address_with_port(self):
-        """
-        Test the behaviour when the server name contains an explicit IPv6 address
-        (with explicit port)
-        """
+
 
         self.reactor.lookups["::1"] = "::1"
 
@@ -324,9 +294,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.successResultOf(test_d)
 
     def test_get_hostname_bad_cert(self):
-        """
-        Test the behaviour when the certificate on the server doesn't match the hostname
-        """
+
         self.mock_resolver.resolve_service.side_effect = generate_resolve_service([])
         self.reactor.lookups["testserv1"] = "1.2.3.4"
 
@@ -364,10 +332,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.assertIsInstance(failure_reason.value, VerificationError)
 
     def test_get_ip_address_bad_cert(self):
-        """
-        Test the behaviour when the server name contains an explicit IP, but
-        the server cert doesn't cover it
-        """
+
         self.reactor.lookups["1.2.3.5"] = "1.2.3.5"
 
         test_d = self._make_get_request(b"matrix://1.2.3.5/foo/bar")
@@ -389,9 +354,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.assertIsInstance(failure_reason.value, VerificationError)
 
     def test_get_no_srv_no_well_known(self):
-        """
-        Test the behaviour when the server name has no port, no SRV, and no well-known
-        """
+
 
         self.mock_resolver.resolve_service.side_effect = generate_resolve_service([])
         self.reactor.lookups["testserv"] = "1.2.3.4"
@@ -434,8 +397,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.successResultOf(test_d)
 
     def test_get_well_known(self):
-        """Test the behaviour when the .well-known delegates elsewhere
-        """
+
 
         self.mock_resolver.resolve_service.side_effect = generate_resolve_service([])
         self.reactor.lookups["testserv"] = "1.2.3.4"
@@ -489,9 +451,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.assertNotIn(b"testserv", self.well_known_cache)
 
     def test_get_well_known_redirect(self):
-        """Test the behaviour when the server name has no port and no SRV record, but
-        the .well-known has a 300 redirect
-        """
+
         self.mock_resolver.resolve_service.side_effect = generate_resolve_service([])
         self.reactor.lookups["testserv"] = "1.2.3.4"
         self.reactor.lookups["target-server"] = "1::f"
@@ -568,9 +528,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.assertNotIn(b"testserv", self.well_known_cache)
 
     def test_get_invalid_well_known(self):
-        """
-        Test the behaviour when the server name has an *invalid* well-known (and no SRV)
-        """
+
 
         self.mock_resolver.resolve_service.side_effect = generate_resolve_service([])
         self.reactor.lookups["testserv"] = "1.2.3.4"
@@ -613,9 +571,6 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.successResultOf(test_d)
 
     def test_get_well_known_unsigned_cert(self):
-        """Test the behaviour when the .well-known server presents a cert
-        not signed by a CA
-        """
 
 
         self.mock_resolver.resolve_service.side_effect = generate_resolve_service([])
@@ -658,9 +613,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         )
 
     def test_get_hostname_srv(self):
-        """
-        Test the behaviour when there is a single SRV record
-        """
+
         self.mock_resolver.resolve_service.side_effect = generate_resolve_service(
             [Server(host=b"srvtarget", port=8443)]
         )
@@ -693,9 +646,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.successResultOf(test_d)
 
     def test_get_well_known_srv(self):
-        """Test the behaviour when the .well-known redirects to a place where there
-        is a SRV.
-        """
+
         self.reactor.lookups["testserv"] = "1.2.3.4"
         self.reactor.lookups["srvtarget"] = "5.6.7.8"
 
@@ -745,7 +696,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.successResultOf(test_d)
 
     def test_idna_servername(self):
-        """test the behaviour when the server name has idna chars in"""
+
 
         self.mock_resolver.resolve_service.side_effect = generate_resolve_service([])
 
@@ -794,7 +745,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.successResultOf(test_d)
 
     def test_idna_srv_target(self):
-        """test the behaviour when the target of a SRV record has idna chars"""
+
 
         self.mock_resolver.resolve_service.side_effect = generate_resolve_service(
             [Server(host=b"xn--trget-3qa.com", port=8443)]
@@ -883,9 +834,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.assertEqual(r.delegated_server, b"other-server")
 
     def test_well_known_cache_with_temp_failure(self):
-        """Test that we refetch well-known before the cache expires, and that
-        it ignores transient errors.
-        """
+
 
         self.reactor.lookups["testserv"] = "1.2.3.4"
 
@@ -948,7 +897,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.assertEqual(r.delegated_server, None)
 
     def test_well_known_too_large(self):
-        """A well-known query that returns a result which is too large should be rejected."""
+
         self.reactor.lookups["testserv"] = "1.2.3.4"
 
         fetch_d = defer.ensureDeferred(
@@ -972,8 +921,7 @@ class MatrixFederationAgentTests(unittest.TestCase):
         self.assertIsNone(r.delegated_server)
 
     def test_srv_fallbacks(self):
-        """Test that other SRV results are tried if the first one fails.
-        """
+
         self.mock_resolver.resolve_service.side_effect = generate_resolve_service(
             [
                 Server(host=b"target.com", port=8443),
@@ -1019,7 +967,6 @@ class MatrixFederationAgentTests(unittest.TestCase):
         request.finish()
         self.reactor.pump((0.1,))
         self.successResultOf(test_d)
-
 
 class TestCachePeriodFromHeaders(unittest.TestCase):
     def test_cache_control(self):
@@ -1078,27 +1025,13 @@ class TestCachePeriodFromHeaders(unittest.TestCase):
 
         self.assertEqual(_cache_period_from_headers(Headers({b"Expires": [b"0"]})), 0)
 
-
 def _check_logcontext(context):
     current = current_context()
     if current is not context:
         raise AssertionError("Expected logcontext %s but was %s" % (context, current))
 
-
 def _build_test_server(connection_creator):
-    """Construct a test server
 
-    This builds an HTTP channel, wrapped with a TLSMemoryBIOProtocol
-
-    Args:
-        connection_creator (IOpenSSLServerConnectionCreator): thing to build
-            SSL connections
-        sanlist (list[bytes]): list of the SAN entries for the cert returned
-            by the server
-
-    Returns:
-        TLSMemoryBIOProtocol
-    """
     server_factory = Factory.forProtocol(HTTPChannel)
     server_factory.log = _log_request
 
@@ -1108,16 +1041,13 @@ def _build_test_server(connection_creator):
 
     return server_tls_factory.buildProtocol(None)
 
-
 def _log_request(request):
-    """Implements Factory.log, which is expected by Request.finish"""
-    logger.info("Completed request %s", request)
 
+    logger.info("Completed request %s", request)
 
 @implementer(IPolicyForHTTPS)
 class TrustingTLSPolicyForHTTPS:
-    """An IPolicyForHTTPS which checks that the certificate belongs to the
-    right server, but doesn't check the certificate chain."""
+
 
     def creatorForNetloc(self, hostname, port):
         certificateOptions = OpenSSLCertificateOptions()

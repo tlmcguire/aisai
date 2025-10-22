@@ -14,7 +14,6 @@ from .handlers import ERROR_HANDLERS
 from .helpers import JSONEncoder
 from .processors import CONTEXT_PROCESSORS
 
-
 class App:
 
     JINJA_TEMPLATE_GLOBALS = TEMPLATE_GLOBALS
@@ -24,7 +23,6 @@ class App:
     FLASK_BLUEPRINTS = BLUEPRINTS
     FLASK_EXTENSIONS = EXTENSIONS
     FLASK_THEMES = THEMES
-
 
     @classmethod
     def _configure_config(cls, app, develop):
@@ -49,9 +47,7 @@ class App:
 
     @classmethod
     def _configure_handlers(cls, app):
-        """
-        Register app handlers.
-        """
+
         for exc, fn in cls.FLASK_ERROR_HANDLERS:
             app.register_error_handler(exc, fn)
 

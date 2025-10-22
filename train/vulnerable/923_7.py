@@ -1,4 +1,4 @@
-"""Test cases for Snippets."""
+
 from .. import util
 import os
 from pymdownx.snippets import SnippetMissingError
@@ -6,9 +6,8 @@ from unittest.mock import patch, MagicMock
 
 BASE = os.path.abspath(os.path.dirname(__file__))
 
-
 class TestSnippetDedent(util.MdCase):
-    """Test snippet cases."""
+
 
     extension = [
         'pymdownx.snippets', 'pymdownx.superfences'
@@ -22,7 +21,7 @@ class TestSnippetDedent(util.MdCase):
     }
 
     def test_dedent_section(self):
-        """Test dedenting sections."""
+
 
         self.check_markdown(
             R'''
@@ -41,7 +40,7 @@ class TestSnippetDedent(util.MdCase):
         )
 
     def test_dedent_lines(self):
-        """Test dedenting lines."""
+
 
         self.check_markdown(
             R'''
@@ -60,7 +59,7 @@ class TestSnippetDedent(util.MdCase):
         )
 
     def test_dedent_indented(self):
-        """Test dedenting sections that has indented insertion."""
+
 
         self.check_markdown(
             R'''
@@ -79,9 +78,8 @@ class TestSnippetDedent(util.MdCase):
             True
         )
 
-
 class TestSnippets(util.MdCase):
-    """Test snippet cases."""
+
 
     extension = [
         'pymdownx.snippets', 'pymdownx.superfences'
@@ -94,7 +92,7 @@ class TestSnippets(util.MdCase):
     }
 
     def test_inline(self):
-        """Test inline."""
+
 
         self.check_markdown(
             R'''
@@ -122,7 +120,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_block(self):
-        """Test block."""
+
 
         self.check_markdown(
             R'''
@@ -171,7 +169,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_mixed(self):
-        """Test mixed."""
+
 
         self.check_markdown(
             R'''
@@ -193,7 +191,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_start_line_inline(self):
-        """Test starting line with inline syntax."""
+
 
         self.check_markdown(
             R'''
@@ -210,7 +208,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_end_line_inline(self):
-        """Test ending line with inline syntax."""
+
 
         self.check_markdown(
             R'''
@@ -227,7 +225,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_start_end_line_inline(self):
-        """Test starting and ending line with inline syntax."""
+
 
         self.check_markdown(
             R'''
@@ -242,7 +240,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_start_line_block(self):
-        """Test starting line with block syntax."""
+
 
         self.check_markdown(
             R'''
@@ -261,7 +259,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_end_line_block(self):
-        """Test ending line with block syntax."""
+
 
         self.check_markdown(
             R'''
@@ -280,7 +278,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_start_end_line_block(self):
-        """Test starting and ending line with block syntax."""
+
 
         self.check_markdown(
             R'''
@@ -297,7 +295,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_section_inline(self):
-        """Test section partial in inline snippet."""
+
 
         self.check_markdown(
             R'''
@@ -315,7 +313,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_section_inline_min(self):
-        """Test section partial in inline snippet using minimum tokens."""
+
 
         self.check_markdown(
             R'''
@@ -333,7 +331,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_section_inline_ignore_other_section(self):
-        """Test nested sections."""
+
 
         self.check_markdown(
             R'''
@@ -353,7 +351,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_section_inline_escaped_other_section(self):
-        """Test nested escaped sections."""
+
 
         self.check_markdown(
             R'''
@@ -375,7 +373,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_section_ignore_double_start_section(self):
-        """Test nested sections."""
+
 
         self.check_markdown(
             R'''
@@ -395,7 +393,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_section_block(self):
-        """Test section partial in block snippet."""
+
 
         self.check_markdown(
             R'''
@@ -410,7 +408,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_section_block_min(self):
-        """Test section partial in block snippet using minimum tokens."""
+
 
         self.check_markdown(
             R'''
@@ -425,7 +423,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_section_end_first(self):
-        """Test section when the end is specified first."""
+
 
         self.check_markdown(
             R'''
@@ -439,7 +437,7 @@ class TestSnippets(util.MdCase):
         )
 
     def test_section_no_end(self):
-        """Test section when the end is not specified."""
+
 
         self.check_markdown(
             R'''
@@ -453,9 +451,8 @@ class TestSnippets(util.MdCase):
             True
         )
 
-
 class TestSnippetsFile(util.MdCase):
-    """Test snippet file case."""
+
 
     extension = [
         'pymdownx.snippets',
@@ -468,7 +465,7 @@ class TestSnippetsFile(util.MdCase):
     }
 
     def test_user(self):
-        """Test file."""
+
 
         self.check_markdown(
             R'''
@@ -480,9 +477,8 @@ class TestSnippetsFile(util.MdCase):
             True
         )
 
-
 class TestSnippetsAutoAppend(util.MdCase):
-    """Test snippet file case."""
+
 
     extension = [
         'pymdownx.snippets',
@@ -496,7 +492,7 @@ class TestSnippetsAutoAppend(util.MdCase):
     }
 
     def test_auto_append(self):
-        """Test auto append."""
+
 
         self.check_markdown(
             R'''
@@ -509,9 +505,8 @@ class TestSnippetsAutoAppend(util.MdCase):
             True
         )
 
-
 class TestSnippetsMissing(util.MdCase):
-    """Test snippet file case."""
+
 
     extension = [
         'pymdownx.snippets',
@@ -525,7 +520,7 @@ class TestSnippetsMissing(util.MdCase):
     }
 
     def test_good(self):
-        """Test found file."""
+
 
         self.check_markdown(
             '''
@@ -538,7 +533,7 @@ class TestSnippetsMissing(util.MdCase):
         )
 
     def test_top_level(self):
-        """Test top level."""
+
 
         with self.assertRaises(SnippetMissingError):
             self.check_markdown(
@@ -551,7 +546,7 @@ class TestSnippetsMissing(util.MdCase):
             )
 
     def test_nested(self):
-        """Test nested."""
+
 
         with self.assertRaises(SnippetMissingError):
             self.check_markdown(
@@ -564,7 +559,7 @@ class TestSnippetsMissing(util.MdCase):
             )
 
     def test_missing_file_lines(self):
-        """Test missing file with line numbers."""
+
 
         with self.assertRaises(SnippetMissingError):
             self.check_markdown(
@@ -577,7 +572,7 @@ class TestSnippetsMissing(util.MdCase):
             )
 
     def test_missing_section(self):
-        """Test missing section."""
+
 
         with self.assertRaises(SnippetMissingError):
             self.check_markdown(
@@ -589,9 +584,8 @@ class TestSnippetsMissing(util.MdCase):
                 True
             )
 
-
 class TestSnippetsGracefulMissing(util.MdCase):
-    """Test snippet file case."""
+
 
     extension = [
         'pymdownx.snippets',
@@ -604,7 +598,7 @@ class TestSnippetsGracefulMissing(util.MdCase):
     }
 
     def test_top_level(self):
-        """Test top level."""
+
 
         self.check_markdown(
             R'''
@@ -616,7 +610,7 @@ class TestSnippetsGracefulMissing(util.MdCase):
         )
 
     def test_nested(self):
-        """Test nested."""
+
 
         self.check_markdown(
             R'''
@@ -628,7 +622,7 @@ class TestSnippetsGracefulMissing(util.MdCase):
         )
 
     def test_missing_lines(self):
-        """Test missing file with lines."""
+
 
         self.check_markdown(
             R'''
@@ -639,9 +633,8 @@ class TestSnippetsGracefulMissing(util.MdCase):
             True
         )
 
-
 class TestURLSnippets(util.MdCase):
-    """Test snippet URL cases."""
+
 
     extension = [
         'pymdownx.snippets',
@@ -656,7 +649,7 @@ class TestURLSnippets(util.MdCase):
 
     @patch('urllib.request.urlopen')
     def test_url(self, mock_urlopen):
-        """Test URL."""
+
 
         cm = MagicMock()
         cm.status = 200
@@ -678,7 +671,7 @@ class TestURLSnippets(util.MdCase):
 
     @patch('urllib.request.urlopen')
     def test_url_nested(self, mock_urlopen):
-        """Test nested URLs."""
+
 
         cm = MagicMock()
         cm.status = 200
@@ -701,7 +694,7 @@ class TestURLSnippets(util.MdCase):
 
     @patch('urllib.request.urlopen')
     def test_url_nested_duplicatqe(self, mock_urlopen):
-        """Test nested duplicate file."""
+
 
         cm = MagicMock()
         cm.status = 200
@@ -723,7 +716,7 @@ class TestURLSnippets(util.MdCase):
 
     @patch('urllib.request.urlopen')
     def test_url_nested_file(self, mock_urlopen):
-        """Test nested file in URL."""
+
 
         cm = MagicMock()
         cm.status = 200
@@ -745,7 +738,7 @@ class TestURLSnippets(util.MdCase):
 
     @patch('urllib.request.urlopen')
     def test_url_lines(self, mock_urlopen):
-        """Test specifying specific lines in a URL."""
+
 
         content = []
         length = 0
@@ -776,7 +769,7 @@ class TestURLSnippets(util.MdCase):
 
     @patch('urllib.request.urlopen')
     def test_missing(self, mock_urlopen):
-        """Test missing URL."""
+
 
         cm = MagicMock()
         cm.status = 404
@@ -796,7 +789,7 @@ class TestURLSnippets(util.MdCase):
 
     @patch('urllib.request.urlopen')
     def test_missing_content_length(self, mock_urlopen):
-        """Test missing content length header."""
+
 
         cm = MagicMock()
         cm.status = 200
@@ -818,7 +811,7 @@ class TestURLSnippets(util.MdCase):
 
     @patch('urllib.request.urlopen')
     def test_missing_content_length_too_big(self, mock_urlopen):
-        """Test content length too big."""
+
 
         cm = MagicMock()
         cm.status = 200
@@ -840,7 +833,7 @@ class TestURLSnippets(util.MdCase):
 
     @patch('urllib.request.urlopen')
     def test_content_length_zero(self, mock_urlopen):
-        """Test empty content."""
+
 
         cm = MagicMock()
         cm.status = 200
@@ -860,7 +853,7 @@ class TestURLSnippets(util.MdCase):
 
     @patch('urllib.request.urlopen')
     def test_url_sections(self, mock_urlopen):
-        """Test specifying a section in a URL."""
+
 
         content = []
         length = 0
@@ -887,9 +880,8 @@ class TestURLSnippets(util.MdCase):
             True
         )
 
-
 class TestURLDedentSnippets(util.MdCase):
-    """Test snippet URL cases."""
+
 
     extension = [
         'pymdownx.snippets', 'pymdownx.superfences'
@@ -905,7 +897,7 @@ class TestURLDedentSnippets(util.MdCase):
 
     @patch('urllib.request.urlopen')
     def test_url_sections(self, mock_urlopen):
-        """Test specifying a section in a URL."""
+
 
         content = []
         length = 0
@@ -938,9 +930,8 @@ class TestURLDedentSnippets(util.MdCase):
             True
         )
 
-
 class TestURLSnippetsNoMax(util.MdCase):
-    """Test snippet URL cases no max size."""
+
 
     extension = [
         'pymdownx.snippets',
@@ -956,7 +947,7 @@ class TestURLSnippetsNoMax(util.MdCase):
 
     @patch('urllib.request.urlopen')
     def test_content_length_zero(self, mock_urlopen):
-        """Test empty content."""
+
 
         cm = MagicMock()
         cm.status = 200
@@ -976,9 +967,8 @@ class TestURLSnippetsNoMax(util.MdCase):
             True
         )
 
-
 class TestURLSnippetsMissing(util.MdCase):
-    """Test snippet URL cases with missing URL and 'check paths'."""
+
 
     extension = [
         'pymdownx.snippets',
@@ -995,7 +985,7 @@ class TestURLSnippetsMissing(util.MdCase):
 
     @patch('urllib.request.urlopen')
     def test_missing(self, mock_urlopen):
-        """Test missing URL."""
+
 
         cm = MagicMock()
         cm.status = 404

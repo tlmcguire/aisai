@@ -31,7 +31,6 @@ from fides.api.util.saas_util import (
 from fides.config import CONFIG
 from tests.ops.test_helpers.saas_test_utils import create_zip_file
 
-
 class TestFileConnectorTemplateLoader:
     def test_file_connector_template_loader(self):
         loader = FileConnectorTemplateLoader()
@@ -58,13 +57,10 @@ class TestFileConnectorTemplateLoader:
 
         assert connector_templates.get("not_found") is None
 
-
 class TestCustomConnectorTemplateLoader:
     @pytest.fixture(autouse=True)
     def reset_connector_template_loaders(self):
-        """
-        Resets the loader singleton instances before each test
-        """
+
         FileConnectorTemplateLoader._instance = None
         CustomConnectorTemplateLoader._instance = None
 
@@ -249,10 +245,7 @@ class TestCustomConnectorTemplateLoader:
         planet_express_dataset,
         planet_express_icon,
     ):
-        """
-        A connector template with no custom functions should still be loaded
-        even if allow_custom_connector_functions is set to false
-        """
+
 
         CONFIG.security.allow_custom_connector_functions = False
 
@@ -432,11 +425,7 @@ class TestCustomConnectorTemplateLoader:
         zendesk_config,
         zendesk_dataset,
     ):
-        """
-        Verify that an existing connector template flagged as replaceable is
-        deleted when a newer version of the connector template is found in
-        the FileConnectorTemplateLoader.
-        """
+
 
         mock_all.return_value = [
             CustomConnectorTemplate(
@@ -470,11 +459,7 @@ class TestCustomConnectorTemplateLoader:
         planet_express_config,
         planet_express_dataset,
     ):
-        """
-        Verify that an existing connector template flagged as replaceable is
-        not deleted if a newer version of the connector template is not found
-        in the FileConnectorTemplateLoader.
-        """
+
         planet_express_config = replace_version(planet_express_config, "0.0.0")
 
         mock_all.return_value = [
@@ -513,11 +498,7 @@ class TestCustomConnectorTemplateLoader:
         zendesk_config,
         zendesk_dataset,
     ):
-        """
-        Verify that an existing custom connector template flagged as not replaceable is
-        not deleted even if a newer version of the connector template is found
-        in the FileConnectorTemplateLoader.
-        """
+
         zendesk_config = replace_version(zendesk_config, "0.0.0")
 
         mock_all.return_value = [
@@ -549,9 +530,7 @@ class TestCustomConnectorTemplateLoader:
     def test_replaceable_template_for_existing_template(
         self, mock_create_or_update: MagicMock, zendesk_config, replaceable_zendesk_zip
     ):
-        """
-        Verify that a replaceable custom connector template takes on the version of the existing connector template.
-        """
+
         CustomConnectorTemplateLoader.save_template(
             db=MagicMock(), zip_file=ZipFile(replaceable_zendesk_zip)
         )
@@ -569,9 +548,7 @@ class TestCustomConnectorTemplateLoader:
     def test_replaceable_template_for_new_template(
         self, mock_create_or_update: MagicMock, replaceable_planet_express_zip
     ):
-        """
-        Verify that a replaceable custom connector template keeps its version if there is no existing connector template.
-        """
+
         CustomConnectorTemplateLoader.save_template(
             db=MagicMock(), zip_file=ZipFile(replaceable_planet_express_zip)
         )
@@ -590,9 +567,7 @@ class TestCustomConnectorTemplateLoader:
         mock_create_or_update: MagicMock,
         non_replaceable_zendesk_zip,
     ):
-        """
-        Verify that a non replaceable connector template keeps its version even if there is an existing connector template.
-        """
+
         CustomConnectorTemplateLoader.save_template(
             db=MagicMock(), zip_file=ZipFile(non_replaceable_zendesk_zip)
         )
@@ -601,10 +576,9 @@ class TestCustomConnectorTemplateLoader:
         custom_config = load_config_from_string(config_contents)
         assert custom_config["version"] == "0.0.0"
 
-
 class TestRegisterCustomFunctions:
     def test_function_loader(self):
-        """Verify that all override implementations can be loaded by RestrictedPython"""
+
 
         overrides_path = "src/fides/api/service/saas_request/override_implementations"
 

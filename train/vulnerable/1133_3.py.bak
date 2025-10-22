@@ -37,22 +37,17 @@ from public import public
 from aiosmtpd import __version__, _get_or_new_eventloop
 from aiosmtpd.proxy_protocol import ProxyData, get_proxy
 
-
-
 class _Missing(enum.Enum):
     MISSING = object()
-
 
 class _AuthMechAttr(NamedTuple):
     method: "AuthMechanismType"
     is_builtin: bool
 
-
 class _DataState(enum.Enum):
     NOMINAL = enum.auto()
     TOO_LONG = enum.auto()
     TOO_MUCH = enum.auto()
-
 
 AuthCallbackType = Callable[[str, bytes, bytes], bool]
 AuthenticatorType = Callable[["SMTP", "Session", "Envelope", str, Any], "AuthResult"]
@@ -62,10 +57,6 @@ _TriStateType = Union[None, _Missing, bytes]
 RT = TypeVar("RT")
 DecoratorType = Callable[[Callable[..., RT]], Callable[..., RT]]
 
-
-
-
-
 __all__ = [
     "AuthCallbackType",
     "AuthMechanismType",
@@ -74,7 +65,6 @@ __all__ = [
 ]
 __ident__ = 'Python SMTP {}'.format(__version__)
 log = logging.getLogger('mail.log')
-
 
 BOGUS_LIMIT = 5
 CALL_LIMIT_DEFAULT = 20
@@ -91,9 +81,6 @@ CLIENT_AUTH_B = re.compile(
     br"(\S+)"
     br"(?P<crlf>(?:\r\n)?)", re.IGNORECASE
 )
-"""Regex that matches 'AUTH <mech> <param>' commend"""
-
-
 
 @attr.s
 class AuthResult:
@@ -103,27 +90,15 @@ class AuthResult:
     """
 
     success: bool = attr.ib(kw_only=True)
-    """Indicates authentication is successful or not"""
+
 
     handled: bool = attr.ib(kw_only=True, default=True)
-    """
-    True means everything (including sending of status code) has been handled by the
-    AUTH handler and smtp_AUTH should not do anything else.
-    Applicable only if success == False.
-    """
+
 
     message: Optional[str] = attr.ib(kw_only=True, default=None)
-    """
-    Optional message for additional handling by smtp_AUTH.
-    Applicable only if handled == False.
-    """
+
 
     auth_data: Optional[Any] = attr.ib(kw_only=True, default=None, repr=lambda x: "...")
-    """
-    Optional free-form authentication data. For the built-in mechanisms, it is usually
-    an instance of LoginPassword. Other implementations are free to use any data
-    structure here.
-    """
 
 
 @public
@@ -137,7 +112,6 @@ class LoginPassword(NamedTuple):
     def __repr__(self) -> str:
         return str(self)
 
-
 @public
 class Session:
     def __init__(self, loop: asyncio.AbstractEventLoop):
@@ -148,17 +122,12 @@ class Session:
         self.loop = loop
 
         self.proxy_data: Optional[ProxyData] = None
-        """Data from PROXY Protocol handshake"""
+
 
         self._login_data = None
 
         self.auth_data = None
-        """
-        New system *optional* authentication data;
-        can contain anything returned by the authenticator callback.
-        Can even be None; check `authenticated` attribute to determine
-        if AUTH successful or not.
-        """
+
 
         self.authenticated: Optional[bool] = None
 
@@ -177,7 +146,6 @@ class Session:
         )
         self._login_data = value
 
-
 @public
 class Envelope:
     def __init__(self) -> None:
@@ -189,10 +157,8 @@ class Envelope:
         self.rcpt_tos: List[str] = []
         self.rcpt_options: List[str] = []
 
-
 def make_loop() -> asyncio.AbstractEventLoop:
     return _get_or_new_eventloop()
-
 
 @public
 def syntax(
@@ -214,7 +180,6 @@ def syntax(
         return f
     return decorator
 
-
 @public
 def auth_mechanism(actual_name: str) -> DecoratorType:
     """
@@ -233,21 +198,17 @@ def auth_mechanism(actual_name: str) -> DecoratorType:
         raise ValueError(f"Invalid AUTH mechanism name: {actual_name}")
     return decorator
 
-
 def login_always_fail(
         mechanism: str, login: bytes, password: bytes
 ) -> bool:
     return False
 
-
 def is_int(o: Any) -> bool:
     return isinstance(o, int)
-
 
 @public
 class TLSSetupException(Exception):
     pass
-
 
 @public
 def sanitize(text: bytes) -> bytes:
@@ -255,7 +216,6 @@ def sanitize(text: bytes) -> bytes:
     if m:
         return m.group("authm") + b"********" + m.group("crlf")
     return text
-
 
 @public
 def sanitized_log(func: Callable[..., None], msg: AnyStr, *args, **kwargs) -> None:
@@ -268,7 +228,6 @@ def sanitized_log(func: Callable[..., None], msg: AnyStr, *args, **kwargs) -> No
     ]
     func(msg, *sanitized_args, **kwargs)
 
-
 @public
 class SMTP(asyncio.StreamReaderProtocol):
     """
@@ -280,13 +239,10 @@ class SMTP(asyncio.StreamReaderProtocol):
         lambda: SMTP.command_size_limit)
 
     line_length_limit = 1001
-    """Maximum line length according to RFC 5321 s 4.5.3.1.6"""
+
 
     local_part_limit: int = 0
-    """
-    Maximum local part length. (RFC 5321 § 4.5.3.1.1 specifies 64, but lenient)
-    If 0 or Falsey, local part length is unlimited.
-    """
+
 
     AuthLoginUsernameChallenge = "User Name\x00"
     AuthLoginPasswordChallenge = "Password\x00"
@@ -983,7 +939,6 @@ class SMTP(asyncio.StreamReaderProtocol):
                 return AuthResult(success=True, handled=True, auth_data=auth_data)
             else:
                 return AuthResult(success=False, handled=False)
-
 
     async def auth_PLAIN(self, _, args: List[str]) -> AuthResult:
         login_and_password: _TriStateType

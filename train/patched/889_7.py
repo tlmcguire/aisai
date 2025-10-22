@@ -69,13 +69,11 @@ pdu_process_time = Histogram(
     "synapse_federation_server_pdu_process_time", "Time taken to process an event",
 )
 
-
 last_pdu_age_metric = Gauge(
     "synapse_federation_last_received_pdu_age",
     "The age (in seconds) of the last PDU successfully received from the given domain",
     labelnames=("server_name",),
 )
-
 
 class FederationServer(FederationBase):
     def __init__(self, hs):
@@ -165,16 +163,7 @@ class FederationServer(FederationBase):
     async def _handle_incoming_transaction(
         self, origin: str, transaction: Transaction, request_time: int
     ) -> Tuple[int, Dict[str, Any]]:
-        """ Process an incoming transaction and return the HTTP response
 
-        Args:
-            origin: the server making the request
-            transaction: incoming transaction
-            request_time: timestamp that the HTTP request arrived at
-
-        Returns:
-            HTTP response code and body
-        """
         response = await self.transaction_actions.have_responded(origin, transaction)
 
         if response:
@@ -220,17 +209,7 @@ class FederationServer(FederationBase):
     async def _handle_pdus_in_txn(
         self, origin: str, transaction: Transaction, request_time: int
     ) -> Dict[str, dict]:
-        """Process the PDUs in a received transaction.
 
-        Args:
-            origin: the server making the request
-            transaction: incoming transaction
-            request_time: timestamp that the HTTP request arrived at
-
-        Returns:
-            A map from event ID of a processed PDU to any errors we should
-            report back to the sending server.
-        """
 
         received_pdus_counter.inc(len(transaction.pdus))
 
@@ -276,7 +255,6 @@ class FederationServer(FederationBase):
 
         pdu_results = {}
 
-
         async def process_pdus_for_room(room_id: str):
             logger.debug("Processing PDUs for %s", room_id)
             try:
@@ -318,8 +296,7 @@ class FederationServer(FederationBase):
         return pdu_results
 
     async def _handle_edus_in_txn(self, origin: str, transaction: Transaction):
-        """Process the EDUs in a received transaction.
-        """
+
 
         async def _process_edu(edu_dict):
             received_edus_counter.inc()
@@ -606,9 +583,7 @@ class FederationServer(FederationBase):
         return await self.store.get_user_id_for_open_id_token(token, ts_now_ms)
 
     def _transaction_from_pdus(self, pdu_list: List[EventBase]) -> Transaction:
-        """Returns a new Transaction containing the given PDUs suitable for
-        transmission.
-        """
+
         time_now = self._clock.time_msec()
         pdus = [p.get_pdu_json(time_now) for p in pdu_list]
         return Transaction(
@@ -619,33 +594,7 @@ class FederationServer(FederationBase):
         )
 
     async def _handle_received_pdu(self, origin: str, pdu: EventBase) -> None:
-        """ Process a PDU received in a federation /send/ transaction.
 
-        If the event is invalid, then this method throws a FederationError.
-        (The error will then be logged and sent back to the sender (which
-        probably won't do anything with it), and other events in the
-        transaction will be processed as normal).
-
-        It is likely that we'll then receive other events which refer to
-        this rejected_event in their prev_events, etc.  When that happens,
-        we'll attempt to fetch the rejected event again, which will presumably
-        fail, so those second-generation events will also get rejected.
-
-        Eventually, we get to the point where there are more than 10 events
-        between any new events and the original rejected event. Since we
-        only try to backfill 10 events deep on received pdu, we then accept the
-        new event, possibly introducing a discontinuity in the DAG, with new
-        forward extremities, so normal service is approximately returned,
-        until we try to backfill across the discontinuity.
-
-        Args:
-            origin: server which sent the pdu
-            pdu: received pdu
-
-        Raises: FederationError if the signatures / hash do not match, or
-            if the event was unacceptable for any other reason (eg, too large,
-            too many prev_events, couldn't find the prev_events)
-        """
         if origin != get_domain_from_id(pdu.sender):
             if not (
                 pdu.type == "m.room.member"
@@ -685,15 +634,7 @@ class FederationServer(FederationBase):
         return ret
 
     async def check_server_matches_acl(self, server_name: str, room_id: str):
-        """Check if the given server is allowed by the server ACLs in the room
 
-        Args:
-            server_name: name of server, *without any port part*
-            room_id: ID of the room to check
-
-        Raises:
-            AuthError if the server does not match the ACL
-        """
         state_ids = await self.store.get_current_state_ids(room_id)
         acl_event_id = state_ids.get((EventTypes.ServerACL, ""))
 
@@ -706,17 +647,8 @@ class FederationServer(FederationBase):
 
         raise AuthError(code=403, msg="Server is banned from room")
 
-
 def server_matches_acl_event(server_name: str, acl_event: EventBase) -> bool:
-    """Check if the given server is allowed by the ACL event
 
-    Args:
-        server_name: name of server, without any port part
-        acl_event: m.room.server_acl event
-
-    Returns:
-        True if this server is allowed by the ACLs
-    """
     logger.debug("Checking %s against acl %s", server_name, acl_event.content)
 
     allow_ip_literals = acl_event.content.get("allow_ip_literals", True)
@@ -748,7 +680,6 @@ def server_matches_acl_event(server_name: str, acl_event: EventBase) -> bool:
 
     return False
 
-
 def _acl_entry_matches(server_name: str, acl_entry: Any) -> bool:
     if not isinstance(acl_entry, str):
         logger.warning(
@@ -758,11 +689,8 @@ def _acl_entry_matches(server_name: str, acl_entry: Any) -> bool:
     regex = glob_to_regex(acl_entry)
     return bool(regex.match(server_name))
 
-
 class FederationHandlerRegistry:
-    """Allows classes to register themselves as handlers for a given EDU or
-    query type for incoming federation traffic.
-    """
+
 
     def __init__(self, hs: "HomeServer"):
         self.config = hs.config
@@ -782,15 +710,7 @@ class FederationHandlerRegistry:
     def register_edu_handler(
         self, edu_type: str, handler: Callable[[str, JsonDict], Awaitable[None]]
     ):
-        """Sets the handler callable that will be used to handle an incoming
-        federation EDU of the given type.
 
-        Args:
-            edu_type: The type of the incoming EDU to register handler for
-            handler: A callable invoked on incoming EDU
-                of the given type. The arguments are the origin server name and
-                the EDU contents.
-        """
         if edu_type in self.edu_handlers:
             raise KeyError("Already have an EDU handler for %s" % (edu_type,))
 
@@ -801,16 +721,7 @@ class FederationHandlerRegistry:
     def register_query_handler(
         self, query_type: str, handler: Callable[[dict], defer.Deferred]
     ):
-        """Sets the handler callable that will be used to handle an incoming
-        federation query of the given type.
 
-        Args:
-            query_type: Category name of the query, which should match
-                the string used by make_query.
-            handler: Invoked to handle
-                incoming queries of this type. The return will be yielded
-                on and the result used as the response to the query request.
-        """
         if query_type in self.query_handlers:
             raise KeyError("Already have a Query handler for %s" % (query_type,))
 
@@ -819,8 +730,7 @@ class FederationHandlerRegistry:
         self.query_handlers[query_type] = handler
 
     def register_instance_for_edu(self, edu_type: str, instance_name: str):
-        """Register that the EDU handler is on a different instance than master.
-        """
+
         self._edu_type_to_instance[edu_type] = instance_name
 
     async def on_edu(self, edu_type: str, origin: str, content: dict):

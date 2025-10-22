@@ -3,7 +3,6 @@ import subprocess
 import sys
 from typing import List, Optional
 
-
 def _execute_child(
     args: List[str],
     env: Optional[dict] = None,
@@ -15,22 +14,7 @@ def _execute_child(
     shell: bool = False,
     executable: Optional[str] = None,
 ) -> int:
-    """Execute a child process.
 
-    Args:
-        args: The command to execute.
-        env: The environment variables for the child process.
-        cwd: The working directory for the child process.
-        extra_groups: The supplementary group IDs for the child process.
-        user: The user to run the child process as.
-        group: The group to run the child process as.
-        close_fds: Whether to close file descriptors in the child process.
-        shell: Whether to use a shell to execute the command.
-        executable: The executable to use when shell is True.
-
-    Returns:
-        The return code of the child process.
-    """
 
     preexec_fn = None
     if user or group or extra_groups:
@@ -77,7 +61,6 @@ def _execute_child(
         return proc.wait()
     except FileNotFoundError:
         return 127
-
 
 if __name__ == "__main__":
     return_code = _execute_child(

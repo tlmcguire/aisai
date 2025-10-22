@@ -1,4 +1,3 @@
-#!/usr/bin/python
 
 import os
 import re
@@ -11,17 +10,16 @@ from json import loads
 
 try:
     from urllib.parse import urlencode
-except ImportError:  # pragma: no cover
+except ImportError:
     from urllib import urlencode
 
 try:
     from shlex import quote
-except ImportError: # pragma: no cover
+except ImportError:
     from pipes import quote
 
 import subprocess
 
-# https://urllib3.readthedocs.org/en/latest/security.html#insecureplatformwarning
 import logging
 logging.captureWarnings(True)
 
@@ -101,7 +99,7 @@ is_report = re.compile('.*('
                        r'(report\.xml)'
                        ')$', re.I).match
 
-opj = os.path.join  # for faster access
+opj = os.path.join
 
 
 def write(text, color=None):
@@ -146,7 +144,6 @@ def fopen(path):
                 with open(path, 'r', encoding='ISO-8859-1') as f:
                     return f.read()
     except Exception as e:
-        # on none of that works. just print the issue and continue
         write('    - Ignored: ' + str(e))
 
 
@@ -158,7 +155,6 @@ def read(filepath):
         write('    + %s bytes=%d' % (filepath, os.path.getsize(filepath)))
         return '# path=' + filepath + '\n' + report
     except Exception as e:
-        # Ex: No such file or directory, skip them
         write('    - Ignored: ' + str(e))
 
 
@@ -188,10 +184,8 @@ def run_python_coverage(args):
     try:
         import coverage
     except ImportError:
-        # Coverage is not installed on this Python. Hope it's on PATH.
         try_to_run(['coverage'] + args, shell=False)
     else:
-        # Coverage is installed on this Python. Run it as a module.
         try_to_run([sys.executable, '-m', 'coverage'] + args, shell=False)
 
 def remove_non_ascii(data):
@@ -209,8 +203,6 @@ def _add_env_if_not_empty(lst, value):
 def main(*argv, **kwargs):
     root = os.getcwd()
 
-    # Build Parser
-    # ------------
     parser = argparse.ArgumentParser(prog='codecov', add_help=True,
                                      formatter_class=argparse.RawDescriptionHelpFormatter,
                                      epilog="""Upload reports to Codecov""")
@@ -249,8 +241,6 @@ def main(*argv, **kwargs):
     debugging.add_argument('-v', '--verbose', action="store_true", help="Be verbose, e.g. dump the collected data")
     debugging.add_argument('--no-color', action="store_true", help="Do not output with color")
 
-    # Parse Arguments
-    # ---------------
     if argv:
         codecov = parser.parse_args(argv)
     else:
@@ -261,14 +251,11 @@ def main(*argv, **kwargs):
 
     include_env = set()
 
-    # add from cli
     if codecov.env:
-        # -e VAR1,VAR2 or -e VAR1 -e VAR2
         for env in codecov.env:
             for e in env.split(','):
                 include_env.add(e.strip())
 
-    # add from env
     if os.getenv("CODECOV_ENV"):
         for env in os.getenv("CODECOV_ENV").split(','):
             include_env.add(env.strip())
@@ -281,19 +268,12 @@ def main(*argv, **kwargs):
     if os.getenv('TOXENV'):
         _add_env_if_not_empty(include_env, 'TOXENV')
 
-    # Detect CI
-    # ---------
     if 'detect' in codecov.disable:
         write('XX> Detecting CI provider disabled.')
 
     else:
         write('==> Detecting CI provider')
-        # -------
-        # Jenkins
-        # -------
         if os.getenv('JENKINS_URL'):
-            # https://wiki.jenkins-ci.org/display/JENKINS/Building+a+software+project
-            # https://wiki.jenkins-ci.org/display/JENKINS/GitHub+pull+request+builder+plugin#GitHubpullrequestbuilderplugin-EnvironmentVariables
             query.update(dict(branch=os.getenv('ghprbSourceBranch') or os.getenv('GIT_BRANCH') or os.getenv('BRANCH_NAME'),
                               service='jenkins',
                               commit=os.getenv('ghprbActualCommit') or os.getenv('GIT_COMMIT'),
@@ -303,11 +283,7 @@ def main(*argv, **kwargs):
             root = os.getenv('WORKSPACE') or root
             write('    Jenkins Detected')
 
-        # ---------
-        # Travis CI
-        # ---------
         elif os.getenv('CI') == 'true' and os.getenv('TRAVIS') == "true" and os.getenv('SHIPPABLE') != 'true':
-            # http://docs.travis-ci.com/user/environment-variables/#Default-Environment-Variables
             query.update(dict(branch=os.getenv('TRAVIS_BRANCH'),
                               service='travis',
                               build=os.getenv('TRAVIS_JOB_NUMBER'),
@@ -326,11 +302,7 @@ def main(*argv, **kwargs):
             if language:
                 _add_env_if_not_empty(include_env, 'TRAVIS_%s_VERSION' % language.upper())
 
-        # --------
-        # Codeship
-        # --------
         elif os.getenv('CI') == 'true' and os.getenv('CI_NAME') == 'codeship':
-            # https://www.codeship.io/documentation/continuous-integration/set-environment-variables/
             query.update(dict(branch=os.getenv('CI_BRANCH'),
                               service='codeship',
                               build=os.getenv('CI_BUILD_NUMBER'),
@@ -338,11 +310,7 @@ def main(*argv, **kwargs):
                               commit=os.getenv('CI_COMMIT_ID')))
             write('    Codeship Detected')
 
-        # ---------
-        # Buildkite
-        # ---------
         elif os.getenv('CI') == 'true' and os.getenv('BUILDKITE') == 'true':
-            # https://buildkite.com/docs/guides/environment-variables
             query.update(dict(branch=os.getenv('BUILDKITE_BRANCH'),
                               service='buildkite',
                               build=os.getenv('BUILDKITE_BUILD_NUMBER') + '.' + os.getenv('BUILDKITE_JOB_ID'),
@@ -351,11 +319,7 @@ def main(*argv, **kwargs):
                               commit=os.getenv('BUILDKITE_COMMIT')))
             write('    Buildkite Detected')
 
-        # ---------
-        # Circle CI
-        # ---------
         elif os.getenv('CI') == 'true' and os.getenv('CIRCLECI') == 'true':
-            # https://circleci.com/docs/environment-variables
             query.update(dict(branch=os.getenv('CIRCLE_BRANCH'),
                               service='circleci',
                               build=os.getenv('CIRCLE_BUILD_NUM') + "." + os.getenv('CIRCLE_NODE_INDEX'),
@@ -365,11 +329,7 @@ def main(*argv, **kwargs):
                               commit=os.getenv('CIRCLE_SHA1')))
             write('    Circle CI Detected')
 
-        # ---------
-        # Semaphore
-        # ---------
         elif os.getenv('CI') == 'true' and os.getenv('SEMAPHORE') == 'true':
-            # https://semaphoreapp.com/docs/available-environment-variables.html
             query.update(dict(branch=os.getenv('BRANCH_NAME'),
                               service='semaphore',
                               build=os.getenv('SEMAPHORE_BUILD_NUMBER') + '.' + os.getenv('SEMAPHORE_CURRENT_THREAD'),
@@ -377,11 +337,7 @@ def main(*argv, **kwargs):
                               commit=os.getenv('REVISION')))
             write('    Semaphore Detected')
 
-        # ----------
-        # Greenhouse
-        # ----------
         elif os.getenv('GREENHOUSE') == 'true':
-            # http://docs.greenhouseci.com/docs/environment-variables-files
             query.update(dict(branch=os.getenv('GREENHOUSE_BRANCH'),
                               service='greenhouse',
                               build=os.getenv('GREENHOUSE_BUILD_NUMBER'),
@@ -390,11 +346,7 @@ def main(*argv, **kwargs):
                               commit=os.getenv('GREENHOUSE_COMMIT')))
             write('    Greenhouse Detected')
 
-        # --------
-        # drone.io
-        # --------
         elif os.getenv('CI') == "drone" and os.getenv('DRONE') == "true":
-            # http://docs.drone.io/env.html
             query.update(dict(branch=os.getenv('DRONE_BRANCH'),
                               service='drone.io',
                               build=os.getenv('DRONE_BUILD_NUMBER'),
@@ -402,21 +354,13 @@ def main(*argv, **kwargs):
             root = os.getenv('DRONE_BUILD_DIR') or root
             write('    Drone Detected')
 
-        # --------
-        # TeamCity
-        # --------
         elif os.getenv('TEAMCITY_VERSION'):
-            # https://confluence.jetbrains.com/plugins/servlet/mobile#content/view/74847298
             query.update(dict(service='teamcity',
                               build=os.getenv('BUILD_NUMBER'),
                               commit=os.getenv('BUILD_VCS_NUMBER')))
             write('    TeamCity CI Detected')
 
-        # --------
-        # AppVeyor
-        # --------
         elif os.getenv('CI', 'false').lower() == 'true' and os.getenv('APPVEYOR', 'false').lower() == 'true':
-            # http://www.appveyor.com/docs/environment-variables
             query.update(dict(branch=os.getenv('APPVEYOR_REPO_BRANCH'),
                               service="appveyor",
                               job='/'.join((os.getenv('APPVEYOR_ACCOUNT_NAME'), os.getenv('APPVEYOR_PROJECT_SLUG'), os.getenv('APPVEYOR_BUILD_VERSION'))),
@@ -427,11 +371,7 @@ def main(*argv, **kwargs):
             write('    AppVeyor Detected')
             codecov.disable.append('search')
 
-        # -------
-        # Wercker
-        # -------
         elif os.getenv('CI') == "true" and os.getenv('WERCKER_GIT_BRANCH'):
-            # http://devcenter.wercker.com/articles/steps/variables.html
             query.update(dict(branch=os.getenv('WERCKER_GIT_BRANCH'),
                               service="wercker",
                               build=os.getenv('WERCKER_MAIN_PIPELINE_STARTED'),
@@ -439,22 +379,14 @@ def main(*argv, **kwargs):
                               commit=os.getenv('WERCKER_GIT_COMMIT')))
             write('    Wercker Detected')
 
-        # ------
-        # Magnum
-        # ------
         elif os.getenv('CI') == "true" and os.getenv('MAGNUM') == 'true':
-            # https://magnum-ci.com/docs/environment
             query.update(dict(service="magnum",
                               branch=os.getenv('CI_BRANCH'),
                               build=os.getenv('CI_BUILD_NUMBER'),
                               commit=os.getenv('CI_COMMIT')))
             write('    Magnum Detected')
 
-        # ---------
-        # Shippable
-        # ---------
         elif os.getenv('SHIPPABLE') == "true":
-            # http://docs.shippable.com/en/latest/config.html#common-environment-variables
             query.update(dict(branch=os.getenv('BRANCH'),
                               service='shippable',
                               build=os.getenv('BUILD_NUMBER'),
@@ -464,12 +396,7 @@ def main(*argv, **kwargs):
                               commit=os.getenv('COMMIT')))
             write('    Shippable Detected')
 
-        # ---------
-        # Gitlab CI
-        # ---------
         elif os.getenv('CI_SERVER_NAME', '').startswith("GitLab"):
-            # http://doc.gitlab.com/ci/examples/README.html#environmental-variables
-            # https://gitlab.com/gitlab-org/gitlab-ci-runner/blob/master/lib/build.rb#L96
             query.update(dict(service='gitlab',
                               branch=os.getenv('CI_BUILD_REF_NAME'),
                               build=os.getenv('CI_BUILD_ID'),
@@ -494,12 +421,8 @@ def main(*argv, **kwargs):
                               build_url=os.getenv('CI_BUILD_URL', ''),
                               build=os.getenv('CI_BUILD_ID', '')))
 
-        # ------
-        # git/hg
-        # ------
         if not query.get('branch'):
             try:
-                # find branch, commit, repo from git command
                 branch = try_to_run('git rev-parse --abbrev-ref HEAD || hg branch')
                 query['branch'] = branch if branch != 'HEAD' else ''
                 write('  -> Got branch from git/hg')
@@ -512,11 +435,9 @@ def main(*argv, **kwargs):
                 query['commit'] = try_to_run("git rev-parse HEAD || hg id -i --debug | tr -d '+'")
                 write('  -> Got sha from git/hg')
 
-            except:  # pragma: no cover
+            except:
                 write('  x> Failed to get sha from git/hg')
 
-    # Update Query
-    # ------------
     if codecov.name:
         query['name'] = codecov.name
 
@@ -533,8 +454,6 @@ def main(*argv, **kwargs):
         query['commit'] = codecov.commit
 
     elif query['pr'] and query['pr'] != 'false':
-        # Merge Commits
-        # -------------
         res = try_to_run('git log -1 --pretty=%B')
         if res and is_merge_commit.match(res.strip()):
             query['commit'] = res.split(' ')[1]
@@ -554,21 +473,15 @@ def main(*argv, **kwargs):
 
     root = quote(root)
 
-    # Upload
-    # ------
     try:
         write('==> Preparing upload')
 
-        # Read token from file
-        # --------------------
         if query.get('token') and query.get('token')[0] == '@':
             write('    Reading token from file')
             query['token'] = fopen(opj(os.getcwd(), query['token'][1:])).strip()
 
         assert query.get('commit') not in ('', None), "Commit sha is missing. Please specify via --commit=:sha"
 
-        # Build TOC
-        # ---------
         toc = str((try_to_run('cd %s && git ls-files' % root) or
                    try_to_run('git ls-files') or
                    try_to_run('cd %s && hg locate' % root) or
@@ -581,7 +494,6 @@ def main(*argv, **kwargs):
                 toc.replace('\n', '\n{}/'.format(prefix))
             )
 
-        # Detect codecov.yml location
         yaml_location = re.search(
             r'\.?codecov\.ya?ml$',
             toc,
@@ -611,8 +523,6 @@ def main(*argv, **kwargs):
 
         assert query.get('job') or query.get('token'), "Missing repository upload token"
 
-        # Processing gcov
-        # ---------------
         if 'gcov' in codecov.disable:
             write('XX> Skip processing gcov')
 
@@ -632,8 +542,6 @@ def main(*argv, **kwargs):
             write('    Executing gcov (%s)' % cmd)
             try_to_run(cmd)
 
-        # Collect Reports
-        # ---------------
         write('==> Collecting reports')
         reports = []
 
@@ -641,8 +549,6 @@ def main(*argv, **kwargs):
             write('XX> Searching for reports disabled')
         else:
 
-            # Detect .bowerrc
-            # ---------------
             bower_components = '/bower_components'
             bowerrc = opj(root, '.bowerrc')
             if os.path.exists(bowerrc):
@@ -653,46 +559,30 @@ def main(*argv, **kwargs):
                 except Exception as e:
                     write('    .bowerrc parsing error: ' + str(e))
 
-            # Find reports
-            # ------------
             for _root, dirs, files in os.walk(root):
-                # need to replace('\\', '/') for Windows
                 if not ignored_path(_root.replace('\\', '/')) and bower_components not in _root.replace('\\', '/'):
-                    # add data to tboc
                     for filepath in files:
                         fullpath = opj(_root, filepath)
                         if not codecov.file and is_report(fullpath.replace('\\', '/')) and not ignored_report(fullpath.replace('\\', '/')):
-                            # found report
                             reports.append(read(fullpath))
 
-        # Read Reports
-        # ------------
         if codecov.file:
             write('    Targeting specific files')
             reports.extend(filter(bool, map(read, codecov.file)))
 
         elif 'pycov' not in codecov.disable:
-            # Call `coverage xml` when .coverage exists
-            # -----------------------------------------
-            # Ran from current directory
             if glob.glob(opj(os.getcwd(), '.coverage.*')):
                 write('    Merging coverage reports')
-                # The `-a` option is mandatory here. If we
-                # have a `.coverage` in the current directory, calling
-                # without the option would delete the previous data
                 run_python_coverage(['combine', '-a'])
 
             if os.path.exists(opj(os.getcwd(), '.coverage')) and not os.path.exists(opj(os.getcwd(), 'coverage.xml')):
                 write('    Generating coverage xml reports for Python')
-                # using `-i` to ignore "No source for code" error
                 run_python_coverage(['xml', '-i'])
                 reports.append(read(opj(os.getcwd(), 'coverage.xml')))
 
         reports = list(filter(bool, reports))
         assert len(reports) > 0, "No coverage report found"
 
-        # Storing Environment
-        # -------------------
         env = ''
         if include_env:
             write('==> Appending environment variables')
@@ -702,7 +592,6 @@ def main(*argv, **kwargs):
 
             env = '\n'.join(["%s=%s" % (k, os.getenv(k, '')) for k in include_env if k]) + '\n<<<<<< ENV'
 
-        # join reports together
         reports = '\n'.join((env, (toc or ''), '<<<<<< network',
                              '\n<<<<<< EOF\n'.join(reports),
                              '<<<<<< EOF'))
@@ -745,7 +634,6 @@ def main(*argv, **kwargs):
                             res = res.text.strip().split()
                             result, upload_url = res[0], res[1]
 
-                            # Handle reports encoding for Python 2 and 3
                             if not isinstance(reports, bytes):
                                 reports = reports.encode('utf-8')
 
@@ -758,14 +646,12 @@ def main(*argv, **kwargs):
                             write('    ' + result)
                             break
                         else:
-                            # try again
                             continue
 
                     except AssertionError:
                         write('    Direct to s3 failed. Using backup v2 endpoint.')
 
                 write('    Uploading to Codecov...')
-                # just incase, try traditional upload
                 res = requests.post('%s/upload/v2?%s' % (codecov.url, urlargs),
                                     verify=codecov.cacert,
                                     data='\n'.join((reports, s3.reason if s3 else '', s3.text if s3 else '')),
@@ -785,7 +671,6 @@ def main(*argv, **kwargs):
             raise
 
         write('')
-        # detect language
         if language:
             write('Tip: See an example %s repo: https://github.com/codecov/example-%s' % (language, language))
         else:

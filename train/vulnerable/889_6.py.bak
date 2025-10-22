@@ -1,18 +1,3 @@
-# -*- coding: utf-8 -*-
-# Copyright 2014-2016 OpenMarket Ltd
-# Copyright 2017, 2018 New Vector Ltd
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 import logging
 import urllib
@@ -107,11 +92,6 @@ class Keyring:
             )
         self._key_fetchers = key_fetchers
 
-        # map from server name to Deferred. Has an entry for each server with
-        # an ongoing key download; the Deferred completes once the download
-        # completes.
-        #
-        # These are regular, logcontext-agnostic Deferreds.
         self.key_downloads = {}
 
     def verify_json_for_server(
@@ -178,7 +158,6 @@ class Keyring:
                 server_name. The deferreds run their callbacks in the sentinel
                 logcontext.
         """
-        # a list of VerifyJsonRequests which are awaiting a key lookup
         key_lookups = []
         handle = preserve_fn(_handle_key_deferred)
 
@@ -205,14 +184,8 @@ class Keyring:
                 verify_request.minimum_valid_until_ts,
             )
 
-            # add the key request to the queue, but don't start it off yet.
             key_lookups.append(verify_request)
 
-            # now run _handle_key_deferred, which will wait for the key request
-            # to complete and then do the verification.
-            #
-            # We want _handle_key_request to log to the right context, so we
-            # wrap it with preserve_fn (aka run_in_background)
             return handle(verify_request)
 
         results = [process(r) for r in verify_requests]
@@ -232,7 +205,6 @@ class Keyring:
         """
 
         try:
-            # map from server name to a set of outstanding request ids
             server_to_request_ids = {}
 
             for verify_request in verify_requests:
@@ -240,17 +212,12 @@ class Keyring:
                 request_id = id(verify_request)
                 server_to_request_ids.setdefault(server_name, set()).add(request_id)
 
-            # Wait for any previous lookups to complete before proceeding.
             await self.wait_for_previous_lookups(server_to_request_ids.keys())
 
-            # take out a lock on each of the servers by sticking a Deferred in
-            # key_downloads
             for server_name in server_to_request_ids.keys():
                 self.key_downloads[server_name] = defer.Deferred()
                 logger.debug("Got key lookup lock on %s", server_name)
 
-            # When we've finished fetching all the keys for a given server_name,
-            # drop the lock by resolving the deferred in key_downloads.
             def drop_server_lock(server_name):
                 d = self.key_downloads.pop(server_name)
                 d.callback(None)
@@ -260,7 +227,6 @@ class Keyring:
                 server_requests = server_to_request_ids[server_name]
                 server_requests.remove(id(verify_request))
 
-                # if there are no more requests for this server, we can drop the lock.
                 if not server_requests:
                     logger.debug("Releasing key lookup lock on %s", server_name)
                     drop_server_lock(server_name)
@@ -270,7 +236,6 @@ class Keyring:
             for verify_request in verify_requests:
                 verify_request.key_ready.addBoth(lookup_done, verify_request)
 
-            # Actually start fetching keys.
             self._get_server_verify_keys(verify_requests)
         except Exception:
             logger.exception("Error starting key lookups")
@@ -327,7 +292,6 @@ class Keyring:
                             f, remaining_requests
                         )
 
-                    # look for any requests which weren't satisfied
                     while remaining_requests:
                         verify_request = remaining_requests.pop()
                         rq_str = (
@@ -339,12 +303,6 @@ class Keyring:
                             )
                         )
 
-                        # If we run the errback immediately, it may cancel our
-                        # loggingcontext while we are still in it, so instead we
-                        # schedule it for the next time round the reactor.
-                        #
-                        # (this also ensures that we don't get a stack overflow if we
-                        # has a massive queue of lookups waiting for this server).
                         self.clock.call_later(
                             0,
                             verify_request.key_ready.errback,
@@ -355,9 +313,6 @@ class Keyring:
                             ),
                         )
             except Exception as err:
-                # we don't really expect to get here, because any errors should already
-                # have been caught and logged. But if we do, let's log the error and make
-                # sure that all of the deferreds are resolved.
                 logger.error("Unexpected error in _get_server_verify_keys: %s", err)
                 with PreserveLoggingContext():
                     for verify_request in remaining_requests:
@@ -374,20 +329,13 @@ class Keyring:
             remaining_requests (set[VerifyJsonRequest]): outstanding key requests.
                 Any successfully-completed requests will be removed from the list.
         """
-        # dict[str, dict[str, int]]: keys to fetch.
-        # server_name -> key_id -> min_valid_ts
         missing_keys = defaultdict(dict)
 
         for verify_request in remaining_requests:
-            # any completed requests should already have been removed
             assert not verify_request.key_ready.called
             keys_for_server = missing_keys[verify_request.server_name]
 
             for key_id in verify_request.key_ids:
-                # If we have several requests for the same key, then we only need to
-                # request that key once, but we should do so with the greatest
-                # min_valid_until_ts of the requests, so that we can satisfy all of
-                # the requests.
                 keys_for_server[key_id] = max(
                     keys_for_server.get(key_id, -1),
                     verify_request.minimum_valid_until_ts,
@@ -399,28 +347,18 @@ class Keyring:
         for verify_request in remaining_requests:
             server_name = verify_request.server_name
 
-            # see if any of the keys we got this time are sufficient to
-            # complete this VerifyJsonRequest.
             result_keys = results.get(server_name, {})
             for key_id in verify_request.key_ids:
                 fetch_key_result = result_keys.get(key_id)
                 if not fetch_key_result:
-                    # we didn't get a result for this key
                     continue
 
                 if (
                     fetch_key_result.valid_until_ts
                     < verify_request.minimum_valid_until_ts
                 ):
-                    # key was not valid at this point
                     continue
 
-                # we have a valid key for this request. If we run the callback
-                # immediately, it may cancel our loggingcontext while we are still in
-                # it, so instead we schedule it for the next time round the reactor.
-                #
-                # (this also ensures that we don't get a stack overflow if we had
-                # a massive queue of lookups waiting for this server).
                 logger.debug(
                     "Found key %s:%s for %s",
                     server_name,
@@ -506,8 +444,6 @@ class BaseV2KeyFetcher:
         """
         ts_valid_until_ms = response_json["valid_until_ts"]
 
-        # start by extracting the keys from the response, since they may be required
-        # to validate the signature on the response.
         verify_keys = {}
         for key_id, key_data in response_json["verify_keys"].items():
             if is_signing_algorithm_supported(key_id):
@@ -523,11 +459,6 @@ class BaseV2KeyFetcher:
         for key_id in response_json["signatures"].get(server_name, {}):
             key = verify_keys.get(key_id)
             if not key:
-                # the key may not be present in verify_keys if:
-                #  * we got the key from the notary server, and:
-                #  * the key belongs to the notary server, and:
-                #  * the notary server is using a different key to sign notary
-                #    responses.
                 continue
 
             verify_signed_json(response_json, server_name, key.verify_key)
@@ -657,7 +588,6 @@ class PerspectivesKeyFetcher(BaseV2KeyFetcher):
                 },
             )
         except (NotRetryingDestination, RequestSendFailed) as e:
-            # these both have str() representations which we can't really improve upon
             raise KeyLookupError(str(e))
         except HttpResponseException as e:
             raise KeyLookupError("Remote server returned an error: %s" % (e,))
@@ -668,7 +598,6 @@ class PerspectivesKeyFetcher(BaseV2KeyFetcher):
         time_now_ms = self.clock.time_msec()
 
         for response in query_response["server_keys"]:
-            # do this first, so that we can give useful errors thereafter
             server_name = response.get("server_name")
             if not isinstance(server_name, str):
                 raise KeyLookupError(
@@ -690,7 +619,6 @@ class PerspectivesKeyFetcher(BaseV2KeyFetcher):
                     server_name,
                     e,
                 )
-                # we continue to process the rest of the response
                 continue
 
             added_keys.extend(
@@ -717,7 +645,6 @@ class PerspectivesKeyFetcher(BaseV2KeyFetcher):
         perspective_keys = key_server.verify_keys
 
         if perspective_keys is None:
-            # signature checking is disabled on this server
             return
 
         if (
@@ -791,10 +718,9 @@ class ServerKeyFetcher(BaseV2KeyFetcher):
         Raises:
             KeyLookupError if there was a problem making the lookup
         """
-        keys = {}  # type: dict[str, FetchKeyResult]
+        keys = {}
 
         for requested_key_id in key_ids:
-            # we may have found this key as a side-effect of asking for another.
             if requested_key_id in keys:
                 continue
 
@@ -805,22 +731,9 @@ class ServerKeyFetcher(BaseV2KeyFetcher):
                     path="/_matrix/key/v2/server/"
                     + urllib.parse.quote(requested_key_id),
                     ignore_backoff=True,
-                    # we only give the remote server 10s to respond. It should be an
-                    # easy request to handle, so if it doesn't reply within 10s, it's
-                    # probably not going to.
-                    #
-                    # Furthermore, when we are acting as a notary server, we cannot
-                    # wait all day for all of the origin servers, as the requesting
-                    # server will otherwise time out before we can respond.
-                    #
-                    # (Note that get_json may make 4 attempts, so this can still take
-                    # almost 45 seconds to fetch the headers, plus up to another 60s to
-                    # read the response).
                     timeout=10000,
                 )
             except (NotRetryingDestination, RequestSendFailed) as e:
-                # these both have str() representations which we can't really improve
-                # upon
                 raise KeyLookupError(str(e))
             except HttpResponseException as e:
                 raise KeyLookupError("Remote server returned an error: %s" % (e,))

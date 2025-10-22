@@ -68,47 +68,27 @@ RawHeaderValue = Sequence[Union[str, bytes]]
 QueryParamValue = Union[str, bytes, Iterable[Union[str, bytes]]]
 QueryParams = Union[Mapping[str, QueryParamValue], Mapping[bytes, QueryParamValue]]
 
-
 def check_against_blacklist(
     ip_address: IPAddress, ip_whitelist: Optional[IPSet], ip_blacklist: IPSet
 ) -> bool:
-    """
-    Compares an IP address to allowed and disallowed IP sets.
 
-    Args:
-        ip_address: The IP address to check
-        ip_whitelist: Allowed IP addresses.
-        ip_blacklist: Disallowed IP addresses.
-
-    Returns:
-        True if the IP address is in the blacklist and not in the whitelist.
-    """
     if ip_address in ip_blacklist:
         if ip_whitelist is None or ip_address not in ip_whitelist:
             return True
     return False
 
-
 _EPSILON = 0.00000001
 
-
 def _make_scheduler(reactor):
-    """Makes a schedular suitable for a Cooperator using the given reactor.
 
-    (This is effectively just a copy from `twisted.internet.task`)
-    """
 
     def _scheduler(x):
         return reactor.callLater(_EPSILON, x)
 
     return _scheduler
 
-
 class IPBlacklistingResolver:
-    """
-    A proxy for reactor.nameResolver which only produces non-blacklisted IP
-    addresses, preventing DNS rebinding attacks on URL preview.
-    """
+
 
     def __init__(
         self,
@@ -116,12 +96,7 @@ class IPBlacklistingResolver:
         ip_whitelist: Optional[IPSet],
         ip_blacklist: IPSet,
     ):
-        """
-        Args:
-            reactor: The twisted reactor.
-            ip_whitelist: IP addresses to allow.
-            ip_blacklist: IP addresses to disallow.
-        """
+
         self._reactor = reactor
         self._ip_whitelist = ip_whitelist
         self._ip_blacklist = ip_blacklist
@@ -174,12 +149,8 @@ class IPBlacklistingResolver:
 
         return r
 
-
 class BlacklistingAgentWrapper(Agent):
-    """
-    An Agent wrapper which will prevent access to IP addresses being accessed
-    directly (without an IP address lookup).
-    """
+
 
     def __init__(
         self,
@@ -187,12 +158,7 @@ class BlacklistingAgentWrapper(Agent):
         ip_whitelist: Optional[IPSet] = None,
         ip_blacklist: Optional[IPSet] = None,
     ):
-        """
-        Args:
-            agent: The Agent to wrap.
-            ip_whitelist: IP addresses to allow.
-            ip_blacklist: IP addresses to disallow.
-        """
+
         self._agent = agent
         self._ip_whitelist = ip_whitelist
         self._ip_blacklist = ip_blacklist
@@ -222,12 +188,8 @@ class BlacklistingAgentWrapper(Agent):
             method, uri, headers=headers, bodyProducer=bodyProducer
         )
 
-
 class SimpleHttpClient:
-    """
-    A simple, no-frills HTTP client with methods that wrap up common ways of
-    using HTTP in Matrix
-    """
+
 
     def __init__(
         self,
@@ -238,17 +200,7 @@ class SimpleHttpClient:
         http_proxy: Optional[bytes] = None,
         https_proxy: Optional[bytes] = None,
     ):
-        """
-        Args:
-            hs
-            treq_args: Extra keyword arguments to be given to treq.request.
-            ip_blacklist: The IP addresses that are blacklisted that
-                we may not request.
-            ip_whitelist: The whitelisted IP addresses, that we can
-               request if it were otherwise caught in a blacklist.
-            http_proxy: proxy server to use for http connections. host[:port]
-            https_proxy: proxy server to use for https connections. host[:port]
-        """
+
         self.hs = hs
 
         self._ip_whitelist = ip_whitelist
@@ -309,20 +261,7 @@ class SimpleHttpClient:
         data: Optional[bytes] = None,
         headers: Optional[Headers] = None,
     ) -> IResponse:
-        """
-        Args:
-            method: HTTP method to use.
-            uri: URI to query.
-            data: Data to send in the request body, if applicable.
-            headers: Request headers.
 
-        Returns:
-            Response object, once the headers have been read.
-
-        Raises:
-            RequestTimedOutError if the request times out before the headers are read
-
-        """
         outgoing_requests_counter.labels(method).inc()
 
         logger.debug("Sending request %s %s", method, redact_uri(uri))
@@ -387,24 +326,7 @@ class SimpleHttpClient:
         args: Optional[Mapping[str, Union[str, List[str]]]] = None,
         headers: Optional[RawHeaders] = None,
     ) -> Any:
-        """
-        Args:
-            uri: uri to query
-            args: parameters to be url-encoded in the body
-            headers: a map from header name to a list of values for that header
 
-        Returns:
-            parsed json
-
-        Raises:
-            RequestTimedOutError: if there is a timeout before the response headers
-               are received. Note there is currently no timeout on reading the response
-               body.
-
-            HttpResponseException: On a non-2xx HTTP response.
-
-            ValueError: if the response was not JSON
-        """
 
         logger.debug("post_urlencoded_get_json args: %s", args)
 
@@ -434,25 +356,7 @@ class SimpleHttpClient:
     async def post_json_get_json(
         self, uri: str, post_json: Any, headers: Optional[RawHeaders] = None
     ) -> Any:
-        """
 
-        Args:
-            uri: URI to query.
-            post_json: request body, to be encoded as json
-            headers: a map from header name to a list of values for that header
-
-        Returns:
-            parsed json
-
-        Raises:
-            RequestTimedOutError: if there is a timeout before the response headers
-               are received. Note there is currently no timeout on reading the response
-               body.
-
-            HttpResponseException: On a non-2xx HTTP response.
-
-            ValueError: if the response was not JSON
-        """
         json_str = encode_canonical_json(post_json)
 
         logger.debug("HTTP POST %s -> %s", json_str, uri)
@@ -484,23 +388,7 @@ class SimpleHttpClient:
         args: Optional[QueryParams] = None,
         headers: Optional[RawHeaders] = None,
     ) -> Any:
-        """Gets some json from the given URI.
 
-        Args:
-            uri: The URI to request, not including query parameters
-            args: A dictionary used to create query string
-            headers: a map from header name to a list of values for that header
-        Returns:
-            Succeeds when we get a 2xx HTTP response, with the HTTP body as JSON.
-        Raises:
-            RequestTimedOutError: if there is a timeout before the response headers
-               are received. Note there is currently no timeout on reading the response
-               body.
-
-            HttpResponseException On a non-2xx HTTP response.
-
-            ValueError: if the response was not JSON
-        """
         actual_headers = {b"Accept": [b"application/json"]}
         if headers:
             actual_headers.update(headers)
@@ -515,24 +403,7 @@ class SimpleHttpClient:
         args: Optional[QueryParams] = None,
         headers: RawHeaders = None,
     ) -> Any:
-        """Puts some json to the given URI.
 
-        Args:
-            uri: The URI to request, not including query parameters
-            json_body: The JSON to put in the HTTP body,
-            args: A dictionary used to create query strings
-            headers: a map from header name to a list of values for that header
-        Returns:
-            Succeeds when we get a 2xx HTTP response, with the HTTP body as JSON.
-        Raises:
-             RequestTimedOutError: if there is a timeout before the response headers
-               are received. Note there is currently no timeout on reading the response
-               body.
-
-            HttpResponseException On a non-2xx HTTP response.
-
-            ValueError: if the response was not JSON
-        """
         if args:
             query_str = urllib.parse.urlencode(args, True)
             uri = "%s?%s" % (uri, query_str)
@@ -566,22 +437,7 @@ class SimpleHttpClient:
         args: Optional[QueryParams] = None,
         headers: Optional[RawHeaders] = None,
     ) -> bytes:
-        """Gets raw text from the given URI.
 
-        Args:
-            uri: The URI to request, not including query parameters
-            args: A dictionary used to create query strings
-            headers: a map from header name to a list of values for that header
-        Returns:
-            Succeeds when we get a 2xx HTTP response, with the
-            HTTP body as bytes.
-        Raises:
-            RequestTimedOutError: if there is a timeout before the response headers
-               are received. Note there is currently no timeout on reading the response
-               body.
-
-            HttpResponseException on a non-2xx HTTP response.
-        """
         if args:
             query_str = urllib.parse.urlencode(args, True)
             uri = "%s?%s" % (uri, query_str)
@@ -601,7 +457,6 @@ class SimpleHttpClient:
                 response.code, response.phrase.decode("ascii", errors="replace"), body
             )
 
-
     async def get_file(
         self,
         url: str,
@@ -609,23 +464,7 @@ class SimpleHttpClient:
         max_size: Optional[int] = None,
         headers: Optional[RawHeaders] = None,
     ) -> Tuple[int, Dict[bytes, List[bytes]], str, int]:
-        """GETs a file from a given URL
-        Args:
-            url: The URL to GET
-            output_stream: File to write the response body to.
-            headers: A map from header name to a list of values for that header
-        Returns:
-            A tuple of the file length, dict of the response
-            headers, absolute URI of the response and HTTP response code.
 
-        Raises:
-            RequestTimedOutError: if there is a timeout before the response headers
-               are received. Note there is currently no timeout on reading the response
-               body.
-
-            SynapseError: if the response is not a 2xx, the remote file is too large, or
-               another exception happens during the download.
-        """
 
         actual_headers = {b"User-Agent": [self.user_agent]}
         if headers:
@@ -651,7 +490,6 @@ class SimpleHttpClient:
             logger.warning("Got %d when downloading %s" % (response.code, url))
             raise SynapseError(502, "Got error %d" % (response.code,), Codes.UNKNOWN)
 
-
         try:
             length = await make_deferred_yieldable(
                 readBodyToFile(response, output_stream, max_size)
@@ -668,7 +506,6 @@ class SimpleHttpClient:
             response.code,
         )
 
-
 def _timeout_to_request_timed_out_error(f: Failure):
     if f.check(twisted_error.TimeoutError, twisted_error.ConnectingCancelledError):
         raise RequestTimedOutError("Timeout connecting to remote server")
@@ -676,7 +513,6 @@ def _timeout_to_request_timed_out_error(f: Failure):
         raise RequestTimedOutError("Timeout waiting for response from remote server")
 
     return f
-
 
 class _ReadBodyToFileProtocol(protocol.Protocol):
     def __init__(
@@ -709,37 +545,17 @@ class _ReadBodyToFileProtocol(protocol.Protocol):
         else:
             self.deferred.errback(reason)
 
-
 def readBodyToFile(
     response: IResponse, stream: BinaryIO, max_size: Optional[int]
 ) -> defer.Deferred:
-    """
-    Read a HTTP response body to a file-object. Optionally enforcing a maximum file size.
 
-    Args:
-        response: The HTTP response to read from.
-        stream: The file-object to write to.
-        max_size: The maximum file size to allow.
-
-    Returns:
-        A Deferred which resolves to the length of the read body.
-    """
 
     d = defer.Deferred()
     response.deliverBody(_ReadBodyToFileProtocol(stream, d, max_size))
     return d
 
-
 def encode_query_args(args: Optional[Mapping[str, Union[str, List[str]]]]) -> bytes:
-    """
-    Encodes a map of query arguments to bytes which can be appended to a URL.
 
-    Args:
-        args: The query arguments, a mapping of string to string or list of strings.
-
-    Returns:
-        The query arguments encoded as bytes.
-    """
     if args is None:
         return b""
 
@@ -753,13 +569,8 @@ def encode_query_args(args: Optional[Mapping[str, Union[str, List[str]]]]) -> by
 
     return query_str.encode("utf8")
 
-
 class InsecureInterceptableContextFactory(ssl.ContextFactory):
-    """
-    Factory for PyOpenSSL SSL contexts which accepts any certificate for any domain.
 
-    Do not use this since it allows an attacker to intercept your communications.
-    """
 
     def __init__(self):
         self._context = SSL.Context(SSL.SSLv23_METHOD)

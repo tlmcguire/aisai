@@ -24,17 +24,16 @@ This module also provides some data items to the user:
 """
 
 __all__ = [
-    "NamedTemporaryFile", "TemporaryFile", # high level safe interfaces
+    "NamedTemporaryFile", "TemporaryFile",
     "SpooledTemporaryFile", "TemporaryDirectory",
-    "mkstemp", "mkdtemp",                  # low level safe interfaces
-    "mktemp",                              # deprecated unsafe interface
-    "TMP_MAX", "gettempprefix",            # constants
+    "mkstemp", "mkdtemp",
+    "mktemp",
+    "TMP_MAX", "gettempprefix",
     "tempdir", "gettempdir",
     "gettempprefixb", "gettempdirb",
    ]
 
 
-# Imports.
 
 import functools as _functools
 import warnings as _warnings
@@ -63,13 +62,8 @@ if hasattr(_os, 'TMP_MAX'):
 else:
     TMP_MAX = 10000
 
-# This variable _was_ unused for legacy reasons, see issue 10354.
-# But as of 3.5 we actually use it at runtime so changing it would
-# have a possibly desirable side effect...  But we do not want to support
-# that as an API.  It is undocumented on purpose.  Do not depend on this.
 template = "tmp"
 
-# Internal routines.
 
 _once_lock = _allocate_lock()
 
@@ -105,9 +99,8 @@ def _infer_return_type(*args):
             return_type = str
     if return_type is None:
         if tempdir is None or isinstance(tempdir, str):
-            return str  # tempfile APIs return a str by default.
+            return str
         else:
-            # we could check for bytes but it'll fail later on anyway
             return bytes
     return return_type
 
@@ -160,12 +153,10 @@ def _candidate_tempdir_list():
 
     dirlist = []
 
-    # First, try the environment.
     for envname in 'TMPDIR', 'TEMP', 'TMP':
         dirname = _os.getenv(envname)
         if dirname: dirlist.append(dirname)
 
-    # Failing that, try OS-specific locations.
     if _os.name == 'nt':
         dirlist.extend([ _os.path.expanduser(r'~\AppData\Local\Temp'),
                          _os.path.expandvars(r'%SYSTEMROOT%\Temp'),
@@ -173,7 +164,6 @@ def _candidate_tempdir_list():
     else:
         dirlist.extend([ '/tmp', '/var/tmp', '/usr/tmp' ])
 
-    # As a last resort, the current directory.
     try:
         dirlist.append(_os.getcwd())
     except (AttributeError, OSError):
@@ -196,7 +186,6 @@ def _get_default_tempdir():
     for dir in dirlist:
         if dir != _os.curdir:
             dir = _os.path.abspath(dir)
-        # Try only a few names per directory.
         for seq in range(100):
             name = next(namer)
             filename = _os.path.join(dir, name)
@@ -213,14 +202,12 @@ def _get_default_tempdir():
             except FileExistsError:
                 pass
             except PermissionError:
-                # This exception is thrown when a directory with the chosen name
-                # already exists on windows.
                 if (_os.name == 'nt' and _os.path.isdir(dir) and
                     _os.access(dir, _os.W_OK)):
                     continue
-                break   # no point trying more names in this directory
+                break
             except OSError:
-                break   # no point trying more names in this directory
+                break
     raise FileNotFoundError(_errno.ENOENT,
                             "No usable temporary directory found in %s" %
                             dirlist)
@@ -256,10 +243,8 @@ def _mkstemp_inner(dir, pre, suf, flags, output_type):
         try:
             fd = _os.open(file, flags, 0o600)
         except FileExistsError:
-            continue    # try again
+            continue
         except PermissionError:
-            # This exception is thrown when a directory with the chosen name
-            # already exists on windows.
             if (_os.name == 'nt' and _os.path.isdir(dir) and
                 _os.access(dir, _os.W_OK)):
                 continue
@@ -271,7 +256,6 @@ def _mkstemp_inner(dir, pre, suf, flags, output_type):
                           "No usable temporary file name found")
 
 
-# User visible interfaces.
 
 def gettempprefix():
     """The default prefix for temporary directories as string."""
@@ -368,10 +352,8 @@ def mkdtemp(suffix=None, prefix=None, dir=None):
         try:
             _os.mkdir(file, 0o700)
         except FileExistsError:
-            continue    # try again
+            continue
         except PermissionError:
-            # This exception is thrown when a directory with the chosen name
-            # already exists on windows.
             if (_os.name == 'nt' and _os.path.isdir(dir) and
                 _os.access(dir, _os.W_OK)):
                 continue
@@ -396,9 +378,6 @@ def mktemp(suffix="", prefix=template, dir=None):
     the punch.
     """
 
-##    from warnings import warn as _warn
-##    _warn("mktemp is a potential security risk to your program",
-##          RuntimeWarning, stacklevel=2)
 
     if dir is None:
         dir = gettempdir()
@@ -436,8 +415,6 @@ class _TemporaryFileCloser:
                     self.close_called = True
                     self.file.close()
             finally:
-                # Windows provides delete-on-close as a primitive, in which
-                # case the file was deleted by self.file.close().
                 if self.delete and not (windows and self.delete_on_close):
                     try:
                         unlink(self.name)
@@ -472,9 +449,6 @@ class _TemporaryFileWrapper:
                                             delete_on_close)
 
     def __getattr__(self, name):
-        # Attribute lookups are delegated to the underlying file
-        # and cached for non-numeric results
-        # (i.e. methods are cached, closed and friends are not)
         file = self.__dict__['file']
         a = getattr(file, name)
         if hasattr(a, '__call__'):
@@ -482,22 +456,16 @@ class _TemporaryFileWrapper:
             @_functools.wraps(func)
             def func_wrapper(*args, **kwargs):
                 return func(*args, **kwargs)
-            # Avoid closing the file as long as the wrapper is alive,
-            # see issue #18879.
             func_wrapper._closer = self._closer
             a = func_wrapper
         if not isinstance(a, int):
             setattr(self, name, a)
         return a
 
-    # The underlying __enter__ method returns the wrong object
-    # (self.file) so override it to return the wrapper
     def __enter__(self):
         self.file.__enter__()
         return self
 
-    # Need to trap __exit__ as well to ensure the file gets
-    # deleted when used in a with statement
     def __exit__(self, exc, value, tb):
         result = self.file.__exit__(exc, value, tb)
         self._closer.cleanup()
@@ -509,13 +477,7 @@ class _TemporaryFileWrapper:
         """
         self._closer.close()
 
-    # iter() doesn't use __getattr__ to find the __iter__ method
     def __iter__(self):
-        # Don't return iter(self.file), but yield from it to avoid closing
-        # file as long as it's being used as iterator (see issue #23700).  We
-        # can't use 'yield from' here because iter(file) returns the file
-        # object itself, which has a close method, and thus the file would get
-        # closed when the generator is finalized, due to PEP380 semantics.
         for line in self.file:
             yield line
 
@@ -550,8 +512,6 @@ def NamedTemporaryFile(mode='w+b', buffering=-1, encoding=None,
 
     flags = _bin_openflags
 
-    # Setting O_TEMPORARY in the flags causes the OS to delete
-    # the file when it is closed.  This is only supported by Windows.
     if _os.name == 'nt' and delete and delete_on_close:
         flags |= _os.O_TEMPORARY
 
@@ -582,14 +542,9 @@ def NamedTemporaryFile(mode='w+b', buffering=-1, encoding=None,
         raise
 
 if _os.name != 'posix' or _sys.platform == 'cygwin':
-    # On non-POSIX and Cygwin systems, assume that we cannot unlink a file
-    # while it is open.
     TemporaryFile = NamedTemporaryFile
 
 else:
-    # Is the O_TMPFILE flag available and does it work?
-    # The flag is set to False if os.open(dir, os.O_TMPFILE) raises an
-    # IsADirectoryError exception
     _O_TMPFILE_WORKS = hasattr(_os, 'O_TMPFILE')
 
     def TemporaryFile(mode='w+b', buffering=-1, encoding=None,
@@ -632,22 +587,9 @@ else:
                 raw.name = fd
                 return file
             except IsADirectoryError:
-                # Linux kernel older than 3.11 ignores the O_TMPFILE flag:
-                # O_TMPFILE is read as O_DIRECTORY. Trying to open a directory
-                # with O_RDWR|O_DIRECTORY fails with IsADirectoryError, a
-                # directory cannot be open to write. Set flag to False to not
-                # try again.
                 _O_TMPFILE_WORKS = False
             except OSError:
-                # The filesystem of the directory does not support O_TMPFILE.
-                # For example, OSError(95, 'Operation not supported').
-                #
-                # On Linux kernel older than 3.11, trying to open a regular
-                # file (or a symbolic link to a regular file) with O_TMPFILE
-                # fails with NotADirectoryError, because O_TMPFILE is read as
-                # O_DIRECTORY.
                 pass
-            # Fallback to _mkstemp_inner().
 
         fd = None
         def opener(*args):
@@ -714,12 +656,7 @@ class SpooledTemporaryFile(_io.IOBase):
 
         self._rolled = True
 
-    # The method caching trick from NamedTemporaryFile
-    # won't work here, because _file may change from a
-    # BytesIO/StringIO instance to a real file. So we list
-    # all the methods directly.
 
-    # Context management protocol
     def __enter__(self):
         if self._file.closed:
             raise ValueError("Cannot enter context with closed file")
@@ -728,7 +665,6 @@ class SpooledTemporaryFile(_io.IOBase):
     def __exit__(self, exc, value, tb):
         self._file.close()
 
-    # file protocol
     def __iter__(self):
         return self._file.__iter__()
 
@@ -893,13 +829,6 @@ class TemporaryDirectory:
                     except IsADirectoryError:
                         cls._rmtree(path, ignore_errors=ignore_errors)
                     except PermissionError:
-                        # The PermissionError handler was originally added for
-                        # FreeBSD in directories, but it seems that it is raised
-                        # on Windows too.
-                        # bpo-43153: Calling _rmtree again may
-                        # raise NotADirectoryError and mask the PermissionError.
-                        # So we must re-raise the current PermissionError if
-                        # path is not a directory.
                         try:
                             st = _os.lstat(path)
                         except OSError:

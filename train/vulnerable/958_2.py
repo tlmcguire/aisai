@@ -59,7 +59,6 @@ logger = logging.getLogger(__name__)
 NumberSigns = b"+-"
 IndirectPattern = re.compile(rb"[+-]?(\d+)\s+(\d+)\s+R[^a-zA-Z]")
 
-
 class ArrayObject(list, PdfObject):
     def clone(
         self,
@@ -67,7 +66,7 @@ class ArrayObject(list, PdfObject):
         force_duplicate: bool = False,
         ignore_fields: Optional[Sequence[Union[str, int]]] = (),
     ) -> "ArrayObject":
-        """Clone object into pdf_dest."""
+
         try:
             if self.indirect_reference.pdf == pdf_dest and not force_duplicate:
                 return self
@@ -92,7 +91,7 @@ class ArrayObject(list, PdfObject):
         return arr
 
     def items(self) -> Iterable[Any]:
-        """Emulate DictionaryObject.items for a list (index, object)."""
+
         return enumerate(self)
 
     def write_to_stream(
@@ -143,7 +142,6 @@ class ArrayObject(list, PdfObject):
         deprecation_with_replacement("readFromStream", "read_from_stream", "3.0.0")
         return ArrayObject.read_from_stream(stream, pdf)
 
-
 class DictionaryObject(dict, PdfObject):
     def clone(
         self,
@@ -151,7 +149,7 @@ class DictionaryObject(dict, PdfObject):
         force_duplicate: bool = False,
         ignore_fields: Optional[Sequence[Union[str, int]]] = (),
     ) -> "DictionaryObject":
-        """Clone object into pdf_dest."""
+
         try:
             if self.indirect_reference.pdf == pdf_dest and not force_duplicate:
                 return self
@@ -175,15 +173,7 @@ class DictionaryObject(dict, PdfObject):
         force_duplicate: bool,
         ignore_fields: Optional[Sequence[Union[str, int]]],
     ) -> None:
-        """
-        Update the object from src.
 
-        Args:
-            src: "DictionaryObject":
-            pdf_dest:
-            force_duplicate:
-            ignore_fields:
-        """
         x = 0
         assert ignore_fields is not None
         ignore_fields = list(ignore_fields)
@@ -287,18 +277,7 @@ class DictionaryObject(dict, PdfObject):
 
     @property
     def xmp_metadata(self) -> Optional[PdfObject]:
-        """
-        Retrieve XMP (Extensible Metadata Platform) data relevant to the this
-        object, if available.
 
-        Stability: Added in v1.12, will exist for all future v1.x releases.
-        See Table 315 – Additional entries in a metadata stream dictionary
-
-        Returns:
-          Returns a {@link #xmp.XmpInformation XmlInformation} instance
-          that can be used to access XMP metadata from the document.  Can also
-          return None if no metadata was found on the document root.
-        """
         from ..xmp import XmpInformation
 
         metadata = self.get("/Metadata", None)
@@ -314,21 +293,13 @@ class DictionaryObject(dict, PdfObject):
     def getXmpMetadata(
         self,
     ) -> Optional[PdfObject]:
-        """
-        Use :meth:`xmp_metadata` instead.
 
-        .. deprecated:: 1.28.3
-        """
         deprecation_with_replacement("getXmpMetadata", "xmp_metadata", "3.0.0")
         return self.xmp_metadata
 
     @property
     def xmpMetadata(self) -> Optional[PdfObject]:
-        """
-        Use :meth:`xmp_metadata` instead.
 
-        .. deprecated:: 1.28.3
-        """
         deprecation_with_replacement("xmpMetadata", "xmp_metadata", "3.0.0")
         return self.xmp_metadata
 
@@ -500,7 +471,6 @@ class DictionaryObject(dict, PdfObject):
         deprecation_with_replacement("readFromStream", "read_from_stream", "3.0.0")
         return DictionaryObject.read_from_stream(stream, pdf)
 
-
 class TreeObject(DictionaryObject):
     def __init__(self, dct: Optional[DictionaryObject] = None) -> None:
         DictionaryObject.__init__(self)
@@ -624,15 +594,7 @@ class TreeObject(DictionaryObject):
     def _remove_node_from_tree(
         self, prev: Any, prev_ref: Any, cur: Any, last: Any
     ) -> None:
-        """
-        Adjust the pointers of the linked list and tree node count.
 
-        Args:
-            prev:
-            prev_ref:
-            cur:
-            last:
-        """
         next_ref = cur.get(NameObject("/Next"), None)
         if prev is None:
             if next_ref:
@@ -696,7 +658,7 @@ class TreeObject(DictionaryObject):
         _reset_node_tree_relationship(child_obj)
 
     def remove_from_tree(self) -> None:
-        """Remove the object from the tree it is in."""
+
         if NameObject("/Parent") not in self:
             raise ValueError("Removed child does not appear to be a tree item")
         else:
@@ -718,22 +680,13 @@ class TreeObject(DictionaryObject):
         if NameObject("/Last") in self:
             del self[NameObject("/Last")]
 
-
 def _reset_node_tree_relationship(child_obj: Any) -> None:
-    """
-    Call this after a node has been removed from a tree.
 
-    This resets the nodes attributes in respect to that tree.
-
-    Args:
-        child_obj:
-    """
     del child_obj[NameObject("/Parent")]
     if NameObject("/Next") in child_obj:
         del child_obj[NameObject("/Next")]
     if NameObject("/Prev") in child_obj:
         del child_obj[NameObject("/Prev")]
-
 
 class StreamObject(DictionaryObject):
     def __init__(self) -> None:
@@ -747,15 +700,7 @@ class StreamObject(DictionaryObject):
         force_duplicate: bool,
         ignore_fields: Optional[Sequence[Union[str, int]]],
     ) -> None:
-        """
-        Update the object from src.
 
-        Args:
-            src:
-            pdf_dest:
-            force_duplicate:
-            ignore_fields:
-        """
         self._data = cast("StreamObject", src)._data
         try:
             decoded_self = cast("StreamObject", src).decoded_self
@@ -869,10 +814,8 @@ class StreamObject(DictionaryObject):
         retval._data = FlateDecode.encode(b_(self._data), level)
         return retval
 
-
 class DecodedStreamObject(StreamObject):
     pass
-
 
 class EncodedStreamObject(StreamObject):
     def __init__(self) -> None:
@@ -917,24 +860,8 @@ class EncodedStreamObject(StreamObject):
                 "Streams encoded with different filter from only FlateDecode is not supported"
             )
 
-
 class ContentStream(DecodedStreamObject):
-    """
-    In order to be fast, this datastructure can contain either:
-    * raw data in ._data
-    * parsed stream operations in ._operations
 
-    At any time, ContentStream object can either have one or both of those fields defined,
-    and zero or one of those fields set to None.
-
-    Those fields are "rebuilt" lazily, when accessed:
-    * when .get_data() is called, if ._data is None, it is rebuilt from ._operations
-    * when .operations is called, if ._operations is None, it is rebuilt from ._data
-
-    On the other side, those fields can be invalidated:
-    * when .set_data() is called, ._operations is set to None
-    * when .operations is set, ._data is set to None
-    """
 
     def __init__(
         self,
@@ -969,17 +896,7 @@ class ContentStream(DecodedStreamObject):
         force_duplicate: bool = False,
         ignore_fields: Optional[Sequence[Union[str, int]]] = (),
     ) -> "ContentStream":
-        """
-        Clone object into pdf_dest.
 
-        Args:
-            pdf_dest:
-            force_duplicate:
-            ignore_fields:
-
-        Returns:
-            The cloned ContentStream
-        """
         try:
             if self.indirect_reference.pdf == pdf_dest and not force_duplicate:
                 return self
@@ -1004,15 +921,7 @@ class ContentStream(DecodedStreamObject):
         force_duplicate: bool,
         ignore_fields: Optional[Sequence[Union[str, int]]],
     ) -> None:
-        """
-        Update the object from src.
 
-        Args:
-            src:
-            pdf_dest:
-            force_duplicate:
-            ignore_fields:
-        """
         src_cs = cast("ContentStream", src)
         super().set_data(b_(src_cs._data))
         self.pdf = pdf_dest
@@ -1156,7 +1065,6 @@ class ContentStream(DecodedStreamObject):
             self.get_data()
         super().write_to_stream(stream, encryption_key)
 
-
 def read_object(
     stream: StreamType,
     pdf: Optional[PdfReaderProtocol],
@@ -1206,14 +1114,8 @@ def read_object(
             f"Invalid Elementary Object starting with {tok!r} @{stream.tell()}: {stream.read(80).__repr__()}"
         )
 
-
 class Field(TreeObject):
-    """
-    A class representing a field dictionary.
 
-    This class is accessed through
-    :meth:`get_fields()<pypdf.PdfReader.get_fields>`
-    """
 
     def __init__(self, data: DictionaryObject) -> None:
         DictionaryObject.__init__(self)
@@ -1239,137 +1141,86 @@ class Field(TreeObject):
 
     @property
     def field_type(self) -> Optional[NameObject]:
-        """Read-only property accessing the type of this field."""
+
         return self.get(FieldDictionaryAttributes.FT)
 
     @property
     def fieldType(self) -> Optional[NameObject]:
-        """
-        Use :py:attr:`field_type` instead.
 
-        .. deprecated:: 1.28.3
-        """
         deprecation_with_replacement("fieldType", "field_type", "3.0.0")
         return self.field_type
 
     @property
     def parent(self) -> Optional[DictionaryObject]:
-        """Read-only property accessing the parent of this field."""
+
         return self.get(FieldDictionaryAttributes.Parent)
 
     @property
     def kids(self) -> Optional["ArrayObject"]:
-        """Read-only property accessing the kids of this field."""
+
         return self.get(FieldDictionaryAttributes.Kids)
 
     @property
     def name(self) -> Optional[str]:
-        """Read-only property accessing the name of this field."""
+
         return self.get(FieldDictionaryAttributes.T)
 
     @property
     def alternate_name(self) -> Optional[str]:
-        """Read-only property accessing the alternate name of this field."""
+
         return self.get(FieldDictionaryAttributes.TU)
 
     @property
     def altName(self) -> Optional[str]:
-        """
-        Use :py:attr:`alternate_name` instead.
 
-        .. deprecated:: 1.28.3
-        """
         deprecation_with_replacement("altName", "alternate_name", "3.0.0")
         return self.alternate_name
 
     @property
     def mapping_name(self) -> Optional[str]:
-        """
-        Read-only property accessing the mapping name of this field.
 
-        This name is used by pypdf as a key in the dictionary returned by
-        :meth:`get_fields()<pypdf.PdfReader.get_fields>`
-        """
         return self.get(FieldDictionaryAttributes.TM)
 
     @property
     def mappingName(self) -> Optional[str]:
-        """
-        Use :py:attr:`mapping_name` instead.
 
-        .. deprecated:: 1.28.3
-        """
         deprecation_with_replacement("mappingName", "mapping_name", "3.0.0")
         return self.mapping_name
 
     @property
     def flags(self) -> Optional[int]:
-        """
-        Read-only property accessing the field flags, specifying various
-        characteristics of the field (see Table 8.70 of the PDF 1.7 reference).
-        """
+
         return self.get(FieldDictionaryAttributes.Ff)
 
     @property
     def value(self) -> Optional[Any]:
-        """
-        Read-only property accessing the value of this field.
 
-        Format varies based on field type.
-        """
         return self.get(FieldDictionaryAttributes.V)
 
     @property
     def default_value(self) -> Optional[Any]:
-        """Read-only property accessing the default value of this field."""
+
         return self.get(FieldDictionaryAttributes.DV)
 
     @property
     def defaultValue(self) -> Optional[Any]:
-        """
-        Use :py:attr:`default_value` instead.
 
-        .. deprecated:: 1.28.3
-        """
         deprecation_with_replacement("defaultValue", "default_value", "3.0.0")
         return self.default_value
 
     @property
     def additional_actions(self) -> Optional[DictionaryObject]:
-        """
-        Read-only property accessing the additional actions dictionary.
 
-        This dictionary defines the field's behavior in response to trigger
-        events. See Section 8.5.2 of the PDF 1.7 reference.
-        """
         return self.get(FieldDictionaryAttributes.AA)
 
     @property
     def additionalActions(self) -> Optional[DictionaryObject]:
-        """
-        Use :py:attr:`additional_actions` instead.
 
-        .. deprecated:: 1.28.3
-        """
         deprecation_with_replacement("additionalActions", "additional_actions", "3.0.0")
         return self.additional_actions
 
-
 class Destination(TreeObject):
-    """
-    A class representing a destination within a PDF file.
 
-    See section 8.2.1 of the PDF 1.6 reference.
-
-    Args:
-        title: Title of this destination.
-        page: Reference to the page of this destination. Should
-            be an instance of :class:`IndirectObject<pypdf.generic.IndirectObject>`.
-        fit: How the destination is displayed.
-
-    Raises:
-        PdfReadError: If destination type is invalid.
-    """
 
     node: Optional[
         DictionaryObject
@@ -1440,11 +1291,7 @@ class Destination(TreeObject):
         )
 
     def getDestArray(self) -> "ArrayObject":
-        """
-        Use :py:attr:`dest_array` instead.
 
-        .. deprecated:: 1.28.3
-        """
         deprecation_with_replacement("getDestArray", "dest_array", "3.0.0")
         return self.dest_array
 
@@ -1473,67 +1320,57 @@ class Destination(TreeObject):
 
     @property
     def title(self) -> Optional[str]:
-        """Read-only property accessing the destination title."""
+
         return self.get("/Title")
 
     @property
     def page(self) -> Optional[int]:
-        """Read-only property accessing the destination page number."""
+
         return self.get("/Page")
 
     @property
     def typ(self) -> Optional[str]:
-        """Read-only property accessing the destination type."""
+
         return self.get("/Type")
 
     @property
     def zoom(self) -> Optional[int]:
-        """Read-only property accessing the zoom factor."""
+
         return self.get("/Zoom", None)
 
     @property
     def left(self) -> Optional[FloatObject]:
-        """Read-only property accessing the left horizontal coordinate."""
+
         return self.get("/Left", None)
 
     @property
     def right(self) -> Optional[FloatObject]:
-        """Read-only property accessing the right horizontal coordinate."""
+
         return self.get("/Right", None)
 
     @property
     def top(self) -> Optional[FloatObject]:
-        """Read-only property accessing the top vertical coordinate."""
+
         return self.get("/Top", None)
 
     @property
     def bottom(self) -> Optional[FloatObject]:
-        """Read-only property accessing the bottom vertical coordinate."""
+
         return self.get("/Bottom", None)
 
     @property
     def color(self) -> Optional["ArrayObject"]:
-        """Read-only property accessing the color in (R, G, B) with values 0.0-1.0."""
+
         return self.get(
             "/C", ArrayObject([FloatObject(0), FloatObject(0), FloatObject(0)])
         )
 
     @property
     def font_format(self) -> Optional[OutlineFontFlag]:
-        """
-        Read-only property accessing the font type.
 
-        1=italic, 2=bold, 3=both
-        """
         return self.get("/F", 0)
 
     @property
     def outline_count(self) -> Optional[int]:
-        """
-        Read-only property accessing the outline count.
 
-        positive = expanded
-        negative = collapsed
-        absolute value = number of visible descendants at all levels
-        """
         return self.get("/Count", None)

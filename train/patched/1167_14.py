@@ -1,12 +1,4 @@
-"""
-project: lollms_webui
-file: lollms_xtts.py 
-author: ParisNeo
-description: 
-    This module contains a set of FastAPI routes that provide information about the Lord of Large Language and Multimodal Systems (LoLLMs) Web UI
-    application. These routes allow users to 
 
-"""
 from fastapi import APIRouter, Request
 from fastapi import HTTPException
 from lollms_webui import LOLLMSWebUI
@@ -24,7 +16,6 @@ import yaml, json
 
 router = APIRouter()
 lollmsElfServer:LOLLMSWebUI = LOLLMSWebUI.get_instance()
-
 
 @router.get("/get_presets")
 def get_presets():
@@ -49,12 +40,7 @@ class PresetData(BaseModel):
 
 @router.post("/add_preset")
 async def add_preset(preset_data: PresetData):
-    """
-    Changes current voice
 
-    :param request: The HTTP request object.
-    :return: A JSON response with the status of the operation.
-    """
     forbid_remote_access(lollmsElfServer)
     try:
 
@@ -75,12 +61,7 @@ async def add_preset(preset_data: PresetData):
 
 @router.post("/del_preset")
 async def del_preset(preset_data: PresetData):
-    """
-    Saves a preset to a file.
 
-    :param preset_data: The data of the preset.
-    :return: A JSON response with the status of the operation.
-    """
     forbid_remote_access(lollmsElfServer)
     if preset_data.name is None:
         raise HTTPException(status_code=400, detail="Preset name is missing in the request")
@@ -94,23 +75,16 @@ async def del_preset(preset_data: PresetData):
     except:
         return {"status":False}
 
-
 class PresetDataWithValue(BaseModel):
     name: str = Field(..., min_length=1)
     preset: str
 
 @router.post("/save_presets")
 async def save_presets(preset_data: PresetDataWithValue):
-    """
-    Saves a preset to a file.
 
-    :param preset_data: The data of the preset.
-    :return: A JSON response with the status of the operation.
-    """
     forbid_remote_access(lollmsElfServer)
     if preset_data.preset is None:
         raise HTTPException(status_code=400, detail="Preset data is missing in the request")
-
 
     sanitize_path_from_endpoint(preset_data.name,exception_text="Invalid preset name")
 

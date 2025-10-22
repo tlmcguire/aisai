@@ -94,7 +94,6 @@ BUILT_IN_THEMES: dict[str, Theme] = {
     ]
 }
 
-
 class Block:
     def __init__(
         self,
@@ -135,10 +134,7 @@ class Block:
 
     @property
     def constructor_args(self) -> dict[str, Any]:
-        """Get the arguments passed to the component's initializer.
 
-        Only set classes whose metaclass is ComponentMeta
-        """
         return self._constructor_args[0] if self._constructor_args else {}
 
     @property
@@ -148,9 +144,7 @@ class Block:
         return getattr(self, "EVENTS", [])
 
     def render(self):
-        """
-        Adds self into appropriate BlockContext
-        """
+
         if Context.root_block is not None and self._id in Context.root_block.blocks:
             raise DuplicateBlockError(
                 f"A block with id: {self._id} has already been rendered in the current Blocks."
@@ -165,10 +159,7 @@ class Block:
         return self
 
     def unrender(self):
-        """
-        Removes self from BlockContext if it has been rendered (otherwise does nothing).
-        Removes self from the layout and collection of blocks, but does not delete any event triggers.
-        """
+
         if Context.block is not None:
             try:
                 Context.block.children.remove(self)
@@ -183,13 +174,7 @@ class Block:
         return self
 
     def get_block_name(self) -> str:
-        """
-        Gets block's class name.
 
-        If it is template component it gets the parent's class name.
-
-        @return: class name
-        """
         return (
             self.__class__.__base__.__name__.lower()
             if hasattr(self, "is_template")
@@ -220,9 +205,7 @@ class Block:
     def recover_kwargs(
         cls, props: dict[str, Any], additional_keys: list[str] | None = None
     ):
-        """
-        Recovers kwargs from a dict of props.
-        """
+
         additional_keys = additional_keys or []
         signature = inspect.signature(cls.__init__)
         kwargs = {}
@@ -234,10 +217,7 @@ class Block:
     def move_resource_to_block_cache(
         self, url_or_file_path: str | Path | None
     ) -> str | None:
-        """Moves a file or downloads a file from a url to a block's cache directory, adds
-        to to the block's temp_files, and returns the path to the file in cache. This
-        ensures that the file is accessible to the Block and can be served to users.
-        """
+
         if url_or_file_path is None:
             return None
         if isinstance(url_or_file_path, Path):
@@ -261,7 +241,6 @@ class Block:
 
         return temp_file_path
 
-
 class BlockContext(Block):
     def __init__(
         self,
@@ -270,13 +249,7 @@ class BlockContext(Block):
         visible: bool = True,
         render: bool = True,
     ):
-        """
-        Parameters:
-            elem_id: An optional string that is assigned as the id of this component in the HTML DOM. Can be used for targeting CSS styles.
-            elem_classes: An optional string or list of strings that are assigned as the class of this component in the HTML DOM. Can be used for targeting CSS styles.
-            visible: If False, this will be hidden but included in the Blocks config file (its visibility can later be updated).
-            render: If False, this will not be included in the Blocks config file at all.
-        """
+
         self.children: list[Block] = []
         Block.__init__(
             self,
@@ -347,11 +320,8 @@ class BlockContext(Block):
             self.fill_expected_parents()
 
     def postprocess(self, y):
-        """
-        Any postprocessing needed to be performed on a block context.
-        """
-        return y
 
+        return y
 
 class BlockFunction:
     def __init__(
@@ -403,19 +373,10 @@ class BlockFunction:
     def __repr__(self):
         return str(self)
 
-
 def postprocess_update_dict(
     block: Component | BlockContext, update_dict: dict, postprocess: bool = True
 ):
-    """
-    Converts a dictionary of updates into a format that can be sent to the frontend to update the component.
-    E.g. {"value": "2", "visible": True, "invalid_arg": "hello"}
-    Into -> {"__type__": "update", "value": 2.0, "visible": True}
-    Parameters:
-        block: The Block that is being updated with this update dictionary.
-        update_dict: The original update dictionary
-        postprocess: Whether to postprocess the "value" key of the update dictionary.
-    """
+
     value = update_dict.pop("value", components._Keywords.NO_VALUE)
     update_dict = {k: getattr(block, k) for k in update_dict if hasattr(block, k)}
     if value is not components._Keywords.NO_VALUE:
@@ -428,16 +389,10 @@ def postprocess_update_dict(
     update_dict["__type__"] = "update"
     return update_dict
 
-
 def convert_component_dict_to_list(
     outputs_ids: list[int], predictions: dict
 ) -> list | dict:
-    """
-    Converts a dictionary of component updates into a list of updates in the order of
-    the outputs_ids and including every output component. Leaves other types of dictionaries unchanged.
-    E.g. {"textbox": "hello", "number": {"__type__": "generic_update", "value": "2"}}
-    Into -> ["hello", {"__type__": "generic_update"}, {"__type__": "generic_update", "value": "2"}]
-    """
+
     keys_are_blocks = [isinstance(key, Block) for key in predictions]
     if all(keys_are_blocks):
         reordered_predictions = [skip() for _ in outputs_ids]
@@ -455,42 +410,9 @@ def convert_component_dict_to_list(
         )
     return predictions
 
-
 @document("launch", "queue", "integrate", "load")
 class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
-    """
-    Blocks is Gradio's low-level API that allows you to create more custom web
-    applications and demos than Interfaces (yet still entirely in Python).
 
-
-    Compared to the Interface class, Blocks offers more flexibility and control over:
-    (1) the layout of components (2) the events that
-    trigger the execution of functions (3) data flows (e.g. inputs can trigger outputs,
-    which can trigger the next level of outputs). Blocks also offers ways to group
-    together related demos such as with tabs.
-
-
-    The basic usage of Blocks is as follows: create a Blocks object, then use it as a
-    context (with the "with" statement), and then define layouts, components, or events
-    within the Blocks context. Finally, call the launch() method to launch the demo.
-
-    Example:
-        import gradio as gr
-        def update(name):
-            return f"Welcome to Gradio, {name}!"
-
-        with gr.Blocks() as demo:
-            gr.Markdown("Start typing below and then click **Run** to see the output.")
-            with gr.Row():
-                inp = gr.Textbox(placeholder="What is your name?")
-                out = gr.Textbox()
-            btn = gr.Button("Run")
-            btn.click(fn=update, inputs=inp, outputs=out)
-
-        demo.launch()
-    Demos: blocks_hello, blocks_flipper, blocks_speech_text_sentiment, generate_english_german
-    Guides: blocks-and-event-listeners, controlling-layout, state-in-blocks, custom-CSS-and-JS, using-blocks-like-functions
-    """
 
     def __init__(
         self,
@@ -503,16 +425,7 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
         head: str | None = None,
         **kwargs,
     ):
-        """
-        Parameters:
-            theme: a Theme object or a string representing a theme. If a string, will look for a built-in theme with that name (e.g. "soft" or "default"), or will attempt to load a theme from the HF Hub (e.g. "gradio/monochrome"). If None, will use the Default theme.
-            analytics_enabled: whether to allow basic telemetry. If None, will use GRADIO_ANALYTICS_ENABLED environment variable or default to True.
-            mode: a human-friendly name for the kind of Blocks or Interface being created.
-            title: The tab title to display when this is opened in a browser window.
-            css: custom css or path to custom css file to apply to entire Blocks.
-            js: custom js or path to custom js file to run when demo is first loaded.
-            head: custom html to insert into the head of the page.
-        """
+
         self.limiter = None
         if theme is None:
             theme = DefaultTheme()
@@ -630,15 +543,7 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
         fns: list[Callable],
         proxy_url: str,
     ) -> Blocks:
-        """
-        Factory method that creates a Blocks from a config and list of functions. Used
-        internally by the gradio.external.load() method.
 
-        Parameters:
-        config: a dictionary containing the configuration of the Blocks.
-        fns: a list of functions that are used in the Blocks. Must be in the same order as the dependencies in the config.
-        proxy_url: an external url to use as a root URL when serving files for components in the Blocks.
-        """
         config = copy.deepcopy(config)
         components_config = config["components"]
         for component_config in components_config:
@@ -776,7 +681,7 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
 
     @property
     def expects_oauth(self):
-        """Return whether the app expects user to authenticate via OAuth."""
+
         return any(
             isinstance(block, (components.LoginButton, components.LogoutButton))
             for block in self.blocks.values()
@@ -807,33 +712,7 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
         concurrency_limit: int | None | Literal["default"] = "default",
         concurrency_id: str | None = None,
     ) -> tuple[dict[str, Any], int]:
-        """
-        Adds an event to the component's dependencies.
-        Parameters:
-            targets: a list of EventListenerMethod objects that define the event trigger
-            fn: Callable function
-            inputs: input list
-            outputs: output list
-            preprocess: whether to run the preprocess methods of components
-            postprocess: whether to run the postprocess methods of components
-            scroll_to_output: whether to scroll to output of dependency on trigger
-            show_progress: whether to show progress animation while running.
-            api_name: defines how the endpoint appears in the API docs. Can be a string, None, or False. If set to a string, the endpoint will be exposed in the API docs with the given name. If None (default), the name of the function will be used as the API endpoint. If False, the endpoint will not be exposed in the API docs and downstream apps (including those that `gr.load` this app) will not be able to use this event.
-            js: Optional frontend js method to run before running 'fn'. Input arguments for js method are values of 'inputs' and 'outputs', return should be a list of values for output components
-            no_target: if True, sets "targets" to [], used for Blocks "load" event
-            queue: If True, will place the request on the queue, if the queue has been enabled. If False, will not put this event on the queue, even if the queue has been enabled. If None, will use the queue setting of the gradio app.
-            batch: whether this function takes in a batch of inputs
-            max_batch_size: the maximum batch size to send to the function
-            cancels: a list of other events to cancel when this event is triggered. For example, setting cancels=[click_event] will cancel the click_event, where click_event is the return value of another components .click method.
-            every: Run this event 'every' number of seconds while the client connection is open. Interpreted in seconds. Queue must be enabled.
-            collects_event_data: whether to collect event data for this event
-            trigger_after: if set, this event will be triggered after 'trigger_after' function index
-            trigger_only_on_success: if True, this event will only be triggered if the previous event was successful (only applies if `trigger_after` is set)
-            trigger_mode: If "once" (default for all events except `.change()`) would not allow any submissions while an event is pending. If set to "multiple", unlimited submissions are allowed while pending, and "always_last" (default for `.change()` event) would allow a second submission after the pending event is complete.
-            concurrency_limit: If set, this this is the maximum number of this event that can be running simultaneously. Can be set to None to mean no concurrency_limit (any number of this event can be running simultaneously). Set to "default" to use the default concurrency limit (defined by the `default_concurrency_limit` parameter in `queue()`, which itself is 1 by default).
-            concurrency_id: If set, this is the id of the concurrency group. Events with the same concurrency_id will be limited by the lowest set concurrency_limit.
-        Returns: dependency information, dependency index
-        """
+
         _targets = [
             (
                 target.block._id if target.block and not no_target else None,
@@ -999,7 +878,7 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
         return self
 
     def is_callable(self, fn_index: int = 0) -> bool:
-        """Checks if a particular Blocks function is callable (i.e. not stateful or a generator)."""
+
         block_fn = self.fns[fn_index]
         dependency = self.dependencies[fn_index]
 
@@ -1019,16 +898,7 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
         return True
 
     def __call__(self, *inputs, fn_index: int = 0, api_name: str | None = None):
-        """
-        Allows Blocks objects to be called as functions. Supply the parameters to the
-        function as positional arguments. To choose which function to call, use the
-        fn_index parameter, which must be a keyword argument.
 
-        Parameters:
-        *inputs: the parameters to pass to the function
-        fn_index: the index of the function to call (defaults to 0, which for Interfaces, is the default prediction function)
-        api_name: The api_name of the dependency to call. Will take precedence over fn_index.
-        """
         if api_name is not None:
             inferred_fn_index = next(
                 (
@@ -1081,16 +951,7 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
         event_data: EventData | None = None,
         in_event_listener: bool = False,
     ):
-        """
-        Calls function with given index and preprocessed input, and measures process time.
-        Parameters:
-            fn_index: index of function to call
-            processed_input: preprocessed input to pass to function
-            iterator: iterator to use if function is a generator
-            requests: requests to pass to function
-            event_id: id of event in queue
-            event_data: data associated with event trigger
-        """
+
         block_fn = self.fns[fn_index]
         if not block_fn.fn:
             raise IndexError(f"function with index {fn_index} not defined.")
@@ -1444,19 +1305,7 @@ Received outputs:
         event_data: EventData | None = None,
         in_event_listener: bool = True,
     ) -> dict[str, Any]:
-        """
-        Processes API calls from the frontend. First preprocesses the data,
-        then runs the relevant function, then postprocesses the output.
-        Parameters:
-            fn_index: Index of function to run.
-            inputs: input data received from the frontend
-            state: data stored from stateful components for session (key is input block id)
-            request: the gr.Request object containing information about the network request (e.g. IP address, headers, query parameters, username)
-            iterators: the in-progress iterators for each generator function (key is function index)
-            event_id: id of event that triggered this API call
-            event_data: data associated with the event trigger itself
-        Returns: None
-        """
+
         block_fn = self.fns[fn_index]
         batch = self.dependencies[fn_index]["batch"]
 
@@ -1618,7 +1467,7 @@ Received outputs:
         self.exited = True
 
     def clear(self):
-        """Resets the layout of the Blocks object."""
+
         self.blocks = {}
         self.fns = []
         self.dependencies = []
@@ -1635,25 +1484,7 @@ Received outputs:
         *,
         default_concurrency_limit: int | None | Literal["not_set"] = "not_set",
     ):
-        """
-        By enabling the queue you can control when users know their position in the queue, and set a limit on maximum number of events allowed.
-        Parameters:
-            status_update_rate: If "auto", Queue will send status estimations to all clients whenever a job is finished. Otherwise Queue will send status at regular intervals set by this parameter as the number of seconds.
-            api_open: If True, the REST routes of the backend will be open, allowing requests made directly to those endpoints to skip the queue.
-            max_size: The maximum number of events the queue will store at any given moment. If the queue is full, new events will not be added and a user will receive a message saying that the queue is full. If None, the queue size will be unlimited.
-            concurrency_count: Deprecated and has no effect. Set the concurrency_limit directly on event listeners e.g. btn.click(fn, ..., concurrency_limit=10) or gr.Interface(concurrency_limit=10). If necessary, the total number of workers can be configured via `max_threads` in launch().
-            default_concurrency_limit: The default value of `concurrency_limit` to use for event listeners that don't specify a value. Can be set by environment variable GRADIO_DEFAULT_CONCURRENCY_LIMIT. Defaults to 1 if not set otherwise.
-        Example: (Blocks)
-            with gr.Blocks() as demo:
-                button = gr.Button(label="Generate Image")
-                button.click(fn=image_generator, inputs=gr.Textbox(), outputs=gr.Image())
-            demo.queue(max_size=10)
-            demo.launch()
-        Example: (Interface)
-            demo = gr.Interface(image_generator, gr.Textbox(), gr.Image())
-            demo.queue(max_size=20)
-            demo.launch()
-        """
+
         if concurrency_count:
             raise DeprecationWarning(
                 "concurrency_count has been deprecated. Set the concurrency_limit directly on event listeners e.g. btn.click(fn, ..., concurrency_limit=10) or gr.Interface(concurrency_limit=10). If necessary, the total number of workers can be configured via `max_threads` in launch()."
@@ -1720,57 +1551,7 @@ Received outputs:
         share_server_protocol: Literal["http", "https"] | None = None,
         _frontend: bool = True,
     ) -> tuple[FastAPI, str, str]:
-        """
-        Launches a simple web server that serves the demo. Can also be used to create a
-        public link used by anyone to access the demo from their browser by setting share=True.
 
-        Parameters:
-            inline: whether to display in the interface inline in an iframe. Defaults to True in python notebooks; False otherwise.
-            inbrowser: whether to automatically launch the interface in a new tab on the default browser.
-            share: whether to create a publicly shareable link for the interface. Creates an SSH tunnel to make your UI accessible from anywhere. If not provided, it is set to False by default every time, except when running in Google Colab. When localhost is not accessible (e.g. Google Colab), setting share=False is not supported.
-            debug: if True, blocks the main thread from running. If running in Google Colab, this is needed to print the errors in the cell output.
-            auth: If provided, username and password (or list of username-password tuples) required to access interface. Can also provide function that takes username and password and returns True if valid login.
-            auth_message: If provided, HTML message provided on login page.
-            prevent_thread_lock: If True, the interface will block the main thread while the server is running.
-            show_error: If True, any errors in the interface will be displayed in an alert modal and printed in the browser console log
-            server_port: will start gradio app on this port (if available). Can be set by environment variable GRADIO_SERVER_PORT. If None, will search for an available port starting at 7860.
-            server_name: to make app accessible on local network, set this to "0.0.0.0". Can be set by environment variable GRADIO_SERVER_NAME. If None, will use "127.0.0.1".
-            max_threads: the maximum number of total threads that the Gradio app can generate in parallel. The default is inherited from the starlette library (currently 40).
-            width: The width in pixels of the iframe element containing the interface (used if inline=True)
-            height: The height in pixels of the iframe element containing the interface (used if inline=True)
-            favicon_path: If a path to a file (.png, .gif, or .ico) is provided, it will be used as the favicon for the web page.
-            ssl_keyfile: If a path to a file is provided, will use this as the private key file to create a local server running on https.
-            ssl_certfile: If a path to a file is provided, will use this as the signed certificate for https. Needs to be provided if ssl_keyfile is provided.
-            ssl_keyfile_password: If a password is provided, will use this with the ssl certificate for https.
-            ssl_verify: If False, skips certificate validation which allows self-signed certificates to be used.
-            quiet: If True, suppresses most print statements.
-            show_api: If True, shows the api docs in the footer of the app. Default True.
-            allowed_paths: List of complete filepaths or parent directories that gradio is allowed to serve (in addition to the directory containing the gradio python file). Must be absolute paths. Warning: if you provide directories, any files in these directories or their subdirectories are accessible to all users of your app.
-            blocked_paths: List of complete filepaths or parent directories that gradio is not allowed to serve (i.e. users of your app are not allowed to access). Must be absolute paths. Warning: takes precedence over `allowed_paths` and all other directories exposed by Gradio by default.
-            root_path: The root path (or "mount point") of the application, if it's not served from the root ("/") of the domain. Often used when the application is behind a reverse proxy that forwards requests to the application. For example, if the application is served at "https://example.com/myapp", the `root_path` should be set to "/myapp". Can be set by environment variable GRADIO_ROOT_PATH. Defaults to "".
-            app_kwargs: Additional keyword arguments to pass to the underlying FastAPI app as a dictionary of parameter keys and argument values. For example, `{"docs_url": "/docs"}`
-            state_session_capacity: The maximum number of sessions whose information to store in memory. If the number of sessions exceeds this number, the oldest sessions will be removed. Reduce capacity to reduce memory usage when using gradio.State or returning updated components from functions. Defaults to 10000.
-            share_server_address: Use this to specify a custom FRP server and port for sharing Gradio apps (only applies if share=True). If not provided, will use the default FRP server at https://gradio.live. See https://github.com/huggingface/frp for more information.
-            share_server_protocol: Use this to specify the protocol to use for the share links. Defaults to "https", unless a custom share_server_address is provided, in which case it defaults to "http". If you are using a custom share_server_address and want to use https, you must set this to "https".
-        Returns:
-            app: FastAPI app object that is running the demo
-            local_url: Locally accessible link to the demo
-            share_url: Publicly accessible link to the demo (if share=True, otherwise None)
-        Example: (Blocks)
-            import gradio as gr
-            def reverse(text):
-                return text[::-1]
-            with gr.Blocks() as demo:
-                button = gr.Button(value="Reverse")
-                button.click(reverse, gr.Textbox(), gr.Textbox())
-            demo.launch(share=True, auth=("username", "password"))
-        Example:  (Interface)
-            import gradio as gr
-            def reverse(text):
-                return text[::-1]
-            demo = gr.Interface(reverse, "text", "text")
-            demo.launch(share=True, auth=("username", "password"))
-        """
         if self._is_running_in_reload_thread:
             return None, None, None
 
@@ -2068,13 +1849,7 @@ Received outputs:
         wandb: ModuleType | None = None,
         mlflow: ModuleType | None = None,
     ) -> None:
-        """
-        A catch-all method for integrating with other libraries. This method should be run after launch()
-        Parameters:
-            comet_ml: If a comet_ml Experiment object is provided, will integrate with the experiment and appear on Comet dashboard
-            wandb: If the wandb module is provided, will integrate with it and appear on WandB dashboard
-            mlflow: If the mlflow module  is provided, will integrate with the experiment and appear on ML Flow dashboard
-        """
+
         analytics_integration = ""
         if comet_ml is not None:
             analytics_integration = "CometML"
@@ -2119,9 +1894,7 @@ Received outputs:
             analytics.integration_analytics(data)
 
     def close(self, verbose: bool = True) -> None:
-        """
-        Closes the Interface that was launched and frees the port.
-        """
+
         try:
             if wasm_utils.IS_WASM:
                 self._queue._cancel_asyncio_tasks()
@@ -2139,7 +1912,7 @@ Received outputs:
     def block_thread(
         self,
     ) -> None:
-        """Block main thread until interrupted by user."""
+
         try:
             while True:
                 time.sleep(0.1)
@@ -2151,7 +1924,7 @@ Received outputs:
                 tunnel.kill()
 
     def attach_load_events(self):
-        """Add a load event for every component whose initial value should be randomized."""
+
         if Context.root_block:
             for component in Context.root_block.blocks.values():
                 if (
@@ -2172,7 +1945,7 @@ Received outputs:
                     component.load_event = dep
 
     def startup_events(self):
-        """Events that should be run when the app containing this block starts up."""
+
         self._queue.start()
         self._queue.stopped = False
         self.create_limiter()
@@ -2181,9 +1954,7 @@ Received outputs:
         return self.dependencies[fn_index]["queue"] is not False
 
     def get_api_info(self):
-        """
-        Gets the information needed to generate the API docs from a Blocks.
-        """
+
         config = self.config
         api_info = {"named_endpoints": {}, "unnamed_endpoints": {}}
         mode = config.get("mode", None)

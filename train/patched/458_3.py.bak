@@ -31,7 +31,6 @@ else:
     encode_entity_map = {}
     is_ucs4 = len("\U0010FFFF") == 1
     for k, v in list(entities.items()):
-        # skip multi-character entities
         if ((is_ucs4 and len(v) > 1) or
                 (not is_ucs4 and len(v) > 2)):
             continue
@@ -41,7 +40,6 @@ else:
             else:
                 v = ord(v)
             if v not in encode_entity_map or k.islower():
-                # prefer &lt; over &LT; and similarly for &amp;, &gt;, etc.
                 encode_entity_map[v] = k
 
     def htmlentityreplace_errors(exc):
@@ -80,23 +78,19 @@ else:
 
 class HTMLSerializer(object):
 
-    # attribute quoting options
-    quote_attr_values = "legacy"  # be secure by default
+    quote_attr_values = "legacy"
     quote_char = '"'
     use_best_quote_char = True
 
-    # tag syntax options
     omit_optional_tags = True
     minimize_boolean_attributes = True
     use_trailing_solidus = False
     space_before_trailing_solidus = True
 
-    # escaping options
     escape_lt_in_attrs = False
     escape_rcdata = False
     resolve_entities = True
 
-    # miscellaneous options
     alphabetical_attributes = False
     inject_meta_charset = True
     strip_whitespace = False
@@ -184,8 +178,6 @@ class HTMLSerializer(object):
         if encoding and self.inject_meta_charset:
             from ..filters.inject_meta_charset import Filter
             treewalker = Filter(treewalker, encoding)
-        # WhitespaceFilter should be used before OptionalTagFilter
-        # for maximum efficiently of this latter filter
         if self.strip_whitespace:
             from ..filters.whitespace import Filter
             treewalker = Filter(treewalker)
@@ -195,8 +187,6 @@ class HTMLSerializer(object):
         if self.omit_optional_tags:
             from ..filters.optionaltags import Filter
             treewalker = Filter(treewalker)
-        # Alphabetical attributes must be last, as other filters
-        # could add attributes and alter the order
         if self.alphabetical_attributes:
             from ..filters.alphabeticalattributes import Filter
             treewalker = Filter(treewalker)
@@ -238,7 +228,6 @@ class HTMLSerializer(object):
                 elif in_cdata:
                     self.serializeError("Unexpected child element of a CDATA element")
                 for (attr_namespace, attr_name), attr_value in token["data"].items():
-                    # TODO: Add namespace support here
                     k = attr_name
                     v = attr_value
                     yield self.encodeStrict(' ')
@@ -318,7 +307,6 @@ class HTMLSerializer(object):
             return "".join(list(self.serialize(treewalker)))
 
     def serializeError(self, data="XXX ERROR MESSAGE NEEDED"):
-        # XXX The idea is to make data mandatory.
         self.errors.append(data)
         if self.strict:
             raise SerializeError

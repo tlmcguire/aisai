@@ -34,13 +34,11 @@ from cryptography.hazmat.primitives.serialization.pkcs12 import (
 from ...doubles import DummyKeySerializationEncryption
 from ...utils import load_vectors_from_file
 
-
 def _skip_curve_unsupported(backend, curve):
     if not backend.elliptic_curve_supported(curve):
         pytest.skip(
             f"Curve {curve.name} is not supported by this backend {backend}"
         )
-
 
 @pytest.mark.skip_fips(
     reason="PKCS12 unsupported in FIPS mode. So much bad crypto in it."
@@ -253,7 +251,6 @@ class TestPKCS12Loading:
         assert pkcs12.additional_certs[1].certificate == cert3
         assert pkcs12.additional_certs[1].friendly_name == name3
 
-
 def _load_cert(backend, path):
     return load_vectors_from_file(
         path,
@@ -263,7 +260,6 @@ def _load_cert(backend, path):
         mode="rb",
     )
 
-
 def _load_ca(backend):
     cert = _load_cert(backend, os.path.join("pkcs12", "ca", "ca.pem"))
     key = load_vectors_from_file(
@@ -272,7 +268,6 @@ def _load_ca(backend):
         mode="rb",
     )
     return cert, key
-
 
 @pytest.mark.skip_fips(
     reason="PKCS12 unsupported in FIPS mode. So much bad crypto in it."
@@ -650,17 +645,11 @@ class TestPKCS12Creation:
                 b"name", cakey, cacert, [], algorithm
             )
 
-
 @pytest.mark.skip_fips(
     reason="PKCS12 unsupported in FIPS mode. So much bad crypto in it."
 )
 def test_pkcs12_ordering():
-    """
-    In OpenSSL < 3.0.0 PKCS12 parsing reverses the order. However, we
-    accidentally thought it was **encoding** that did it, leading to bug
-    https://github.com/pyca/cryptography/issues/5872
-    This test ensures our ordering is correct going forward.
-    """
+
 
     def make_cert(name):
         key = ec.generate_private_key(ec.SECP256R1())
@@ -702,7 +691,6 @@ def test_pkcs12_ordering():
     c_idx = p12.index(c_name.encode("utf-8"))
 
     assert a_idx < b_idx < c_idx
-
 
 class TestPKCS12Objects:
     def test_certificate_constructor(self, backend):

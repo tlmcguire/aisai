@@ -2,9 +2,7 @@ import os
 import zipfile
 
 def extract(zip_file_path, extract_dir):
-    """
-    Extracts a zip file, mitigating directory traversal.
-    """
+
     try:
         with zipfile.ZipFile(zip_file_path, 'r') as zf:
             for member in zf.infolist():

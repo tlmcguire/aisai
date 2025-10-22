@@ -1,6 +1,3 @@
-# This file is dual licensed under the terms of the Apache License, Version
-# 2.0, and the BSD License. See the LICENSE file in the root of this repository
-# for complete details.
 
 from __future__ import annotations
 
@@ -53,11 +50,7 @@ class Backend:
 
     name = "openssl"
 
-    # TripleDES encryption is disallowed/deprecated throughout 2023 in
-    # FIPS 140-3. To keep it simple we denylist any use of TripleDES (TDEA).
     _fips_ciphers = (AES,)
-    # Sometimes SHA1 is still permissible. That logic is contained
-    # within the various *_supported methods.
     _fips_hashes = (
         hashes.SHA224,
         hashes.SHA256,
@@ -101,8 +94,6 @@ class Backend:
         return binding._openssl_assert(ok)
 
     def _enable_fips(self) -> None:
-        # This function enables FIPS mode for OpenSSL 3.0.0 on installs that
-        # have the FIPS provider installed properly.
         self._binding._enable_fips()
         assert rust_openssl.is_fips_enabled()
         self._fips_enabled = rust_openssl.is_fips_enabled()
@@ -145,8 +136,6 @@ class Backend:
     def signature_hash_supported(
         self, algorithm: hashes.HashAlgorithm
     ) -> bool:
-        # Dedicated check for hashing algorithm use in message digest for
-        # signatures, e.g. RSA PKCS#1 v1.5 SHA1 (sha1WithRSAEncryption).
         if self._fips_enabled and isinstance(algorithm, hashes.SHA1):
             return False
         return self.hash_supported(algorithm)
@@ -158,7 +147,6 @@ class Backend:
             return hasattr(rust_openssl.kdf, "derive_scrypt")
 
     def hmac_supported(self, algorithm: hashes.HashAlgorithm) -> bool:
-        # FIPS mode still allows SHA1 for HMAC
         if self._fips_enabled and isinstance(algorithm, hashes.SHA1):
             return True
 
@@ -166,8 +154,6 @@ class Backend:
 
     def cipher_supported(self, cipher: CipherAlgorithm, mode: Mode) -> bool:
         if self._fips_enabled:
-            # FIPS mode requires AES. TripleDES is disallowed/deprecated in
-            # FIPS 140-3.
             if not isinstance(cipher, self._fips_ciphers):
                 return False
 
@@ -233,8 +219,6 @@ class Backend:
         if isinstance(padding, PKCS1v15):
             return True
         elif isinstance(padding, PSS) and isinstance(padding._mgf, MGF1):
-            # SHA1 is permissible in MGF1 in FIPS even when SHA1 is blocked
-            # as signature algorithm.
             if self._fips_enabled and isinstance(
                 padding._mgf._algorithm, hashes.SHA1
             ):
@@ -312,7 +296,6 @@ class Backend:
         signature_algorithm: ec.EllipticCurveSignatureAlgorithm,
         curve: ec.EllipticCurve,
     ) -> bool:
-        # We only support ECDSA right now.
         if not isinstance(signature_algorithm, ec.ECDSA):
             return False
 
@@ -335,7 +318,6 @@ class Backend:
         return self._lib.Cryptography_HAS_EVP_PKEY_DHX == 1
 
     def x25519_supported(self) -> bool:
-        # Beginning with OpenSSL 3.2.0, X25519 is considered FIPS.
         if (
             self._fips_enabled
             and not rust_openssl.CRYPTOGRAPHY_OPENSSL_320_OR_GREATER
@@ -344,7 +326,6 @@ class Backend:
         return True
 
     def x448_supported(self) -> bool:
-        # Beginning with OpenSSL 3.2.0, X448 is considered FIPS.
         if (
             self._fips_enabled
             and not rust_openssl.CRYPTOGRAPHY_OPENSSL_320_OR_GREATER
@@ -369,9 +350,6 @@ class Backend:
         )
 
     def _zero_data(self, data, length: int) -> None:
-        # We clear things this way because at the moment we're not
-        # sure of a better way that can guarantee it overwrites the
-        # memory of a bytearray and doesn't just replace the underlying char *.
         for i in range(length):
             data[i] = 0
 
@@ -395,7 +373,6 @@ class Backend:
             try:
                 yield buf
             finally:
-                # Cast to a uint8_t * so we can assign by integer
                 self._zero_data(self._ffi.cast("uint8_t *", buf), data_len)
 
     def load_key_and_certificates_from_pkcs12(
@@ -442,8 +419,6 @@ class Backend:
 
         if evp_pkey_ptr[0] != self._ffi.NULL:
             evp_pkey = self._ffi.gc(evp_pkey_ptr[0], self._lib.EVP_PKEY_free)
-            # We don't support turning off RSA key validation when loading
-            # PKCS12 keys
             key = rust_openssl.keys.private_key_from_ptr(
                 int(self._ffi.cast("uintptr_t", evp_pkey)),
                 unsafe_skip_rsa_key_validation=False,
@@ -462,8 +437,6 @@ class Backend:
             sk_x509 = self._ffi.gc(sk_x509_ptr[0], self._lib.sk_X509_free)
             num = self._lib.sk_X509_num(sk_x509_ptr[0])
 
-            # In OpenSSL < 3.0.0 PKCS12 parsing reverses the order of the
-            # certificates.
             indices: typing.Iterable[int]
             if (
                 rust_openssl.CRYPTOGRAPHY_OPENSSL_300_OR_GREATER
@@ -509,22 +482,14 @@ class Backend:
         elif isinstance(
             encryption_algorithm, serialization.BestAvailableEncryption
         ):
-            # PKCS12 encryption is hopeless trash and can never be fixed.
-            # OpenSSL 3 supports PBESv2, but Libre and Boring do not, so
-            # we use PBESv1 with 3DES on the older paths.
             if rust_openssl.CRYPTOGRAPHY_OPENSSL_300_OR_GREATER:
                 nid_cert = self._lib.NID_aes_256_cbc
                 nid_key = self._lib.NID_aes_256_cbc
             else:
                 nid_cert = self._lib.NID_pbe_WithSHA1And3_Key_TripleDES_CBC
                 nid_key = self._lib.NID_pbe_WithSHA1And3_Key_TripleDES_CBC
-            # At least we can set this higher than OpenSSL's default
             pkcs12_iter = 20000
-            # mac_iter chosen for compatibility reasons, see:
-            # https://www.openssl.org/docs/man1.1.1/man3/PKCS12_create.html
-            # Did we mention how lousy PKCS12 encryption is?
             mac_iter = 1
-            # MAC algorithm can only be set on OpenSSL 3.0.0+
             mac_alg = self._ffi.NULL
             password = encryption_algorithm.password
         elif (
@@ -534,13 +499,9 @@ class Backend:
             and encryption_algorithm._format
             is serialization.PrivateFormat.PKCS12
         ):
-            # Default to OpenSSL's defaults. Behavior will vary based on the
-            # version of OpenSSL cryptography is compiled against.
             nid_cert = 0
             nid_key = 0
-            # Use the default iters we use in best available
             pkcs12_iter = 20000
-            # See the Best Available comment for why this is 1
             mac_iter = 1
             password = encryption_algorithm.password
             keycertalg = encryption_algorithm._key_cert_algorithm
@@ -556,7 +517,6 @@ class Backend:
                 nid_key = self._lib.NID_aes_256_cbc
             else:
                 assert keycertalg is None
-                # We use OpenSSL's defaults
 
             if encryption_algorithm._hmac_hash is not None:
                 if not self._lib.Cryptography_HAS_PKCS12_SET_MAC:
@@ -583,7 +543,6 @@ class Backend:
             sk_x509 = self._lib.sk_X509_new_null()
             sk_x509 = self._ffi.gc(sk_x509, self._lib.sk_X509_free)
 
-            # This list is to keep the x509 values alive until end of function
             ossl_cas = []
             for ca in cas:
                 if isinstance(ca, PKCS12Certificate):

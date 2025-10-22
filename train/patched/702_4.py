@@ -21,18 +21,14 @@ from pip._internal.utils.hashes import Hashes
 from pip._internal.utils.misc import path_to_url
 from tests.lib import create_file
 
-
 @pytest.fixture(scope="function")
 def cache_tmpdir(tmpdir):
     cache_dir = tmpdir.join("cache")
     cache_dir.makedirs()
     yield cache_dir
 
-
 def test_unpack_http_url_with_urllib_response_without_content_type(data):
-    """
-    It should download and unpack files even if no Content-Type header exists
-    """
+
     _real_session = PipSession()
 
     def _fake_session_get(*args, **kwargs):
@@ -59,16 +55,13 @@ def test_unpack_http_url_with_urllib_response_without_content_type(data):
     finally:
         rmtree(temp_dir)
 
-
 def get_user_agent():
     return PipSession().headers["User-Agent"]
-
 
 def test_user_agent():
     user_agent = get_user_agent()
 
     assert user_agent.startswith("pip/%s" % pip.__version__)
-
 
 @pytest.mark.parametrize('name, expected_like_ci', [
     ('BUILD_BUILDID', True),
@@ -90,11 +83,9 @@ def test_user_agent__ci(monkeypatch, name, expected_like_ci):
     assert ('"ci":true' in user_agent) == expected_like_ci
     assert ('"ci":null' in user_agent) == (not expected_like_ci)
 
-
 def test_user_agent_user_data(monkeypatch):
     monkeypatch.setenv("PIP_USER_AGENT_USER_DATA", "some_string")
     assert "some_string" in PipSession().headers["User-Agent"]
-
 
 class FakeStream(object):
 
@@ -109,7 +100,6 @@ class FakeStream(object):
 
     def release_conn(self):
         pass
-
 
 class MockResponse(object):
 
@@ -126,7 +116,6 @@ class MockResponse(object):
     def raise_for_status(self):
         pass
 
-
 class MockConnection(object):
 
     def _send(self, req, **kwargs):
@@ -138,7 +127,6 @@ class MockConnection(object):
             cb(resp)
         return resp
 
-
 class MockRequest(object):
 
     def __init__(self, url):
@@ -149,12 +137,9 @@ class MockRequest(object):
     def register_hook(self, event_name, callback):
         self.hooks.setdefault(event_name, []).append(callback)
 
-
 @patch('pip._internal.download.unpack_file')
 def test_unpack_http_url_bad_downloaded_checksum(mock_unpack_file):
-    """
-    If already-downloaded file has bad checksum, re-download.
-    """
+
     base_url = 'http://www.example.com/somepackage.tgz'
     contents = b'downloaded'
     download_hash = hashlib.new('sha1', contents)
@@ -190,7 +175,6 @@ def test_unpack_http_url_bad_downloaded_checksum(mock_unpack_file):
     finally:
         rmtree(download_dir)
 
-
 @pytest.mark.parametrize("filename, expected", [
     ('dir/file', 'file'),
     ('../file', 'file'),
@@ -200,11 +184,8 @@ def test_unpack_http_url_bad_downloaded_checksum(mock_unpack_file):
     ('/', ''),
 ])
 def test_sanitize_content_filename(filename, expected):
-    """
-    Test inputs where the result is the same for Windows and non-Windows.
-    """
-    assert sanitize_content_filename(filename) == expected
 
+    assert sanitize_content_filename(filename) == expected
 
 @pytest.mark.parametrize("filename, win_expected, non_win_expected", [
     ('dir\\file', 'file', 'dir\\file'),
@@ -219,15 +200,12 @@ def test_sanitize_content_filename__platform_dependent(
     win_expected,
     non_win_expected
 ):
-    """
-    Test inputs where the result is different for Windows and non-Windows.
-    """
+
     if sys.platform == 'win32':
         expected = win_expected
     else:
         expected = non_win_expected
     assert sanitize_content_filename(filename) == expected
-
 
 @pytest.mark.parametrize("content_disposition, default_filename, expected", [
     ('attachment;filename="../file"', 'df', 'file'),
@@ -240,12 +218,8 @@ def test_parse_content_disposition(
     actual = parse_content_disposition(content_disposition, default_filename)
     assert actual == expected
 
-
 def test_download_http_url__no_directory_traversal(tmpdir):
-    """
-    Test that directory traversal doesn't happen on download when the
-    Content-Disposition header contains a filename with a ".." path part.
-    """
+
     mock_url = 'http://www.example.com/whatever.tgz'
     contents = b'downloaded'
     link = Link(mock_url)
@@ -271,7 +245,6 @@ def test_download_http_url__no_directory_traversal(tmpdir):
     actual = os.listdir(download_dir)
     assert actual == ['out_dir_file']
 
-
 @pytest.mark.parametrize("url,win_expected,non_win_expected", [
     ('file:tmp', 'tmp', 'tmp'),
     ('file:c:/path/to/file', r'C:\path\to\file', 'c:/path/to/file'),
@@ -294,7 +267,6 @@ def test_url_to_path(url, win_expected, non_win_expected):
     else:
         assert url_to_path(url) == expected_path
 
-
 @pytest.mark.skipif("sys.platform != 'win32'")
 def test_url_to_path_path_to_url_symmetry_win():
     path = r'C:\tmp\file'
@@ -302,7 +274,6 @@ def test_url_to_path_path_to_url_symmetry_win():
 
     unc_path = r'\\unc\share\path'
     assert url_to_path(path_to_url(unc_path)) == unc_path
-
 
 class Test_unpack_file_url(object):
 
@@ -347,9 +318,7 @@ class Test_unpack_file_url(object):
 
     def test_unpack_file_url_bad_hash(self, tmpdir, data,
                                       monkeypatch):
-        """
-        Test when the file url hash fragment is wrong
-        """
+
         self.prep(tmpdir, data)
         self.dist_url.url = "%s#md5=bogus" % self.dist_url.url
         with pytest.raises(HashMismatch):
@@ -359,10 +328,7 @@ class Test_unpack_file_url(object):
 
     def test_unpack_file_url_download_bad_hash(self, tmpdir, data,
                                                monkeypatch):
-        """
-        Test when existing download has different hash from the file url
-        fragment
-        """
+
         self.prep(tmpdir, data)
 
         dest_file = os.path.join(self.download_dir, self.dist_file)
@@ -394,13 +360,8 @@ class Test_unpack_file_url(object):
                         download_dir=self.download_dir)
         assert os.path.isdir(os.path.join(self.build_dir, 'fspkg'))
 
-
 class TestSafeFileCache:
-    """
-    The no_perms test are useless on Windows since SafeFileCache uses
-    pip._internal.utils.filesystem.check_path_owner which is based on
-    os.geteuid which is absent on Windows.
-    """
+
 
     def test_cache_roundtrip(self, cache_tmpdir):
 
@@ -434,7 +395,6 @@ class TestSafeFileCache:
         cache = SafeFileCache(cache_tmpdir)
         cache.delete("foo")
 
-
 class TestPipSession:
 
     def test_cache_defaults_off(self):
@@ -464,7 +424,6 @@ class TestPipSession:
 
         assert not hasattr(session.adapters["https://example.com/"], "cache")
 
-
 def test_get_credentials():
     auth = MultiDomainBasicAuth()
     get = auth._get_url_and_credentials
@@ -476,7 +435,6 @@ def test_get_credentials():
     auth.passwords['example.com'] = ('user', 'pass')
     assert get("http://foo:bar@example.com/path") \
         == ('http://example.com/path', 'user', 'pass')
-
 
 def test_get_index_url_credentials():
     auth = MultiDomainBasicAuth(index_urls=[
@@ -491,11 +449,8 @@ def test_get_index_url_credentials():
     assert get("http://example.com/path/path2") == ('foo', 'bar')
     assert get("http://example.com/path3/path2") == (None, None)
 
-
 class KeyringModuleV1(object):
-    """Represents the supported API of keyring before get_credential
-    was added.
-    """
+
 
     def __init__(self):
         self.saved_passwords = []
@@ -509,7 +464,6 @@ class KeyringModuleV1(object):
 
     def set_password(self, system, username, password):
         self.saved_passwords.append((system, username, password))
-
 
 @pytest.mark.parametrize('url, expect', (
     ("http://example.com/path1", (None, None)),
@@ -526,7 +480,6 @@ def test_keyring_get_password(monkeypatch, url, expect):
                                        allow_keyring=True)
     assert actual == expect
 
-
 def test_keyring_get_password_after_prompt(monkeypatch):
     monkeypatch.setattr('pip._internal.download.keyring', KeyringModuleV1())
     auth = MultiDomainBasicAuth()
@@ -539,7 +492,6 @@ def test_keyring_get_password_after_prompt(monkeypatch):
     actual = auth._prompt_for_password("example.com")
     assert actual == ("user", "user!netloc", False)
 
-
 def test_keyring_get_password_username_in_index(monkeypatch):
     monkeypatch.setattr('pip._internal.download.keyring', KeyringModuleV1())
     auth = MultiDomainBasicAuth(index_urls=["http://user@example.com/path2"])
@@ -551,7 +503,6 @@ def test_keyring_get_password_username_in_index(monkeypatch):
 
     assert get("http://example.com/path2/path3") == ("user", "user!url")
     assert get("http://example.com/path4/path1") == (None, None)
-
 
 @pytest.mark.parametrize("response_status, creds, expect_save", (
     (403, ("user", "pass", True), False),
@@ -601,9 +552,8 @@ def test_keyring_set_password(monkeypatch, response_status, creds,
     else:
         assert keyring.saved_passwords == []
 
-
 class KeyringModuleV2(object):
-    """Represents the current supported API of keyring"""
+
 
     class Credential(object):
         def __init__(self, username, password):
@@ -619,7 +569,6 @@ class KeyringModuleV2(object):
         if system == "example.com":
             return self.Credential("username", "netloc")
         return None
-
 
 @pytest.mark.parametrize('url, expect', (
     ("http://example.com/path1", ("username", "netloc")),

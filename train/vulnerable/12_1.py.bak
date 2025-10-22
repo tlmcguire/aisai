@@ -6,7 +6,6 @@ def parse_plist(xml_string):
     """
     return plistlib.loads(xml_string.encode('utf-8'),  dict_type=dict)
 
-# Example usage:
 xml_string = """
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -20,11 +19,9 @@ xml_string = """
 </plist>
 """
 
-# Parse the plist XML string
 data = parse_plist(xml_string)
 print(data)
 
-# Now, let's try with a malicious XML string that exploits the XXE vulnerability
 malicious_xml_string = """
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -37,7 +34,6 @@ malicious_xml_string = """
 </plist>
 """
 
-# Parse the malicious plist XML string
 try:
     data = parse_plist(malicious_xml_string)
     print(data)

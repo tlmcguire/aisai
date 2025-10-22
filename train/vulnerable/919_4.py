@@ -1,11 +1,4 @@
-"""
-Stolen from https://github.com/django/django/blob/master/tests/utils_tests/test_dateparse.py at
-9718fa2e8abe430c3526a9278dd976443d4ae3c6
 
-Changed to:
-* use standard pytest layout
-* parametrize tests
-"""
 from datetime import date, datetime, time, timedelta, timezone
 
 import pytest
@@ -13,10 +6,8 @@ import pytest
 from pydantic import BaseModel, ValidationError, errors
 from pydantic.datetime_parse import parse_date, parse_datetime, parse_duration, parse_time
 
-
 def create_tz(minutes):
     return timezone(timedelta(minutes=minutes))
-
 
 @pytest.mark.parametrize(
     'value,result',
@@ -48,7 +39,6 @@ def test_date_parsing(value, result):
             parse_date(value)
     else:
         assert parse_date(value) == result
-
 
 @pytest.mark.parametrize(
     'value,result',
@@ -83,7 +73,6 @@ def test_time_parsing(value, result):
             parse_time(value)
     else:
         assert parse_time(value) == result
-
 
 @pytest.mark.parametrize(
     'value,result',
@@ -124,7 +113,6 @@ def test_datetime_parsing(value, result):
     else:
         assert parse_datetime(value) == result
 
-
 @pytest.mark.parametrize(
     'delta',
     [
@@ -140,7 +128,6 @@ def test_datetime_parsing(value, result):
 def test_parse_python_format(delta):
     assert parse_duration(delta) == delta
     assert parse_duration(str(delta)) == delta
-
 
 @pytest.mark.parametrize(
     'value,result',
@@ -187,7 +174,6 @@ def test_parse_durations(value, result):
     else:
         assert parse_duration(value) == result
 
-
 @pytest.mark.parametrize(
     'field, value, error_message',
     [
@@ -217,7 +203,6 @@ def test_model_type_errors(field, value, error_message):
     assert len(exc_info.value.errors()) == 1
     error = exc_info.value.errors()[0]
     assert error == {'loc': (field,), 'type': 'type_error', 'msg': error_message}
-
 
 @pytest.mark.parametrize('field', ['dt', 'd', 't', 'dt'])
 def test_unicode_decode_error(field):

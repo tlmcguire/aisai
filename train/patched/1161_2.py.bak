@@ -73,10 +73,8 @@ def extract_sub_links(
     absolute_paths = set()
     for link in all_links:
         parsed_link = urlparse(link)
-        # Some may be absolute links like https://to/path
         if parsed_link.scheme == "http" or parsed_link.scheme == "https":
             absolute_path = link
-        # Some may have omitted the protocol like //to/path
         elif link.startswith("//"):
             absolute_path = f"{urlparse(url).scheme}:{link}"
         else:
@@ -94,8 +92,6 @@ def extract_sub_links(
             if parsed_base_url.netloc != parsed_path.netloc:
                 continue
 
-            # Will take care of verifying rest of path after netloc
-            # if it's more specific
             if not path.startswith(base_url_to_use):
                 continue
 

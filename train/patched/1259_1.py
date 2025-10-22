@@ -3,9 +3,7 @@ from asteval import Interpreter
 
 class SafeInterpreter(Interpreter):
     def on_formattedvalue(self, node, fmt_str, val):
-      """
-      Handles f-string formatted values, mitigating CVE-2025-24359.
-      """
+
       if not isinstance(val, str):
           raise TypeError("Formatted value must be a string to avoid code injection.")
 

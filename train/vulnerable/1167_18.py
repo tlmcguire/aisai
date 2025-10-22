@@ -1,12 +1,4 @@
-"""
-project: lollms
-file: lollms_generation_events.py 
-author: ParisNeo
-description: 
-    This module contains a set of Socketio routes that provide information about the Lord of Large Language and Multimodal Systems (LoLLMs) Web UI
-    application. These routes are specific to text generation operation
 
-"""
 from fastapi import APIRouter, Request
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -29,7 +21,6 @@ import os
 router = APIRouter()
 lollmsElfServer = LOLLMSWebUI.get_instance()
 
-
 def add_events(sio:socketio):
     @sio.on('generate_msg')
     def handle_generate_msg(sid, data):
@@ -41,8 +32,6 @@ def add_events(sio:socketio):
         client.cancel_generation=False
         client.continuing=False
         client.first_chunk=True
-
-
 
         if not lollmsElfServer.model:
             ASCIIColors.error("Model not selected. Please select a model")
@@ -86,8 +75,6 @@ def add_events(sio:socketio):
         client.continuing=False
         client.first_chunk=True
 
-
-
         if not lollmsElfServer.model:
             ASCIIColors.error("Model not selected. Please select a model")
             lollmsElfServer.error("Model not selected. Please select a model", client_id=client_id)
@@ -120,9 +107,6 @@ def add_events(sio:socketio):
             lollmsElfServer.busy=True
         else:
             lollmsElfServer.error("I am busy. Come back later.", client_id=client_id)
-
-
-
 
     @sio.on('generate_msg_from')
     def handle_generate_msg_from(sid, data):

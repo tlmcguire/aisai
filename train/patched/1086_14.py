@@ -1,26 +1,4 @@
-"""Run Python tests against multiple installations of OpenSSL and LibreSSL
 
-The script
-
-  (1) downloads OpenSSL / LibreSSL tar bundle
-  (2) extracts it to ./src
-  (3) compiles OpenSSL / LibreSSL
-  (4) installs OpenSSL / LibreSSL into ../multissl/$LIB/$VERSION/
-  (5) forces a recompilation of Python modules using the
-      header and library files from ../multissl/$LIB/$VERSION/
-  (6) runs Python's test suite
-
-The script must be run with Python's build directory as current working
-directory.
-
-The script uses LD_RUN_PATH, LD_LIBRARY_PATH, CPPFLAGS and LDFLAGS to bend
-search paths for header files and shared libraries. It's known to work on
-Linux with GCC and clang.
-
-Please keep this script compatible with Python 2.7, and 3.4 to 3.7.
-
-(c) 2013-2017 Christian Heimes <christian@python.org>
-"""
 from __future__ import print_function
 
 import argparse
@@ -37,7 +15,6 @@ import string
 import subprocess
 import sys
 import tarfile
-
 
 log = logging.getLogger("multissl")
 
@@ -58,7 +35,6 @@ LIBRESSL_RECENT_VERSIONS = [
 HERE = os.path.dirname(os.path.abspath(__file__))
 PYTHONROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 MULTISSL_DIR = os.path.abspath(os.path.join(PYTHONROOT, '..', 'multissl'))
-
 
 parser = argparse.ArgumentParser(
     prog='multissl',
@@ -157,7 +133,6 @@ default = default_sect
 activate = 1
 """
 
-
 class AbstractBuilder(object):
     library = None
     url_templates = None
@@ -200,23 +175,23 @@ class AbstractBuilder(object):
 
     @property
     def short_version(self):
-        """Short version for OpenSSL download URL"""
+
         return None
 
     @property
     def openssl_cli(self):
-        """openssl CLI binary"""
+
         return os.path.join(self.install_dir, "bin", "openssl")
 
     @property
     def openssl_version(self):
-        """output of 'bin/openssl version'"""
+
         cmd = [self.openssl_cli, "version"]
         return self._subprocess_output(cmd)
 
     @property
     def pyssl_version(self):
-        """Value of ssl.OPENSSL_VERSION"""
+
         cmd = [
             sys.executable,
             '-c', 'import ssl; print(ssl.OPENSSL_VERSION)'
@@ -252,7 +227,7 @@ class AbstractBuilder(object):
         return out.strip().decode("utf-8")
 
     def _download_src(self):
-        """Download sources"""
+
         src_dir = os.path.dirname(self.src_file)
         if not os.path.isdir(src_dir):
             os.makedirs(src_dir)
@@ -277,7 +252,7 @@ class AbstractBuilder(object):
             f.write(data)
 
     def _unpack_src(self):
-        """Unpack tar.gz bundle"""
+
         if os.path.isdir(self.build_dir):
             shutil.rmtree(self.build_dir)
         os.makedirs(self.build_dir)
@@ -296,7 +271,7 @@ class AbstractBuilder(object):
         tf.extractall(self.build_dir, members)
 
     def _build_src(self):
-        """Now build openssl"""
+
         log.info("Running build in {}".format(self.build_dir))
         cwd = self.build_dir
         cmd = [
@@ -384,7 +359,6 @@ class AbstractBuilder(object):
         cmd.extend(tests)
         self._subprocess_call(cmd, stdout=None)
 
-
 class BuildOpenSSL(AbstractBuilder):
     library = "OpenSSL"
     url_templates = (
@@ -423,12 +397,11 @@ class BuildOpenSSL(AbstractBuilder):
             f.write(OPENSSL_FIPS_CNF.format(self=self))
     @property
     def short_version(self):
-        """Short version for OpenSSL download URL"""
+
         short_version = self.version.rstrip(string.ascii_letters)
         if short_version.startswith("0.9"):
             short_version = "0.9.x"
         return short_version
-
 
 class BuildLibreSSL(AbstractBuilder):
     library = "LibreSSL"
@@ -437,7 +410,6 @@ class BuildLibreSSL(AbstractBuilder):
     )
     src_template = "libressl-{}.tar.gz"
     build_template = "libressl-{}"
-
 
 def configure_make():
     if not os.path.isfile('Makefile'):
@@ -449,7 +421,6 @@ def configure_make():
 
     log.info('Running make')
     subprocess.check_call(['make', '--quiet'])
-
 
 def main():
     args = parser.parse_args()
@@ -526,7 +497,6 @@ def main():
     print('OpenSSL / LibreSSL versions:')
     for build in builds:
         print("    * {0.library} {0.version}".format(build))
-
 
 if __name__ == "__main__":
     main()

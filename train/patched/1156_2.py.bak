@@ -45,7 +45,6 @@ class SocketIoApp(socketio.ASGIApp):
 
 
 core.app = app = App(default_response_class=NiceGUIJSONResponse, lifespan=_lifespan)
-# NOTE we use custom json module which wraps orjson
 core.sio = sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*', json=json)
 sio_app = SocketIoApp(socketio_server=sio, socketio_path='/socket.io')
 app.mount('/_nicegui_ws/', sio_app)
@@ -62,7 +61,7 @@ static_files = StaticFiles(
 )
 app.mount(f'/_nicegui/{__version__}/static', static_files, name='static')
 
-Client.auto_index_client = Client(page('/'), shared=True).__enter__()  # pylint: disable=unnecessary-dunder-call
+Client.auto_index_client = Client(page('/'), shared=True).__enter__()
 
 
 @app.get('/')
@@ -97,7 +96,7 @@ def _get_resource(key: str, path: str) -> FileResponse:
     if key in resources:
         filepath = resources[key].path / path
         try:
-            filepath.resolve().relative_to(resources[key].path.resolve())  # NOTE: use is_relative_to() in Python 3.9
+            filepath.resolve().relative_to(resources[key].path.resolve())
         except ValueError as e:
             raise HTTPException(status_code=403, detail='forbidden') from e
         if filepath.exists():
@@ -118,12 +117,11 @@ async def _startup() -> None:
                            '   if __name__ in {"__main__", "__mp_main__"}:\n'
                            'to allow for multiprocessing.')
     await welcome.collect_urls()
-    # NOTE ping interval and timeout need to be lower than the reconnect timeout, but can't be too low
     sio.eio.ping_interval = max(app.config.reconnect_timeout * 0.8, 4)
     sio.eio.ping_timeout = max(app.config.reconnect_timeout * 0.4, 2)
     if core.app.config.favicon:
         if helpers.is_file(core.app.config.favicon):
-            app.add_route('/favicon.ico', lambda _: FileResponse(core.app.config.favicon))  # type: ignore
+            app.add_route('/favicon.ico', lambda _: FileResponse(core.app.config.favicon))
         else:
             app.add_route('/favicon.ico', lambda _: favicon.get_favicon_response())
     else:

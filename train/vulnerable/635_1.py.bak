@@ -7,7 +7,7 @@ app = Flask(__name__)
 
 UPLOAD_FOLDER = '/uploads'
 ALLOWED_EXTENSIONS = {'pkl'}
-SECRET_KEY = secrets.token_urlsafe(32)  # Generate a strong secret key
+SECRET_KEY = secrets.token_urlsafe(32)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SECRET_KEY'] = SECRET_KEY
@@ -24,7 +24,6 @@ def is_safe_pickle(data):
     such as restricting unpickling to allowed classes or using a safer serialization method.
     """
     try:
-        # Example: Check if the data is a dictionary or a list
         if isinstance(data, (dict, list, str, int, float, tuple)):
             return True
         return False
@@ -48,21 +47,20 @@ def upload_backup():
         return 'No file selected', 400
 
     if backup_file and allowed_file(backup_file.filename):
-        filename = secrets.token_hex(16) + ".pkl" # Generate a unique file name
+        filename = secrets.token_hex(16) + ".pkl"
         backup_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        os.makedirs(os.path.dirname(backup_path), exist_ok=True) # Create the directory if it does not exist
+        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
         backup_file.save(backup_path)
 
         try:
             with open(backup_path, 'rb') as file:
                 import pickle
                 data = pickle.load(file)
-            
+
             if is_safe_pickle(data):
-                # Process the data as needed
                 return 'Backup uploaded and processed successfully', 200
             else:
-                os.remove(backup_path) # Remove the unsafe file
+                os.remove(backup_path)
                 return "Unsafe Pickle file, upload failed.", 400
         except Exception as e:
             os.remove(backup_path)

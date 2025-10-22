@@ -7,7 +7,7 @@ class Version:
         self.expected_sha256 = expected_sha256
 
     def fetch_binary(self):
-        """Fetches a binary from the given URL, verifying the SHA256 hash."""
+
         response = requests.get(self.url, stream=True)
         response.raise_for_status()
 
@@ -22,8 +22,6 @@ class Version:
 
         return response.content
 
-
-
 class Package:
     def __init__(self, binary_url, binary_sha256):
         self.binary_version = Version(binary_url, binary_sha256)
@@ -32,12 +30,10 @@ class Package:
       binary_data = self.binary_version.fetch_binary()
       print("Binary installed")
 
-
 def _fetch_archives(package_list):
-    """Fetches archives from a list of packages."""
+
     for package in package_list:
         package.install()
-
 
 if __name__ == '__main__':
     valid_package = Package(

@@ -47,7 +47,6 @@ INVALID_RUNTIME = [
     SpaceStage.PAUSED,
 ]
 
-
 def get_package_version() -> str:
     try:
         package_json_data = (
@@ -59,36 +58,30 @@ def get_package_version() -> str:
     except Exception:
         return ""
 
-
 __version__ = get_package_version()
 
-
 class TooManyRequestsError(Exception):
-    """Raised when the API returns a 429 status code."""
+
 
     pass
-
 
 class QueueError(Exception):
-    """Raised when the queue is full or there is an issue adding a job to the queue."""
+
 
     pass
-
 
 class InvalidAPIEndpointError(Exception):
-    """Raised when the API endpoint is invalid."""
+
 
     pass
-
 
 class SpaceDuplicationError(Exception):
-    """Raised when something goes wrong with a Space Duplication."""
+
 
     pass
 
-
 class Status(Enum):
-    """Status codes presented to client users."""
+
 
     STARTING = "STARTING"
     JOINING_QUEUE = "JOINING_QUEUE"
@@ -103,7 +96,7 @@ class Status(Enum):
 
     @staticmethod
     def ordering(status: Status) -> int:
-        """Order of messages. Helpful for testing."""
+
         order = [
             Status.STARTING,
             Status.JOINING_QUEUE,
@@ -123,7 +116,7 @@ class Status(Enum):
 
     @staticmethod
     def msg_to_status(msg: str) -> Status:
-        """Map the raw message from the backend to the status code presented to users."""
+
         return {
             "send_hash": Status.JOINING_QUEUE,
             "queue_full": Status.QUEUE_FULL,
@@ -134,7 +127,6 @@ class Status(Enum):
             "process_completed": Status.FINISHED,
             "progress": Status.PROGRESS,
         }[msg]
-
 
 @dataclass
 class ProgressUnit:
@@ -157,10 +149,9 @@ class ProgressUnit:
             for d in data
         ]
 
-
 @dataclass
 class StatusUpdate:
-    """Update message sent from the worker thread to the Job on the main thread."""
+
 
     code: Status
     rank: int | None
@@ -169,7 +160,6 @@ class StatusUpdate:
     success: bool | None
     time: datetime | None
     progress_data: list[ProgressUnit] | None
-
 
 def create_initial_status_update():
     return StatusUpdate(
@@ -182,21 +172,16 @@ def create_initial_status_update():
         progress_data=None,
     )
 
-
 @dataclass
 class JobStatus:
-    """The job status.
 
-    Keeps track of the latest status update and intermediate outputs (not yet implements).
-    """
 
     latest_status: StatusUpdate = field(default_factory=create_initial_status_update)
     outputs: list[Any] = field(default_factory=list)
 
-
 @dataclass
 class Communicator:
-    """Helper class to help communicate between the worker thread and main thread."""
+
 
     lock: Lock
     job: JobStatus
@@ -205,20 +190,12 @@ class Communicator:
     should_cancel: bool = False
     event_id: str | None = None
 
-
-
-
 def is_http_url_like(possible_url: str) -> bool:
-    """
-    Check if the given string looks like an HTTP(S) URL.
-    """
+
     return possible_url.startswith(("http://", "https://"))
 
-
 def probe_url(possible_url: str) -> bool:
-    """
-    Probe the given URL to see if it responds with a 200 status code (to HEAD, then to GET).
-    """
+
     headers = {"User-Agent": "gradio (https://gradio.app/; team@gradio.app)"}
     try:
         with httpx.Client() as client:
@@ -229,17 +206,13 @@ def probe_url(possible_url: str) -> bool:
     except Exception:
         return False
 
-
 def is_valid_url(possible_url: str) -> bool:
-    """
-    Check if the given string is a valid URL.
-    """
+
     warnings.warn(
         "is_valid_url should not be used. "
         "Use is_http_url_like() and probe_url(), as suitable, instead.",
     )
     return is_http_url_like(possible_url) and probe_url(possible_url)
-
 
 async def get_pred_from_ws(
     websocket: WebSocketCommonProtocol,
@@ -296,7 +269,6 @@ async def get_pred_from_ws(
         completed = resp["msg"] == "process_completed"
     return resp["output"]
 
-
 async def get_pred_from_sse(
     client: httpx.AsyncClient,
     data: dict,
@@ -337,7 +309,6 @@ async def get_pred_from_sse(
     for task in done:
         return task.result()
 
-
 async def check_for_cancel(helper: Communicator, cookies: dict[str, str] | None):
     while True:
         await asyncio.sleep(0.05)
@@ -350,7 +321,6 @@ async def check_for_cancel(helper: Communicator, cookies: dict[str, str] | None)
                 helper.reset_url, json={"event_id": helper.event_id}, cookies=cookies
             )
     raise CancelledError()
-
 
 async def stream_sse(
     client: httpx.AsyncClient,
@@ -415,9 +385,6 @@ async def stream_sse(
     except asyncio.CancelledError:
         raise
 
-
-
-
 def download_file(
     url_path: str,
     dir: str,
@@ -444,7 +411,6 @@ def download_file(
     shutil.move(temp_dir / Path(url_path).name, dest)
     return str(dest.resolve())
 
-
 def create_tmp_copy_of_file(file_path: str, dir: str | None = None) -> str:
     directory = Path(dir or tempfile.gettempdir()) / secrets.token_hex(20)
     directory.mkdir(exist_ok=True, parents=True)
@@ -452,11 +418,10 @@ def create_tmp_copy_of_file(file_path: str, dir: str | None = None) -> str:
     shutil.copy2(file_path, dest)
     return str(dest.resolve())
 
-
 def download_tmp_copy_of_file(
     url_path: str, hf_token: str | None = None, dir: str | None = None
 ) -> str:
-    """Kept for backwards compatibility for 3.x spaces."""
+
     if dir is not None:
         os.makedirs(dir, exist_ok=True)
     headers = {"Authorization": "Bearer " + hf_token} if hf_token else {}
@@ -471,7 +436,6 @@ def download_tmp_copy_of_file(
                 f.write(chunk)
     return str(file_path.resolve())
 
-
 def get_mimetype(filename: str) -> str | None:
     if filename.endswith(".vtt"):
         return "text/vtt"
@@ -479,7 +443,6 @@ def get_mimetype(filename: str) -> str | None:
     if mimetype is not None:
         mimetype = mimetype.replace("x-wav", "wav").replace("x-flac", "flac")
     return mimetype
-
 
 def get_extension(encoding: str) -> str | None:
     encoding = encoding.replace("audio/wav", "audio/x-wav")
@@ -493,7 +456,6 @@ def get_extension(encoding: str) -> str | None:
         extension = extension[1:]
     return extension
 
-
 def encode_file_to_base64(f: str | Path):
     with open(f, "rb") as file:
         encoded_string = base64.b64encode(file.read())
@@ -506,7 +468,6 @@ def encode_file_to_base64(f: str | Path):
             + base64_str
         )
 
-
 def encode_url_to_base64(url: str):
     resp = httpx.get(url)
     resp.raise_for_status()
@@ -517,13 +478,11 @@ def encode_url_to_base64(url: str):
         "data:" + (mimetype if mimetype is not None else "") + ";base64," + base64_str
     )
 
-
 def encode_url_or_file_to_base64(path: str | Path):
     path = str(path)
     if is_http_url_like(path):
         return encode_url_to_base64(path)
     return encode_file_to_base64(path)
-
 
 def download_byte_stream(url: str, hf_token=None):
     arr = bytearray()
@@ -534,15 +493,13 @@ def download_byte_stream(url: str, hf_token=None):
             yield data
     yield arr
 
-
 def decode_base64_to_binary(encoding: str) -> tuple[bytes, str | None]:
     extension = get_extension(encoding)
     data = encoding.rsplit(",", 1)[-1]
     return base64.b64decode(data), extension
 
-
 def strip_invalid_filename_characters(filename: str, max_bytes: int = 200) -> str:
-    """Strips invalid characters from a filename and ensures that the file_length is less than `max_bytes` bytes."""
+
     filename = "".join([char for char in filename if char.isalnum() or char in "._- "])
     filename_len = len(filename.encode())
     if filename_len > max_bytes:
@@ -553,15 +510,13 @@ def strip_invalid_filename_characters(filename: str, max_bytes: int = 200) -> st
             filename_len = len(filename.encode())
     return filename
 
-
 def sanitize_parameter_names(original_name: str) -> str:
-    """Cleans up a Python parameter name to make the API info more readable."""
+
     return (
         "".join([char for char in original_name if char.isalnum() or char in " _"])
         .replace(" ", "_")
         .lower()
     )
-
 
 def decode_base64_to_file(
     encoding: str,
@@ -597,7 +552,6 @@ def decode_base64_to_file(
     file_obj.flush()
     return file_obj
 
-
 def dict_or_str_to_json_file(jsn: str | dict | list, dir: str | Path | None = None):
     if dir is not None:
         os.makedirs(dir, exist_ok=True)
@@ -611,11 +565,9 @@ def dict_or_str_to_json_file(jsn: str | dict | list, dir: str | Path | None = No
     file_obj.flush()
     return file_obj
 
-
 def file_to_json(file_path: str | Path) -> dict | list:
     with open(file_path) as f:
         return json.load(f)
-
 
 def set_space_timeout(
     space_id: str,
@@ -639,28 +591,12 @@ def set_space_timeout(
             "to set a timeout manually to reduce billing charges."
         ) from e
 
-
-
-
 def synchronize_async(func: Callable, *args, **kwargs) -> Any:
-    """
-    Runs async functions in sync scopes. Can be used in any scope.
 
-    Example:
-        if inspect.iscoroutinefunction(block_fn.fn):
-            predictions = utils.synchronize_async(block_fn.fn, *processed_input)
-
-    Args:
-        func:
-        *args:
-        **kwargs:
-    """
     return fsspec.asyn.sync(fsspec.asyn.get_loop(), func, *args, **kwargs)
-
 
 class APIInfoParseError(ValueError):
     pass
-
 
 def get_type(schema: dict):
     if "const" in schema:
@@ -682,17 +618,14 @@ def get_type(schema: dict):
     else:
         raise APIInfoParseError(f"Cannot parse type for {schema}")
 
-
 FILE_DATA = "Dict(path: str, url: str | None, size: int | None, orig_name: str | None, mime_type: str | None)"
-
 
 def json_schema_to_python_type(schema: Any) -> str:
     type_ = _json_schema_to_python_type(schema, schema.get("$defs"))
     return type_.replace(FILE_DATA, "filepath")
 
-
 def _json_schema_to_python_type(schema: Any, defs) -> str:
-    """Convert the json schema into a python type hint"""
+
     if schema == {}:
         return "Any"
     type_ = get_type(schema)
@@ -761,7 +694,6 @@ def _json_schema_to_python_type(schema: Any, defs) -> str:
     else:
         raise APIInfoParseError(f"Cannot parse schema {schema}")
 
-
 def traverse(json_obj: Any, func: Callable, is_root: Callable) -> Any:
     if is_root(json_obj):
         return func(json_obj)
@@ -778,23 +710,18 @@ def traverse(json_obj: Any, func: Callable, is_root: Callable) -> Any:
     else:
         return json_obj
 
-
 def value_is_file(api_info: dict) -> bool:
     info = _json_schema_to_python_type(api_info, api_info.get("$defs"))
     return FILE_DATA in info
 
-
 def is_filepath(s):
     return isinstance(s, str) and Path(s).exists()
-
 
 def is_url(s):
     return isinstance(s, str) and is_http_url_like(s)
 
-
 def is_file_obj(d):
     return isinstance(d, dict) and "path" in d
-
 
 SKIP_COMPONENTS = {
     "state",

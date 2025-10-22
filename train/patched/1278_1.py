@@ -2,9 +2,7 @@ import os
 import stat
 
 def create_cache_file(filename, content):
-    """
-    Creates a cache file with tightened permissions.
-    """
+
     try:
         with open(filename, 'w') as f:
             f.write(content)

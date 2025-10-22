@@ -7,10 +7,9 @@ from typing import Any, Dict, List, Optional, Union, cast
 from .an_enum import AnEnum
 from .different_enum import DifferentEnum
 
-
 @dataclass
 class AModel:
-    """ A Model for testing all the ways custom objects can be used  """
+
 
     an_enum_value: AnEnum
     a_camel_date_time: Union[datetime, date]

@@ -2,7 +2,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 import re
 
 def mask_sensitive_data(text):
-    """Masks potential sensitive data like passwords and API keys."""
+
     text = re.sub(r'password: ?\w+', 'password: [MASKED]', text, flags=re.IGNORECASE)
     text = re.sub(r'api_key=[\w-]+', 'api_key=[MASKED]', text, flags=re.IGNORECASE)
     return text

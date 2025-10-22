@@ -38,11 +38,8 @@ logger = logging.getLogger(__name__)
 
 BUF_SIZE = 16384
 
-
-
-
 class AuthByWebBrowser(AuthByPlugin):
-    """Authenticates user by web browser. Only used for SAML based authentication."""
+
 
     def __init__(
         self,
@@ -78,15 +75,11 @@ class AuthByWebBrowser(AuthByPlugin):
 
     @property
     def assertion_content(self) -> str:
-        """Returns the token."""
+
         return self._token
 
     def update_body(self, body: dict[Any, Any]) -> None:
-        """Used by Auth to update the request that gets sent to /v1/login-request.
 
-        Args:
-            body: existing request dictionary
-        """
         body["data"]["AUTHENTICATOR"] = EXTERNAL_BROWSER_AUTHENTICATOR
         body["data"]["TOKEN"] = self._token
         body["data"]["PROOF_KEY"] = self._proof_key
@@ -101,7 +94,7 @@ class AuthByWebBrowser(AuthByPlugin):
         user: str,
         **kwargs: Any,
     ) -> None:
-        """Web Browser based Authentication."""
+
         logger.debug("authenticating by Web Browser")
 
         socket_connection = self._socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -175,7 +168,7 @@ class AuthByWebBrowser(AuthByPlugin):
         return {"success": True}
 
     def _receive_saml_token(self, conn: SnowflakeConnection, socket_connection) -> None:
-        """Receives SAML token from web browser."""
+
         while True:
             socket_client, _ = socket_connection.accept()
             try:
@@ -189,7 +182,7 @@ class AuthByWebBrowser(AuthByPlugin):
                 socket_client.close()
 
     def _process_options(self, data: list[str], socket_client: socket.socket) -> bool:
-        """Allows JS Ajax access to this endpoint."""
+
         for line in data:
             if line.startswith("OPTIONS "):
                 break
@@ -350,7 +343,7 @@ You can close this window now and go back where you started from.
         callback_port: int,
         user: str,
     ) -> str:
-        """Gets SSO URL from Snowflake."""
+
         headers = {
             HTTP_HEADER_CONTENT_TYPE: CONTENT_TYPE_APPLICATION_JSON,
             HTTP_HEADER_ACCEPT: CONTENT_TYPE_APPLICATION_JSON,

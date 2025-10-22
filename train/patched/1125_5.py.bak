@@ -1,5 +1,3 @@
-# type: ignore
-# Tests for aiohttp/protocol.py
 
 import asyncio
 import re
@@ -40,7 +38,7 @@ try:
 
     REQUEST_PARSERS.append(HttpRequestParserC)
     RESPONSE_PARSERS.append(HttpResponseParserC)
-except ImportError:  # pragma: no cover
+except ImportError:
     pass
 
 
@@ -58,7 +56,6 @@ def _gen_ids(parsers: List[Any]) -> List[str]:
 
 @pytest.fixture(params=REQUEST_PARSERS, ids=_gen_ids(REQUEST_PARSERS))
 def parser(loop: Any, protocol: Any, request: Any):
-    # Parser implementations
     return request.param(
         protocol,
         loop,
@@ -70,13 +67,11 @@ def parser(loop: Any, protocol: Any, request: Any):
 
 @pytest.fixture(params=REQUEST_PARSERS, ids=_gen_ids(REQUEST_PARSERS))
 def request_cls(request: Any):
-    # Request Parser class
     return request.param
 
 
 @pytest.fixture(params=RESPONSE_PARSERS, ids=_gen_ids(RESPONSE_PARSERS))
 def response(loop: Any, protocol: Any, request: Any):
-    # Parser implementations
     return request.param(
         protocol,
         loop,
@@ -88,7 +83,6 @@ def response(loop: Any, protocol: Any, request: Any):
 
 @pytest.fixture(params=RESPONSE_PARSERS, ids=_gen_ids(RESPONSE_PARSERS))
 def response_cls(request: Any):
-    # Parser implementations
     return request.param
 
 
@@ -177,7 +171,6 @@ def test_bad_header_name(parser: Any, rfc9110_5_6_2_token_delim: str) -> None:
     text = f"POST / HTTP/1.1\r\nhead{rfc9110_5_6_2_token_delim}er: val\r\n\r\n".encode()
     expectation = pytest.raises(http_exceptions.BadHttpMessage)
     if rfc9110_5_6_2_token_delim == ":":
-        # Inserting colon into header just splits name/value earlier.
         expectation = nullcontext()
     with expectation:
         parser.feed_data(text)
@@ -186,14 +179,14 @@ def test_bad_header_name(parser: Any, rfc9110_5_6_2_token_delim: str) -> None:
 @pytest.mark.parametrize(
     "hdr",
     (
-        "Content-Length: -5",  # https://www.rfc-editor.org/rfc/rfc9110.html#name-content-length
+        "Content-Length: -5",
         "Content-Length: +256",
         "Content-Length: \N{superscript one}",
         "Content-Length: \N{mathematical double-struck digit one}",
-        "Foo: abc\rdef",  # https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5-5
+        "Foo: abc\rdef",
         "Bar: abc\ndef",
         "Baz: abc\x00def",
-        "Foo : bar",  # https://www.rfc-editor.org/rfc/rfc9112.html#section-5.1-2
+        "Foo : bar",
         "Foo\t: bar",
         "\xffoo: bar",
     ),
@@ -600,11 +593,9 @@ def test_headers_content_length_err_2(parser: Any) -> None:
 
 _pad: Dict[bytes, str] = {
     b"": "empty",
-    # not a typo. Python likes triple zero
     b"\000": "NUL",
     b" ": "SP",
     b"  ": "SPSP",
-    # not a typo: both 0xa0 and 0x0a in case of 8-bit fun
     b"\n": "LF",
     b"\xa0": "NBSP",
     b"\t ": "TABSP",
@@ -620,7 +611,6 @@ def test_invalid_header_spacing(
     text = b"GET /test HTTP/1.1\r\n" b"%s%s%s: value\r\n\r\n" % (pad1, hdr, pad2)
     expectation = pytest.raises(http_exceptions.BadHttpMessage)
     if pad1 == pad2 == b"" and hdr != b"":
-        # one entry in param matrix is correct: non-empty name, not padded
         expectation = nullcontext()
     if pad1 == pad2 == hdr == b"":
         if not isinstance(response, HttpResponseParserPy):
@@ -755,16 +745,11 @@ def test_http_request_bad_status_line(parser: Any) -> None:
     text = b"getpath \r\n\r\n"
     with pytest.raises(http_exceptions.BadStatusLine) as exc_info:
         parser.feed_data(text)
-    # Check for accidentally escaped message.
     assert r"\n" not in exc_info.value.message
 
 
 _num: Dict[bytes, str] = {
-    # dangerous: accepted by Python int()
-    # unicodedata.category("\U0001D7D9") == 'Nd'
     "\N{mathematical double-struck digit one}".encode(): "utf8digit",
-    # only added for interop tests, refused by Python int()
-    # unicodedata.category("\U000000B9") == 'No'
     "\N{superscript one}".encode(): "utf8number",
     "\N{superscript one}".encode("latin-1"): "latin1number",
 }
@@ -780,7 +765,6 @@ def test_http_request_bad_status_line_number(
 
 
 def test_http_request_bad_status_line_separator(parser: Any) -> None:
-    # single code point, old, multibyte NFKC, multibyte NFKD
     utf8sep = "\N{arabic ligature sallallahou alayhe wasallam}".encode()
     text = b"GET /ligature HTTP/1" + utf8sep + b"1\r\n\r\n"
     with pytest.raises(http_exceptions.BadStatusLine):
@@ -812,10 +796,7 @@ def test_http_request_parser_utf8_request_line(parser: Any) -> None:
     if not isinstance(response, HttpResponseParserPy):
         pytest.xfail("Regression test for Py parser. May match C behaviour later.")
     messages, upgrade, tail = parser.feed_data(
-        # note the truncated unicode sequence
         b"GET /P\xc3\xbcnktchen\xa0\xef\xb7 HTTP/1.1\r\n" +
-        # for easier grep: ASCII 0xA0 more commonly known as non-breaking space
-        # note the leading and trailing spaces
         "sTeP:  \N{latin small letter sharp s}nek\t\N{no-break space}  "
         "\r\n\r\n".encode()
     )
@@ -1549,7 +1530,6 @@ class TestParsePayload:
         assert b"45" == tail
 
     async def test_http_payload_parser_deflate(self, stream: Any) -> None:
-        # c=compressobj(wbits=15); b''.join([c.compress(b'data'), c.flush()])
         COMPRESSED = b"x\x9cKI,I\x04\x00\x04\x00\x01\x9b"
 
         length = len(COMPRESSED)
@@ -1563,7 +1543,6 @@ class TestParsePayload:
 
     async def test_http_payload_parser_deflate_no_hdrs(self, stream: Any) -> None:
         """Tests incorrectly formed data (no zlib headers)."""
-        # c=compressobj(wbits=-15); b''.join([c.compress(b'data'), c.flush()])
         COMPRESSED = b"KI,I\x04\x00"
 
         length = len(COMPRESSED)
@@ -1576,7 +1555,6 @@ class TestParsePayload:
         assert out.is_eof()
 
     async def test_http_payload_parser_deflate_light(self, stream: Any) -> None:
-        # c=compressobj(wbits=9); b''.join([c.compress(b'data'), c.flush()])
         COMPRESSED = b"\x18\x95KI,I\x04\x00\x04\x00\x01\x9b"
 
         length = len(COMPRESSED)
@@ -1593,8 +1571,6 @@ class TestParsePayload:
             stream, 2**16, loop=asyncio.get_event_loop()
         )
         p = HttpPayloadParser(out, compression="deflate", readall=True)
-        # Feeding one correct byte should be enough to choose exact
-        # deflate decompressor
         p.feed_data(b"x", 1)
         p.feed_data(b"\x9cKI,I\x04\x00\x04\x00\x01\x9b", 11)
         p.feed_eof()
@@ -1605,8 +1581,6 @@ class TestParsePayload:
             stream, 2**16, loop=asyncio.get_event_loop()
         )
         p = HttpPayloadParser(out, compression="deflate", readall=True)
-        # Feeding one wrong byte should be enough to choose exact
-        # deflate decompressor
         p.feed_data(b"K", 1)
         p.feed_data(b"I,I\x04\x00", 5)
         p.feed_eof()
@@ -1642,7 +1616,6 @@ class TestDeflateBuffer:
         dbuf.decompressor = mock.Mock()
         dbuf.decompressor.decompress_sync.return_value = b"line"
 
-        # First byte should be b'x' in order code not to change the decoder.
         dbuf.feed_data(b"xxxx", 4)
         assert [b"line"] == list(d for d, _ in buf._buffer)
 
@@ -1657,8 +1630,6 @@ class TestDeflateBuffer:
         dbuf.decompressor.decompress_sync.side_effect = exc
 
         with pytest.raises(http_exceptions.ContentEncodingError):
-            # Should be more than 4 bytes to trigger deflate FSM error.
-            # Should start with b'x', otherwise code switch mocked decoder.
             dbuf.feed_data(b"xsomedata", 9)
 
     async def test_feed_eof(self, stream: Any) -> None:

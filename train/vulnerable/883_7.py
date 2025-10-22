@@ -1,4 +1,4 @@
-"""This module handles finding and parsing fides configuration files."""
+
 
 from typing import Dict, List, Optional, Pattern, Tuple, Union
 
@@ -14,9 +14,8 @@ from .fides_settings import FidesSettings
 
 ENV_PREFIX = "FIDES__SECURITY__"
 
-
 class SecuritySettings(FidesSettings):
-    """Configuration settings for application security."""
+
 
     aes_encryption_key_length: int = Field(
         default=16,
@@ -151,7 +150,7 @@ class SecuritySettings(FidesSettings):
     def validate_encryption_key_length(
         cls, v: Optional[str], values: Dict[str, str]
     ) -> Optional[str]:
-        """Validate the encryption key is exactly 32 characters"""
+
 
         if v == "":
             return v
@@ -165,7 +164,7 @@ class SecuritySettings(FidesSettings):
     @validator("cors_origins", pre=True)
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
-        """Return a list of valid origins for CORS requests"""
+
 
         def validate(values: List[str]) -> None:
             for value in values:
@@ -189,11 +188,7 @@ class SecuritySettings(FidesSettings):
     def assemble_root_access_token(
         cls, v: Optional[str], values: Dict[str, str]
     ) -> Optional[Tuple]:
-        """
-        Sets a hashed value of the root access key.
-        This is hashed as it is not wise to return a plaintext for of the
-        root credential anywhere in the system.
-        """
+
         value = values.get("oauth_root_client_secret", "")
 
         if not value:
@@ -212,7 +207,7 @@ class SecuritySettings(FidesSettings):
         cls,
         v: str,
     ) -> str:
-        """Validate the formatting of `request_rate_limit`"""
+
         try:
             parse_many(v)
         except ValueError:
@@ -232,7 +227,7 @@ class SecuritySettings(FidesSettings):
         cls,
         v: str,
     ) -> str:
-        """Validate the formatting of `request_rate_limit`"""
+
         if v not in ["dev", "prod"]:
             message = "Security environment must be either 'dev' or 'prod'."
             raise ValueError(message)

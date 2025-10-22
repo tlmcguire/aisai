@@ -113,7 +113,6 @@ _model_registry_store = None
 _artifact_repo = None
 STATIC_PREFIX_ENV_VAR = "_MLFLOW_STATIC_PREFIX"
 
-
 class TrackingStoreRegistryWrapper(TrackingStoreRegistry):
     def __init__(self):
         super().__init__()
@@ -134,7 +133,6 @@ class TrackingStoreRegistryWrapper(TrackingStoreRegistry):
         from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore
 
         return SqlAlchemyStore(store_uri, artifact_uri)
-
 
 class ModelRegistryStoreRegistryWrapper(ModelRegistryStoreRegistry):
     def __init__(self):
@@ -157,16 +155,11 @@ class ModelRegistryStoreRegistryWrapper(ModelRegistryStoreRegistry):
 
         return SqlAlchemyStore(store_uri)
 
-
 _tracking_store_registry = TrackingStoreRegistryWrapper()
 _model_registry_store_registry = ModelRegistryStoreRegistryWrapper()
 
-
 def _get_artifact_repo_mlflow_artifacts():
-    """
-    Get an artifact repository specified by ``--artifacts-destination`` option for ``mlflow server``
-    command.
-    """
+
     from mlflow.server import ARTIFACTS_DESTINATION_ENV_VAR
 
     global _artifact_repo
@@ -174,53 +167,22 @@ def _get_artifact_repo_mlflow_artifacts():
         _artifact_repo = get_artifact_repository(os.environ[ARTIFACTS_DESTINATION_ENV_VAR])
     return _artifact_repo
 
-
 def _is_serving_proxied_artifacts():
-    """
-    :return: ``True`` if the MLflow server is serving proxied artifacts (i.e. acting as a proxy for
-             artifact upload / download / list operations), as would be enabled by specifying the
-             ``--serve-artifacts`` configuration option. ``False`` otherwise.
-    """
+
     from mlflow.server import SERVE_ARTIFACTS_ENV_VAR
 
     return os.environ.get(SERVE_ARTIFACTS_ENV_VAR, "false") == "true"
 
-
 def _is_servable_proxied_run_artifact_root(run_artifact_root):
-    """
-    Determines whether or not the following are true:
 
-    - The specified Run artifact root is a proxied artifact root (i.e. an artifact root with scheme
-      ``http``, ``https``, or ``mlflow-artifacts``).
-
-    - The MLflow server is capable of resolving and accessing the underlying storage location
-      corresponding to the proxied artifact root, allowing it to fulfill artifact list and
-      download requests by using this storage location directly.
-
-    :param run_artifact_root: The Run artifact root location (URI).
-    :return: ``True`` if the specified Run artifact root refers to proxied artifacts that can be
-             served by this MLflow server (i.e. the server has access to the destination and
-             can respond to list and download requests for the artifact). ``False`` otherwise.
-    """
     parsed_run_artifact_root = urllib.parse.urlparse(run_artifact_root)
     return (
         parsed_run_artifact_root.scheme in ["http", "https", "mlflow-artifacts"]
         and _is_serving_proxied_artifacts()
     )
 
-
 def _get_proxied_run_artifact_destination_path(proxied_artifact_root, relative_path=None):
-    """
-    Resolves the specified proxied artifact location within a Run to a concrete storage location.
 
-    :param proxied_artifact_root: The Run artifact root location (URI) with scheme ``http``,
-                                  ``https``, or `mlflow-artifacts` that can be resolved by the
-                                  MLflow server to a concrete storage location.
-    :param relative_path: The relative path of the destination within the specified
-                          ``proxied_artifact_root``. If ``None``, the destination is assumed to be
-                          the resolved ``proxied_artifact_root``.
-    :return: The storage location of the specified artifact.
-    """
     parsed_proxied_artifact_root = urllib.parse.urlparse(proxied_artifact_root)
     assert parsed_proxied_artifact_root.scheme in ["http", "https", "mlflow-artifacts"]
 
@@ -240,7 +202,6 @@ def _get_proxied_run_artifact_destination_path(proxied_artifact_root, relative_p
         else proxied_run_artifact_root_path
     )
 
-
 def _get_tracking_store(backend_store_uri=None, default_artifact_root=None):
     from mlflow.server import ARTIFACT_ROOT_ENV_VAR, BACKEND_STORE_URI_ENV_VAR
 
@@ -251,7 +212,6 @@ def _get_tracking_store(backend_store_uri=None, default_artifact_root=None):
         _tracking_store = _tracking_store_registry.get_store(store_uri, artifact_root)
         utils.set_tracking_uri(store_uri)
     return _tracking_store
-
 
 def _get_model_registry_store(registry_store_uri=None):
     from mlflow.server import BACKEND_STORE_URI_ENV_VAR, REGISTRY_STORE_URI_ENV_VAR
@@ -267,7 +227,6 @@ def _get_model_registry_store(registry_store_uri=None):
         registry_utils.set_registry_uri(store_uri)
     return _model_registry_store
 
-
 def initialize_backend_stores(
     backend_store_uri=None, registry_store_uri=None, default_artifact_root=None
 ):
@@ -277,10 +236,8 @@ def initialize_backend_stores(
     except UnsupportedModelRegistryStoreURIException:
         pass
 
-
 def _assert_string(x):
     assert isinstance(x, str)
-
 
 def _assert_intlike(x):
     try:
@@ -290,10 +247,8 @@ def _assert_intlike(x):
 
     assert isinstance(x, int)
 
-
 def _assert_bool(x):
     assert isinstance(x, bool)
-
 
 def _assert_floatlike(x):
     try:
@@ -303,23 +258,18 @@ def _assert_floatlike(x):
 
     assert isinstance(x, float)
 
-
 def _assert_array(x):
     assert isinstance(x, list)
-
 
 def _assert_required(x):
     assert x is not None
     assert x != ""
 
-
 def _assert_less_than_or_equal(x, max_value):
     assert x <= max_value
 
-
 def _assert_item_type_string(x):
     assert all(isinstance(item, str) for item in x)
-
 
 _TYPE_VALIDATORS = {
     _assert_intlike,
@@ -330,26 +280,8 @@ _TYPE_VALIDATORS = {
     _assert_item_type_string,
 }
 
-
 def _validate_param_against_schema(schema, param, value, proto_parsing_succeeded=False):
-    """
-    Attempts to validate a single parameter against a specified schema.
-    Examples of the elements of the schema are type assertions and checks for required parameters.
-    Returns None on validation success. Otherwise, raises an MLFlowException if an assertion fails.
-    This method is intended to be called for side effects.
 
-            Parameters:
-    :param schema: A list of functions to validate the parameter against.
-    :param param: The string name of the parameter being validated.
-    :param value: The corresponding value of the `param` being validated.
-    :param proto_parsing_succeeded: A boolean value indicating whether proto parsing succeeded.
-                                    If the proto was successfully parsed, we assume all of the types
-                                    of the parameters in the request body were correctly specified,
-                                    and thus we skip validating types. If proto parsing failed,
-                                    then we validate types in addition to the rest of the schema.
-                                    For details, see https://github.com/mlflow/mlflow/pull/
-                                    5458#issuecomment-1080880870.
-    """
 
     for f in schema:
         if f in _TYPE_VALIDATORS and proto_parsing_succeeded:
@@ -374,10 +306,8 @@ def _validate_param_against_schema(schema, param, value, proto_parsing_succeeded
 
     return None
 
-
 def _get_request_json(flask_request=request):
     return flask_request.get_json(force=True, silent=True)
-
 
 def _get_request_message(request_message, flask_request=request, schema=None):
     from querystring_parser import parser
@@ -424,7 +354,6 @@ def _get_request_message(request_message, flask_request=request, schema=None):
 
     return request_message
 
-
 def _response_with_file_attachment_headers(file_path, response):
     mime_type = _guess_mime_type(file_path)
     filename = pathlib.Path(file_path).name
@@ -436,13 +365,11 @@ def _response_with_file_attachment_headers(file_path, response):
     response.headers["Content-Type"] = mime_type
     return response
 
-
 def _send_artifact(artifact_repository, path):
     file_path = os.path.abspath(artifact_repository.download_artifacts(path))
     mime_type = _guess_mime_type(file_path)
     file_sender_response = send_file(file_path, mimetype=mime_type, as_attachment=True)
     return _response_with_file_attachment_headers(file_path, file_sender_response)
-
 
 def catch_mlflow_exception(func):
     @wraps(func)
@@ -456,7 +383,6 @@ def catch_mlflow_exception(func):
             return response
 
     return wrapper
-
 
 def _disable_unless_serve_artifacts(func):
     @wraps(func)
@@ -473,7 +399,6 @@ def _disable_unless_serve_artifacts(func):
         return func(*args, **kwargs)
 
     return wrapper
-
 
 def _disable_if_artifacts_only(func):
     @wraps(func)
@@ -493,19 +418,10 @@ def _disable_if_artifacts_only(func):
 
     return wrapper
 
-
 _OS_ALT_SEPS = [sep for sep in [os.sep, os.path.altsep] if sep is not None and sep != "/"]
 
-
 def validate_path_is_safe(path):
-    """
-    Validates that the specified path is safe to join with a trusted prefix. This is a security
-    measure to prevent path traversal attacks.
-    A valid path should:
-        not contain separators other than '/'
-        not contain .. to navigate to parent dir in path
-        not be an absolute path
-    """
+
     if is_file_uri(path):
         path = local_file_uri_to_path(path)
     if (
@@ -516,7 +432,6 @@ def validate_path_is_safe(path):
         or (is_windows() and len(path) >= 2 and path[1] == ":")
     ):
         raise MlflowException(f"Invalid path: {path}", error_code=INVALID_PARAMETER_VALUE)
-
 
 @catch_mlflow_exception
 def get_artifact_handler():
@@ -541,14 +456,10 @@ def get_artifact_handler():
 
     return _send_artifact(artifact_repo, artifact_path)
 
-
 def _not_implemented():
     response = Response()
     response.status_code = 404
     return response
-
-
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -572,7 +483,6 @@ def _create_experiment():
     response.set_data(message_to_json(response_message))
     return response
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _get_experiment():
@@ -585,7 +495,6 @@ def _get_experiment():
     response = Response(mimetype="application/json")
     response.set_data(message_to_json(response_message))
     return response
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -606,7 +515,6 @@ def _get_experiment_by_name():
     response.set_data(message_to_json(response_message))
     return response
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _delete_experiment():
@@ -619,7 +527,6 @@ def _delete_experiment():
     response.set_data(message_to_json(response_message))
     return response
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _restore_experiment():
@@ -631,7 +538,6 @@ def _restore_experiment():
     response = Response(mimetype="application/json")
     response.set_data(message_to_json(response_message))
     return response
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -651,7 +557,6 @@ def _update_experiment():
     response = Response(mimetype="application/json")
     response.set_data(message_to_json(response_message))
     return response
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -680,7 +585,6 @@ def _create_run():
     response.set_data(message_to_json(response_message))
     return response
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _update_run():
@@ -703,7 +607,6 @@ def _update_run():
     response.set_data(message_to_json(response_message))
     return response
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _delete_run():
@@ -716,7 +619,6 @@ def _delete_run():
     response.set_data(message_to_json(response_message))
     return response
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _restore_run():
@@ -728,7 +630,6 @@ def _restore_run():
     response = Response(mimetype="application/json")
     response.set_data(message_to_json(response_message))
     return response
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -753,7 +654,6 @@ def _log_metric():
     response.set_data(message_to_json(response_message))
     return response
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _log_param():
@@ -772,7 +672,6 @@ def _log_param():
     response = Response(mimetype="application/json")
     response.set_data(message_to_json(response_message))
     return response
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -796,7 +695,6 @@ def _log_inputs():
     response.set_data(message_to_json(response_message))
     return response
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _set_experiment_tag():
@@ -814,7 +712,6 @@ def _set_experiment_tag():
     response = Response(mimetype="application/json")
     response.set_data(message_to_json(response_message))
     return response
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -835,7 +732,6 @@ def _set_tag():
     response.set_data(message_to_json(response_message))
     return response
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _delete_tag():
@@ -852,7 +748,6 @@ def _delete_tag():
     response.set_data(message_to_json(response_message))
     return response
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _get_run():
@@ -865,7 +760,6 @@ def _get_run():
     response = Response(mimetype="application/json")
     response.set_data(message_to_json(response_message))
     return response
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -897,7 +791,6 @@ def _search_runs():
     response = Response(mimetype="application/json")
     response.set_data(message_to_json(response_message))
     return response
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -933,20 +826,9 @@ def _list_artifacts():
     response.set_data(message_to_json(response_message))
     return response
 
-
 @catch_mlflow_exception
 def _list_artifacts_for_proxied_run_artifact_root(proxied_artifact_root, relative_path=None):
-    """
-    Lists artifacts from the specified ``relative_path`` within the specified proxied Run artifact
-    root (i.e. a Run artifact root with scheme ``http``, ``https``, or ``mlflow-artifacts``).
 
-    :param proxied_artifact_root: The Run artifact root location (URI) with scheme ``http``,
-                                  ``https``, or ``mlflow-artifacts`` that can be resolved by the
-                                  MLflow server to a concrete storage location.
-    :param relative_path: The relative path within the specified ``proxied_artifact_root`` under
-                          which to list artifact contents. If ``None``, artifacts are listed from
-                          the ``proxied_artifact_root`` directory.
-    """
     parsed_proxied_artifact_root = urllib.parse.urlparse(proxied_artifact_root)
     assert parsed_proxied_artifact_root.scheme in ["http", "https", "mlflow-artifacts"]
 
@@ -968,7 +850,6 @@ def _list_artifacts_for_proxied_run_artifact_root(proxied_artifact_root, relativ
 
     return artifact_entities
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _get_metric_history():
@@ -986,7 +867,6 @@ def _get_metric_history():
     response = Response(mimetype="application/json")
     response.set_data(message_to_json(response_message))
     return response
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -1061,7 +941,6 @@ def get_metric_history_bulk_handler():
         "metrics": metrics_with_run_ids[:max_results],
     }
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def search_datasets_handler():
@@ -1092,7 +971,6 @@ def search_datasets_handler():
     else:
         return _not_implemented()
 
-
 @catch_mlflow_exception
 def gateway_proxy_handler():
     gateway_uri = MLFLOW_GATEWAY_URI.get()
@@ -1120,7 +998,6 @@ def gateway_proxy_handler():
             f"Error message: {response.text}",
             error_code=response.status_code,
         )
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -1187,7 +1064,6 @@ def create_promptlab_run_handler():
     response.set_data(message_to_json(response_message))
     return response
 
-
 @catch_mlflow_exception
 def upload_artifact_handler():
     args = request.args
@@ -1251,7 +1127,6 @@ def upload_artifact_handler():
 
     return Response(mimetype="application/json")
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _search_experiments():
@@ -1280,11 +1155,9 @@ def _search_experiments():
     response.set_data(message_to_json(response_message))
     return response
 
-
 @catch_mlflow_exception
 def _get_artifact_repo(run):
     return get_artifact_repository(run.info.artifact_uri)
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -1320,7 +1193,6 @@ def _log_batch():
     response.set_data(message_to_json(response_message))
     return response
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _log_model():
@@ -1354,14 +1226,10 @@ def _log_model():
     response.set_data(message_to_json(response_message))
     return response
 
-
 def _wrap_response(response_message):
     response = Response(mimetype="application/json")
     response.set_data(message_to_json(response_message))
     return response
-
-
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -1382,7 +1250,6 @@ def _create_registered_model():
     response_message = CreateRegisteredModel.Response(registered_model=registered_model.to_proto())
     return _wrap_response(response_message)
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _get_registered_model():
@@ -1392,7 +1259,6 @@ def _get_registered_model():
     registered_model = _get_model_registry_store().get_registered_model(name=request_message.name)
     response_message = GetRegisteredModel.Response(registered_model=registered_model.to_proto())
     return _wrap_response(response_message)
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -1408,7 +1274,6 @@ def _update_registered_model():
     )
     response_message = UpdateRegisteredModel.Response(registered_model=registered_model.to_proto())
     return _wrap_response(response_message)
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -1428,7 +1293,6 @@ def _rename_registered_model():
     response_message = RenameRegisteredModel.Response(registered_model=registered_model.to_proto())
     return _wrap_response(response_message)
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _delete_registered_model():
@@ -1437,7 +1301,6 @@ def _delete_registered_model():
     )
     _get_model_registry_store().delete_registered_model(name=request_message.name)
     return _wrap_response(DeleteRegisteredModel.Response())
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -1464,7 +1327,6 @@ def _search_registered_models():
         response_message.next_page_token = registered_models.token
     return _wrap_response(response_message)
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _get_latest_versions():
@@ -1482,7 +1344,6 @@ def _get_latest_versions():
     response_message.model_versions.extend([e.to_proto() for e in latest_versions])
     return _wrap_response(response_message)
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _set_registered_model_tag():
@@ -1497,7 +1358,6 @@ def _set_registered_model_tag():
     tag = RegisteredModelTag(key=request_message.key, value=request_message.value)
     _get_model_registry_store().set_registered_model_tag(name=request_message.name, tag=tag)
     return _wrap_response(SetRegisteredModelTag.Response())
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -1514,24 +1374,8 @@ def _delete_registered_model_tag():
     )
     return _wrap_response(DeleteRegisteredModelTag.Response())
 
-
 def _validate_non_local_source_contains_relative_paths(source: str):
-    """
-    Validation check to ensure that sources that are provided that conform to the schemes:
-    http, https, or mlflow-artifacts do not contain relative path designations that are intended
-    to access local file system paths on the tracking server.
 
-    Example paths that this validation function is intended to find and raise an Exception if
-    passed:
-    "mlflow-artifacts://host:port/../../../../"
-    "http://host:port/api/2.0/mlflow-artifacts/artifacts/../../../../"
-    "https://host:port/api/2.0/mlflow-artifacts/artifacts/../../../../"
-    "/models/artifacts/../../../"
-    "s3:/my_bucket/models/path/../../other/path"
-    "file://path/to/../../../../some/where/you/should/not/be"
-    "mlflow-artifacts://host:port/..%2f..%2f..%2f..%2f"
-    "http://host:port/api/2.0/mlflow-artifacts/artifacts%00"
-    """
     invalid_source_error_message = (
         f"Invalid model version source: '{source}'. If supplying a source as an http, https, "
         "local file path, ftp, objectstore, or mlflow-artifacts uri, an absolute path must be "
@@ -1549,7 +1393,6 @@ def _validate_non_local_source_contains_relative_paths(source: str):
 
     if resolved_path != source_path:
         raise MlflowException(invalid_source_error_message, INVALID_PARAMETER_VALUE)
-
 
 def _validate_source(source: str, run_id: str) -> None:
     if is_local_uri(source):
@@ -1579,7 +1422,6 @@ def _validate_source(source: str, run_id: str) -> None:
 
     _validate_non_local_source_contains_relative_paths(source)
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _create_model_version():
@@ -1608,7 +1450,6 @@ def _create_model_version():
     response_message = CreateModelVersion.Response(model_version=model_version.to_proto())
     return _wrap_response(response_message)
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def get_model_version_artifact_handler():
@@ -1633,7 +1474,6 @@ def get_model_version_artifact_handler():
 
     return _send_artifact(artifact_repo, artifact_path)
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _get_model_version():
@@ -1650,7 +1490,6 @@ def _get_model_version():
     response_proto = model_version.to_proto()
     response_message = GetModelVersion.Response(model_version=response_proto)
     return _wrap_response(response_message)
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -1670,7 +1509,6 @@ def _update_model_version():
         name=request_message.name, version=request_message.version, description=new_description
     )
     return _wrap_response(UpdateModelVersion.Response(model_version=model_version.to_proto()))
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -1694,7 +1532,6 @@ def _transition_stage():
         TransitionModelVersionStage.Response(model_version=model_version.to_proto())
     )
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _delete_model_version():
@@ -1710,7 +1547,6 @@ def _delete_model_version():
     )
     return _wrap_response(DeleteModelVersion.Response())
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _get_model_version_download_uri():
@@ -1720,7 +1556,6 @@ def _get_model_version_download_uri():
     )
     response_message = GetModelVersionDownloadUri.Response(artifact_uri=download_uri)
     return _wrap_response(response_message)
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -1747,7 +1582,6 @@ def _search_model_versions():
         response_message.next_page_token = model_versions.token
     return _wrap_response(response_message)
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _set_model_version_tag():
@@ -1766,7 +1600,6 @@ def _set_model_version_tag():
     )
     return _wrap_response(SetModelVersionTag.Response())
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _delete_model_version_tag():
@@ -1782,7 +1615,6 @@ def _delete_model_version_tag():
         name=request_message.name, version=request_message.version, key=request_message.key
     )
     return _wrap_response(DeleteModelVersionTag.Response())
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -1800,7 +1632,6 @@ def _set_registered_model_alias():
     )
     return _wrap_response(SetRegisteredModelAlias.Response())
 
-
 @catch_mlflow_exception
 @_disable_if_artifacts_only
 def _delete_registered_model_alias():
@@ -1815,7 +1646,6 @@ def _delete_registered_model_alias():
         name=request_message.name, alias=request_message.alias
     )
     return _wrap_response(DeleteRegisteredModelAlias.Response())
-
 
 @catch_mlflow_exception
 @_disable_if_artifacts_only
@@ -1834,16 +1664,10 @@ def _get_model_version_by_alias():
     response_message = GetModelVersionByAlias.Response(model_version=response_proto)
     return _wrap_response(response_message)
 
-
-
-
 @catch_mlflow_exception
 @_disable_unless_serve_artifacts
 def _download_artifact(artifact_path):
-    """
-    A request handler for `GET /mlflow-artifacts/artifacts/<artifact_path>` to download an artifact
-    from `artifact_path` (a relative path from the root artifact directory).
-    """
+
     validate_path_is_safe(artifact_path)
     tmp_dir = tempfile.TemporaryDirectory()
     artifact_repo = _get_artifact_repo_mlflow_artifacts()
@@ -1860,14 +1684,10 @@ def _download_artifact(artifact_path):
 
     return _response_with_file_attachment_headers(artifact_path, file_sender_response)
 
-
 @catch_mlflow_exception
 @_disable_unless_serve_artifacts
 def _upload_artifact(artifact_path):
-    """
-    A request handler for `PUT /mlflow-artifacts/artifacts/<artifact_path>` to upload an artifact
-    to `artifact_path` (a relative path from the root artifact directory).
-    """
+
     validate_path_is_safe(artifact_path)
     head, tail = posixpath.split(artifact_path)
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1885,14 +1705,10 @@ def _upload_artifact(artifact_path):
 
     return _wrap_response(UploadArtifact.Response())
 
-
 @catch_mlflow_exception
 @_disable_unless_serve_artifacts
 def _list_artifacts_mlflow_artifacts():
-    """
-    A request handler for `GET /mlflow-artifacts/artifacts?path=<value>` to list artifacts in `path`
-    (a relative path from the root artifact directory).
-    """
+
     request_message = _get_request_message(ListArtifactsMlflowArtifacts())
     if request_message.HasField("path"):
         validate_path_is_safe(request_message.path)
@@ -1911,14 +1727,10 @@ def _list_artifacts_mlflow_artifacts():
     response.set_data(message_to_json(response_message))
     return response
 
-
 @catch_mlflow_exception
 @_disable_unless_serve_artifacts
 def _delete_artifact_mlflow_artifacts(artifact_path):
-    """
-    A request handler for `DELETE /mlflow-artifacts/artifacts?path=<value>` to delete artifacts in
-    `path` (a relative path from the root artifact directory).
-    """
+
     validate_path_is_safe(artifact_path)
     _get_request_message(DeleteArtifact())
     artifact_repo = _get_artifact_repo_mlflow_artifacts()
@@ -1928,19 +1740,14 @@ def _delete_artifact_mlflow_artifacts(artifact_path):
     response.set_data(message_to_json(response_message))
     return response
 
-
 def _validate_support_multipart_upload(artifact_repo):
     if not isinstance(artifact_repo, MultipartUploadMixin):
         raise _UnsupportedMultipartUploadException()
 
-
 @catch_mlflow_exception
 @_disable_unless_serve_artifacts
 def _create_multipart_upload_artifact(artifact_path):
-    """
-    A request handler for `POST /mlflow-artifacts/mpu/create` to create a multipart upload
-    to `artifact_path` (a relative path from the root artifact directory).
-    """
+
     validate_path_is_safe(artifact_path)
 
     request_message = _get_request_message(
@@ -1966,14 +1773,10 @@ def _create_multipart_upload_artifact(artifact_path):
     response.set_data(message_to_json(response_message))
     return response
 
-
 @catch_mlflow_exception
 @_disable_unless_serve_artifacts
 def _complete_multipart_upload_artifact(artifact_path):
-    """
-    A request handler for `POST /mlflow-artifacts/mpu/complete` to complete a multipart upload
-    to `artifact_path` (a relative path from the root artifact directory).
-    """
+
     validate_path_is_safe(artifact_path)
 
     request_message = _get_request_message(
@@ -1999,14 +1802,10 @@ def _complete_multipart_upload_artifact(artifact_path):
     )
     return _wrap_response(CompleteMultipartUpload.Response())
 
-
 @catch_mlflow_exception
 @_disable_unless_serve_artifacts
 def _abort_multipart_upload_artifact(artifact_path):
-    """
-    A request handler for `POST /mlflow-artifacts/mpu/abort` to abort a multipart upload
-    to `artifact_path` (a relative path from the root artifact directory).
-    """
+
     validate_path_is_safe(artifact_path)
 
     request_message = _get_request_message(
@@ -2029,14 +1828,11 @@ def _abort_multipart_upload_artifact(artifact_path):
     )
     return _wrap_response(AbortMultipartUpload.Response())
 
-
 def _get_rest_path(base_path):
     return f"/api/2.0{base_path}"
 
-
 def _get_ajax_path(base_path):
     return _add_static_prefix(f"/ajax-api/2.0{base_path}")
-
 
 def _add_static_prefix(route):
     prefix = os.environ.get(STATIC_PREFIX_ENV_VAR)
@@ -2044,23 +1840,13 @@ def _add_static_prefix(route):
         return prefix + route
     return route
 
-
 def _get_paths(base_path):
-    """
-    A service endpoints base path is typically something like /mlflow/experiment.
-    We should register paths like /api/2.0/mlflow/experiment and
-    /ajax-api/2.0/mlflow/experiment in the Flask router.
-    """
+
     return [_get_rest_path(base_path), _get_ajax_path(base_path)]
 
-
 def get_handler(request_class):
-    """
-    :param request_class: The type of protobuf message
-    :return:
-    """
-    return HANDLERS.get(request_class, _not_implemented)
 
+    return HANDLERS.get(request_class, _not_implemented)
 
 def get_service_endpoints(service, get_handler):
     ret = []
@@ -2072,17 +1858,13 @@ def get_service_endpoints(service, get_handler):
                 ret.append((http_path, handler, [endpoint.method]))
     return ret
 
-
 def get_endpoints(get_handler=get_handler):
-    """
-    :return: List of tuples (path, handler, methods)
-    """
+
     return (
         get_service_endpoints(MlflowService, get_handler)
         + get_service_endpoints(ModelRegistryService, get_handler)
         + get_service_endpoints(MlflowArtifactsService, get_handler)
     )
-
 
 HANDLERS = {
     CreateExperiment: _create_experiment,

@@ -69,11 +69,8 @@ requires_cryptography = {
     "EdDSA",
 }
 
-
 def get_default_algorithms():
-    """
-    Returns the algorithms that are implemented by the library.
-    """
+
     default_algorithms = {
         "none": NoneAlgorithm(),
         "HS256": HMACAlgorithm(HMACAlgorithm.SHA256),
@@ -103,53 +100,33 @@ def get_default_algorithms():
 
     return default_algorithms
 
-
 class Algorithm:
-    """
-    The interface for an algorithm used to sign and verify tokens.
-    """
+
 
     def prepare_key(self, key):
-        """
-        Performs necessary validation and conversions on the key and returns
-        the key value in the proper format for sign() and verify().
-        """
+
         raise NotImplementedError
 
     def sign(self, msg, key):
-        """
-        Returns a digital signature for the specified message
-        using the specified key value.
-        """
+
         raise NotImplementedError
 
     def verify(self, msg, key, sig):
-        """
-        Verifies that the specified digital signature is valid
-        for the specified message and key values.
-        """
+
         raise NotImplementedError
 
     @staticmethod
     def to_jwk(key_obj):
-        """
-        Serializes a given RSA key into a JWK
-        """
+
         raise NotImplementedError
 
     @staticmethod
     def from_jwk(jwk):
-        """
-        Deserializes a given RSA key from JWK back into a PublicKey or PrivateKey object
-        """
+
         raise NotImplementedError
 
-
 class NoneAlgorithm(Algorithm):
-    """
-    Placeholder for use when no signing or verification
-    operations are required.
-    """
+
 
     def prepare_key(self, key):
         if key == "":
@@ -166,12 +143,8 @@ class NoneAlgorithm(Algorithm):
     def verify(self, msg, key, sig):
         return False
 
-
 class HMACAlgorithm(Algorithm):
-    """
-    Performs signing and verification operations using HMAC
-    and the specified hash function.
-    """
+
 
     SHA256 = hashlib.sha256
     SHA384 = hashlib.sha384
@@ -230,14 +203,10 @@ class HMACAlgorithm(Algorithm):
     def verify(self, msg, key, sig):
         return hmac.compare_digest(sig, self.sign(msg, key))
 
-
 if has_crypto:
 
     class RSAAlgorithm(Algorithm):
-        """
-        Performs signing and verification operations using
-        RSASSA-PKCS-v1_5 and the specified hash function.
-        """
+
 
         SHA256 = hashes.SHA256
         SHA384 = hashes.SHA384
@@ -381,10 +350,7 @@ if has_crypto:
                 return False
 
     class ECAlgorithm(Algorithm):
-        """
-        Performs signing and verification operations using
-        ECDSA and the specified hash function
-        """
+
 
         SHA256 = hashes.SHA256
         SHA384 = hashes.SHA384
@@ -503,9 +469,7 @@ if has_crypto:
             ).private_key()
 
     class RSAPSSAlgorithm(RSAAlgorithm):
-        """
-        Performs a signature using RSASSA-PSS with MGF1
-        """
+
 
         def sign(self, msg, key):
             return key.sign(
@@ -533,11 +497,7 @@ if has_crypto:
                 return False
 
     class OKPAlgorithm(Algorithm):
-        """
-        Performs signing and verification operations using EdDSA
 
-        This class requires ``cryptography>=2.6`` to be installed.
-        """
 
         def __init__(self, **kwargs):
             pass
@@ -565,26 +525,12 @@ if has_crypto:
             raise TypeError("Expecting a PEM-formatted or OpenSSH key.")
 
         def sign(self, msg, key):
-            """
-            Sign a message ``msg`` using the EdDSA private key ``key``
-            :param str|bytes msg: Message to sign
-            :param Ed25519PrivateKey}Ed448PrivateKey key: A :class:`.Ed25519PrivateKey`
-                or :class:`.Ed448PrivateKey` iinstance
-            :return bytes signature: The signature, as bytes
-            """
+
             msg = bytes(msg, "utf-8") if type(msg) is not bytes else msg
             return key.sign(msg)
 
         def verify(self, msg, key, sig):
-            """
-            Verify a given ``msg`` against a signature ``sig`` using the EdDSA key ``key``
 
-            :param str|bytes sig: EdDSA signature to check ``msg`` against
-            :param str|bytes msg: Message to sign
-            :param Ed25519PrivateKey|Ed25519PublicKey|Ed448PrivateKey|Ed448PublicKey key:
-                A private or public EdDSA key instance
-            :return bool verified: True if signature is valid, False if not.
-            """
             try:
                 msg = bytes(msg, "utf-8") if type(msg) is not bytes else msg
                 sig = bytes(sig, "utf-8") if type(sig) is not bytes else sig

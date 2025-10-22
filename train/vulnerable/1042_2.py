@@ -1,4 +1,4 @@
-"""Django ORM models for Social Auth"""
+
 
 from django.conf import settings
 from django.db import models
@@ -32,9 +32,8 @@ ASSOCIATION_HANDLE_LENGTH = getattr(
     settings, setting_name("ASSOCIATION_HANDLE_LENGTH"), 255
 )
 
-
 class AbstractUserSocialAuth(models.Model, DjangoUserMixin):
-    """Abstract Social Auth association model"""
+
 
     user = models.ForeignKey(
         USER_MODEL, related_name="social_auth", on_delete=models.CASCADE
@@ -70,20 +69,18 @@ class AbstractUserSocialAuth(models.Model, DjangoUserMixin):
     def user_model(cls):
         return cls._meta.get_field("user").remote_field.model
 
-
 class UserSocialAuth(AbstractUserSocialAuth):
-    """Social Auth association model"""
+
 
     class Meta:
-        """Meta data"""
+
 
         app_label = "social_django"
         unique_together = ("provider", "uid")
         db_table = "social_auth_usersocialauth"
 
-
 class Nonce(models.Model, DjangoNonceMixin):
-    """One use numbers"""
+
 
     server_url = models.CharField(max_length=NONCE_SERVER_URL_LENGTH)
     timestamp = models.IntegerField()
@@ -94,9 +91,8 @@ class Nonce(models.Model, DjangoNonceMixin):
         unique_together = ("server_url", "timestamp", "salt")
         db_table = "social_auth_nonce"
 
-
 class Association(models.Model, DjangoAssociationMixin):
-    """OpenId account association"""
+
 
     server_url = models.CharField(max_length=ASSOCIATION_SERVER_URL_LENGTH)
     handle = models.CharField(max_length=ASSOCIATION_HANDLE_LENGTH)
@@ -113,7 +109,6 @@ class Association(models.Model, DjangoAssociationMixin):
             "handle",
         )
 
-
 class Code(models.Model, DjangoCodeMixin):
     email = models.EmailField(max_length=EMAIL_LENGTH)
     code = models.CharField(max_length=32, db_index=True)
@@ -125,7 +120,6 @@ class Code(models.Model, DjangoCodeMixin):
         db_table = "social_auth_code"
         unique_together = ("email", "code")
 
-
 class Partial(models.Model, DjangoPartialMixin):
     token = models.CharField(max_length=32, db_index=True)
     next_step = models.PositiveSmallIntegerField(default=0)
@@ -136,7 +130,6 @@ class Partial(models.Model, DjangoPartialMixin):
     class Meta:
         app_label = "social_django"
         db_table = "social_auth_partial"
-
 
 class DjangoStorage(BaseDjangoStorage):
     user = UserSocialAuth

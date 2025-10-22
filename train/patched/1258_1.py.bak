@@ -1,7 +1,3 @@
-# This code represents a simplified fix for the type confusion vulnerability
-# in RestrictedPython related to try/except*, but it's not the exact fix from the library.
-# It demonstrates the removal of try/except* support as a mitigation strategy.
-# The actual fix in RestrictedPython 8.0 involved a complete removal of try/except*.
 
 import ast
 
@@ -31,7 +27,7 @@ class RestrictedPythonVisitor(ast.NodeVisitor):
             ast.Tuple,
             ast.Dict,
         )
-        self.restricted_nodes = (ast.Try,) # Remove try/except and try/except*
+        self.restricted_nodes = (ast.Try,)
 
     def visit(self, node):
         if not isinstance(node, self.allowed_nodes):
@@ -51,16 +47,11 @@ def safe_eval(code):
 
   visitor = RestrictedPythonVisitor()
   visitor.visit(tree)
-  
-  # Compile the restricted code
-  compiled_code = compile(tree, filename="<string>", mode="exec")
-  # Execute in a restricted namespace
-  exec(compiled_code, {})
-  return eval(code, {}) # this line needs to be adjusted based on the desired result.
-                         # using the original code, which assumes the input is a single expression.
 
-# Example of safe code that now does not support try/except statements
-# The following code demonstrates how an attempt to use try/except* would raise an error.
+  compiled_code = compile(tree, filename="<string>", mode="exec")
+  exec(compiled_code, {})
+  return eval(code, {})
+
 if __name__ == '__main__':
     try:
         safe_eval("try: pass\nexcept*: pass")
@@ -72,7 +63,7 @@ if __name__ == '__main__':
         print(f"Successful evalution of an allowed expression")
     except Exception as e:
         print(f"Error during successful evalution: {e}")
-    
+
     try:
        safe_eval("[1, 2, 3]")
        print(f"Successful evalution of a list")

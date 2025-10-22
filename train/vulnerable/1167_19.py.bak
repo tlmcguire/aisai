@@ -35,7 +35,6 @@ router = APIRouter()
 lollmsElfServer:LOLLMSWebUI = LOLLMSWebUI.get_instance()
 
 
-# ----------------------------------- events -----------------------------------------
 def add_events(sio:socketio):
     @sio.on('start_webcam_video_stream')
     def start_webcam_video_stream(sid):

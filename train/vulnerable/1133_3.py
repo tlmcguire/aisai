@@ -84,22 +84,15 @@ CLIENT_AUTH_B = re.compile(
 
 @attr.s
 class AuthResult:
-    """
-    Contains the result of authentication, to be returned to the smtp_AUTH method.
-    All initialization arguments _must_ be keyworded!
-    """
+
 
     success: bool = attr.ib(kw_only=True)
 
-
     handled: bool = attr.ib(kw_only=True, default=True)
-
 
     message: Optional[str] = attr.ib(kw_only=True, default=None)
 
-
     auth_data: Optional[Any] = attr.ib(kw_only=True, default=None, repr=lambda x: "...")
-
 
 @public
 class LoginPassword(NamedTuple):
@@ -123,17 +116,15 @@ class Session:
 
         self.proxy_data: Optional[ProxyData] = None
 
-
         self._login_data = None
 
         self.auth_data = None
-
 
         self.authenticated: Optional[bool] = None
 
     @property
     def login_data(self) -> Any:
-        """Legacy login_data, usually containing the username"""
+
         log.warning(
             "Session.login_data is deprecated and will be removed in version 2.0"
         )
@@ -164,15 +155,7 @@ def make_loop() -> asyncio.AbstractEventLoop:
 def syntax(
         text: str, extended: Optional[str] = None, when: Optional[str] = None
 ) -> DecoratorType:
-    """
-    A @decorator that provides helptext for (E)SMTP HELP.
-    Applies for smtp_* methods only!
 
-    :param text: Help text for (E)SMTP HELP
-    :param extended: Additional text for ESMTP HELP (appended to text)
-    :param when: The name of the attribute of SMTP class to check; if the value
-        of the attribute is false-y then HELP will not be available for the command
-    """
     def decorator(f: Callable[..., RT]) -> Callable[..., RT]:
         f.__smtp_syntax__ = text
         f.__smtp_syntax_extended__ = extended
@@ -182,13 +165,7 @@ def syntax(
 
 @public
 def auth_mechanism(actual_name: str) -> DecoratorType:
-    """
-    A @decorator to explicitly specifies the name of the AUTH mechanism implemented by
-    the function/method this decorates
 
-    :param actual_name: Name of AUTH mechanism. Must consists of [A-Z0-9_-] only.
-        Will be converted to uppercase
-    """
     def decorator(f: Callable[..., RT]) -> Callable[..., RT]:
         f.__auth_mechanism_name__ = actual_name
         return f
@@ -219,9 +196,7 @@ def sanitize(text: bytes) -> bytes:
 
 @public
 def sanitized_log(func: Callable[..., None], msg: AnyStr, *args, **kwargs) -> None:
-    """
-    Sanitize args before passing to a logging function.
-    """
+
     sanitized_args = [
         sanitize(a) if isinstance(a, bytes) else a
         for a in args
@@ -230,19 +205,14 @@ def sanitized_log(func: Callable[..., None], msg: AnyStr, *args, **kwargs) -> No
 
 @public
 class SMTP(asyncio.StreamReaderProtocol):
-    """
-    `Documentation can be found here
-    <https://aiosmtpd.readthedocs.io/en/latest/smtp.html>`_
-    """
+
     command_size_limit = 512
     command_size_limits: Dict[str, int] = collections.defaultdict(
         lambda: SMTP.command_size_limit)
 
     line_length_limit = 1001
 
-
     local_part_limit: int = 0
-
 
     AuthLoginUsernameChallenge = "User Name\x00"
     AuthLoginPasswordChallenge = "Password\x00"
@@ -487,11 +457,11 @@ class SMTP(asyncio.StreamReaderProtocol):
         self._writer = writer
 
     def _set_post_data_state(self):
-        """Reset state variables to their post-DATA state."""
+
         self.envelope = self._create_envelope()
 
     def _set_rset_state(self):
-        """Reset all state variables except the greeting."""
+
         self._set_post_data_state()
 
     async def push(self, status: AnyStr):
@@ -668,12 +638,7 @@ class SMTP(asyncio.StreamReaderProtocol):
                         await self.push(status)
 
     async def check_helo_needed(self, helo: str = "HELO") -> bool:
-        """
-        Check if HELO/EHLO is needed.
 
-        :param helo: The actual string of HELO/EHLO
-        :return: True if HELO/EHLO is needed
-        """
         assert self.session is not None
         if not self.session.host_name:
             await self.push(f'503 Error: send {helo} first')
@@ -681,12 +646,7 @@ class SMTP(asyncio.StreamReaderProtocol):
         return False
 
     async def check_auth_needed(self, caller_method: str) -> bool:
-        """
-        Check if AUTH is needed.
 
-        :param caller_method: The SMTP method needing a check (for logging)
-        :return: True if AUTH is needed
-        """
         assert self.session is not None
         if self._auth_required and not self.session.authenticated:
             log.info(f'{caller_method}: Authentication required')
@@ -872,17 +832,7 @@ class SMTP(asyncio.StreamReaderProtocol):
         encode_to_b64: bool = True,
         log_client_response: bool = False,
     ) -> Union[_Missing, bytes]:
-        """
-        Send challenge during authentication. "334 " will be prefixed, so do NOT
-        put "334 " at start of server_message.
 
-        :param challenge: Challenge to send to client. If str, will be utf8-encoded.
-        :param encode_to_b64: If true, then perform Base64 encoding on challenge
-        :param log_client_response: Perform logging of client's response.
-            WARNING: Might cause leak of sensitive information! Do not turn on
-            unless _absolutely_ necessary!
-        :return: Response from client, or MISSING
-        """
         challenge = (
             challenge.encode() if isinstance(challenge, str) else challenge
         )
@@ -990,12 +940,7 @@ class SMTP(asyncio.StreamReaderProtocol):
         return None
 
     def _getaddr(self, arg: str) -> Tuple[Optional[str], Optional[str]]:
-        """
-        Try to parse address given in SMTP command.
 
-        Returns address=None if arg can't be parsed properly (get_angle_addr /
-        get_addr_spec raised HeaderParseError)
-        """
 
         class AddrSpec(Protocol):
             @property

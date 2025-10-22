@@ -48,12 +48,10 @@ except ImportError:
     from . import socks
 from .iri2uri import iri2uri
 
-
 def has_timeout(timeout):
     if hasattr(socket, "_GLOBAL_DEFAULT_TIMEOUT"):
         return timeout is not None and timeout is not socket._GLOBAL_DEFAULT_TIMEOUT
     return timeout is not None
-
 
 __all__ = [
     "debuglevel",
@@ -73,10 +71,8 @@ debuglevel = 0
 
 RETRIES = 2
 
-
 class HttpLib2Error(Exception):
     pass
-
 
 class HttpLib2ErrorWithResponse(HttpLib2Error):
     def __init__(self, desc, response, content):
@@ -84,46 +80,32 @@ class HttpLib2ErrorWithResponse(HttpLib2Error):
         self.content = content
         HttpLib2Error.__init__(self, desc)
 
-
 class RedirectMissingLocation(HttpLib2ErrorWithResponse):
     pass
-
 
 class RedirectLimit(HttpLib2ErrorWithResponse):
     pass
 
-
 class FailedToDecompressContent(HttpLib2ErrorWithResponse):
     pass
-
 
 class UnimplementedDigestAuthOptionError(HttpLib2ErrorWithResponse):
     pass
 
-
 class UnimplementedHmacDigestAuthOptionError(HttpLib2ErrorWithResponse):
     pass
-
 
 class MalformedHeader(HttpLib2Error):
     pass
 
-
 class RelativeURIError(HttpLib2Error):
     pass
-
 
 class ServerNotFoundError(HttpLib2Error):
     pass
 
-
 class ProxiesUnavailableError(HttpLib2Error):
     pass
-
-
-
-
-
 
 DEFAULT_MAX_REDIRECTS = 5
 
@@ -141,7 +123,6 @@ HOP_BY_HOP = [
 SAFE_METHODS = ("GET", "HEAD", "OPTIONS", "TRACE")
 
 REDIRECT_CODES = frozenset((300, 301, 302, 303, 307, 308))
-
 
 from httplib2 import certs
 CA_CERTS = certs.where()
@@ -183,15 +164,12 @@ def _build_ssl_context(
 
     return context
 
-
 def _get_end2end_headers(response):
     hopbyhop = list(HOP_BY_HOP)
     hopbyhop.extend([x.strip() for x in response.get("connection", "").split(",")])
     return [header for header in list(response.keys()) if header not in hopbyhop]
 
-
 URI = re.compile(r"^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?")
-
 
 def parse_uri(uri):
     """Parses a URI using the regex given in Appendix B of RFC 3986.
@@ -200,7 +178,6 @@ def parse_uri(uri):
     """
     groups = URI.match(uri).groups()
     return (groups[1], groups[3], groups[4], groups[6], groups[8])
-
 
 def urlnorm(uri):
     (scheme, authority, path, query, fragment) = parse_uri(uri)
@@ -215,10 +192,8 @@ def urlnorm(uri):
     defrag_uri = scheme + "://" + authority + request_uri
     return scheme, authority, request_uri, defrag_uri
 
-
 re_url_scheme = re.compile(r"^\w+://")
 re_unsafe = re.compile(r"[^\w\-_.()=!]+", re.ASCII)
-
 
 def safename(filename):
     """Return a filename suitable for the cache.
@@ -238,9 +213,7 @@ def safename(filename):
 
     return ",".join((filename, filemd5))
 
-
 NORMALIZE_SPACE = re.compile(r"(?:\r\n)?[ \t]+")
-
 
 def _normalize_headers(headers):
     return dict(
@@ -253,12 +226,10 @@ def _normalize_headers(headers):
         ]
     )
 
-
 def _convert_byte_str(s):
     if not isinstance(s, str):
         return str(s, "utf-8")
     return s
-
 
 def _parse_cache_control(headers):
     retval = {}
@@ -275,7 +246,6 @@ def _parse_cache_control(headers):
         retval = dict(parts_with_args + parts_wo_args)
     return retval
 
-
 USE_WWW_AUTH_STRICT_PARSING = 0
 
 WWW_AUTH_STRICT = re.compile(
@@ -285,7 +255,6 @@ WWW_AUTH_RELAXED = re.compile(
     r"^(?:\s*(?:,\s*)?([^ \t\r\n=]+)\s*=\s*\"?((?<=\")(?:[^\\\"]|\\.)*?(?=\")|(?<!\")[^ \t\r\n,]+(?!\"))\"?)(.*)$"
 )
 UNQUOTE_PAIRS = re.compile(r"\\(.)")
-
 
 def _parse_www_authenticate(headers, headername="www-authenticate"):
     """Returns a dictionary of dictionaries, one dict
@@ -316,7 +285,6 @@ def _parse_www_authenticate(headers, headername="www-authenticate"):
         except ValueError:
             raise MalformedHeader("WWW-Authenticate")
     return retval
-
 
 def _entry_disposition(response_headers, request_headers):
     """Determine freshness from the Date, Expires and Cache-Control headers.
@@ -395,7 +363,6 @@ def _entry_disposition(response_headers, request_headers):
             retval = "FRESH"
     return retval
 
-
 def _decompressContent(response, new_content):
     content = new_content
     try:
@@ -418,7 +385,6 @@ def _decompressContent(response, new_content):
         )
     return content
 
-
 def _bind_write_headers(msg):
     def _write_headers(self):
         for h, v in msg.items():
@@ -433,7 +399,6 @@ def _bind_write_headers(msg):
         print(file=self._fp)
 
     return _write_headers
-
 
 def _updateCache(request_headers, response_headers, content, cache, cachekey):
     if cachekey:
@@ -476,7 +441,6 @@ def _updateCache(request_headers, response_headers, content, cache, cachekey):
 
             cache.set(cachekey, text)
 
-
 def _cnonce():
     dig = _md5(
         (
@@ -486,14 +450,10 @@ def _cnonce():
     ).hexdigest()
     return dig[:16]
 
-
 def _wsse_username_token(cnonce, iso_now, password):
     return base64.b64encode(
         _sha(("%s%s%s" % (cnonce, iso_now, password)).encode("utf-8")).digest()
     ).strip().decode("utf-8")
-
-
-
 
 class Authentication(object):
     def __init__(
@@ -549,7 +509,6 @@ class Authentication(object):
     def __bool__(self):
         return True
 
-
 class BasicAuthentication(Authentication):
     def __init__(
         self, credentials, host, request_uri, headers, response, content, http
@@ -564,7 +523,6 @@ class BasicAuthentication(Authentication):
         headers["authorization"] = "Basic " + base64.b64encode(
             ("%s:%s" % self.credentials).encode("utf-8")
         ).strip().decode("utf-8")
-
 
 class DigestAuthentication(Authentication):
     """Only do qop='auth' and MD5, since that
@@ -656,7 +614,6 @@ class DigestAuthentication(Authentication):
                 self.challenge["nonce"] = updated_challenge["nextnonce"]
                 self.challenge["nc"] = 1
         return False
-
 
 class HmacDigestAuthentication(Authentication):
     """Adapted from Robert Sayre's code and DigestAuthentication above."""
@@ -755,7 +712,6 @@ class HmacDigestAuthentication(Authentication):
             return True
         return False
 
-
 class WsseAuthentication(Authentication):
     """This is thinly tested and should not be relied upon.
     At this time there isn't any third party server to test against.
@@ -783,7 +739,6 @@ class WsseAuthentication(Authentication):
             'UsernameToken Username="%s", PasswordDigest="%s", '
             'Nonce="%s", Created="%s"'
         ) % (self.credentials[0], password_digest, cnonce, iso_now)
-
 
 class GoogleLoginAuthentication(Authentication):
     def __init__(
@@ -823,7 +778,6 @@ class GoogleLoginAuthentication(Authentication):
         Authorization header."""
         headers["authorization"] = "GoogleLogin Auth=" + self.Auth
 
-
 AUTH_SCHEME_CLASSES = {
     "basic": BasicAuthentication,
     "wsse": WsseAuthentication,
@@ -833,7 +787,6 @@ AUTH_SCHEME_CLASSES = {
 }
 
 AUTH_SCHEME_ORDER = ["hmacdigest", "googlelogin", "digest", "wsse", "basic"]
-
 
 class FileCache(object):
     """Uses a local directory as a store for cached files.
@@ -871,7 +824,6 @@ class FileCache(object):
         if os.path.exists(cacheFullPath):
             os.remove(cacheFullPath)
 
-
 class Credentials(object):
     def __init__(self):
         self.credentials = []
@@ -887,7 +839,6 @@ class Credentials(object):
             if cdomain == "" or domain == cdomain:
                 yield (name, password)
 
-
 class KeyCerts(Credentials):
     """Identical to Credentials except that
     name/password are mapped to key/cert."""
@@ -899,10 +850,8 @@ class KeyCerts(Credentials):
             if cdomain == "" or domain == cdomain:
                 yield (key, cert, password)
 
-
 class AllHosts(object):
     pass
-
 
 class ProxyInfo(object):
     """Collect information required to use a proxy."""
@@ -987,7 +936,6 @@ class ProxyInfo(object):
             + " user={p.proxy_user} headers={p.proxy_headers}>"
         ).format(p=self)
 
-
 def proxy_info_from_environment(method="http"):
     """Read proxy info from the environment variables.
     """
@@ -999,7 +947,6 @@ def proxy_info_from_environment(method="http"):
     if not url:
         return
     return proxy_info_from_url(url, method, noproxy=None)
-
 
 def proxy_info_from_url(url, method="http", noproxy=None):
     """Construct a ProxyInfo from a URL (such as http_proxy env var)
@@ -1047,7 +994,6 @@ def proxy_info_from_url(url, method="http", noproxy=None):
 
     pi.bypass_hosts = bypass_hosts
     return pi
-
 
 class HTTPConnectionWithTimeout(http.client.HTTPConnection):
     """HTTPConnection subclass that supports timeouts
@@ -1155,7 +1101,6 @@ class HTTPConnectionWithTimeout(http.client.HTTPConnection):
             break
         if not self.sock:
             raise socket_err
-
 
 class HTTPSConnectionWithTimeout(http.client.HTTPSConnection):
     """This class allows communication via SSL.
@@ -1310,12 +1255,10 @@ class HTTPSConnectionWithTimeout(http.client.HTTPSConnection):
         if not self.sock:
             raise socket_err
 
-
 SCHEME_TO_CONNECTION = {
     "http": HTTPConnectionWithTimeout,
     "https": HTTPSConnectionWithTimeout,
 }
-
 
 class Http(object):
     """An HTTP client that handles:
@@ -1642,7 +1585,6 @@ class Http(object):
     def _normalize_headers(self, headers):
         return _normalize_headers(headers)
 
-
     def request(
         self,
         uri,
@@ -1904,21 +1846,17 @@ a string that contains the response entity body.
 
         return (response, content)
 
-
 class Response(dict):
     """An object more like email.message than httplib.HTTPResponse."""
 
-    """Is this response from our local cache"""
-    fromcache = False
-    """HTTP protocol version used by server.
 
-    10 for HTTP/1.0, 11 for HTTP/1.1.
-    """
+    fromcache = False
+
     version = 11
 
-    "Status code returned by server. "
+
     status = 200
-    """Reason phrase returned by server."""
+
     reason = "Ok"
 
     previous = None

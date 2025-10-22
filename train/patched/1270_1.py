@@ -4,7 +4,6 @@ import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-
 class BluetoothDevice:
     def __init__(self, max_measurement_requests=5, request_window=10):
         self.is_connected = False
@@ -16,20 +15,20 @@ class BluetoothDevice:
         self.blocked_until = 0
 
     def connect(self):
-        """Simulates connecting to the device."""
+
         logging.info("Connecting to the Bluetooth device...")
         time.sleep(1)
         self.is_connected = True
         logging.info("Device connected.")
 
     def disconnect(self):
-        """Simulates disconnecting from the device."""
+
         logging.info("Disconnecting from the Bluetooth device...")
         self.is_connected = False
         logging.info("Device disconnected.")
 
     def start_measurement(self):
-        """Simulates starting a measurement, with rate limiting."""
+
         with self.lock:
             current_time = time.time()
 

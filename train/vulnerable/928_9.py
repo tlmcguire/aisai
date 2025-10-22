@@ -260,7 +260,7 @@ class TestConnectionPool(HTTPDummyServerTestCase):
             assert r.status == 200, r.data
 
     def test_nagle(self) -> None:
-        """Test that connections have TCP_NODELAY turned on"""
+
         with HTTPConnectionPool(self.host, self.port) as pool:
             conn = pool._get_conn()
             try:
@@ -280,7 +280,7 @@ class TestConnectionPool(HTTPDummyServerTestCase):
         ],
     )
     def test_socket_options(self, socket_options: tuple[int, int, int]) -> None:
-        """Test that connections accept socket options."""
+
         with HTTPConnectionPool(
             self.host,
             self.port,
@@ -299,7 +299,7 @@ class TestConnectionPool(HTTPDummyServerTestCase):
     def test_disable_default_socket_options(
         self, socket_options: list[int] | None
     ) -> None:
-        """Test that passing None or empty list disables all socket options."""
+
         with HTTPConnectionPool(
             self.host, self.port, socket_options=socket_options
         ) as pool:
@@ -311,7 +311,7 @@ class TestConnectionPool(HTTPDummyServerTestCase):
                 s.close()
 
     def test_defaults_are_applied(self) -> None:
-        """Test that modifying the default socket options works."""
+
         with HTTPConnectionPool(self.host, self.port) as pool:
             conn = pool._new_conn()
             try:
@@ -331,7 +331,7 @@ class TestConnectionPool(HTTPDummyServerTestCase):
                 s.close()
 
     def test_connection_error_retries(self) -> None:
-        """ECONNREFUSED error should raise a connection error, with retries"""
+
         port = find_unused_port()
         with HTTPConnectionPool(self.host, port) as pool:
             with pytest.raises(MaxRetryError) as e:
@@ -510,7 +510,6 @@ class TestConnectionPool(HTTPDummyServerTestCase):
 
             encoded_data = encode_multipart_formdata(data)[0]
             expected_body = encoded_data.split(b"\r\n")
-
 
             for i, line in enumerate(body):
                 if line.startswith(b"--"):
@@ -768,10 +767,7 @@ class TestConnectionPool(HTTPDummyServerTestCase):
             assert b"123" * 4 == response.read()
 
     def test_cleanup_on_connection_error(self) -> None:
-        """
-        Test that connections are recycled to the pool on
-        connection errors where no http response is received.
-        """
+
         poolsize = 3
         with HTTPConnectionPool(
             self.host, self.port, maxsize=poolsize, block=True
@@ -805,13 +801,13 @@ class TestConnectionPool(HTTPDummyServerTestCase):
             assert response.status == 200
 
     def test_preserves_path_dot_segments(self) -> None:
-        """ConnectionPool preserves dot segments in the URI"""
+
         with HTTPConnectionPool(self.host, self.port) as pool:
             response = pool.request("GET", "/echo_uri/seg0/../seg2")
             assert response.data == b"/echo_uri/seg0/../seg2"
 
     def test_default_user_agent_header(self) -> None:
-        """ConnectionPool has a default user agent"""
+
         default_ua = _get_default_user_agent()
         custom_ua = "I'm not a web scraper, what are you talking about?"
         custom_ua2 = "Yet Another User Agent"
@@ -863,7 +859,7 @@ class TestConnectionPool(HTTPDummyServerTestCase):
                 assert request_headers["User-Agent"] == "key"
 
     def test_no_user_agent_header(self) -> None:
-        """ConnectionPool can suppress sending a user agent header"""
+
         custom_ua = "I'm not a web scraper, what are you talking about?"
         with HTTPConnectionPool(self.host, self.port) as pool:
             no_ua_headers = {"User-Agent": SKIP_HEADER}
@@ -1028,7 +1024,7 @@ class TestRetry(HTTPDummyServerTestCase):
                 pool.request("GET", "/redirect", fields={"target": "/"}, retries=0)
 
     def test_disabled_retry(self) -> None:
-        """Disabled retries should disable redirect handling."""
+
         with HTTPConnectionPool(self.host, self.port) as pool:
             r = pool.request("GET", "/redirect", fields={"target": "/"}, retries=False)
             assert r.status == 303
@@ -1048,7 +1044,7 @@ class TestRetry(HTTPDummyServerTestCase):
                 pool.request("GET", "/test", retries=False)
 
     def test_read_retries(self) -> None:
-        """Should retry for status codes in the forcelist"""
+
         with HTTPConnectionPool(self.host, self.port) as pool:
             retry = Retry(read=1, status_forcelist=[418])
             resp = pool.request(
@@ -1060,7 +1056,7 @@ class TestRetry(HTTPDummyServerTestCase):
             assert resp.status == 200
 
     def test_read_total_retries(self) -> None:
-        """HTTP response w/ status code in the forcelist should be retried"""
+
         with HTTPConnectionPool(self.host, self.port) as pool:
             headers = {"test-name": "test_read_total_retries"}
             retry = Retry(total=1, status_forcelist=[418])
@@ -1070,7 +1066,7 @@ class TestRetry(HTTPDummyServerTestCase):
             assert resp.status == 200
 
     def test_retries_wrong_forcelist(self) -> None:
-        """HTTP response w/ status code not in forcelist shouldn't be retried"""
+
         with HTTPConnectionPool(self.host, self.port) as pool:
             retry = Retry(total=1, status_forcelist=[202])
             resp = pool.request(
@@ -1082,7 +1078,7 @@ class TestRetry(HTTPDummyServerTestCase):
             assert resp.status == 418
 
     def test_default_method_forcelist_retried(self) -> None:
-        """urllib3 should retry methods in the default method forcelist"""
+
         with HTTPConnectionPool(self.host, self.port) as pool:
             retry = Retry(total=1, status_forcelist=[418])
             resp = pool.request(
@@ -1094,7 +1090,7 @@ class TestRetry(HTTPDummyServerTestCase):
             assert resp.status == 200
 
     def test_retries_wrong_method_list(self) -> None:
-        """Method not in our allowed list should not be retried, even if code matches"""
+
         with HTTPConnectionPool(self.host, self.port) as pool:
             headers = {"test-name": "test_wrong_allowed_method"}
             retry = Retry(total=1, status_forcelist=[418], allowed_methods=["POST"])
@@ -1110,7 +1106,7 @@ class TestRetry(HTTPDummyServerTestCase):
             assert resp.status == 418
 
     def test_retry_reuse_safe(self) -> None:
-        """It should be possible to reuse a Retry object across requests"""
+
         with HTTPConnectionPool(self.host, self.port) as pool:
             headers = {"test-name": "test_retry_safe"}
             retry = Retry(total=1, status_forcelist=[418])
@@ -1266,7 +1262,7 @@ class TestRetryAfter(HTTPDummyServerTestCase):
 
 class TestFileBodiesOnRetryOrRedirect(HTTPDummyServerTestCase):
     def test_retries_put_filehandle(self) -> None:
-        """HTTP PUT retry with a file-like object should not timeout"""
+
         with HTTPConnectionPool(self.host, self.port, timeout=0.1) as pool:
             retry = Retry(total=3, status_forcelist=[418])
             content_length = 65535
@@ -1288,7 +1284,7 @@ class TestFileBodiesOnRetryOrRedirect(HTTPDummyServerTestCase):
             assert resp.status == 200
 
     def test_redirect_put_file(self) -> None:
-        """PUT with file object should work with a redirection response"""
+
         with HTTPConnectionPool(self.host, self.port, timeout=0.1) as pool:
             retry = Retry(total=3, status_forcelist=[418])
             content_length = 65535
@@ -1312,7 +1308,7 @@ class TestFileBodiesOnRetryOrRedirect(HTTPDummyServerTestCase):
             assert resp.data == data
 
     def test_redirect_with_failed_tell(self) -> None:
-        """Abort request if failed to get a position from tell()"""
+
 
         class BadTellObject(io.BytesIO):
             def tell(self) -> typing.NoReturn:

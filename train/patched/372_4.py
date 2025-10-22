@@ -25,14 +25,12 @@ from apiver_deps_exception import CorruptAccountInfo, MissingAccountData
 
 from .fixtures import *
 
-
 class WindowsSafeTempDir(TempDir):
     def __exit__(self, exc_type, exc_val, exc_tb):
         try:
             super().__exit__(exc_type, exc_val, exc_tb)
         except OSError:
             pass
-
 
 class TestAccountInfo:
     @pytest.fixture(autouse=True)
@@ -87,7 +85,6 @@ class TestAccountInfo:
         account_info = self.account_info_factory()
         assert account_info.all_capabilities() == ALL_CAPABILITIES
 
-
 class TestUploadUrlPool:
     @pytest.fixture(autouse=True)
     def setUp(self):
@@ -114,15 +111,12 @@ class TestUploadUrlPool:
         assert ('url_b1', 'auth_token_b1') == self.pool.take('b')
         assert (None, None) == self.pool.take('b')
 
-
 class AccountInfoBase(metaclass=ABCMeta):
     PERSISTENCE = NotImplemented
 
     @abstractmethod
     def _make_info(self):
-        """
-        returns a new object of AccountInfo class which should be tested
-        """
+
 
     def test_clear(self, account_info_default_data, apiver):
         account_info = self._make_info()
@@ -289,13 +283,11 @@ class AccountInfoBase(metaclass=ABCMeta):
             assert not info2.is_same_key('another_key_id', 'realm')
             assert not info2.is_same_key('another_key_id', 'another_realm')
 
-
 class TestInMemoryAccountInfo(AccountInfoBase):
     PERSISTENCE = False
 
     def _make_info(self):
         return InMemoryAccountInfo()
-
 
 class TestSqliteAccountInfo(AccountInfoBase):
     PERSISTENCE = True
@@ -326,17 +318,13 @@ class TestSqliteAccountInfo(AccountInfoBase):
         reason='different permission system on Windows'
     )
     def test_permissions(self):
-        """
-        Test that a new database won't be readable by just any user
-        """
+
         s = SqliteAccountInfo(file_name=self.db_path,)
         mode = os.stat(self.db_path).st_mode
         assert stat.filemode(mode) == '-rw-------'
 
     def test_corrupted(self):
-        """
-        Test that a corrupted file will be replaced with a blank file.
-        """
+
         with open(self.db_path, 'wb') as f:
             f.write(b'not a valid database')
 
@@ -348,10 +336,7 @@ class TestSqliteAccountInfo(AccountInfoBase):
         reason='it fails to upgrade on Windows, not worth to fix it anymore'
     )
     def test_convert_from_json(self):
-        """
-        Tests converting from a JSON account info file, which is what version
-        0.5.2 of the command-line tool used.
-        """
+
         data = dict(
             account_auth_token='auth_token',
             account_id='account_id',
@@ -370,11 +355,7 @@ class TestSqliteAccountInfo(AccountInfoBase):
         return self._make_sqlite_account_info()
 
     def _make_sqlite_account_info(self, env=None, last_upgrade_to_run=None):
-        """
-        Returns a new SqliteAccountInfo that has just read the data from the file.
 
-        :param dict env: Override Environment variables.
-        """
         with mock.patch('os.environ', env or {'HOME': self.test_home}):
             return SqliteAccountInfo(
                 file_name=self.db_path if not env else None,

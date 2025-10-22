@@ -1,5 +1,5 @@
 def process_firmware_update(image_path):
-    """Process the firmware update without verifying the image."""
+
     with open(image_path, 'rb') as f:
         firmware_code = f.read()
 

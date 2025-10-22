@@ -1,5 +1,4 @@
 
-"""provides the Lexer class for parsing template strings into parse trees."""
 
 import codecs
 import re
@@ -9,7 +8,6 @@ from mako import parsetree
 from mako.pygen import adjust_whitespace
 
 _regexp_cache = {}
-
 
 class Lexer:
     def __init__(
@@ -44,7 +42,7 @@ class Lexer:
         }
 
     def match(self, regexp, flags=None):
-        """compile the given regexp, cache the reg, and call match_reg()."""
+
 
         try:
             reg = _regexp_cache[(regexp, flags)]
@@ -55,12 +53,7 @@ class Lexer:
         return self.match_reg(reg)
 
     def match_reg(self, reg):
-        """match the given regular expression object to the current text
-        position.
 
-        if a match occurs, update the current text and line position.
-
-        """
 
         mp = self.match_position
 
@@ -165,11 +158,7 @@ class Lexer:
     _coding_re = re.compile(r"#.*coding[:=]\s*([-\w.]+).*\r?\n")
 
     def decode_raw_stream(self, text, decode_raw, known_encoding, filename):
-        """given string/unicode or bytes/string, determine encoding
-        from magic encoding comment, return body as unicode
-        or raw if decode_raw=False
 
-        """
         if isinstance(text, str):
             m = self._coding_re.match(text)
             encoding = m and m.group(1) or known_encoding or "utf-8"
@@ -446,7 +435,7 @@ class Lexer:
         return True
 
     def match_comment(self):
-        """matches the multiline version of a comment"""
+
         match = self.match(r"<%doc>(.*?)</%doc>", re.S)
         if match:
             self.append_node(parsetree.Comment, match.group(1))

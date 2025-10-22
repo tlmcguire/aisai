@@ -1,6 +1,4 @@
-# coding: utf-8
 
-# Need not unicode_literals
 from __future__ import division, absolute_import
 
 import io
@@ -138,7 +136,6 @@ def dump_csv(data, fieldnames, with_header=False, crlf=False):
     :rtype: unicode
     """
     def force_str(v):
-        # XXX: Double quotation behaves strangely... so replace (why?)
         return dump_json(v).replace('"', "'") if isinstance(v, (dict, list)) else v
 
     with io.StringIO() as sio:

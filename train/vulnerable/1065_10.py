@@ -1,5 +1,4 @@
-"""Implements a FastAPI server to run the gradio interface. Note that some types in this
-module use the Optional/Union notation so that they work correctly with pydantic."""
+
 
 from __future__ import annotations
 
@@ -74,14 +73,12 @@ from gradio.utils import (
 if TYPE_CHECKING:
     from gradio.blocks import Block
 
-
 mimetypes.init()
 
 STATIC_TEMPLATE_LIB = files("gradio").joinpath("templates").as_posix()
 STATIC_PATH_LIB = files("gradio").joinpath("templates", "frontend", "static").as_posix()
 BUILD_PATH_LIB = files("gradio").joinpath("templates", "frontend", "assets").as_posix()
 VERSION = get_package_version()
-
 
 class ORJSONResponse(JSONResponse):
     media_type = "application/json"
@@ -101,7 +98,6 @@ class ORJSONResponse(JSONResponse):
     def _render_str(content: Any) -> str:
         return ORJSONResponse._render(content).decode("utf-8")
 
-
 def toorjson(value):
     return markupsafe.Markup(
         ORJSONResponse._render_str(value)
@@ -111,25 +107,19 @@ def toorjson(value):
         .replace("'", "\\u0027")
     )
 
-
 templates = Jinja2Templates(directory=STATIC_TEMPLATE_LIB)
 templates.env.filters["toorjson"] = toorjson
 
 client = httpx.AsyncClient()
 
-
 def move_uploaded_files_to_cache(files: list[str], destinations: list[str]) -> None:
     for file, dest in zip(files, destinations):
         shutil.move(file, dest)
 
-
 file_upload_statuses = FileUploadProgress()
 
-
 class App(FastAPI):
-    """
-    FastAPI App Wrapper
-    """
+
 
     def __init__(self, **kwargs):
         self.tokens = {}
@@ -295,10 +285,8 @@ class App(FastAPI):
             else:
                 raise HTTPException(status_code=400, detail="Incorrect credentials.")
 
-
         if app.blocks is not None and app.blocks.expects_oauth:
             attach_oauth(app)
-
 
         @app.head("/", response_class=HTMLResponse)
         @app.get("/", response_class=HTMLResponse)
@@ -788,12 +776,8 @@ class App(FastAPI):
 
         return app
 
-
-
-
 def safe_join(directory: str, path: str) -> str:
-    """Safely path to a base directory to avoid escaping the base directory.
-    Borrowed from: werkzeug.security.safe_join"""
+
     _os_alt_seps: List[str] = [
         sep for sep in [os.path.sep, os.path.altsep] if sep is not None and sep != "/"
     ]
@@ -817,7 +801,6 @@ def safe_join(directory: str, path: str) -> str:
 
     return fullpath
 
-
 def get_types(cls_set: List[Type]):
     docset = []
     types = []
@@ -830,9 +813,7 @@ def get_types(cls_set: List[Type]):
         docset.append(doc_lines[1].split(":")[-1])
     return docset, types
 
-
 set_documentation_group("routes")
-
 
 @document()
 def mount_gradio_app(
@@ -841,24 +822,7 @@ def mount_gradio_app(
     path: str,
     app_kwargs: dict[str, Any] | None = None,
 ) -> fastapi.FastAPI:
-    """Mount a gradio.Blocks to an existing FastAPI application.
 
-    Parameters:
-        app: The parent FastAPI application.
-        blocks: The blocks object we want to mount to the parent app.
-        path: The path at which the gradio application will be mounted.
-        app_kwargs: Additional keyword arguments to pass to the underlying FastAPI app as a dictionary of parameter keys and argument values. For example, `{"docs_url": "/docs"}`
-    Example:
-        from fastapi import FastAPI
-        import gradio as gr
-        app = FastAPI()
-        @app.get("/")
-        def read_main():
-            return {"message": "This is your main app"}
-        io = gr.Interface(lambda x: "Hello, " + x + "!", "textbox", "textbox")
-        app = gr.mount_gradio_app(app, io, path="/gradio")
-        # Then run `uvicorn run:app` from the terminal and navigate to http://localhost:8000/gradio.
-    """
     blocks.dev_mode = False
     blocks.config = blocks.get_config_file()
     blocks.validate_queue_settings()

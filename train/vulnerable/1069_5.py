@@ -1,5 +1,4 @@
-"""Pydantic data models and other dataclasses. This is the only file that uses Optional[]
-typing syntax instead of | None syntax to work with pydantic"""
+
 
 from __future__ import annotations
 
@@ -66,17 +65,14 @@ else:
     RootModel.model_dump = RootModel.dict
     RootModel.model_json_schema = RootModel.schema
 
-
 class CancelBody(BaseModel):
     session_hash: str
     fn_index: int
     event_id: str
 
-
 class SimplePredictBody(BaseModel):
     data: List[Any]
     session_hash: Optional[str] = None
-
 
 class PredictBody(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
@@ -95,10 +91,8 @@ class PredictBody(BaseModel):
         None
     )
 
-
 class ResetBody(BaseModel):
     event_id: str
-
 
 class ComponentServerJSONBody(BaseModel):
     session_hash: str
@@ -106,11 +100,9 @@ class ComponentServerJSONBody(BaseModel):
     fn_name: str
     data: Any
 
-
 class DataWithFiles(BaseModel):
     data: Any
     files: List[Tuple[str, bytes]]
-
 
 class ComponentServerBlobBody(BaseModel):
     session_hash: str
@@ -118,13 +110,11 @@ class ComponentServerBlobBody(BaseModel):
     fn_name: str
     data: DataWithFiles
 
-
 class InterfaceTypes(Enum):
     STANDARD = auto()
     INPUT_ONLY = auto()
     OUTPUT_ONLY = auto()
     UNIFIED = auto()
-
 
 class GradioBaseModel(ABC):
     def copy_to_dir(self, dir: str | pathlib.Path) -> GradioDataModel:
@@ -151,21 +141,17 @@ class GradioBaseModel(ABC):
     def from_json(cls, x) -> GradioDataModel:
         pass
 
-
 class GradioModel(GradioBaseModel, BaseModel):
     @classmethod
     def from_json(cls, x) -> GradioModel:
         return cls(**x)
-
 
 class GradioRootModel(GradioBaseModel, RootModel):
     @classmethod
     def from_json(cls, x) -> GradioRootModel:
         return cls(root=x)
 
-
 GradioDataModel = Union[GradioModel, GradioRootModel]
-
 
 class FileData(GradioModel):
     path: str
@@ -212,7 +198,6 @@ class FileData(GradioModel):
                 return False
         return False
 
-
 class ListFiles(GradioRootModel):
     root: List[FileData]
 
@@ -222,11 +207,8 @@ class ListFiles(GradioRootModel):
     def __iter__(self):
         return iter(self.root)
 
-
 class _StaticFiles:
-    """
-    Class to hold all static files for an app
-    """
+
 
     all_paths = []
 

@@ -9,7 +9,6 @@ from synapse.rest.client.v2_alpha import receipts
 
 from tests.unittest import HomeserverTestCase, override_config
 
-
 class HTTPPusherTests(HomeserverTestCase):
     servlets = [
         synapse.rest.admin.register_servlets_for_client_rest_resource,
@@ -42,10 +41,7 @@ class HTTPPusherTests(HomeserverTestCase):
         return hs
 
     def test_sends_http(self):
-        """
-        The HTTP pusher will send pushes for each message to a HTTP endpoint
-        when configured to do so.
-        """
+
         user_id = self.register_user("user", "pass")
         access_token = self.login("user", "pass")
 
@@ -128,11 +124,7 @@ class HTTPPusherTests(HomeserverTestCase):
         self.assertTrue(pushers[0]["last_stream_ordering"] > last_stream_ordering)
 
     def test_sends_high_priority_for_encrypted(self):
-        """
-        The HTTP pusher will send pushes at high priority if they correspond
-        to an encrypted message.
-        This will happen both in 1:1 rooms and larger rooms.
-        """
+
         user_id = self.register_user("user", "pass")
         access_token = self.login("user", "pass")
 
@@ -225,10 +217,7 @@ class HTTPPusherTests(HomeserverTestCase):
         self.assertEqual(self.push_attempts[1][2]["notification"]["prio"], "high")
 
     def test_sends_high_priority_for_one_to_one_only(self):
-        """
-        The HTTP pusher will send pushes at high priority if they correspond
-        to a message in a one-to-one room.
-        """
+
         user_id = self.register_user("user", "pass")
         access_token = self.login("user", "pass")
 
@@ -288,10 +277,7 @@ class HTTPPusherTests(HomeserverTestCase):
         self.assertEqual(self.push_attempts[1][2]["notification"]["prio"], "low")
 
     def test_sends_high_priority_for_mention(self):
-        """
-        The HTTP pusher will send pushes at high priority if they correspond
-        to a message containing the user's display name.
-        """
+
         user_id = self.register_user("user", "pass")
         access_token = self.login("user", "pass")
 
@@ -347,10 +333,7 @@ class HTTPPusherTests(HomeserverTestCase):
         self.assertEqual(self.push_attempts[1][2]["notification"]["prio"], "low")
 
     def test_sends_high_priority_for_atroom(self):
-        """
-        The HTTP pusher will send pushes at high priority if they correspond
-        to a message that contains @room.
-        """
+
         user_id = self.register_user("user", "pass")
         access_token = self.login("user", "pass")
 
@@ -412,9 +395,7 @@ class HTTPPusherTests(HomeserverTestCase):
         self.assertEqual(self.push_attempts[1][2]["notification"]["prio"], "low")
 
     def test_push_unread_count_group_by_room(self):
-        """
-        The HTTP pusher will group unread count by number of unread rooms.
-        """
+
         self._test_push_unread_count()
 
         self.assertEqual(
@@ -423,9 +404,7 @@ class HTTPPusherTests(HomeserverTestCase):
 
     @override_config({"push": {"group_unread_count_by_room": False}})
     def test_push_unread_count_message_count(self):
-        """
-        The HTTP pusher will send the total unread message count.
-        """
+
         self._test_push_unread_count()
 
         self.assertEqual(
@@ -433,14 +412,7 @@ class HTTPPusherTests(HomeserverTestCase):
         )
 
     def _test_push_unread_count(self):
-        """
-        Tests that the correct unread count appears in sent push notifications
 
-        Note that:
-        * Sending messages will cause push notifications to go out to relevant users
-        * Sending a read receipt will cause a "badge update" notification to go out to
-          the user that sent the receipt
-        """
         user_id = self.register_user("user", "pass")
         access_token = self.login("user", "pass")
 

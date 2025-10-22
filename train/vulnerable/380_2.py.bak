@@ -1,16 +1,3 @@
-# Copyright 2009-2012 10gen, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 """BSON (Binary JSON) encoding and decoding.
 """
@@ -60,33 +47,30 @@ MIN_INT64 = -9223372036854775808
 EPOCH_AWARE = datetime.datetime.fromtimestamp(0, utc)
 EPOCH_NAIVE = datetime.datetime.utcfromtimestamp(0)
 
-# Create constants compatible with all versions of
-# python from 2.4 forward. In 2.x b("foo") is just
-# "foo". In 3.x it becomes b"foo".
 EMPTY = b("")
 ZERO  = b("\x00")
 ONE   = b("\x01")
 
-BSONNUM = b("\x01") # Floating point
-BSONSTR = b("\x02") # UTF-8 string
-BSONOBJ = b("\x03") # Embedded document
-BSONARR = b("\x04") # Array
-BSONBIN = b("\x05") # Binary
-BSONUND = b("\x06") # Undefined
-BSONOID = b("\x07") # ObjectId
-BSONBOO = b("\x08") # Boolean
-BSONDAT = b("\x09") # UTC Datetime
-BSONNUL = b("\x0A") # Null
-BSONRGX = b("\x0B") # Regex
-BSONREF = b("\x0C") # DBRef
-BSONCOD = b("\x0D") # Javascript code
-BSONSYM = b("\x0E") # Symbol
-BSONCWS = b("\x0F") # Javascript code with scope
-BSONINT = b("\x10") # 32bit int
-BSONTIM = b("\x11") # Timestamp
-BSONLON = b("\x12") # 64bit int
-BSONMIN = b("\xFF") # Min key
-BSONMAX = b("\x7F") # Max key
+BSONNUM = b("\x01")
+BSONSTR = b("\x02")
+BSONOBJ = b("\x03")
+BSONARR = b("\x04")
+BSONBIN = b("\x05")
+BSONUND = b("\x06")
+BSONOID = b("\x07")
+BSONBOO = b("\x08")
+BSONDAT = b("\x09")
+BSONNUL = b("\x0A")
+BSONRGX = b("\x0B")
+BSONREF = b("\x0C")
+BSONCOD = b("\x0D")
+BSONSYM = b("\x0E")
+BSONCWS = b("\x0F")
+BSONINT = b("\x10")
+BSONTIM = b("\x11")
+BSONLON = b("\x12")
+BSONMIN = b("\xFF")
+BSONMAX = b("\x7F")
 
 
 def _get_int(data, position, as_class=None,
@@ -179,19 +163,15 @@ def _get_binary(data, position, as_class, tz_aware, uuid_subtype):
             raise InvalidBSON("invalid binary (st 2) - lengths don't match!")
         length = length2
     if subtype in (3, 4) and _use_uuid:
-        # Java Legacy
         if uuid_subtype == JAVA_LEGACY:
             java = data[position:position + length]
             value = uuid.UUID(bytes=java[0:8][::-1] + java[8:16][::-1])
-        # C# legacy
         elif uuid_subtype == CSHARP_LEGACY:
             value = uuid.UUID(bytes_le=data[position:position + length])
-        # Python
         else:
             value = uuid.UUID(bytes=data[position:position + length])
         position += length
         return (value, position)
-    # Python3 special case. Decode subtype 0 to 'bytes'.
     if PY3 and subtype == 0:
         value = data[position:position + length]
     else:
@@ -277,9 +257,6 @@ def _get_timestamp(data, position, as_class, tz_aware, uuid_subtype):
 
 
 def _get_long(data, position, as_class, tz_aware, uuid_subtype):
-    # Have to cast to long; on 32-bit unpack may return an int.
-    # 2to3 will change long to int. That's fine since long doesn't
-    # exist in python3.
     value = long(struct.unpack("<q", data[position:position + 8])[0])
     position += 8
     return value, position
@@ -291,19 +268,19 @@ _element_getter = {
     BSONOBJ: _get_object,
     BSONARR: _get_array,
     BSONBIN: _get_binary,
-    BSONUND: _get_null,  # undefined
+    BSONUND: _get_null,
     BSONOID: _get_oid,
     BSONBOO: _get_boolean,
     BSONDAT: _get_date,
     BSONNUL: _get_null,
     BSONRGX: _get_regex,
     BSONREF: _get_ref,
-    BSONCOD: _get_code,  # code
-    BSONSYM: _get_string,  # symbol
+    BSONCOD: _get_code,
+    BSONSYM: _get_string,
     BSONCWS: _get_code_w_scope,
-    BSONINT: _get_int,  # number_int
+    BSONINT: _get_int,
     BSONTIM: _get_timestamp,
-    BSONLON: _get_long, # Same as _get_int after 2to3 runs.
+    BSONLON: _get_long,
     BSONMIN: lambda v, w, x, y, z: (MinKey(), w),
     BSONMAX: lambda v, w, x, y, z: (MaxKey(), w)}
 
@@ -358,20 +335,13 @@ def _element_to_bson(key, value, check_keys, uuid_subtype):
 
     if _use_uuid:
         if isinstance(value, uuid.UUID):
-            # Java Legacy
             if uuid_subtype == JAVA_LEGACY:
-                # Python 3.0(.1) returns a bytearray instance for bytes (3.1
-                # and newer just return a bytes instance). Convert that to
-                # binary_type (here and below) for compatibility.
                 from_uuid = binary_type(value.bytes)
                 as_legacy_java = from_uuid[0:8][::-1] + from_uuid[8:16][::-1]
                 value = Binary(as_legacy_java, subtype=OLD_UUID_SUBTYPE)
-            # C# legacy
             elif uuid_subtype == CSHARP_LEGACY:
-                # Microsoft GUID representation.
                 value = Binary(binary_type(value.bytes_le),
                                subtype=OLD_UUID_SUBTYPE)
-            # Python
             else:
                 value = Binary(binary_type(value.bytes), subtype=uuid_subtype)
 
@@ -392,7 +362,6 @@ def _element_to_bson(key, value, check_keys, uuid_subtype):
         return BSONCWS + name + full_length + length + cstring + scope
     if isinstance(value, binary_type):
         if PY3:
-            # Python3 special case. Store 'bytes' as BSON binary subtype 0.
             return (BSONBIN + name +
                     struct.pack("<i", len(value)) + ZERO + value)
         cstring = _make_c_string(value)
@@ -414,14 +383,11 @@ def _element_to_bson(key, value, check_keys, uuid_subtype):
     if value is False:
         return BSONBOO + name + ZERO
     if isinstance(value, int):
-        # TODO this is an ugly way to check for this...
         if value > MAX_INT64 or value < MIN_INT64:
             raise OverflowError("BSON can only handle up to 8-byte ints")
         if value > MAX_INT32 or value < MIN_INT32:
             return BSONLON + name + struct.pack("<q", value)
         return BSONINT + name + struct.pack("<i", value)
-    # 2to3 will convert long to int here since there is no long in python3.
-    # That's OK. The previous if block will match instead.
     if isinstance(value, long):
         if value > MAX_INT64 or value < MIN_INT64:
             raise OverflowError("BSON can only handle up to 8-byte ints")

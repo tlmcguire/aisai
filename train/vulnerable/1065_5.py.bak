@@ -114,7 +114,7 @@ class Client:
             if self.verbose:
                 print("Space is still building. Please wait...")
             while self._get_space_state() == SpaceStage.BUILDING:
-                time.sleep(2)  # so we don't get rate limited by the API
+                time.sleep(2)
                 pass
         if state in utils.INVALID_RUNTIME:
             raise ValueError(
@@ -146,10 +146,8 @@ class Client:
             for fn_index, dependency in enumerate(self.config["dependencies"])
         ]
 
-        # Create a pool of threads to handle the requests
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
 
-        # Disable telemetry by setting the env variable HF_HUB_DISABLE_TELEMETRY=1
         threading.Thread(target=self._telemetry_thread).start()
 
     @classmethod
@@ -252,12 +250,10 @@ class Client:
         )
         hardware = hardware or original_info.hardware
         if current_hardware != hardware:
-            huggingface_hub.request_space_hardware(space_id, hardware, token=hf_token)  # type: ignore
+            huggingface_hub.request_space_hardware(space_id, hardware, token=hf_token)
             print(
                 f"-------\nNOTE: this Space uses upgraded hardware: {hardware}... see billing info at https://huggingface.co/settings/billing\n-------"
             )
-        # Setting a timeout only works if the hardware is not basic
-        # so set it here after the hardware has been requested
         if hardware != huggingface_hub.SpaceHardware.CPU_BASIC:
             utils.set_space_timeout(
                 space_id, hf_token=hf_token, timeout_in_seconds=sleep_timeout * 60
@@ -482,8 +478,6 @@ class Client:
         if all_endpoints:
             human_info += f"\nUnnamed API endpoints: {num_unnamed_endpoints}\n"
             for fn_index, endpoint_info in self._info["unnamed_endpoints"].items():
-                # When loading from json, the fn_indices are read as strings
-                # because json keys can only be strings
                 human_info += self._render_endpoints_info(int(fn_index), endpoint_info)
         else:
             if num_unnamed_endpoints > 0:
@@ -557,7 +551,6 @@ class Client:
         return self.view_api(print_info=False, return_format="str")
 
     def _telemetry_thread(self) -> None:
-        # Disable telemetry by setting the env variable HF_HUB_DISABLE_TELEMETRY=1
         data = {
             "src": self.src,
         }
@@ -610,7 +603,7 @@ class Client:
             self.executor.shutdown(wait=True)
 
     def _space_name_to_src(self, space) -> str | None:
-        return huggingface_hub.space_info(space, token=self.hf_token).host  # type: ignore
+        return huggingface_hub.space_info(space, token=self.hf_token).host
 
     def _login(self, auth: tuple[str, str]):
         resp = httpx.post(
@@ -633,14 +626,13 @@ class Client:
             return r.json()
         elif r.status_code == 401:
             raise ValueError(f"Could not load {self.src}. Please login.")
-        else:  # to support older versions of Gradio
+        else:
             r = httpx.get(self.src, headers=self.headers, cookies=self.cookies)
             if not r.is_success:
                 raise ValueError(f"Could not fetch config for {self.src}")
-            # some basic regex to extract the config
             result = re.search(r"window.gradio_config = (.*?);[\s]*</script>", r.text)
             try:
-                config = json.loads(result.group(1))  # type: ignore
+                config = json.loads(result.group(1))
             except AttributeError as ae:
                 raise ValueError(
                     f"Could not get Gradio config from: {self.src}"
@@ -782,7 +774,7 @@ class Client:
             huggingface_hub.add_space_secret(
                 space_id,
                 "HF_TOKEN",
-                hf_token,  # type: ignore
+                hf_token,
                 token=hf_token,
             )
 
@@ -829,8 +821,6 @@ class Endpoint:
             hf_token=self.client.hf_token,
             root_url=self.root_url,
         )
-        # Only a real API endpoint if backend_fn is True (so not just a frontend function), serializers are valid,
-        # and api_name is not False (meaning that the developer has explicitly disabled the API endpoint)
         self.is_valid = self.dependency["backend_fn"] and self.api_name is not False
 
     def _get_component_type(self, component_id: int):
@@ -846,7 +836,6 @@ class Endpoint:
 
     @staticmethod
     def value_is_file(component: dict) -> bool:
-        # Hacky for now
         if "api_info" not in component:
             return False
         return utils.value_is_file(component["api_info"])
@@ -868,8 +857,6 @@ class Endpoint:
                 data = self.serialize(*data)
             predictions = _predict(*data)
             predictions = self.process_predictions(*predictions)
-            # Append final output only if not already present
-            # for consistency between generators and not generators
             if helper:
                 with helper.lock:
                     if not helper.job.outputs:
@@ -929,17 +916,13 @@ class Endpoint:
     ) -> list[str | list[str]] | list[dict[str, Any] | list[dict[str, Any]]]:
         if not file_paths:
             return []
-        # Put all the filepaths in one file
-        # but then keep track of which index in the
-        # original list they came from so we can recreate
-        # the original structure
         files = []
         indices = []
         for i, fs in enumerate(file_paths):
             if not isinstance(fs, list):
                 fs = [fs]
             for f in fs:
-                files.append(("files", (Path(f).name, open(f, "rb"))))  # noqa: SIM115
+                files.append(("files", (Path(f).name, open(f, "rb"))))
                 indices.append(i)
         r = httpx.post(self.client.upload_url, headers=self.client.headers, files=files)
         if r.status_code != 200:
@@ -996,9 +979,6 @@ class Endpoint:
         new_data = []
         for i, d in enumerate(data):
             if self.input_component_types[i].value_is_file:
-                # Check file dicts and filepaths to upload
-                # file dict is a corner case but still needed for completeness
-                # most users should be using filepaths
                 d = utils.traverse(
                     d, get_file, lambda s: utils.is_file_obj(s) or utils.is_filepath(s)
                 )
@@ -1100,8 +1080,6 @@ class EndpointV3Compatibility:
         self.root_url = client.src + "/" if not client.src.endswith("/") else client.src
         self.is_continuous = dependency.get("types", {}).get("continuous", False)
         try:
-            # Only a real API endpoint if backend_fn is True (so not just a frontend function), serializers are valid,
-            # and api_name is not False (meaning that the developer has explicitly disabled the API endpoint)
             self.serializers, self.deserializers = self._setup_serializers()
             self.is_valid = self.dependency["backend_fn"] and self.api_name is not False
         except SerializationSetupError:
@@ -1124,8 +1102,6 @@ class EndpointV3Compatibility:
                 data = self.serialize(*data)
             predictions = _predict(*data)
             predictions = self.process_predictions(*predictions)
-            # Append final output only if not already present
-            # for consistency between generators and not generators
             if helper:
                 with helper.lock:
                     if not helper.job.outputs:
@@ -1192,17 +1168,13 @@ class EndpointV3Compatibility:
     ) -> list[str | list[str]] | list[dict[str, Any] | list[dict[str, Any]]]:
         if not file_paths:
             return []
-        # Put all the filepaths in one file
-        # but then keep track of which index in the
-        # original list they came from so we can recreate
-        # the original structure
         files = []
         indices = []
         for i, fs in enumerate(file_paths):
             if not isinstance(fs, list):
                 fs = [fs]
             for f in fs:
-                files.append(("files", (Path(f).name, open(f, "rb"))))  # noqa: SIM115
+                files.append(("files", (Path(f).name, open(f, "rb"))))
                 indices.append(i)
         r = httpx.post(self.client.upload_url, headers=self.client.headers, files=files)
         if r.status_code != 200:
@@ -1341,7 +1313,7 @@ class EndpointV3Compatibility:
                         raise SerializationSetupError(
                             f"Unknown component: {component_name}, you may need to update your gradio_client version."
                         )
-                    serializers.append(serializer())  # type: ignore
+                    serializers.append(serializer())
 
         outputs = self.dependency["outputs"]
         deserializers = []
@@ -1365,7 +1337,7 @@ class EndpointV3Compatibility:
                         raise SerializationSetupError(
                             f"Unknown component: {component_name}, you may need to update your gradio_client version."
                         )
-                    deserializers.append(deserializer())  # type: ignore
+                    deserializers.append(deserializer())
 
         return serializers, deserializers
 
@@ -1378,7 +1350,7 @@ class EndpointV3Compatibility:
         return queue_enabled and queue_uses_websocket and dependency_uses_queue
 
     async def _ws_fn(self, data, hash_data, helper: Communicator):
-        async with websockets.connect(  # type: ignore
+        async with websockets.connect(
             self.client.ws_url,
             open_timeout=10,
             extra_headers=self.client.headers,
@@ -1512,7 +1484,7 @@ class Job(Future):
                 progress_data=None,
             )
         if self.done():
-            if not self.future._exception:  # type: ignore
+            if not self.future._exception:
                 return StatusUpdate(
                     code=Status.FINISHED,
                     rank=0,

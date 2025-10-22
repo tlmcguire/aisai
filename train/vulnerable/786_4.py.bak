@@ -221,21 +221,18 @@ SSL_CB_CONNECT_EXIT = _lib.SSL_CB_CONNECT_EXIT
 SSL_CB_HANDSHAKE_START = _lib.SSL_CB_HANDSHAKE_START
 SSL_CB_HANDSHAKE_DONE = _lib.SSL_CB_HANDSHAKE_DONE
 
-# Taken from https://golang.org/src/crypto/x509/root_linux.go
 _CERTIFICATE_FILE_LOCATIONS = [
-    "/etc/ssl/certs/ca-certificates.crt",  # Debian/Ubuntu/Gentoo etc.
-    "/etc/pki/tls/certs/ca-bundle.crt",  # Fedora/RHEL 6
-    "/etc/ssl/ca-bundle.pem",  # OpenSUSE
-    "/etc/pki/tls/cacert.pem",  # OpenELEC
-    "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",  # CentOS/RHEL 7
+    "/etc/ssl/certs/ca-certificates.crt",
+    "/etc/pki/tls/certs/ca-bundle.crt",
+    "/etc/ssl/ca-bundle.pem",
+    "/etc/pki/tls/cacert.pem",
+    "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
 ]
 
 _CERTIFICATE_PATH_LOCATIONS = [
-    "/etc/ssl/certs",  # SLES10/SLES11
+    "/etc/ssl/certs",
 ]
 
-# These values are compared to output from cffi's ffi.string so they must be
-# byte strings.
 _CRYPTOGRAPHY_MANYLINUX1_CA_DIR = b"/opt/pyca/cryptography/openssl/certs"
 _CRYPTOGRAPHY_MANYLINUX1_CA_FILE = b"/opt/pyca/cryptography/openssl/cert.pem"
 
@@ -350,16 +347,10 @@ class _NpnAdvertiseHelper(_CallbackExceptionHelper):
                 conn = Connection._reverse_mapping[ssl]
                 protos = callback(conn)
 
-                # Join the protocols into a Python bytestring, length-prefixing
-                # each element.
                 protostr = b''.join(
                     chain.from_iterable((int2byte(len(p)), p) for p in protos)
                 )
 
-                # Save our callback arguments on the connection object. This is
-                # done to make sure that they don't get freed before OpenSSL
-                # uses them. Then, return them appropriately in the output
-                # parameters.
                 conn._npn_advertise_callback_args = [
                     _ffi.new("unsigned int *", len(protostr)),
                     _ffi.new("unsigned char[]", protostr),
@@ -369,7 +360,7 @@ class _NpnAdvertiseHelper(_CallbackExceptionHelper):
                 return 0
             except Exception as e:
                 self._problems.append(e)
-                return 2  # SSL_TLSEXT_ERR_ALERT_FATAL
+                return 2
 
         self.callback = _ffi.callback(
             "int (*)(SSL *, const unsigned char **, unsigned int *, void *)",
@@ -390,9 +381,6 @@ class _NpnSelectHelper(_CallbackExceptionHelper):
             try:
                 conn = Connection._reverse_mapping[ssl]
 
-                # The string passed to us is actually made up of multiple
-                # length-prefixed bytestrings. We need to split that into a
-                # list.
                 instr = _ffi.buffer(in_, inlen)[:]
                 protolist = []
                 while instr:
@@ -401,13 +389,8 @@ class _NpnSelectHelper(_CallbackExceptionHelper):
                     protolist.append(proto)
                     instr = instr[length + 1:]
 
-                # Call the callback
                 outstr = callback(conn, protolist)
 
-                # Save our callback arguments on the connection object. This is
-                # done to make sure that they don't get freed before OpenSSL
-                # uses them. Then, return them appropriately in the output
-                # parameters.
                 conn._npn_select_callback_args = [
                     _ffi.new("unsigned char *", len(outstr)),
                     _ffi.new("unsigned char[]", outstr),
@@ -417,7 +400,7 @@ class _NpnSelectHelper(_CallbackExceptionHelper):
                 return 0
             except Exception as e:
                 self._problems.append(e)
-                return 2  # SSL_TLSEXT_ERR_ALERT_FATAL
+                return 2
 
         self.callback = _ffi.callback(
             ("int (*)(SSL *, unsigned char **, unsigned char *, "
@@ -439,9 +422,6 @@ class _ALPNSelectHelper(_CallbackExceptionHelper):
             try:
                 conn = Connection._reverse_mapping[ssl]
 
-                # The string passed to us is made up of multiple
-                # length-prefixed bytestrings. We need to split that into a
-                # list.
                 instr = _ffi.buffer(in_, inlen)[:]
                 protolist = []
                 while instr:
@@ -450,15 +430,11 @@ class _ALPNSelectHelper(_CallbackExceptionHelper):
                     protolist.append(proto)
                     instr = instr[encoded_len + 1:]
 
-                # Call the callback
                 outstr = callback(conn, protolist)
 
                 if not isinstance(outstr, _binary_type):
                     raise TypeError("ALPN callback must return a bytestring.")
 
-                # Save our callback arguments on the connection object to make
-                # sure that they don't get freed before OpenSSL can use them.
-                # Then, return them in the appropriate output parameters.
                 conn._alpn_select_callback_args = [
                     _ffi.new("unsigned char *", len(outstr)),
                     _ffi.new("unsigned char[]", outstr),
@@ -468,7 +444,7 @@ class _ALPNSelectHelper(_CallbackExceptionHelper):
                 return 0
             except Exception as e:
                 self._problems.append(e)
-                return 2  # SSL_TLSEXT_ERR_ALERT_FATAL
+                return 2
 
         self.callback = _ffi.callback(
             ("int (*)(SSL *, unsigned char **, unsigned char *, "
@@ -507,32 +483,19 @@ class _OCSPServerCallbackHelper(_CallbackExceptionHelper):
             try:
                 conn = Connection._reverse_mapping[ssl]
 
-                # Extract the data if any was provided.
                 if cdata != _ffi.NULL:
                     data = _ffi.from_handle(cdata)
                 else:
                     data = None
 
-                # Call the callback.
                 ocsp_data = callback(conn, data)
 
                 if not isinstance(ocsp_data, _binary_type):
                     raise TypeError("OCSP callback must return a bytestring.")
 
-                # If the OCSP data was provided, we will pass it to OpenSSL.
-                # However, we have an early exit here: if no OCSP data was
-                # provided we will just exit out and tell OpenSSL that there
-                # is nothing to do.
                 if not ocsp_data:
-                    return 3  # SSL_TLSEXT_ERR_NOACK
+                    return 3
 
-                # Pass the data to OpenSSL. Insanely, OpenSSL doesn't make a
-                # private copy of this data, so we need to keep it alive, but
-                # it *does* want to free it itself if it gets replaced. This
-                # somewhat bonkers behaviour means we need to use
-                # OPENSSL_malloc directly, which is a pain in the butt to work
-                # with. It's ok for us to "leak" the memory here because
-                # OpenSSL now owns it and will free it.
                 ocsp_data_length = len(ocsp_data)
                 data_ptr = _lib.OPENSSL_malloc(ocsp_data_length)
                 _ffi.buffer(data_ptr, ocsp_data_length)[:] = ocsp_data
@@ -544,7 +507,7 @@ class _OCSPServerCallbackHelper(_CallbackExceptionHelper):
                 return 0
             except Exception as e:
                 self._problems.append(e)
-                return 2  # SSL_TLSEXT_ERR_ALERT_FATAL
+                return 2
 
         self.callback = _ffi.callback("int (*)(SSL *, void *)", wrapper)
 
@@ -579,30 +542,24 @@ class _OCSPClientCallbackHelper(_CallbackExceptionHelper):
             try:
                 conn = Connection._reverse_mapping[ssl]
 
-                # Extract the data if any was provided.
                 if cdata != _ffi.NULL:
                     data = _ffi.from_handle(cdata)
                 else:
                     data = None
 
-                # Get the OCSP data.
                 ocsp_ptr = _ffi.new("unsigned char **")
                 ocsp_len = _lib.SSL_get_tlsext_status_ocsp_resp(ssl, ocsp_ptr)
                 if ocsp_len < 0:
-                    # No OCSP data.
                     ocsp_data = b''
                 else:
-                    # Copy the OCSP data, then pass it to the callback.
                     ocsp_data = _ffi.buffer(ocsp_ptr[0], ocsp_len)[:]
 
                 valid = callback(conn, ocsp_data, data)
 
-                # Return 1 on success or 0 on error.
                 return int(bool(valid))
 
             except Exception as e:
                 self._problems.append(e)
-                # Return negative value if an exception is hit.
                 return -1
 
         self.callback = _ffi.callback("int (*)(SSL *, void *)", wrapper)
@@ -715,9 +672,6 @@ class Context(object):
         _openssl_assert(context != _ffi.NULL)
         context = _ffi.gc(context, _lib.SSL_CTX_free)
 
-        # If SSL_CTX_set_ecdh_auto is available then set it so the ECDH curve
-        # will be auto-selected. This function was added in 1.0.2 and made a
-        # noop in 1.1.0+ (where it is set automatically).
         try:
             res = _lib.SSL_CTX_set_ecdh_auto(context, 1)
             _openssl_assert(res == 1)
@@ -804,17 +758,8 @@ class Context(object):
 
         :return: None
         """
-        # SSL_CTX_set_default_verify_paths will attempt to load certs from
-        # both a cafile and capath that are set at compile time. However,
-        # it will first check environment variables and, if present, load
-        # those paths instead
         set_result = _lib.SSL_CTX_set_default_verify_paths(self._context)
         _openssl_assert(set_result == 1)
-        # After attempting to set default_verify_paths we need to know whether
-        # to go down the fallback path.
-        # First we'll check to see if any env vars have been set. If so,
-        # we won't try to do anything else because the user has set the path
-        # themselves.
         dir_env_var = _ffi.string(
             _lib.X509_get_default_cert_dir_env()
         ).decode("ascii")
@@ -824,14 +769,10 @@ class Context(object):
         if not self._check_env_vars_set(dir_env_var, file_env_var):
             default_dir = _ffi.string(_lib.X509_get_default_cert_dir())
             default_file = _ffi.string(_lib.X509_get_default_cert_file())
-            # Now we check to see if the default_dir and default_file are set
-            # to the exact values we use in our manylinux1 builds. If they are
-            # then we know to load the fallbacks
             if (
                 default_dir == _CRYPTOGRAPHY_MANYLINUX1_CA_DIR and
                 default_file == _CRYPTOGRAPHY_MANYLINUX1_CA_FILE
             ):
-                # This is manylinux1, let's load our fallback paths
                 self._fallback_default_verify_paths(
                     _CERTIFICATE_FILE_LOCATIONS,
                     _CERTIFICATE_PATH_LOCATIONS
@@ -932,7 +873,6 @@ class Context(object):
         copy = _lib.X509_dup(certobj._x509)
         add_result = _lib.SSL_CTX_add_extra_chain_cert(self._context, copy)
         if not add_result:
-            # TODO: This is untested.
             _lib.X509_free(copy)
             _raise_current_error()
 
@@ -1252,7 +1192,6 @@ class Context(object):
         """
         store = _lib.SSL_CTX_get_cert_store(self._context)
         if store == _ffi.NULL:
-            # TODO: This is untested.
             return None
 
         pystore = X509Store.__new__(X509Store)
@@ -1346,14 +1285,10 @@ class Context(object):
             This list should be a Python list of bytestrings representing the
             protocols to offer, e.g. ``[b'http/1.1', b'spdy/2']``.
         """
-        # Take the list of protocols and join them together, prefixing them
-        # with their lengths.
         protostr = b''.join(
             chain.from_iterable((int2byte(len(p)), p) for p in protos)
         )
 
-        # Build a C string from the list. We don't need to save this off
-        # because OpenSSL immediately copies the data out.
         input_str = _ffi.new("unsigned char[]", protostr)
         _lib.SSL_CTX_set_alpn_protos(self._context, input_str, len(protostr))
 
@@ -1458,24 +1393,15 @@ class Connection(object):
         self._context = context
         self._app_data = None
 
-        # References to strings used for Next Protocol Negotiation. OpenSSL's
-        # header files suggest that these might get copied at some point, but
-        # doesn't specify when, so we store them here to make sure they don't
-        # get freed before OpenSSL uses them.
         self._npn_advertise_callback_args = None
         self._npn_select_callback_args = None
 
-        # References to strings used for Application Layer Protocol
-        # Negotiation. These strings get copied at some point but it's well
-        # after the callback returns, so we have to hang them somewhere to
-        # avoid them getting freed.
         self._alpn_select_callback_args = None
 
         self._reverse_mapping[self._ssl] = self
 
         if socket is None:
             self._socket = None
-            # Don't set up any gc for these, SSL_free will take care of them.
             self._into_ssl = _lib.BIO_new(_lib.BIO_s_mem())
             _openssl_assert(self._into_ssl != _ffi.NULL)
 
@@ -1523,7 +1449,6 @@ class Connection(object):
         elif error == _lib.SSL_ERROR_ZERO_RETURN:
             raise ZeroReturnError()
         elif error == _lib.SSL_ERROR_WANT_X509_LOOKUP:
-            # TODO: This is untested.
             raise WantX509LookupError()
         elif error == _lib.SSL_ERROR_SYSCALL:
             if _lib.ERR_peek_error() == 0:
@@ -1537,7 +1462,6 @@ class Connection(object):
                         raise SysCallError(errno, errorcode.get(errno))
                 raise SysCallError(-1, "Unexpected EOF")
             else:
-                # TODO: This is untested.
                 _raise_current_error()
         elif error == _lib.SSL_ERROR_NONE:
             pass
@@ -1591,7 +1515,6 @@ class Connection(object):
         elif b"\0" in name:
             raise TypeError("name must not contain NUL byte")
 
-        # XXX I guess this can fail sometimes?
         _lib.SSL_set_tlsext_host_name(self._ssl, name)
 
     def pending(self):
@@ -1613,7 +1536,6 @@ class Connection(object):
                       API, the value is ignored
         :return: The number of bytes written
         """
-        # Backward compatibility
         buf = _text_to_bytes_and_warn("buf", buf)
 
         if isinstance(buf, _memoryview):
@@ -1655,8 +1577,6 @@ class Connection(object):
         data = _ffi.new("char[]", buf)
 
         while left_to_send:
-            # SSL_write's num arg is an int,
-            # so we cannot send more than 2**31-1 bytes at once.
             result = _lib.SSL_write(
                 self._ssl,
                 data + total_sent,
@@ -1703,9 +1623,6 @@ class Connection(object):
         else:
             nbytes = min(nbytes, len(buffer))
 
-        # We need to create a temporary buffer. This is annoying, it would be
-        # better if we could pass memoryviews straight into the SSL_read call,
-        # but right now we can't. Revisit this if CFFI gets that ability.
         buf = _no_zero_allocator("char[]", nbytes)
         if flags is not None and flags & socket.MSG_PEEK:
             result = _lib.SSL_peek(self._ssl, buf, nbytes)
@@ -1713,11 +1630,6 @@ class Connection(object):
             result = _lib.SSL_read(self._ssl, buf, nbytes)
         self._raise_ssl_error(self._ssl, result)
 
-        # This strange line is all to avoid a memory copy. The buffer protocol
-        # should allow us to assign a CFFI buffer to the LHS of this line, but
-        # on CPython 3.3+ that segfaults. As a workaround, we can temporarily
-        # wrap it in a memoryview, except on Python 2.6 which doesn't have a
-        # memoryview type.
         try:
             buffer[:result] = memoryview(_ffi.buffer(buf, result))
         except NameError:
@@ -1730,17 +1642,12 @@ class Connection(object):
             if _lib.BIO_should_read(bio):
                 raise WantReadError()
             elif _lib.BIO_should_write(bio):
-                # TODO: This is untested.
                 raise WantWriteError()
             elif _lib.BIO_should_io_special(bio):
-                # TODO: This is untested.  I think io_special means the socket
-                # BIO has a not-yet connected socket.
                 raise ValueError("BIO_should_io_special")
             else:
-                # TODO: This is untested.
                 raise ValueError("unknown bio failure")
         else:
-            # TODO: This is untested.
             _raise_current_error()
 
     def bio_read(self, bufsiz):
@@ -1912,7 +1819,6 @@ class Connection(object):
         """
         ca_names = _lib.SSL_get_client_CA_list(self._ssl)
         if ca_names == _ffi.NULL:
-            # TODO: This is untested.
             return []
 
         result = []
@@ -2062,7 +1968,6 @@ class Connection(object):
 
         result = []
         for i in range(_lib.sk_X509_num(cert_stack)):
-            # TODO could incref instead of dup here
             cert = _lib.X509_dup(_lib.sk_X509_value(cert_stack, i))
             pycert = X509._from_raw_x509_ptr(cert)
             result.append(pycert)
@@ -2145,22 +2050,9 @@ class Connection(object):
             received, otherwise the contents of the message.
         :rtype: :py:class:`bytes` or :py:class:`NoneType`
         """
-        # The OpenSSL documentation says nothing about what might happen if the
-        # count argument given is zero.  Specifically, it doesn't say whether
-        # the output buffer may be NULL in that case or not.  Inspection of the
-        # implementation reveals that it calls memcpy() unconditionally.
-        # Section 7.1.4, paragraph 1 of the C standard suggests that
-        # memcpy(NULL, source, 0) is not guaranteed to produce defined (let
-        # alone desirable) behavior (though it probably does on just about
-        # every implementation...)
-        #
-        # Allocate a tiny buffer to pass in (instead of just passing NULL as
-        # one might expect) for the initial call so as to be safe against this
-        # potentially undefined behavior.
         empty = _ffi.new("char[]", 0)
         size = function(self._ssl, empty, 0)
         if size == 0:
-            # No Finished message so far.
             return None
 
         buf = _no_zero_allocator("char[]", size)
@@ -2277,14 +2169,10 @@ class Connection(object):
             This list should be a Python list of bytestrings representing the
             protocols to offer, e.g. ``[b'http/1.1', b'spdy/2']``.
         """
-        # Take the list of protocols and join them together, prefixing them
-        # with their lengths.
         protostr = b''.join(
             chain.from_iterable((int2byte(len(p)), p) for p in protos)
         )
 
-        # Build a C string from the list. We don't need to save this off
-        # because OpenSSL immediately copies the data out.
         input_str = _ffi.new("unsigned char[]", protostr)
         _lib.SSL_set_alpn_protos(self._ssl, input_str, len(protostr))
 
@@ -2322,6 +2210,4 @@ ConnectionType = deprecated(
     DeprecationWarning
 )
 
-# This is similar to the initialization calls at the end of OpenSSL/crypto.py
-# but is exercised mostly by the Context initializer.
 _lib.SSL_library_init()

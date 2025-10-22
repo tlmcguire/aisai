@@ -323,7 +323,6 @@ def test_query_customer_user_with_orders(
     permission_manage_users,
     permission_manage_orders,
 ):
-    # given
     query = FULL_USER_QUERY
     order_unfulfilled = order_list[0]
     order_unfulfilled.user = customer_user
@@ -343,14 +342,12 @@ def test_query_customer_user_with_orders(
     id = graphene.Node.to_global_id("User", customer_user.id)
     variables = {"id": id}
 
-    # when
     response = staff_api_client.post_graphql(
         query,
         variables,
         permissions=[permission_manage_users, permission_manage_orders],
     )
 
-    # then
     content = get_graphql_content(response)
     user = content["data"]["user"]
     assert {order["node"]["id"] for order in user["orders"]["edges"]} == {
@@ -364,7 +361,6 @@ def test_query_customer_user_with_orders_no_manage_orders_perm(
     order_list,
     permission_manage_users,
 ):
-    # given
     query = FULL_USER_QUERY
     order_unfulfilled = order_list[0]
     order_unfulfilled.user = customer_user
@@ -384,12 +380,10 @@ def test_query_customer_user_with_orders_no_manage_orders_perm(
     id = graphene.Node.to_global_id("User", customer_user.id)
     variables = {"id": id}
 
-    # when
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_users]
     )
 
-    # then
     assert_no_permission(response)
 
 
@@ -434,7 +428,6 @@ def test_query_customer_user_with_orders_by_app_no_manage_orders_perm(
     order_list,
     permission_manage_users,
 ):
-    # given
     query = FULL_USER_QUERY
     order_unfulfilled = order_list[0]
     order_unfulfilled.user = customer_user
@@ -454,12 +447,10 @@ def test_query_customer_user_with_orders_by_app_no_manage_orders_perm(
     id = graphene.Node.to_global_id("User", customer_user.id)
     variables = {"id": id}
 
-    # when
     response = app_api_client.post_graphql(
         query, variables, permissions=[permission_manage_users]
     )
 
-    # then
     assert_no_permission(response)
 
 
@@ -488,10 +479,8 @@ def test_query_staff_user(
 
     group1.permissions.add(permission_manage_users, permission_manage_products)
 
-    # user groups
     staff_user.groups.add(group1, group2)
 
-    # another group (not user group) with permission_manage_users
     group3.permissions.add(permission_manage_users, permission_manage_menus)
 
     avatar_mock = MagicMock(spec=File)
@@ -547,7 +536,6 @@ def test_query_staff_user_with_order_and_without_manage_orders_perm(
     order_list,
     permission_manage_staff,
 ):
-    # given
     staff_user.user_permissions.add(permission_manage_staff)
 
     order_unfulfilled = order_list[0]
@@ -587,7 +575,6 @@ def test_query_staff_user_with_orders_and_manage_orders_perm(
     permission_manage_staff,
     permission_manage_orders,
 ):
-    # given
     staff_user.user_permissions.add(permission_manage_staff, permission_manage_orders)
 
     order_unfulfilled = order_list[0]
@@ -647,20 +634,17 @@ def test_query_user_by_email_address(
 def test_query_user_by_external_reference(
     user_api_client, customer_user, permission_manage_users
 ):
-    # given
     user = customer_user
     ext_ref = "test-ext-ref"
     user.external_reference = ext_ref
     user.save(update_fields=["external_reference"])
     variables = {"externalReference": ext_ref}
 
-    # when
     response = user_api_client.post_graphql(
         USER_QUERY, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     data = content["data"]["user"]
     assert data["externalReference"] == user.external_reference
 
@@ -813,7 +797,6 @@ USER_AVATAR_QUERY = """
 def test_query_user_avatar_with_size_and_format_proxy_url_returned(
     staff_api_client, media_root, permission_manage_staff, site_settings
 ):
-    # given
     user = staff_api_client.user
     avatar_mock = MagicMock(spec=File)
     avatar_mock.name = "image.jpg"
@@ -826,12 +809,10 @@ def test_query_user_avatar_with_size_and_format_proxy_url_returned(
     user_uuid = graphene.Node.to_global_id("User", user.uuid)
     variables = {"id": user_id, "size": 120, "format": format}
 
-    # when
     response = staff_api_client.post_graphql(
         USER_AVATAR_QUERY, variables, permissions=[permission_manage_staff]
     )
 
-    # then
     content = get_graphql_content(response)
     data = content["data"]["user"]
     domain = site_settings.site.domain
@@ -844,7 +825,6 @@ def test_query_user_avatar_with_size_and_format_proxy_url_returned(
 def test_query_user_avatar_with_size_proxy_url_returned(
     staff_api_client, media_root, permission_manage_staff, site_settings
 ):
-    # given
     user = staff_api_client.user
     avatar_mock = MagicMock(spec=File)
     avatar_mock.name = "image.jpg"
@@ -855,12 +835,10 @@ def test_query_user_avatar_with_size_proxy_url_returned(
     user_uuid = graphene.Node.to_global_id("User", user.uuid)
     variables = {"id": user_id, "size": 120}
 
-    # when
     response = staff_api_client.post_graphql(
         USER_AVATAR_QUERY, variables, permissions=[permission_manage_staff]
     )
 
-    # then
     content = get_graphql_content(response)
     data = content["data"]["user"]
     assert (
@@ -872,7 +850,6 @@ def test_query_user_avatar_with_size_proxy_url_returned(
 def test_query_user_avatar_with_size_thumbnail_url_returned(
     staff_api_client, media_root, permission_manage_staff, site_settings
 ):
-    # given
     user = staff_api_client.user
     avatar_mock = MagicMock(spec=File)
     avatar_mock.name = "image.jpg"
@@ -886,12 +863,10 @@ def test_query_user_avatar_with_size_thumbnail_url_returned(
     id = graphene.Node.to_global_id("User", user.pk)
     variables = {"id": id, "size": 120}
 
-    # when
     response = staff_api_client.post_graphql(
         USER_AVATAR_QUERY, variables, permissions=[permission_manage_staff]
     )
 
-    # then
     content = get_graphql_content(response)
     data = content["data"]["user"]
     assert (
@@ -903,7 +878,6 @@ def test_query_user_avatar_with_size_thumbnail_url_returned(
 def test_query_user_avatar_original_size_custom_format_provided_original_image_returned(
     staff_api_client, media_root, permission_manage_staff, site_settings
 ):
-    # given
     user = staff_api_client.user
     avatar_mock = MagicMock(spec=File)
     avatar_mock.name = "image.jpg"
@@ -915,12 +889,10 @@ def test_query_user_avatar_original_size_custom_format_provided_original_image_r
     id = graphene.Node.to_global_id("User", user.pk)
     variables = {"id": id, "format": format, "size": 0}
 
-    # when
     response = staff_api_client.post_graphql(
         USER_AVATAR_QUERY, variables, permissions=[permission_manage_staff]
     )
 
-    # then
     content = get_graphql_content(response)
     data = content["data"]["user"]
     assert (
@@ -932,7 +904,6 @@ def test_query_user_avatar_original_size_custom_format_provided_original_image_r
 def test_query_user_avatar_no_size_value(
     staff_api_client, media_root, permission_manage_staff, site_settings
 ):
-    # given
     user = staff_api_client.user
     avatar_mock = MagicMock(spec=File)
     avatar_mock.name = "image.jpg"
@@ -944,12 +915,10 @@ def test_query_user_avatar_no_size_value(
 
     user_uuid = graphene.Node.to_global_id("User", user.uuid)
 
-    # when
     response = staff_api_client.post_graphql(
         USER_AVATAR_QUERY, variables, permissions=[permission_manage_staff]
     )
 
-    # then
     content = get_graphql_content(response)
     data = content["data"]["user"]
     assert (
@@ -959,18 +928,15 @@ def test_query_user_avatar_no_size_value(
 
 
 def test_query_user_avatar_no_image(staff_api_client, permission_manage_staff):
-    # given
     user = staff_api_client.user
 
     id = graphene.Node.to_global_id("User", user.pk)
     variables = {"id": id}
 
-    # when
     response = staff_api_client.post_graphql(
         USER_AVATAR_QUERY, variables, permissions=[permission_manage_staff]
     )
 
-    # then
     content = get_graphql_content(response)
     data = content["data"]["user"]
     assert data["id"]
@@ -999,7 +965,6 @@ def test_query_customers(staff_api_client, user_api_client, permission_manage_us
     assert users
     assert all([not user["node"]["isStaff"] for user in users])
 
-    # check permissions
     response = user_api_client.post_graphql(query, variables)
     assert_no_permission(response)
 
@@ -1030,7 +995,6 @@ def test_query_staff(
     assert sorted(staff_emails) == [admin_user.email, staff_user.email]
     assert all([user["node"]["isStaff"] for user in data])
 
-    # check permissions
     response = user_api_client.post_graphql(query, variables)
     assert_no_permission(response)
 
@@ -1046,7 +1010,6 @@ def test_who_can_see_user(
     }
     """
 
-    # Random person (even staff) can't see users data without permissions
     ID = graphene.Node.to_global_id("User", customer_user.id)
     variables = {"id": ID}
     response = staff_api_client.post_graphql(USER_QUERY, variables)
@@ -1055,7 +1018,6 @@ def test_who_can_see_user(
     response = staff_api_client.post_graphql(query)
     assert_no_permission(response)
 
-    # Add permission and ensure staff can see user(s)
     staff_user.user_permissions.add(permission_manage_users)
     response = staff_api_client.post_graphql(USER_QUERY, variables)
     content = get_graphql_content(response)
@@ -1130,11 +1092,9 @@ def test_me_query_customer_can_not_see_note(
         }
     }
     """
-    # Random person (even staff) can't see own note without permissions
     response = staff_api_client.post_graphql(query)
     assert_no_permission(response)
 
-    # Add permission and ensure staff can see own note
     response = staff_api_client.post_graphql(
         query, permissions=[permission_manage_users]
     )
@@ -1220,13 +1180,10 @@ query getCheckoutTokens($channel: String) {
 def test_me_checkout_tokens_without_channel_param(
     user_api_client, checkouts_assigned_to_customer
 ):
-    # given
     checkouts = checkouts_assigned_to_customer
 
-    # when
     response = user_api_client.post_graphql(QUERY_ME_CHECKOUT_TOKENS)
 
-    # then
     content = get_graphql_content(response)
     data = content["data"]["me"]
     assert len(data["checkoutTokens"]) == len(checkouts)
@@ -1237,15 +1194,12 @@ def test_me_checkout_tokens_without_channel_param(
 def test_me_checkout_tokens_without_channel_param_inactive_channel(
     user_api_client, channel_PLN, checkouts_assigned_to_customer
 ):
-    # given
     channel_PLN.is_active = False
     channel_PLN.save()
     checkouts = checkouts_assigned_to_customer
 
-    # when
     response = user_api_client.post_graphql(QUERY_ME_CHECKOUT_TOKENS)
 
-    # then
     content = get_graphql_content(response)
     data = content["data"]["me"]
     assert str(checkouts[0].token) in data["checkoutTokens"]
@@ -1255,15 +1209,12 @@ def test_me_checkout_tokens_without_channel_param_inactive_channel(
 def test_me_checkout_tokens_with_channel(
     user_api_client, channel_USD, checkouts_assigned_to_customer
 ):
-    # given
     checkouts = checkouts_assigned_to_customer
 
-    # when
     response = user_api_client.post_graphql(
         QUERY_ME_CHECKOUT_TOKENS, {"channel": channel_USD.slug}
     )
 
-    # then
     content = get_graphql_content(response)
     data = content["data"]["me"]
     assert str(checkouts[0].token) in data["checkoutTokens"]
@@ -1273,16 +1224,13 @@ def test_me_checkout_tokens_with_channel(
 def test_me_checkout_tokens_with_inactive_channel(
     user_api_client, channel_USD, checkouts_assigned_to_customer
 ):
-    # given
     channel_USD.is_active = False
     channel_USD.save()
 
-    # when
     response = user_api_client.post_graphql(
         QUERY_ME_CHECKOUT_TOKENS, {"channel": channel_USD.slug}
     )
 
-    # then
     content = get_graphql_content(response)
     data = content["data"]["me"]
     assert not data["checkoutTokens"]
@@ -1291,14 +1239,11 @@ def test_me_checkout_tokens_with_inactive_channel(
 def test_me_checkout_tokens_with_not_existing_channel(
     user_api_client, checkouts_assigned_to_customer
 ):
-    # given
 
-    # when
     response = user_api_client.post_graphql(
         QUERY_ME_CHECKOUT_TOKENS, {"channel": "Not-existing"}
     )
 
-    # then
     content = get_graphql_content(response)
     data = content["data"]["me"]
     assert not data["checkoutTokens"]
@@ -1515,15 +1460,12 @@ def test_customer_register_no_redirect_url(mocked_notify, api_client):
 
 @override_settings(ENABLE_ACCOUNT_CONFIRMATION_BY_EMAIL=False)
 def test_customer_register_upper_case_email(api_client):
-    # given
     email = "CUSTOMER@example.com"
     variables = {"email": email, "password": "Password"}
 
-    # when
     response = api_client.post_graphql(ACCOUNT_REGISTER_MUTATION, variables)
     content = get_graphql_content(response)
 
-    # then
     data = content["data"]["accountRegister"]
     assert not data["errors"]
     assert data["user"]["email"].lower()
@@ -1761,17 +1703,14 @@ def test_customer_create_with_not_allowed_url(
 def test_customer_create_with_upper_case_email(
     staff_api_client, permission_manage_users
 ):
-    # given
     email = "UPPERCASE@example.com"
     variables = {"email": email}
 
-    # when
     response = staff_api_client.post_graphql(
         CUSTOMER_CREATE_MUTATION, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     data = content["data"]["customerCreate"]
     assert not data["errors"]
     assert data["user"]["email"] == email.lower()
@@ -1780,20 +1719,17 @@ def test_customer_create_with_upper_case_email(
 def test_customer_create_with_non_unique_external_reference(
     staff_api_client, permission_manage_users, customer_user
 ):
-    # given
     ext_ref = "test-ext-ref"
     customer_user.external_reference = ext_ref
     customer_user.save(update_fields=["external_reference"])
 
     variables = {"email": "mail.test@exampale.com", "externalReference": ext_ref}
 
-    # when
     response = staff_api_client.post_graphql(
         CUSTOMER_CREATE_MUTATION, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     error = content["data"]["customerCreate"]["errors"][0]
     assert error["field"] == "externalReference"
     assert error["code"] == AccountErrorCode.UNIQUE.name
@@ -1846,8 +1782,6 @@ def test_customer_update(
     }
     """
 
-    # this test requires addresses to be set and checks whether new address
-    # instances weren't created, but the existing ones got updated
     assert customer_user.default_billing_address
     assert customer_user.default_shipping_address
     billing_address_pk = customer_user.default_billing_address.pk
@@ -1883,7 +1817,6 @@ def test_customer_update(
 
     customer = User.objects.get(email=customer_user.email)
 
-    # check that existing instances are updated
     shipping_address, billing_address = (
         customer.default_shipping_address,
         customer.default_billing_address,
@@ -1950,7 +1883,6 @@ UPDATE_CUSTOMER_BY_EXTERNAL_REFERENCE = """
 def test_customer_update_by_external_reference(
     staff_api_client, customer_user, permission_manage_users
 ):
-    # given
     query = UPDATE_CUSTOMER_BY_EXTERNAL_REFERENCE
     user = customer_user
     new_name = "updated name"
@@ -1963,13 +1895,11 @@ def test_customer_update_by_external_reference(
         "input": {"firstName": new_name},
     }
 
-    # when
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     user.refresh_from_db()
     data = content["data"]["customerUpdate"]
     assert not data["errors"]
@@ -1981,17 +1911,14 @@ def test_customer_update_by_external_reference(
 def test_update_customer_by_both_id_and_external_reference(
     staff_api_client, customer_user, permission_manage_users
 ):
-    # given
     query = UPDATE_CUSTOMER_BY_EXTERNAL_REFERENCE
     variables = {"input": {}, "externalReference": "whatever", "id": "whatever"}
 
-    # when
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     data = content["data"]["customerUpdate"]
     assert not data["user"]
     assert (
@@ -2003,7 +1930,6 @@ def test_update_customer_by_both_id_and_external_reference(
 def test_update_customer_by_external_reference_not_existing(
     staff_api_client, customer_user, permission_manage_users
 ):
-    # given
     query = UPDATE_CUSTOMER_BY_EXTERNAL_REFERENCE
     ext_ref = "non-existing-ext-ref"
     variables = {
@@ -2011,13 +1937,11 @@ def test_update_customer_by_external_reference_not_existing(
         "externalReference": ext_ref,
     }
 
-    # when
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     data = content["data"]["customerUpdate"]
     assert not data["user"]
     assert data["errors"][0]["message"] == f"Couldn't resolve to a node: {ext_ref}"
@@ -2027,7 +1951,6 @@ def test_update_customer_by_external_reference_not_existing(
 def test_update_customer_with_non_unique_external_reference(
     staff_api_client, permission_manage_users, user_list
 ):
-    # given
     query = UPDATE_CUSTOMER_BY_EXTERNAL_REFERENCE
 
     ext_ref = "test-ext-ref"
@@ -2038,13 +1961,11 @@ def test_update_customer_with_non_unique_external_reference(
 
     variables = {"input": {"externalReference": ext_ref}, "id": user_2_id}
 
-    # when
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     error = content["data"]["customerUpdate"]["errors"][0]
     assert error["field"] == "externalReference"
     assert error["code"] == AccountErrorCode.UNIQUE.name
@@ -2089,7 +2010,6 @@ def test_customer_update_generates_event_when_changing_email(
         query, variables, permissions=[permission_manage_users]
     )
 
-    # The email was changed, an event should have been triggered
     email_changed_event = account_events.CustomerEvent.objects.get()
     assert email_changed_event.type == account_events.CustomerEvents.EMAIL_ASSIGNED
     assert email_changed_event.user.pk == staff_user.pk
@@ -2218,7 +2138,6 @@ def test_customer_update_without_any_changes_generates_no_event(
         query, variables, permissions=[permission_manage_users]
     )
 
-    # No event should have been generated
     assert not account_events.CustomerEvent.objects.exists()
 
 
@@ -2241,7 +2160,6 @@ def test_customer_update_generates_event_when_changing_email_by_app(
     }
     app_api_client.post_graphql(query, variables, permissions=[permission_manage_users])
 
-    # The email was changed, an event should have been triggered
     email_changed_event = account_events.CustomerEvent.objects.get()
     assert email_changed_event.type == account_events.CustomerEvents.EMAIL_ASSIGNED
     assert email_changed_event.user is None
@@ -2257,7 +2175,6 @@ def test_customer_update_assign_gift_cards_and_orders(
     order,
     permission_manage_users,
 ):
-    # given
     query = UPDATE_CUSTOMER_EMAIL_MUTATION
 
     user_id = graphene.Node.to_global_id("User", customer_user.id)
@@ -2282,12 +2199,10 @@ def test_customer_update_assign_gift_cards_and_orders(
         "email": new_email,
     }
 
-    # when
     staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_users]
     )
 
-    # then
     email_changed_event = account_events.CustomerEvent.objects.get()
     assert email_changed_event.type == account_events.CustomerEvents.EMAIL_ASSIGNED
     gift_card.refresh_from_db()
@@ -2373,8 +2288,6 @@ def test_logged_customer_update_names(user_api_client):
 
 
 def test_logged_customer_update_addresses(user_api_client, graphql_address_data):
-    # this test requires addresses to be set and checks whether new address
-    # instances weren't created, but the existing ones got updated
     user = user_api_client.user
     new_first_name = graphql_address_data["firstName"]
     assert user.default_billing_address
@@ -2390,7 +2303,6 @@ def test_logged_customer_update_addresses(user_api_client, graphql_address_data)
     data = content["data"][mutation_name]
     assert not data["errors"]
 
-    # check that existing instances are updated
     billing_address_pk = user.default_billing_address.pk
     shipping_address_pk = user.default_shipping_address.pk
     user = User.objects.get(email=user.email)
@@ -2639,7 +2551,6 @@ ACCOUNT_DELETE_MUTATION = """
 @patch("saleor.core.tasks.delete_from_storage_task.delay")
 @freeze_time("2018-05-31 12:00:01")
 def test_account_delete(delete_from_storage_task_mock, user_api_client, media_root):
-    # given
     thumbnail_mock = MagicMock(spec=File)
     thumbnail_mock.name = "image.jpg"
 
@@ -2649,7 +2560,6 @@ def test_account_delete(delete_from_storage_task_mock, user_api_client, media_ro
 
     user_id = user.id
 
-    # create thumbnail
     thumbnail = Thumbnail.objects.create(user=user, size=128, image=thumbnail_mock)
     assert user.thumbnails.all()
     img_path = thumbnail.image.name
@@ -2657,15 +2567,12 @@ def test_account_delete(delete_from_storage_task_mock, user_api_client, media_ro
     token = account_delete_token_generator.make_token(user)
     variables = {"token": token}
 
-    # when
     response = user_api_client.post_graphql(ACCOUNT_DELETE_MUTATION, variables)
 
-    # then
     content = get_graphql_content(response)
     data = content["data"]["accountDelete"]
     assert not data["errors"]
     assert not User.objects.filter(pk=user.id).exists()
-    # ensure all related thumbnails have been deleted
     assert not Thumbnail.objects.filter(user_id=user_id).exists()
     delete_from_storage_task_mock.assert_called_once_with(img_path)
 
@@ -2691,7 +2598,6 @@ def test_account_delete_log_out_after_deletion_request(user_api_client):
 
     token = account_delete_token_generator.make_token(user)
 
-    # simulate re-login
     user.last_login = timezone.now() + datetime.timedelta(hours=1)
     user.save(update_fields=["last_login"])
 
@@ -2795,8 +2701,6 @@ def test_customer_delete(
     assert data["errors"] == []
     assert data["user"]["id"] == customer_id
 
-    # Ensure the customer was properly deleted
-    # and any related event was properly triggered
     mocked_deletion_event.assert_called_once_with(
         staff_user=staff_user, app=None, deleted_count=1
     )
@@ -2815,21 +2719,18 @@ def test_customer_delete_trigger_webhook(
     permission_manage_users,
     settings,
 ):
-    # given
     mocked_get_webhooks_for_event.return_value = [any_webhook]
     settings.PLUGINS = ["saleor.plugins.webhook.plugin.WebhookPlugin"]
 
     customer_id = graphene.Node.to_global_id("User", customer_user.pk)
     variables = {"id": customer_id}
 
-    # when
     response = staff_api_client.post_graphql(
         CUSTOMER_DELETE_MUTATION, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
     data = content["data"]["customerDelete"]
 
-    # then
     assert data["errors"] == []
     assert data["user"]["id"] == customer_id
     mocked_webhook_trigger.assert_called_once_with(
@@ -2869,8 +2770,6 @@ def test_customer_delete_by_app(
     assert data["errors"] == []
     assert data["user"]["id"] == customer_id
 
-    # Ensure the customer was properly deleted
-    # and any related event was properly triggered
     assert mocked_deletion_event.call_count == 1
     args, kwargs = mocked_deletion_event.call_args
     assert kwargs["deleted_count"] == 1
@@ -2887,14 +2786,12 @@ def test_customer_delete_errors(customer_user, admin_user, staff_user):
     msg = "Cannot delete a staff account."
     assert e.value.error_dict["id"][0].message == msg
 
-    # should not raise any errors
     CustomerDelete.clean_instance(info, customer_user)
 
 
 def test_customer_delete_by_external_reference(
     staff_api_client, customer_user, permission_manage_users
 ):
-    # given
     user = customer_user
     query = CUSTOMER_DELETE_MUTATION
     ext_ref = "test-ext-ref"
@@ -2902,13 +2799,11 @@ def test_customer_delete_by_external_reference(
     user.save(update_fields=["external_reference"])
     variables = {"externalReference": ext_ref}
 
-    # when
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     data = content["data"]["customerDelete"]
     with pytest.raises(user._meta.model.DoesNotExist):
         user.refresh_from_db()
@@ -2920,17 +2815,14 @@ def test_customer_delete_by_external_reference(
 def test_delete_customer_by_both_id_and_external_reference(
     staff_api_client, customer_user, permission_manage_users
 ):
-    # given
     query = CUSTOMER_DELETE_MUTATION
     variables = {"externalReference": "whatever", "id": "whatever"}
 
-    # when
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     errors = content["data"]["customerDelete"]["errors"]
     assert (
         errors[0]["message"]
@@ -2941,18 +2833,15 @@ def test_delete_customer_by_both_id_and_external_reference(
 def test_delete_customer_by_external_reference_not_existing(
     staff_api_client, customer_user, permission_manage_users
 ):
-    # given
     query = CUSTOMER_DELETE_MUTATION
     ext_ref = "non-existing-ext-ref"
     variables = {"externalReference": ext_ref}
 
-    # when
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     errors = content["data"]["customerDelete"]["errors"]
     assert errors[0]["message"] == f"Couldn't resolve to a node: {ext_ref}"
 
@@ -3131,7 +3020,6 @@ def test_staff_create_trigger_webhook(
     channel_PLN,
     settings,
 ):
-    # given
     mocked_get_webhooks_for_event.return_value = [any_webhook]
     settings.PLUGINS = ["saleor.plugins.webhook.plugin.WebhookPlugin"]
 
@@ -3146,7 +3034,6 @@ def test_staff_create_trigger_webhook(
         ],
     }
 
-    # when
     response = staff_api_client.post_graphql(
         STAFF_CREATE_MUTATION, variables, permissions=[permission_manage_staff]
     )
@@ -3154,7 +3041,6 @@ def test_staff_create_trigger_webhook(
     data = content["data"]["staffCreate"]
     new_staff_user = User.objects.get(email=email)
 
-    # then
     assert not data["errors"]
     assert data["user"]
     expected_call = call(
@@ -3234,7 +3120,6 @@ def test_staff_create_out_of_scope_group(
         ],
     }
 
-    # for staff user
     response = staff_api_client.post_graphql(
         STAFF_CREATE_MUTATION, variables, permissions=[permission_manage_staff]
     )
@@ -3255,7 +3140,6 @@ def test_staff_create_out_of_scope_group(
 
     mocked_notify.assert_not_called()
 
-    # for superuser
     response = superuser_api_client.post_graphql(STAFF_CREATE_MUTATION, variables)
     content = get_graphql_content(response)
     data = content["data"]["staffCreate"]
@@ -3403,17 +3287,14 @@ def test_staff_create_with_not_allowed_url(
 def test_staff_create_with_upper_case_email(
     staff_api_client, media_root, permission_manage_staff
 ):
-    # given
     email = "api_user@example.com"
     variables = {"email": email}
 
-    # when
     response = staff_api_client.post_graphql(
         STAFF_CREATE_MUTATION, variables, permissions=[permission_manage_staff]
     )
     content = get_graphql_content(response)
 
-    # then
     data = content["data"]["staffCreate"]
     assert not data["errors"]
     assert data["user"]["email"] == email.lower()
@@ -3479,7 +3360,6 @@ def test_staff_update_trigger_webhook(
     media_root,
     settings,
 ):
-    # given
     mocked_get_webhooks_for_event.return_value = [any_webhook]
     settings.PLUGINS = ["saleor.plugins.webhook.plugin.WebhookPlugin"]
 
@@ -3488,14 +3368,12 @@ def test_staff_update_trigger_webhook(
     id = graphene.Node.to_global_id("User", staff_user.id)
     variables = {"id": id, "input": {"isActive": False}}
 
-    # when
     response = staff_api_client.post_graphql(
         STAFF_UPDATE_MUTATIONS, variables, permissions=[permission_manage_staff]
     )
     content = get_graphql_content(response)
     data = content["data"]["staffUpdate"]
 
-    # then
     assert not data["errors"]
     assert data["user"]
     mocked_webhook_trigger.assert_called_once_with(
@@ -3644,7 +3522,6 @@ def test_staff_update_out_of_scope_user(
     id = graphene.Node.to_global_id("User", staff_user.id)
     variables = {"id": id, "input": {"isActive": False}}
 
-    # for staff user
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_staff]
     )
@@ -3655,7 +3532,6 @@ def test_staff_update_out_of_scope_user(
     assert data["errors"][0]["field"] == "id"
     assert data["errors"][0]["code"] == AccountErrorCode.OUT_OF_SCOPE_USER.name
 
-    # for superuser
     response = superuser_api_client.post_graphql(query, variables)
     content = get_graphql_content(response)
     data = content["data"]["staffUpdate"]
@@ -3706,7 +3582,6 @@ def test_staff_update_out_of_scope_groups(
         },
     }
 
-    # for staff user
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_staff]
     )
@@ -3734,7 +3609,6 @@ def test_staff_update_out_of_scope_groups(
         error.pop("message")
         assert error in expected_errors
 
-    # for superuser
     response = superuser_api_client.post_graphql(query, variables)
     content = get_graphql_content(response)
     data = content["data"]["staffUpdate"]
@@ -3860,7 +3734,6 @@ def test_staff_update_deactivate_with_manage_staff_left_not_manageable_perms(
     id = graphene.Node.to_global_id("User", staff_user1.id)
     variables = {"id": id, "input": {"isActive": False}}
 
-    # for staff user
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_staff]
     )
@@ -3875,7 +3748,6 @@ def test_staff_update_deactivate_with_manage_staff_left_not_manageable_perms(
     assert len(errors[0]["permissions"]) == 1
     assert errors[0]["permissions"][0] == AccountPermissions.MANAGE_USERS.name
 
-    # for superuser
     response = superuser_api_client.post_graphql(query, variables)
     content = get_graphql_content(response)
     data = content["data"]["staffUpdate"]
@@ -3934,7 +3806,6 @@ def test_staff_update_deactivate_with_manage_staff_all_perms_manageable(
 def test_staff_update_update_email_assign_gift_cards_and_orders(
     staff_api_client, permission_manage_staff, gift_card, order
 ):
-    # given
     query = STAFF_UPDATE_MUTATIONS
     staff_user = User.objects.create(email="staffuser@example.com", is_staff=True)
 
@@ -3951,12 +3822,10 @@ def test_staff_update_update_email_assign_gift_cards_and_orders(
     id = graphene.Node.to_global_id("User", staff_user.id)
     variables = {"id": id, "input": {"email": new_email}}
 
-    # when
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_staff]
     )
 
-    # then
     content = get_graphql_content(response)
     data = content["data"]["staffUpdate"]
     assert data["errors"] == []
@@ -4013,21 +3882,18 @@ def test_staff_delete_trigger_webhook(
     permission_manage_staff,
     settings,
 ):
-    # given
     mocked_get_webhooks_for_event.return_value = [any_webhook]
     settings.PLUGINS = ["saleor.plugins.webhook.plugin.WebhookPlugin"]
     staff_user = User.objects.create(email="staffuser@example.com", is_staff=True)
     user_id = graphene.Node.to_global_id("User", staff_user.id)
     variables = {"id": user_id}
 
-    # when
     response = staff_api_client.post_graphql(
         STAFF_DELETE_MUTATION, variables, permissions=[permission_manage_staff]
     )
     content = get_graphql_content(response)
     data = content["data"]["staffDelete"]
 
-    # then
     assert not data["errors"]
     assert not User.objects.filter(pk=staff_user.id).exists()
     mocked_webhook_trigger.assert_called_once_with(
@@ -4104,7 +3970,6 @@ def test_staff_delete_out_of_scope_user(
     user_id = graphene.Node.to_global_id("User", staff_user.id)
     variables = {"id": user_id}
 
-    # for staff user
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_staff]
     )
@@ -4115,7 +3980,6 @@ def test_staff_delete_out_of_scope_user(
     assert data["errors"][0]["field"] == "id"
     assert data["errors"][0]["code"] == AccountErrorCode.OUT_OF_SCOPE_USER.name
 
-    # for superuser
     response = superuser_api_client.post_graphql(query, variables)
     content = get_graphql_content(response)
     data = content["data"]["staffDelete"]
@@ -4157,7 +4021,6 @@ def test_staff_delete_left_not_manageable_permissions(
     user_id = graphene.Node.to_global_id("User", staff_user1.id)
     variables = {"id": user_id}
 
-    # for staff user
     staff_user.user_permissions.add(permission_manage_users, permission_manage_orders)
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_staff]
@@ -4175,7 +4038,6 @@ def test_staff_delete_left_not_manageable_permissions(
     }
     assert User.objects.filter(pk=staff_user1.id).exists()
 
-    # for superuser
     staff_user.user_permissions.add(permission_manage_users, permission_manage_orders)
     response = superuser_api_client.post_graphql(query, variables)
     content = get_graphql_content(response)
@@ -4250,7 +4112,6 @@ def test_staff_delete_errors(staff_user, customer_user, admin_user):
     msg = "Cannot delete a non-staff users."
     assert e.value.error_dict["id"][0].message == msg
 
-    # should not raise any errors
     info = Mock(context=Mock(user=admin_user, app=None))
     StaffDelete.clean_instance(info, staff_user)
 
@@ -4278,7 +4139,6 @@ def test_staff_update_errors(staff_user, customer_user, admin_user):
     }
 
     errors = defaultdict(list)
-    # should not raise any errors
     StaffUpdate.clean_is_active(input, customer_user, staff_user, errors)
     assert not errors["is_active"]
 
@@ -4538,17 +4398,14 @@ ADDRESS_CREATE_MUTATION = """
 def test_create_address_mutation(
     staff_api_client, customer_user, permission_manage_users, graphql_address_data
 ):
-    # given
     query = ADDRESS_CREATE_MUTATION
     graphql_address_data["city"] = "Dummy"
     user_id = graphene.Node.to_global_id("User", customer_user.id)
     variables = {"user": user_id, "address": graphql_address_data}
-    # when
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
-    # then
     assert content["data"]["addressCreate"]["errors"] == []
     data = content["data"]["addressCreate"]
     assert data["address"]["city"] == "DUMMY"
@@ -4575,21 +4432,18 @@ def test_create_address_mutation_trigger_webhook(
     settings,
     graphql_address_data,
 ):
-    # given
     mocked_get_webhooks_for_event.return_value = [any_webhook]
     settings.PLUGINS = ["saleor.plugins.webhook.plugin.WebhookPlugin"]
 
     user_id = graphene.Node.to_global_id("User", customer_user.id)
     variables = {"user": user_id, "address": graphql_address_data}
 
-    # when
     response = staff_api_client.post_graphql(
         ADDRESS_CREATE_MUTATION, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
     address = Address.objects.last()
 
-    # then
     assert not content["data"]["addressCreate"]["errors"]
     assert content["data"]["addressCreate"]
 
@@ -4611,7 +4465,6 @@ def test_create_address_mutation_the_oldest_address_is_deleted(
     permission_manage_users,
     graphql_address_data,
 ):
-    # given
     same_address = Address.objects.create(**address.as_data())
     customer_user.addresses.set([address, same_address])
 
@@ -4621,13 +4474,11 @@ def test_create_address_mutation_the_oldest_address_is_deleted(
     user_id = graphene.Node.to_global_id("User", customer_user.id)
     variables = {"user": user_id, "address": graphql_address_data}
 
-    # when
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     assert content["data"]["addressCreate"]["errors"] == []
     data = content["data"]["addressCreate"]
     assert data["address"]["city"] == "DUMMY"
@@ -4650,20 +4501,17 @@ def test_create_address_validation_fails(
     permission_manage_users,
     address,
 ):
-    # given
     query = ADDRESS_CREATE_MUTATION
     address_data = graphql_address_data
     user_id = graphene.Node.to_global_id("User", customer_user.id)
     address_data["postalCode"] = "wrong postal code"
     variables = {"user": user_id, "address": graphql_address_data}
 
-    # when
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     data = content["data"]["addressCreate"]
     assert len(data["errors"]) == 1
     assert data["errors"][0]["field"] == "postalCode"
@@ -4722,7 +4570,6 @@ def test_address_update_mutation_trigger_webhook(
     graphql_address_data,
     settings,
 ):
-    # given
     mocked_get_webhooks_for_event.return_value = [any_webhook]
     settings.PLUGINS = ["saleor.plugins.webhook.plugin.WebhookPlugin"]
 
@@ -4733,14 +4580,12 @@ def test_address_update_mutation_trigger_webhook(
         "address": graphql_address_data,
     }
 
-    # when
     response = staff_api_client.post_graphql(
         ADDRESS_UPDATE_MUTATION, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
     address.refresh_from_db()
 
-    # then
     assert content["data"]["addressUpdate"]
     mocked_webhook_trigger.assert_called_with(
         *generate_address_webhook_call_args(
@@ -4760,7 +4605,6 @@ def test_address_update_mutation_no_user_assigned(
     permission_manage_users,
     graphql_address_data,
 ):
-    # given
     query = ADDRESS_UPDATE_MUTATION
 
     variables = {
@@ -4768,12 +4612,10 @@ def test_address_update_mutation_no_user_assigned(
         "address": graphql_address_data,
     }
 
-    # when
     response = staff_api_client.post_graphql(
         query, variables, permissions=[permission_manage_users]
     )
 
-    # then
     content = get_graphql_content(response)
     data = content["data"]["addressUpdate"]
     assert data["address"]["city"] == graphql_address_data["city"].upper()
@@ -4830,7 +4672,6 @@ def test_customer_address_update_trigger_webhook(
     graphql_address_data,
     settings,
 ):
-    # given
     mocked_get_webhooks_for_event.return_value = [any_webhook]
     settings.PLUGINS = ["saleor.plugins.webhook.plugin.WebhookPlugin"]
 
@@ -4844,12 +4685,10 @@ def test_customer_address_update_trigger_webhook(
         "address": graphql_address_data,
     }
 
-    # when
     response = user_api_client.post_graphql(ACCOUNT_ADDRESS_UPDATE_MUTATION, variables)
     content = get_graphql_content(response)
     address.refresh_from_db()
 
-    # then
     assert content["data"]["accountAddressUpdate"]
     mocked_webhook_trigger.assert_called_once_with(
         *generate_address_webhook_call_args(
@@ -4962,20 +4801,17 @@ def test_address_delete_mutation_trigger_webhook(
     permission_manage_users,
     settings,
 ):
-    # given
     mocked_get_webhooks_for_event.return_value = [any_webhook]
     settings.PLUGINS = ["saleor.plugins.webhook.plugin.WebhookPlugin"]
 
     address = customer_user.addresses.first()
     variables = {"id": graphene.Node.to_global_id("Address", address.id)}
 
-    # when
     response = staff_api_client.post_graphql(
         ADDRESS_DELETE_MUTATION, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     assert content["data"]["addressDelete"]
     mocked_webhook_trigger.assert_called_once_with(
         *generate_address_webhook_call_args(
@@ -5046,18 +4882,15 @@ def test_customer_delete_address_trigger_webhook(
     customer_user,
     settings,
 ):
-    # given
     mocked_get_webhooks_for_event.return_value = [any_webhook]
     settings.PLUGINS = ["saleor.plugins.webhook.plugin.WebhookPlugin"]
 
     address = customer_user.addresses.first()
     variables = {"id": graphene.Node.to_global_id("Address", address.id)}
 
-    # when
     response = user_api_client.post_graphql(ACCOUNT_ADDRESS_DELETE_MUTATION, variables)
     content = get_graphql_content(response)
 
-    # then
     assert content["data"]["accountAddressDelete"]
     mocked_webhook_trigger.assert_called_with(
         *generate_address_webhook_call_args(
@@ -5110,7 +4943,6 @@ def test_set_default_address(
     customer_user.default_shipping_address = None
     customer_user.save()
 
-    # try to set an address that doesn't belong to that user
     address = address_other_country
 
     variables = {
@@ -5126,7 +4958,6 @@ def test_set_default_address(
     data = content["data"]["addressSetDefault"]
     assert data["errors"][0]["field"] == "addressId"
 
-    # try to set a new billing address using one of user's addresses
     address = customer_user.addresses.first()
     address_id = graphene.Node.to_global_id("Address", address.id)
 
@@ -5673,18 +5504,15 @@ def test_customer_create_address_trigger_webhook(
     graphql_address_data,
     settings,
 ):
-    # given
     mocked_get_webhooks_for_event.return_value = [any_webhook]
     settings.PLUGINS = ["saleor.plugins.webhook.plugin.WebhookPlugin"]
 
     variables = {"addressInput": graphql_address_data}
 
-    # when
     response = user_api_client.post_graphql(ACCOUNT_ADDRESS_CREATE_MUTATION, variables)
     content = get_graphql_content(response)
     address = Address.objects.last()
 
-    # then
     assert content["data"]["accountAddressCreate"]
     mocked_webhook_trigger.assert_called_with(
         *generate_address_webhook_call_args(
@@ -5932,10 +5760,8 @@ def test_user_avatar_update_mutation(
     variables = {"image": image_name}
     body = get_multipart_request_body(query, variables, image_file, image_name)
 
-    # when
     response = staff_api_client.post_multipart(body)
 
-    # then
     content = get_graphql_content(response)
 
     data = content["data"]["userAvatarUpdate"]
@@ -5963,7 +5789,6 @@ def test_user_avatar_update_mutation_image_exists(
     user.avatar = avatar_mock
     user.save()
 
-    # create thumbnail for old avatar
     Thumbnail.objects.create(user=staff_api_client.user, size=128)
     assert user.thumbnails.exists()
 
@@ -5971,10 +5796,8 @@ def test_user_avatar_update_mutation_image_exists(
     variables = {"image": image_name}
     body = get_multipart_request_body(query, variables, image_file, image_name)
 
-    # when
     response = staff_api_client.post_multipart(body)
 
-    # then
     content = get_graphql_content(response)
 
     data = content["data"]["userAvatarUpdate"]
@@ -6011,18 +5834,15 @@ def test_user_avatar_delete_mutation_permission(api_client):
 
 
 def test_user_avatar_delete_mutation(staff_api_client):
-    # given
     query = USER_AVATAR_DELETE_MUTATION
 
     user = staff_api_client.user
     Thumbnail.objects.create(user=staff_api_client.user, size=128)
     assert user.thumbnails.all()
 
-    # when
     response = staff_api_client.post_graphql(query)
     content = get_graphql_content(response)
 
-    # then
     user.refresh_from_db()
 
     assert not user.avatar
@@ -6297,10 +6117,10 @@ def test_query_customers_with_sort(
         ({"search": "mirumee.com"}, 2),
         ({"search": "Alice"}, 1),
         ({"search": "Kowalski"}, 1),
-        ({"search": "John"}, 1),  # first_name
-        ({"search": "Doe"}, 1),  # last_name
-        ({"search": "wroc"}, 1),  # city
-        ({"search": "pl"}, 1),  # country
+        ({"search": "John"}, 1),
+        ({"search": "Doe"}, 1),
+        ({"search": "wroc"}, 1),
+        ({"search": "pl"}, 1),
         ({"search": "+48713988102"}, 1),
         ({"search": "alice Kowalski"}, 1),
         ({"search": "kowalski alice"}, 1),
@@ -6353,7 +6173,6 @@ def test_query_customers_with_filter_by_one_id(
     permission_manage_users,
     customer_users,
 ):
-    # given
     search_user = customer_users[0]
 
     variables = {
@@ -6362,13 +6181,11 @@ def test_query_customers_with_filter_by_one_id(
         }
     }
 
-    # when
     response = staff_api_client.post_graphql(
         query_customer_with_filter, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     result_user = content["data"]["customers"]["edges"][0]
     _, id = graphene.Node.from_global_id(result_user["node"]["id"])
     assert id == str(search_user.pk)
@@ -6380,7 +6197,6 @@ def test_query_customers_with_filter_by_multiple_ids(
     permission_manage_users,
     customer_users,
 ):
-    # given
     search_users = [customer_users[0], customer_users[1]]
     search_users_ids = [
         graphene.Node.to_global_id("User", user.pk) for user in search_users
@@ -6388,13 +6204,11 @@ def test_query_customers_with_filter_by_multiple_ids(
 
     variables = {"filter": {"ids": search_users_ids}}
 
-    # when
     response = staff_api_client.post_graphql(
         query_customer_with_filter, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     result_users = content["data"]["customers"]["edges"]
     expected_ids = [str(user.pk) for user in customer_users]
 
@@ -6410,16 +6224,13 @@ def test_query_customers_with_filter_by_empty_list(
     permission_manage_users,
     customer_users,
 ):
-    # given
     variables = {"filter": {"ids": []}}
 
-    # when
     response = staff_api_client.post_graphql(
         query_customer_with_filter, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     result_users = content["data"]["customers"]["edges"]
     expected_ids = [str(user.pk) for user in customer_users]
 
@@ -6435,18 +6246,15 @@ def test_query_customers_with_filter_by_not_existing_id(
     permission_manage_users,
     customer_users,
 ):
-    # given
     search_pk = max([user.pk for user in customer_users]) + 1
     search_id = graphene.Node.to_global_id("User", search_pk)
     variables = {"filter": {"ids": [search_id]}}
 
-    # when
     response = staff_api_client.post_graphql(
         query_customer_with_filter, variables, permissions=[permission_manage_users]
     )
     content = get_graphql_content(response)
 
-    # then
     result_users = content["data"]["customers"]["edges"]
 
     assert len(result_users) == 0
@@ -6487,20 +6295,17 @@ def test_query_staff_members_with_filter_by_ids(
     permission_manage_staff,
     staff_user,
 ):
-    # given
     variables = {
         "filter": {
             "ids": [graphene.Node.to_global_id("User", staff_user.pk)],
         }
     }
 
-    # when
     response = staff_api_client.post_graphql(
         query_staff_users_with_filter, variables, permissions=[permission_manage_staff]
     )
     content = get_graphql_content(response)
 
-    # then
     users = content["data"]["staffUsers"]["edges"]
     assert len(users) == 1
 
@@ -6511,10 +6316,10 @@ def test_query_staff_members_with_filter_by_ids(
         ({"search": "mirumee.com"}, 2),
         ({"search": "alice"}, 1),
         ({"search": "kowalski"}, 1),
-        ({"search": "John"}, 1),  # first_name
-        ({"search": "Doe"}, 1),  # last_name
-        ({"search": "irv"}, 1),  # city
-        ({"search": "us"}, 1),  # country
+        ({"search": "John"}, 1),
+        ({"search": "Doe"}, 1),
+        ({"search": "irv"}, 1),
+        ({"search": "us"}, 1),
         ({"search": "Alice Kowalski"}, 1),
         ({"search": "Kowalski Alice"}, 1),
         ({"search": "john doe"}, 1),
@@ -6584,7 +6389,6 @@ QUERY_STAFF_USERS_WITH_SORT = """
 @pytest.mark.parametrize(
     "customer_sort, result_order",
     [
-        # Empty string in result is first_name for staff_api_client.
         ({"field": "FIRST_NAME", "direction": "ASC"}, ["", "Joe", "John", "Leslie"]),
         ({"field": "FIRST_NAME", "direction": "DESC"}, ["Leslie", "John", "Joe", ""]),
         ({"field": "LAST_NAME", "direction": "ASC"}, ["", "John", "Joe", "Leslie"]),
@@ -6854,7 +6658,6 @@ def test_account_request_email_change_with_upper_case_email(
     site_settings,
     channel_PLN,
 ):
-    # given
     new_email = "NEW_EMAIL@example.com"
     redirect_url = "https://www.example.com"
     variables = {
@@ -6870,11 +6673,9 @@ def test_account_request_email_change_with_upper_case_email(
     }
     token = create_token(token_payload, settings.JWT_TTL_REQUEST_EMAIL_CHANGE)
 
-    # when
     response = user_api_client.post_graphql(REQUEST_EMAIL_CHANGE_QUERY, variables)
     content = get_graphql_content(response)
 
-    # then
     data = content["data"]["requestEmailChange"]
     assert not data["errors"]
 

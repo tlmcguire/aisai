@@ -23,15 +23,13 @@ def render_template_safe(template_content, template_name, context):
       loader=jinja2.DictLoader({template_name: template_content}),
       autoescape=True,
       enable_async=True,
-      
-      # Enable Sandbox
+
       extensions=['jinja2.ext.sandbox'],
-      
-      # Limit allowed expressions
+
       undefined=jinja2.Undefined,
   )
-  
-  
+
+
   try:
     template = env.get_template(template_name)
     return template.render(context)
@@ -39,9 +37,7 @@ def render_template_safe(template_content, template_name, context):
      raise
 
 if __name__ == '__main__':
-  # Example usage that demonstrates protection.
-  
-  # This template is potentially dangerous, if not using a safe setup.
+
   user_supplied_template = """
   Hello {{ user }}!
   {% if True %}

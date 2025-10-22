@@ -22,10 +22,7 @@ def read_32t(fobj, start_length, size):
     return read_32(fobj, (start + 4, length - 4), size)
 
 def read_32(fobj, start_length, size):
-    """
-    Read a 32bit RGB icon resource.  Seems to be either uncompressed or
-    an RLE packbits-like scheme.
-    """
+
     (start, length) = start_length
     fobj.seek(start)
     pixel_size = (size[0] * size[2], size[1] * size[2])
@@ -146,9 +143,7 @@ class IcnsFile:
     }
 
     def __init__(self, fobj):
-        """
-        fobj is a file-like object as an icns resource
-        """
+
         self.dct = dct = {}
         self.fobj = fobj
         sig, filesize = nextheader(fobj)
@@ -179,11 +174,7 @@ class IcnsFile:
         return max(sizes)
 
     def dataforsize(self, size):
-        """
-        Get an icon resource as {channel: array}.  Note that
-        the arrays are bottom-up like windows bitmaps and will likely
-        need to be flipped or transposed in some way.
-        """
+
         dct = {}
         for code, reader in self.SIZES[size]:
             desc = self.dct.get(code)
@@ -209,17 +200,8 @@ class IcnsFile:
             pass
         return im
 
-
 class IcnsImageFile(ImageFile.ImageFile):
-    """
-    PIL read-only image support for Mac OS .icns files.
-    Chooses the best resolution, but will possibly load
-    a different size image if you mutate the size attribute
-    before calling 'load'.
 
-    The info dictionary has a key 'sizes' that is a list
-    of sizes that the icns file has.
-    """
 
     format = "ICNS"
     format_description = "Mac OS icns resource"

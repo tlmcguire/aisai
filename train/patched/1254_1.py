@@ -3,9 +3,7 @@ import subprocess
 import shlex
 
 def handle_tool_calls(tool_call):
-    """
-    Handles tool calls, preventing command injection.
-    """
+
     if tool_call["function"]["name"] == "execute_command":
         arguments = tool_call["function"]["arguments"]
 
@@ -34,7 +32,6 @@ if __name__ == '__main__':
             "arguments": '{"command": "ls -al | cat /etc/passwd"}'
         }
     }
-
 
     tool_call_safe = {
         "function": {

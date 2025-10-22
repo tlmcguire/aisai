@@ -3,17 +3,17 @@ import tempfile
 import subprocess
 
 def generate_random_filename():
-    """Generates a random filename in a temporary directory."""
+
     with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
         return tmpfile.name
 
 def create_framer_file(content, file_path):
-    """Creates or overwrites the framer file with the given content and filepath"""
+
     with open(file_path, 'w') as f:
         f.write(content)
 
 def read_framer_file(file_path):
-    """Reads the content of the framer file, handling potential errors."""
+
     try:
        with open(file_path, 'r') as f:
           return f.read()
@@ -24,10 +24,7 @@ def read_framer_file(file_path):
         return None
 
 def process_command(command):
-    """
-     Processes a command. In a real scenario this would execute the command.
-     Here we are just simulating that part by saving the command and reading it.
-    """
+
 
     try:
         result = subprocess.run(command, shell=False, capture_output=True, text=True, check=True)

@@ -7,22 +7,17 @@ from .compat_utils import passthrough_module
 passthrough_module(__name__, '._deprecated')
 del passthrough_module
 
-
 class compat_HTMLParseError(ValueError):
     pass
-
 
 class _TreeBuilder(etree.TreeBuilder):
     def doctype(self, name, pubid, system):
         pass
 
-
 def compat_etree_fromstring(text):
     return etree.XML(text, parser=etree.XMLParser(target=_TreeBuilder()))
 
-
 compat_os_name = os._name if os.name == 'java' else os.name
-
 
 if compat_os_name == 'nt':
     def compat_shlex_quote(s):
@@ -31,10 +26,8 @@ if compat_os_name == 'nt':
 else:
     from shlex import quote as compat_shlex_quote
 
-
 def compat_ord(c):
     return c if isinstance(c, int) else ord(c)
-
 
 if compat_os_name == 'nt' and sys.version_info < (3, 8):
     def compat_realpath(path):
@@ -43,7 +36,6 @@ if compat_os_name == 'nt' and sys.version_info < (3, 8):
         return os.path.realpath(path)
 else:
     compat_realpath = os.path.realpath
-
 
 if compat_os_name in ('nt', 'ce'):
     def compat_expanduser(path):
@@ -60,9 +52,8 @@ if compat_os_name in ('nt', 'ce'):
 else:
     compat_expanduser = os.path.expanduser
 
-
 def urllib_req_to_req(urllib_request):
-    """Convert urllib Request to a networking Request"""
+
     from ..networking import Request
     from ..utils.networking import HTTPHeaderDict
     return Request(

@@ -71,10 +71,8 @@ def extract_sub_links(
     all_links = find_all_links(raw_html, pattern=pattern)
     absolute_paths = set()
     for link in all_links:
-        # Some may be absolute links like https://to/path
         if link.startswith("http"):
             absolute_paths.add(link)
-        # Some may have omitted the protocol like //to/path
         elif link.startswith("//"):
             absolute_paths.add(f"{urlparse(url).scheme}:{link}")
         else:

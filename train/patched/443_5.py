@@ -41,9 +41,8 @@ _active_requests_count_attrs = {
     SpanAttributes.HTTP_SERVER_NAME,
 }
 
-
 class ExcludeList:
-    """Class to exclude certain paths (given as a list of regexes) from tracing requests"""
+
 
     def __init__(self, excluded_urls: Iterable[str]):
         self._excluded_urls = excluded_urls
@@ -53,9 +52,8 @@ class ExcludeList:
     def url_disabled(self, url: str) -> bool:
         return bool(self._excluded_urls and search(self._regex, url))
 
-
 class SanitizeValue:
-    """Class to sanitize (remove sensitive data from) certain headers (given as a list of regexes)"""
+
 
     def __init__(self, sanitized_fields: Iterable[str]):
         self._sanitized_fields = sanitized_fields
@@ -97,9 +95,7 @@ class SanitizeValue:
 
         return values
 
-
 _root = r"OTEL_PYTHON_{}"
-
 
 def get_traced_request_attrs(instrumentation):
     traced_request_attrs = environ.get(
@@ -114,7 +110,6 @@ def get_traced_request_attrs(instrumentation):
 
     return traced_request_attrs
 
-
 def get_excluded_urls(instrumentation: str) -> ExcludeList:
     excluded_urls = environ.get(
         _root.format(f"{instrumentation}_EXCLUDED_URLS"),
@@ -123,11 +118,8 @@ def get_excluded_urls(instrumentation: str) -> ExcludeList:
 
     return parse_excluded_urls(excluded_urls)
 
-
 def parse_excluded_urls(excluded_urls: str) -> ExcludeList:
-    """
-    Small helper to put an arbitrary url list inside an ExcludeList
-    """
+
     if excluded_urls:
         excluded_url_list = [
             excluded_url.strip() for excluded_url in excluded_urls.split(",")
@@ -137,9 +129,8 @@ def parse_excluded_urls(excluded_urls: str) -> ExcludeList:
 
     return ExcludeList(excluded_url_list)
 
-
 def remove_url_credentials(url: str) -> str:
-    """Given a string url, remove the username and password only if it is a valid url"""
+
 
     try:
         parsed = urlparse(url)
@@ -164,11 +155,9 @@ def remove_url_credentials(url: str) -> str:
         pass
     return url
 
-
 def normalise_request_header_name(header: str) -> str:
     key = header.lower().replace("-", "_")
     return f"http.request.header.{key}"
-
 
 def normalise_response_header_name(header: str) -> str:
     key = header.lower().replace("-", "_")
@@ -192,14 +181,12 @@ def get_custom_headers(env_var: str) -> List[str]:
         ]
     return custom_headers
 
-
 def _parse_active_request_count_attrs(req_attrs):
     active_requests_count_attrs = {
         key: req_attrs[key]
         for key in _active_requests_count_attrs.intersection(req_attrs.keys())
     }
     return active_requests_count_attrs
-
 
 def _parse_duration_attrs(req_attrs):
     duration_attrs = {

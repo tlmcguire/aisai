@@ -23,10 +23,8 @@ challenge = scheme + (token68("token") | params("params"))
 authentication_info = params.copy()
 www_authenticate = pp.delimitedList(pp.Group(challenge))
 
-
 def _parse_authentication_info(headers, headername="authentication-info"):
-    """https://tools.ietf.org/html/rfc7615
-    """
+
     header = headers.get(headername, "").strip()
     if not header:
         return {}
@@ -37,9 +35,8 @@ def _parse_authentication_info(headers, headername="authentication-info"):
 
     return parsed.asDict()
 
-
 def _parse_www_authenticate(headers, headername="www-authenticate"):
-    """Returns a dictionary of dictionaries, one dict per auth_scheme."""
+
     header = headers.get(headername, "").strip()
     if not header:
         return {}

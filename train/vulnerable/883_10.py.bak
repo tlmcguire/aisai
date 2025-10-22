@@ -163,7 +163,6 @@ class TestCustomConnectorTemplateLoader:
             )
         ]
 
-        # verify the custom functions aren't loaded if the template is invalid
         connector_templates = CustomConnectorTemplateLoader.get_connector_templates()
         assert connector_templates == {}
 
@@ -172,7 +171,6 @@ class TestCustomConnectorTemplateLoader:
                 "planet_express_user_access", SaaSRequestType.READ
             )
 
-        # assert the strategy was not registered
         authentication_strategies = AuthenticationStrategy.get_strategies()
         assert "planet_express" not in [
             strategy.name for strategy in authentication_strategies
@@ -190,7 +188,6 @@ class TestCustomConnectorTemplateLoader:
     ):
         CONFIG.security.allow_custom_connector_functions = True
 
-        # save custom connector template to the database
         mock_all.return_value = [
             CustomConnectorTemplate(
                 key="planet_express",
@@ -202,7 +199,6 @@ class TestCustomConnectorTemplateLoader:
             )
         ]
 
-        # verify nothing is loaded if the custom functions fail to load
         connector_templates = CustomConnectorTemplateLoader.get_connector_templates()
         assert connector_templates == {}
 
@@ -230,7 +226,6 @@ class TestCustomConnectorTemplateLoader:
             )
         ]
 
-        # load custom connector templates from the database
         connector_templates = CustomConnectorTemplateLoader.get_connector_templates()
         assert connector_templates == {}
 
@@ -239,7 +234,6 @@ class TestCustomConnectorTemplateLoader:
                 "planet_express_user_access", SaaSRequestType.READ
             )
 
-        # assert the strategy was not registered
         authentication_strategies = AuthenticationStrategy.get_strategies()
         assert "planet_express" not in [
             strategy.name for strategy in authentication_strategies
@@ -262,7 +256,6 @@ class TestCustomConnectorTemplateLoader:
 
         CONFIG.security.allow_custom_connector_functions = False
 
-        # save custom connector template to the database
         mock_all.return_value = [
             CustomConnectorTemplate(
                 key="planet_express",
@@ -274,7 +267,6 @@ class TestCustomConnectorTemplateLoader:
             )
         ]
 
-        # load custom connector templates from the database
         connector_templates = CustomConnectorTemplateLoader.get_connector_templates()
         assert connector_templates == {
             "planet_express": ConnectorTemplate(
@@ -309,10 +301,8 @@ class TestCustomConnectorTemplateLoader:
             )
         ]
 
-        # load custom connector templates from the database
         connector_templates = CustomConnectorTemplateLoader.get_connector_templates()
 
-        # verify that the template in the registry is the same as the one in the database
         assert connector_templates == {
             "planet_express": ConnectorTemplate(
                 config=planet_express_config,
@@ -323,12 +313,10 @@ class TestCustomConnectorTemplateLoader:
             )
         }
 
-        # assert the request override was registered
         SaaSRequestOverrideFactory.get_override(
             "planet_express_user_access", SaaSRequestType.READ
         )
 
-        # assert the strategy was registered
         authentication_strategies = AuthenticationStrategy.get_strategies()
         assert "planet_express" in [
             strategy.name for strategy in authentication_strategies
@@ -358,7 +346,6 @@ class TestCustomConnectorTemplateLoader:
             )
         ]
 
-        # load custom connector templates from the database
         file_connector_templates = FileConnectorTemplateLoader.get_connector_templates()
         custom_connector_templates = (
             CustomConnectorTemplateLoader.get_connector_templates()
@@ -393,7 +380,6 @@ class TestCustomConnectorTemplateLoader:
             ),
         )
 
-        # verify that a connector template can updated with no issue
         CustomConnectorTemplateLoader.save_template(
             db,
             ZipFile(

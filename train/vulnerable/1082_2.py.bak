@@ -15,7 +15,6 @@ from langchain.utilities.sql_database import SQLDatabase
 
 from langchain_experimental.sql.base import INTERMEDIATE_STEPS_KEY, SQLDatabaseChain
 
-
 class VectorSQLOutputParser(BaseOutputParser[str]):
     """Output Parser for Vector SQL
     1. finds for `NeuralArray()` and replace it with the embedding
@@ -23,9 +22,9 @@ class VectorSQLOutputParser(BaseOutputParser[str]):
     """
 
     model: Embeddings
-    """Embedding model to extract embedding for entity"""
+
     distance_func_name: str = "distance"
-    """Distance name for Vector SQL"""
+
 
     class Config:
         arbitrary_types_allowed = 1
@@ -57,7 +56,6 @@ class VectorSQLOutputParser(BaseOutputParser[str]):
                 _sql_str_compl = _sql_str_compl[:-1]
         return _sql_str_compl
 
-
 class VectorSQLRetrieveAllOutputParser(VectorSQLOutputParser):
     """Based on VectorSQLOutputParser
     It also modify the SQL to get all columns
@@ -75,13 +73,11 @@ class VectorSQLRetrieveAllOutputParser(VectorSQLOutputParser):
             text = text.replace(text[start + len("SELECT") + 1 : end - 1], "*")
         return super().parse(text)
 
-
 def _try_eval(x: Any) -> Any:
     try:
         return eval(x)
     except Exception:
         return x
-
 
 def get_result_from_sqldb(
     db: SQLDatabase, cmd: str
@@ -93,7 +89,6 @@ def get_result_from_sqldb(
         return {
             k: _try_eval(v) for k, v in dict(result._asdict()).items()
         }
-
 
 class VectorSQLDatabaseChain(SQLDatabaseChain):
     """Chain for interacting with Vector SQL Database.
@@ -117,9 +112,9 @@ class VectorSQLDatabaseChain(SQLDatabaseChain):
     """
 
     sql_cmd_parser: VectorSQLOutputParser
-    """Parser for Vector SQL"""
+
     native_format: bool = False
-    """If return_direct, controls whether to return in python native format"""
+
 
     def _call(
         self,

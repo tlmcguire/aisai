@@ -42,11 +42,8 @@ from cryptography.hazmat.primitives.serialization.pkcs12 import (
 
 _MemoryBIO = collections.namedtuple("_MemoryBIO", ["bio", "char_ptr"])
 
-
 class Backend:
-    """
-    OpenSSL API binding interfaces.
-    """
+
 
     name = "openssl"
 
@@ -99,12 +96,7 @@ class Backend:
         self._fips_enabled = rust_openssl.is_fips_enabled()
 
     def openssl_version_text(self) -> str:
-        """
-        Friendly string name of the loaded OpenSSL library. This is not
-        necessarily the same version as it was compiled against.
 
-        Example: OpenSSL 3.2.1 30 Jan 2024
-        """
         return rust_openssl.openssl_version_text()
 
     def openssl_version_number(self) -> int:
@@ -166,12 +158,7 @@ class Backend:
         return rust_openssl.capture_error_stack()
 
     def _bytes_to_bio(self, data: bytes) -> _MemoryBIO:
-        """
-        Return a _MemoryBIO namedtuple of (BIO, char*).
 
-        The char* is the storage for the BIO and it must stay alive until the
-        BIO is finished with.
-        """
         data_ptr = self._ffi.from_buffer(data)
         bio = self._lib.BIO_new_mem_buf(data_ptr, len(data))
         self.openssl_assert(bio != self._ffi.NULL)
@@ -179,9 +166,7 @@ class Backend:
         return _MemoryBIO(self._ffi.gc(bio, self._lib.BIO_free), data_ptr)
 
     def _create_mem_bio_gc(self):
-        """
-        Creates an empty memory BIO.
-        """
+
         bio_method = self._lib.BIO_s_mem()
         self.openssl_assert(bio_method != self._ffi.NULL)
         bio = self._lib.BIO_new(bio_method)
@@ -190,9 +175,7 @@ class Backend:
         return bio
 
     def _read_mem_bio(self, bio) -> bytes:
-        """
-        Reads a memory BIO. This only works on memory BIOs.
-        """
+
         buf = self._ffi.new("char **")
         buf_len = self._lib.BIO_get_mem_data(bio, buf)
         self.openssl_assert(buf_len > 0)
@@ -355,15 +338,7 @@ class Backend:
 
     @contextlib.contextmanager
     def _zeroed_null_terminated_buf(self, data):
-        """
-        This method takes bytes, which can be a bytestring or a mutable
-        buffer like a bytearray, and yields a null-terminated version of that
-        data. This is required because PKCS12_parse doesn't take a length with
-        its password char * and ffi.from_buffer doesn't provide null
-        termination. So, to support zeroing the data via bytearray we
-        need to build this ridiculous construct that copies the memory, but
-        zeroes it after use.
-        """
+
         if data is None:
             yield self._ffi.NULL
         else:
@@ -612,6 +587,5 @@ class Backend:
 
     def pkcs7_supported(self) -> bool:
         return not rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL
-
 
 backend = Backend()

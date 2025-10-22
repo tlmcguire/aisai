@@ -29,7 +29,7 @@ from gradio.events import EventData
 from gradio.exceptions import Error
 from gradio.flagging import CSVLogger
 
-if TYPE_CHECKING:  # Only import for type checking (to avoid circular imports).
+if TYPE_CHECKING:
     from gradio.components import Component
 
 LOG_FILE = "log.csv"
@@ -175,7 +175,7 @@ class Examples:
             pass
         elif (
             isinstance(examples, list) and len(inputs) == 1
-        ):  # If there is only one input component, examples can be provided as a regular list instead of a list of lists
+        ):
             examples = [[e] for e in examples]
         elif isinstance(examples, str):
             if not Path(examples).exists():
@@ -196,7 +196,7 @@ class Examples:
                     examples = list(csv.reader(logs))
                     examples = [
                         examples[i][: len(inputs)] for i in range(1, len(examples))
-                    ]  # remove header and unnecessary columns
+                    ]
 
         else:
             raise ValueError(
@@ -212,7 +212,7 @@ class Examples:
                     try:
                         input_has_examples[idx] = True
                     except IndexError:
-                        pass  # If there are more example components than inputs, ignore. This can sometimes be intentional (e.g. loading from a log file where outputs and timestamps are also logged)
+                        pass
 
         inputs_with_examples = [
             inp for (inp, keep) in zip(inputs, input_has_examples) if keep
@@ -282,10 +282,10 @@ class Examples:
             if len(self.inputs_with_examples) == 1:
                 return update(
                     value=processed_example[0],
-                    **self.dataset.component_props[0],  # type: ignore
+                    **self.dataset.component_props[0],
                 )
             return [
-                update(value=processed_example[i], **self.dataset.component_props[i])  # type: ignore
+                update(value=processed_example[i], **self.dataset.component_props[i])
                 for i in range(len(self.inputs_with_examples))
             ]
 
@@ -293,7 +293,7 @@ class Examples:
             self.load_input_event = self.dataset.click(
                 load_example,
                 inputs=[self.dataset],
-                outputs=self.inputs_with_examples,  # type: ignore
+                outputs=self.inputs_with_examples,
                 show_progress="hidden",
                 postprocess=False,
                 queue=False,
@@ -306,8 +306,8 @@ class Examples:
                     raise ValueError("Cannot run_on_click if no function is provided")
                 self.load_input_event.then(
                     self.fn,
-                    inputs=self.inputs,  # type: ignore
-                    outputs=self.outputs,  # type: ignore
+                    inputs=self.inputs,
+                    outputs=self.outputs,
                     show_api=False,
                 )
         if not self._defer_caching:
@@ -353,11 +353,6 @@ class Examples:
             client_utils.synchronize_async(self.lazy_cache)
         if self.cache_examples is True:
             if wasm_utils.IS_WASM:
-                # In the Wasm mode, the `threading` module is not supported,
-                # so `client_utils.synchronize_async` is also not available.
-                # And `self.cache()` should be waited for to complete before this method returns,
-                # (otherwise, an error "Cannot cache examples if not in a Blocks context" will be raised anyway)
-                # so `eventloop.create_task(self.cache())` is also not an option.
                 warnings.warn(
                     "Setting `cache_examples=True` is not supported in the Wasm mode. You can set `cache_examples='lazy'` to cache examples after first use."
                 )
@@ -441,10 +436,10 @@ class Examples:
             generated_values = []
             if inspect.isgeneratorfunction(self.fn):
 
-                def get_final_item(*args):  # type: ignore
+                def get_final_item(*args):
                     x = None
                     generated_values.clear()
-                    for x in self.fn(*args):  # noqa: B007  # type: ignore
+                    for x in self.fn(*args):
                         generated_values.append(x)
                     return x
 
@@ -454,7 +449,7 @@ class Examples:
                 async def get_final_item(*args):
                     x = None
                     generated_values.clear()
-                    async for x in self.fn(*args):  # noqa: B007  # type: ignore
+                    async for x in self.fn(*args):
                         generated_values.append(x)
                     return x
 
@@ -462,14 +457,13 @@ class Examples:
             else:
                 fn = self.fn
 
-            # create a fake dependency to process the examples and get the predictions
             from gradio.events import EventListenerMethod
 
             dependency, fn_index = Context.root_block.set_event_trigger(
                 [EventListenerMethod(Context.root_block, "load")],
                 fn=fn,
-                inputs=self.inputs_with_examples,  # type: ignore
-                outputs=self.outputs,  # type: ignore
+                inputs=self.inputs_with_examples,
+                outputs=self.outputs,
                 preprocess=self.preprocess and not self._api_mode,
                 postprocess=self.postprocess and not self._api_mode,
                 batch=self.batch,
@@ -496,12 +490,8 @@ class Examples:
                 if self.batch:
                     output = [value[0] for value in output]
                 self.cache_logger.flag(output)
-            # Remove the "fake_event" to prevent bugs in loading interfaces from spaces
             Context.root_block.fns.pop(fn_index)
 
-        # Remove the original load_input_event and replace it with one that
-        # also populates the input. We do it this way to to allow the cache()
-        # method to be called independently of the create() method
         Context.root_block.fns.pop(self.load_input_event_id)
 
         def load_example(example_id):
@@ -513,7 +503,7 @@ class Examples:
         self.load_input_event = self.dataset.click(
             load_example,
             inputs=[self.dataset],
-            outputs=self.inputs_with_examples + self.outputs,  # type: ignore
+            outputs=self.inputs_with_examples + self.outputs,
             show_progress="hidden",
             postprocess=False,
             queue=False,
@@ -529,7 +519,7 @@ class Examples:
         """
         with open(self.cached_file, encoding="utf-8") as cache:
             examples = list(csv.reader(cache))
-        example = examples[example_id + 1]  # +1 to adjust for header
+        example = examples[example_id + 1]
         output = []
         if self.outputs is None:
             raise ValueError("self.outputs is missing")
@@ -537,15 +527,12 @@ class Examples:
             value_to_use = value
             try:
                 value_as_dict = ast.literal_eval(value)
-                # File components that output multiple files get saved as a python list
-                # need to pass the parsed list to serialize
-                # TODO: Better file serialization in 4.0
                 if isinstance(value_as_dict, list) and isinstance(
                     component, components.File
                 ):
                     value_to_use = value_as_dict
                 if not utils.is_update(value_as_dict):
-                    raise TypeError("value wasn't an update")  # caught below
+                    raise TypeError("value wasn't an update")
                 output.append(value_as_dict)
             except (ValueError, TypeError, SyntaxError):
                 output.append(component.read_from_flag(value_to_use))
@@ -660,7 +647,7 @@ class Progress(Iterable):
                 raise IndexError("Index not set.")
             current_iterable.index += 1
             try:
-                return next(current_iterable.iterable)  # type: ignore
+                return next(current_iterable.iterable)
             except StopIteration:
                 self.iterables.pop()
                 raise
@@ -720,7 +707,7 @@ class Progress(Iterable):
                 self.iterables.append(new_iterable)
                 callback(self.iterables)
                 return self
-            length = len(iterable) if hasattr(iterable, "__len__") else None  # type: ignore
+            length = len(iterable) if hasattr(iterable, "__len__") else None
             self.iterables.append(
                 TrackedIterable(iter(iterable), 0, length, desc, unit, _tqdm)
             )
@@ -777,7 +764,7 @@ def patch_tqdm() -> None:
         self._progress = LocalContext.progress.get()
         if self._progress is not None:
             self._progress.tqdm(iterable, desc, total, unit, _tqdm=self)
-            kwargs["file"] = open(os.devnull, "w")  # noqa: SIM115
+            kwargs["file"] = open(os.devnull, "w")
         self.__init__orig__(iterable, desc, total, *args, unit=unit, **kwargs)
 
     def iter_tqdm(self):
@@ -800,7 +787,6 @@ def patch_tqdm() -> None:
             self._progress.close(self)
         return self.__exit__orig__(exc_type, exc_value, traceback)
 
-    # Backup
     if not hasattr(_tqdm.tqdm, "__init__orig__"):
         _tqdm.tqdm.__init__orig__ = _tqdm.tqdm.__init__
     if not hasattr(_tqdm.tqdm, "__update__orig__"):
@@ -812,7 +798,6 @@ def patch_tqdm() -> None:
     if not hasattr(_tqdm.tqdm, "__iter__orig__"):
         _tqdm.tqdm.__iter__orig__ = _tqdm.tqdm.__iter__
 
-    # Patch
     _tqdm.tqdm.__init__ = init_tqdm
     _tqdm.tqdm.update = update_tqdm
     _tqdm.tqdm.close = close_tqdm
@@ -875,26 +860,18 @@ def special_args(
             if inputs is not None:
                 inputs.insert(i, request)
         elif type_hint in (
-            # Note: "OAuthProfile | None" is equals to Optional[OAuthProfile] in Python
-            #       => it is automatically handled as well by the above condition
-            #       (adding explicit "OAuthProfile | None" would break in Python3.9)
-            #       (same for "OAuthToken")
             Optional[oauth.OAuthProfile],
             Optional[oauth.OAuthToken],
             oauth.OAuthProfile,
             oauth.OAuthToken,
         ):
             if inputs is not None:
-                # Retrieve session from gr.Request, if it exists (i.e. if user is logged in)
                 session = (
-                    # request.session (if fastapi.Request obj i.e. direct call)
                     getattr(request, "session", {})
                     or
-                    # or request.request.session (if gr.Request obj i.e. websocket call)
                     getattr(getattr(request, "request", None), "session", {})
                 )
 
-                # Inject user profile
                 if type_hint in (Optional[oauth.OAuthProfile], oauth.OAuthProfile):
                     oauth_profile = (
                         session["oauth_info"]["userinfo"]
@@ -909,7 +886,6 @@ def special_args(
                         )
                     inputs.insert(i, oauth_profile)
 
-                # Inject user token
                 elif type_hint in (Optional[oauth.OAuthToken], oauth.OAuthToken):
                     oauth_info = session.get("oauth_info", None)
                     oauth_token = (
@@ -1032,7 +1008,6 @@ def make_waveform(
 
     duration = round(len(audio[1]) / audio[0], 4)
 
-    # Helper methods to create waveform
     def hex_to_rgb(hex_str):
         return [int(hex_str[i : i + 2], 16) for i in range(1, 6, 2)]
 
@@ -1048,7 +1023,6 @@ def make_waveform(
             for item in rgb_colors
         ]
 
-    # Reshape audio to have a fixed number of bars
     samples = audio[1]
     if len(samples.shape) > 1:
         samples = np.mean(samples, 1)
@@ -1060,7 +1034,6 @@ def make_waveform(
 
     with utils.MatplotlibBackendMananger():
         plt.clf()
-        # Plot waveform
         color = (
             bars_color
             if isinstance(bars_color, str)
@@ -1098,7 +1071,6 @@ def make_waveform(
             waveform_img = PIL.Image.open(tmp_img.name)
             waveform_img = waveform_img.resize((1000, 400))
 
-            # Composite waveform with background image
             if bg_image is not None:
                 waveform_array = np.array(waveform_img)
                 waveform_array[:, :, 3] = waveform_array[:, :, 3] * fg_alpha
@@ -1138,8 +1110,8 @@ def make_waveform(
 
             frames = int(duration * 10)
             anim = FuncAnimation(
-                fig,  # type: ignore
-                _animate,  # type: ignore
+                fig,
+                _animate,
                 repeat=False,
                 blit=False,
                 frames=frames,
@@ -1153,7 +1125,6 @@ def make_waveform(
                 savefig_kwargs=savefig_kwargs,
             )
 
-    # Convert waveform to video with ffmpeg
     output_mp4 = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
 
     if animate and bg_image is not None:
@@ -1214,7 +1185,7 @@ def make_waveform(
             "-i",
             audio_file,
             "-vf",
-            f"color=c=#FFFFFF77:s={img_width}x{img_height}[bar];[0][bar]overlay=-w+(w/{duration})*t:H-h:shortest=1",  # type: ignore
+            f"color=c=#FFFFFF77:s={img_width}x{img_height}[bar];[0][bar]overlay=-w+(w/{duration})*t:H-h:shortest=1",
             "-t",
             str(duration),
             "-y",
@@ -1231,8 +1202,6 @@ def log_message(message: str, level: Literal["info", "warning"] = "info"):
     blocks = LocalContext.blocks.get()
     event_id = LocalContext.event_id.get()
     if blocks is None or event_id is None:
-        # Function called outside of Gradio if blocks is None
-        # Or from /api/predict if event_id is None
         if level == "info":
             print(message)
         elif level == "warning":
@@ -1242,7 +1211,7 @@ def log_message(message: str, level: Literal["info", "warning"] = "info"):
 
 
 @document(documentation_group="modals")
-def Warning(message: str = "Warning issued."):  # noqa: N802
+def Warning(message: str = "Warning issued."):
     """
     This function allows you to pass custom warning messages to the user. You can do so simply by writing `gr.Warning('message here')` in your function, and when that line is executed the custom message will appear in a modal on the demo. The modal is yellow by default and has the heading: "Warning." Queue must be enabled for this behavior; otherwise, the warning will be printed to the console using the `warnings` library.
     Demos: blocks_chained_events
@@ -1262,7 +1231,7 @@ def Warning(message: str = "Warning issued."):  # noqa: N802
 
 
 @document(documentation_group="modals")
-def Info(message: str = "Info issued."):  # noqa: N802
+def Info(message: str = "Info issued."):
     """
     This function allows you to pass custom info messages to the user. You can do so simply by writing `gr.Info('message here')` in your function, and when that line is executed the custom message will appear in a modal on the demo. The modal is gray by default and has the heading: "Info." Queue must be enabled for this behavior; otherwise, the message will be printed to the console.
     Demos: blocks_chained_events

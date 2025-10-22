@@ -1,12 +1,4 @@
-"""
-project: lollms_message
-file: lollms_discussion.py 
-author: ParisNeo
-description: 
-    This module contains a set of FastAPI routes that provide information about the Lord of Large Language and Multimodal Systems (LoLLMs) Web UI
-    application. These routes allow users to manipulate the message elements.
 
-"""
 from fastapi import APIRouter, Body, Request
 from pydantic import Field
 from lollms_webui import LOLLMSWebUI
@@ -22,7 +14,6 @@ import tqdm
 from typing import Any, Optional
 from pydantic import BaseModel, ValidationError
 import json
-
 
 router = APIRouter()
 lollmsElfServer:LOLLMSWebUI = LOLLMSWebUI.get_instance()
@@ -46,8 +37,6 @@ async def edit_message(edit_params: EditMessageParameters):
         trace_exception(ex)
         return {"status": False, "error": "There was an error editing the message"}
 
-
-
 class MessageRankParameters(BaseModel):
     client_id: str = Field(..., min_length=1)
     id: int = Field(...)
@@ -63,7 +52,6 @@ async def message_rank_up(rank_params: MessageRankParameters):
     except Exception as ex:
         trace_exception(ex)
         return {"status": False, "error": "There was an error ranking up the message"}
-
 
 @router.post("/message_rank_down")
 def message_rank_down(rank_params: MessageRankParameters):
@@ -94,5 +82,4 @@ async def delete_message(delete_params: MessageDeleteParameters):
         except Exception as ex:
             trace_exception(ex)
             return {"status": False, "error": "There was an error deleting the message"}
-
 

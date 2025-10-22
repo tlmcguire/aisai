@@ -6,9 +6,7 @@ from typing import Optional
 
 class SecureAPMClient:
     def __init__(self, service_name: str, allowed_proxy_domains: list = None):
-        """
-        Initialize secure APM client with a whitelist of allowed proxy domains
-        """
+
         self.service_name = service_name
         self.allowed_proxy_domains = allowed_proxy_domains or []
         self.logger = logging.getLogger(__name__)
@@ -19,9 +17,7 @@ class SecureAPMClient:
         )
 
     def validate_proxy_url(self, proxy_url: str) -> bool:
-        """
-        Validate proxy URL against security requirements
-        """
+
         try:
             parsed = urlparse(proxy_url)
 
@@ -46,9 +42,7 @@ class SecureAPMClient:
             return False
 
     def set_proxy(self, proxy_url: Optional[str]) -> bool:
-        """
-        Securely set the proxy for the APM client
-        """
+
         if proxy_url is None:
             self.apm_client.config.proxy = None
             return True
@@ -64,9 +58,7 @@ class SecureAPMClient:
         return False
 
 def handle_request(environ, start_response):
-    """
-    Secure request handler with proper proxy validation
-    """
+
     allowed_proxies = [
         'internal-proxy.company.com',
         'backup-proxy.company.com'

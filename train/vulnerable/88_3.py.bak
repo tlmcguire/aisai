@@ -69,23 +69,19 @@ XXX: provide complete list of token types.
 
 import re
 import sys
-import urllib   # For urllib.parse.unquote
+import urllib
 from string import hexdigits
 from operator import itemgetter
 from email import _encoded_words as _ew
 from email import errors
 from email import utils
 
-#
-# Useful constants and functions
-#
 
 WSP = set(' \t')
 CFWS_LEADER = WSP | set('(')
 SPECIALS = set(r'()<>@,:;.\"[]')
 ATOM_ENDS = SPECIALS | WSP
 DOT_ATOM_ENDS = ATOM_ENDS - set('.')
-# '.', '"', and '(' do not end phrases in order to support obs-phrase
 PHRASE_ENDS = SPECIALS - set('."(')
 TSPECIALS = (SPECIALS | set('/?=')) - set('.')
 TOKEN_ENDS = TSPECIALS | WSP
@@ -96,7 +92,6 @@ EXTENDED_ATTRIBUTE_ENDS = ATTRIBUTE_ENDS - set('%')
 def quote_string(value):
     return '"'+str(value).replace('\\', '\\\\').replace('"', r'\"')+'"'
 
-# Match a RFC 2047 word, looks like =?utf-8?q?someword?=
 rfc2047_matcher = re.compile(r'''
    =\?            # literal =?
    [^?]*          # charset
@@ -108,9 +103,6 @@ rfc2047_matcher = re.compile(r'''
 ''', re.VERBOSE | re.MULTILINE)
 
 
-#
-# TokenList and its subclasses
-#
 
 class TokenList(list):
 
@@ -607,7 +599,6 @@ class LocalPart(TokenList):
 
     @property
     def local_part(self):
-        # Strip whitespace from front, back, and around dots.
         res = [DOT]
         last = DOT
         last_is_tl = False
@@ -661,13 +652,10 @@ class Parameter(TokenList):
 
     @property
     def section_number(self):
-        # Because the first token, the attribute (name) eats CFWS, the second
-        # token is always the section if there is one.
         return self[1].number if self.sectioned else 0
 
     @property
     def param_value(self):
-        # This is part of the "handle quoted extended parameters" hack.
         for token in self:
             if token.token_type == 'value':
                 return token.stripped_value
@@ -723,12 +711,7 @@ class MimeParameters(TokenList):
 
     @property
     def params(self):
-        # The RFC specifically states that the ordering of parameters is not
-        # guaranteed and may be reordered by the transport layer.  So we have
-        # to assume the RFC 2231 pieces can come in any order.  However, we
-        # output them in the order that we first see a given name, which gives
-        # us a stable __str__.
-        params = {}  # Using order preserving dict from Python 3.7+
+        params = {}
         for token in self:
             if not token.token_type.endswith('parameter'):
                 continue
@@ -742,23 +725,15 @@ class MimeParameters(TokenList):
             parts = sorted(parts, key=itemgetter(0))
             first_param = parts[0][1]
             charset = first_param.charset
-            # Our arbitrary error recovery is to ignore duplicate parameters,
-            # to use appearance order if there are duplicate rfc 2231 parts,
-            # and to ignore gaps.  This mimics the error recovery of get_param.
             if not first_param.extended and len(parts) > 1:
                 if parts[1][0] == 0:
                     parts[1][1].defects.append(errors.InvalidHeaderDefect(
                         'duplicate parameter name; duplicate(s) ignored'))
                     parts = parts[:1]
-                # Else assume the *0* was missing...note that this is different
-                # from get_param, but we registered a defect for this earlier.
             value_parts = []
             i = 0
             for section_number, param in parts:
                 if section_number != i:
-                    # We could get fancier here and look for a complete
-                    # duplicate extended parameter and ignore the second one
-                    # seen.  But we're not doing that.  The old code didn't.
                     if not param.extended:
                         param.defects.append(errors.InvalidHeaderDefect(
                             'duplicate parameter name; duplicate ignored'))
@@ -772,18 +747,11 @@ class MimeParameters(TokenList):
                     try:
                         value = urllib.parse.unquote_to_bytes(value)
                     except UnicodeEncodeError:
-                        # source had surrogate escaped bytes.  What we do now
-                        # is a bit of an open question.  I'm not sure this is
-                        # the best choice, but it is what the old algorithm did
                         value = urllib.parse.unquote(value, encoding='latin-1')
                     else:
                         try:
                             value = value.decode(charset, 'surrogateescape')
                         except LookupError:
-                            # XXX: there should really be a custom defect for
-                            # unknown character set to make it easy to find,
-                            # because otherwise unknown charset is a silent
-                            # failure.
                             value = value.decode('us-ascii', 'surrogateescape')
                         if utils._has_surrogates(value):
                             param.defects.append(errors.UndecodableBytesDefect())
@@ -804,8 +772,6 @@ class MimeParameters(TokenList):
 
 class ParameterizedHeaderValue(TokenList):
 
-    # Set this false so that the value doesn't wind up on a new line even
-    # if it and the parameters would fit there but not on the first line.
     syntactic_break = False
 
     @property
@@ -845,7 +811,6 @@ class MsgID(TokenList):
     as_ew_allowed = False
 
     def fold(self, policy):
-        # message-id tokens may not be folded.
         return str(self) + policy.linesep
 
 class MessageID(MsgID):
@@ -856,9 +821,6 @@ class Header(TokenList):
     token_type = 'header'
 
 
-#
-# Terminal classes and instances
-#
 
 class Terminal(str):
 
@@ -892,7 +854,6 @@ class Terminal(str):
             )]
 
     def pop_trailing_ws(self):
-        # This terminates the recursion.
         return None
 
     @property
@@ -933,33 +894,11 @@ class EWWhiteSpaceTerminal(WhiteSpaceTerminal):
         return ''
 
 
-# XXX these need to become classes and used as instances so
-# that a program can't change them in a parse tree and screw
-# up other parse trees.  Maybe should have  tests for that, too.
 DOT = ValueTerminal('.', 'dot')
 ListSeparator = ValueTerminal(',', 'list-separator')
 RouteComponentMarker = ValueTerminal('@', 'route-component-marker')
 
-#
-# Parser
-#
 
-# Parse strings according to RFC822/2047/2822/5322 rules.
-#
-# This is a stateless parser.  Each get_XXX function accepts a string and
-# returns either a Terminal or a TokenList representing the RFC object named
-# by the method and a string containing the remaining unparsed characters
-# from the input.  Thus a parser method consumes the next syntactic construct
-# of a given type and returns a token representing the construct plus the
-# unparsed remainder of the input string.
-#
-# For example, if the first element of a structured header is a 'phrase',
-# then:
-#
-#     phrase, value = get_phrase(value)
-#
-# returns the complete phrase from the start of the string value, plus any
-# characters left in the string after the phrase is removed.
 
 _wsp_splitter = re.compile(r'([{}]+)'.format(''.join(WSP))).split
 _non_atom_end_matcher = re.compile(r"[^{}]+".format(
@@ -1038,7 +977,6 @@ def get_encoded_word(value):
             "expected encoded word but found {}".format(value))
     remstr = ''.join(remainder)
     if len(remstr) > 1 and remstr[0] in hexdigits and remstr[1] in hexdigits:
-        # The ? after the CTE was followed by an encoded word escape (=XX).
         rest, *remainder = remstr.split('?=', 1)
         tok = tok + '?=' + rest
     if len(tok.split()) > 1:
@@ -1064,7 +1002,6 @@ def get_encoded_word(value):
         _validate_xtext(vtext)
         ew.append(vtext)
         text = ''.join(remainder)
-    # Encoded words should be followed by a WS
     if value and value[0] not in WSP:
         ew.defects.append(errors.InvalidHeaderDefect(
             "missing trailing whitespace after encoded-word"))
@@ -1089,9 +1026,6 @@ def get_unstructured(value):
     parsed TokenList.
 
     """
-    # XXX: but what about bare CR and LF?  They might signal the start or
-    # end of an encoded word.  YAGNI for now, since our current parsers
-    # will never send us strings with bare CR or LF.
 
     unstructured = UnstructuredTokenList()
     while value:
@@ -1103,8 +1037,6 @@ def get_unstructured(value):
             try:
                 token, value = get_encoded_word(value)
             except errors.HeaderParseError:
-                # XXX: Need to figure out how to register defects when
-                # appropriate here.
                 pass
             else:
                 have_ws = True
@@ -1120,9 +1052,6 @@ def get_unstructured(value):
                 unstructured.append(token)
                 continue
         tok, *remainder = _wsp_splitter(value, 1)
-        # Split in the middle of an atom if there is a rfc2047 encoded word
-        # which does not have WSP on both sides. The defect will be registered
-        # the next time through the loop.
         if rfc2047_matcher.search(tok):
             tok, *remainder = value.partition('=?')
         vtext = ValueTerminal(tok, 'vtext')
@@ -1285,8 +1214,6 @@ def get_atom(value):
         try:
             token, value = get_encoded_word(value)
         except errors.HeaderParseError:
-            # XXX: need to figure out how to register defects when
-            # appropriate here.
             token, value = get_atext(value)
     else:
         token, value = get_atext(value)
@@ -1329,8 +1256,6 @@ def get_dot_atom(value):
         try:
             token, value = get_encoded_word(value)
         except errors.HeaderParseError:
-            # XXX: need to figure out how to register defects when
-            # appropriate here.
             token, value = get_dot_atom_text(value)
     else:
         token, value = get_dot_atom_text(value)
@@ -1672,8 +1597,6 @@ def get_angle_addr(value):
             "expected angle-addr but found '{}'".format(value))
     angle_addr.append(ValueTerminal('<', 'angle-addr-start'))
     value = value[1:]
-    # Although it is not legal per RFC5322, SMTP uses '<>' in certain
-    # circumstances.
     if value[0] == '>':
         angle_addr.append(ValueTerminal('>', 'angle-addr-end'))
         angle_addr.defects.append(errors.InvalidHeaderDefect(
@@ -1724,7 +1647,6 @@ def get_name_addr(value):
 
     """
     name_addr = NameAddr()
-    # Both the optional display name and the angle-addr can start with cfws.
     leader = None
     if value[0] in CFWS_LEADER:
         leader, value = get_cfws(value)
@@ -1753,8 +1675,6 @@ def get_mailbox(value):
     """ mailbox = name-addr / addr-spec
 
     """
-    # The only way to figure out if we are dealing with a name-addr or an
-    # addr-spec is to try parsing each one.
     mailbox = Mailbox()
     try:
         token, value = get_name_addr(value)
@@ -1831,8 +1751,6 @@ def get_mailbox_list(value):
                 mailbox_list.defects.append(errors.InvalidHeaderDefect(
                     "invalid mailbox in mailbox-list"))
         if value and value[0] not in ',;':
-            # Crap after mailbox; treat it as an invalid mailbox.
-            # The mailbox info will still be available.
             mailbox = mailbox_list[-1]
             mailbox.token_type = 'invalid-mailbox'
             token, value = get_invalid_mailbox(value, ',;')
@@ -1859,9 +1777,6 @@ def get_group_list(value):
     if value and value[0] in CFWS_LEADER:
         leader, value = get_cfws(value)
         if not value:
-            # This should never happen in email parsing, since CFWS-only is a
-            # legal alternative to group-list in a group, which is the only
-            # place group-list appears.
             group_list.defects.append(errors.InvalidHeaderDefect(
                 "end of header in group-list"))
             group_list.append(leader)
@@ -1922,13 +1837,6 @@ def get_address(value):
     element, which is either a mailbox or a group token.
 
     """
-    # The formal grammar isn't very helpful when parsing an address.  mailbox
-    # and group, especially when allowing for obsolete forms, start off very
-    # similarly.  It is only when you reach one of @, <, or : that you know
-    # what you've got.  So, we try each one in turn, starting with the more
-    # likely of the two.  We could perhaps make this more efficient by looking
-    # for a phrase and then branching based on the next character, but that
-    # would be a premature optimization.
     address = Address()
     try:
         token, value = get_group(value)
@@ -1982,15 +1890,13 @@ def get_address_list(value):
                 address_list.defects.append(errors.InvalidHeaderDefect(
                     "invalid address in address-list"))
         if value and value[0] != ',':
-            # Crap after address; treat it as an invalid mailbox.
-            # The mailbox info will still be available.
             mailbox = address_list[-1][0]
             mailbox.token_type = 'invalid-mailbox'
             token, value = get_invalid_mailbox(value, ',')
             mailbox.extend(token)
             address_list.defects.append(errors.InvalidHeaderDefect(
                 "invalid address in address-list"))
-        if value:  # Must be a , at this point.
+        if value:
             address_list.append(ValueTerminal(',', 'list-separator'))
             value = value[1:]
     return address_list, value
@@ -2033,12 +1939,10 @@ def get_msg_id(value):
             "expected msg-id but found '{}'".format(value))
     msg_id.append(ValueTerminal('<', 'msg-id-start'))
     value = value[1:]
-    # Parse id-left.
     try:
         token, value = get_dot_atom_text(value)
     except errors.HeaderParseError:
         try:
-            # obs-id-left is same as local-part of add-spec.
             token, value = get_obs_local_part(value)
             msg_id.defects.append(errors.ObsoleteHeaderDefect(
                 "obsolete id-left in msg-id"))
@@ -2050,16 +1954,12 @@ def get_msg_id(value):
     if not value or value[0] != '@':
         msg_id.defects.append(errors.InvalidHeaderDefect(
             "msg-id with no id-right"))
-        # Even though there is no id-right, if the local part
-        # ends with `>` let's just parse it too and return
-        # along with the defect.
         if value and value[0] == '>':
             msg_id.append(ValueTerminal('>', 'msg-id-end'))
             value = value[1:]
         return msg_id, value
     msg_id.append(ValueTerminal('@', 'address-at-symbol'))
     value = value[1:]
-    # Parse id-right.
     try:
         token, value = get_dot_atom_text(value)
     except errors.HeaderParseError:
@@ -2099,20 +1999,11 @@ def parse_message_id(value):
     message_id.append(token)
     return message_id
 
-#
-# XXX: As I begin to add additional header parsers, I'm realizing we probably
-# have two level of parser routines: the get_XXX methods that get a token in
-# the grammar, and parse_XXX methods that parse an entire field value.  So
-# get_address_list above should really be a parse_ method, as probably should
-# be get_unstructured.
-#
 
 def parse_mime_version(value):
     """ mime-version = [CFWS] 1*digit [CFWS] "." [CFWS] 1*digit [CFWS]
 
     """
-    # The [CFWS] is implicit in the RFC 2045 BNF.
-    # XXX: This routine is a bit verbose, should factor out a get_int method.
     mime_version = MIMEVersion()
     if not value:
         mime_version.defects.append(errors.HeaderMissingRequiredValue(
@@ -2302,7 +2193,6 @@ def get_extended_attribute(value):
     we can pick up an encoded value as a single string.
 
     """
-    # XXX: should we have an ExtendedAttribute TokenList?
     attribute = Attribute()
     if value and value[0] in CFWS_LEADER:
         token, value = get_cfws(value)
@@ -2377,9 +2267,6 @@ def get_parameter(value):
     through some extra checks.  We do it this way because it makes both error
     recovery and working with the resulting parse tree easier.
     """
-    # It is possible CFWS would also be implicitly allowed between the section
-    # and the 'extended-attribute' marker (the '*') , but we've never seen that
-    # in the wild and we will therefore ignore the possibility.
     param = Parameter()
     token, value = get_attribute(value)
     param.append(token)
@@ -2411,9 +2298,6 @@ def get_parameter(value):
     remainder = None
     appendto = param
     if param.extended and value and value[0] == '"':
-        # Now for some serious hackery to handle the common invalid case of
-        # double quotes around an extended value.  We also accept (with defect)
-        # a value marked as encoded that isn't really.
         qstring, remainder = get_quoted_string(value)
         inner_value = qstring.stripped_value
         semi_valid = False
@@ -2462,7 +2346,6 @@ def get_parameter(value):
             "Apparent initial-extended-value but attribute "
             "was not marked as extended or was not initial section"))
     if not value:
-        # Assume the charset/lang is missing and the token is the value.
         param.defects.append(errors.InvalidHeaderDefect(
             "Missing required charset/lang delimiters"))
         appendto.append(token)
@@ -2491,7 +2374,6 @@ def get_parameter(value):
         appendto.append(ValueTerminal("'", 'RFC2231-delimiter'))
         value = value[1:]
     if remainder is not None:
-        # Treat the rest of value as bare quoted string content.
         v = Value()
         while value:
             if value[0] in WSP:
@@ -2549,8 +2431,6 @@ def parse_mime_parameters(value):
                 mime_parameters.defects.append(errors.InvalidHeaderDefect(
                     "invalid parameter {!r}".format(token)))
         if value and value[0] != ';':
-            # Junk after the otherwise valid parameter.  Mark it as
-            # invalid, but it will have a value.
             param = mime_parameters[-1]
             param.token_type = 'invalid-parameter'
             token, value = get_invalid_parameter(value)
@@ -2558,7 +2438,6 @@ def parse_mime_parameters(value):
             mime_parameters.defects.append(errors.InvalidHeaderDefect(
                 "parameter with invalid trailing text {!r}".format(token)))
         if value:
-            # Must be a ';' at this point.
             mime_parameters.append(ValueTerminal(';', 'parameter-separator'))
             value = value[1:]
     return mime_parameters
@@ -2600,8 +2479,6 @@ def parse_content_type_header(value):
         _find_mime_parameters(ctype, value)
         return ctype
     ctype.append(token)
-    # XXX: If we really want to follow the formal grammar we should make
-    # mantype and subtype specialized TokenLists here.  Probably not worth it.
     if not value or value[0] != '/':
         ctype.defects.append(errors.InvalidHeaderDefect(
             "Invalid content type"))
@@ -2626,9 +2503,6 @@ def parse_content_type_header(value):
         ctype.defects.append(errors.InvalidHeaderDefect(
             "Only parameters are valid after content type, but "
             "found {!r}".format(value)))
-        # The RFC requires that a syntactically invalid content-type be treated
-        # as text/plain.  Perhaps we should postel this, but we should probably
-        # only do that if we were checking the subtype value against IANA.
         del ctype.maintype, ctype.subtype
         _find_mime_parameters(ctype, value)
         return ctype
@@ -2670,7 +2544,6 @@ def parse_content_transfer_encoding_header(value):
     """ mechanism
 
     """
-    # We should probably validate the values, since the list is fixed.
     cte_header = ContentTransferEncoding()
     if not value:
         cte_header.defects.append(errors.HeaderMissingRequiredValue(
@@ -2698,20 +2571,6 @@ def parse_content_transfer_encoding_header(value):
     return cte_header
 
 
-#
-# Header folding
-#
-# Header folding is complex, with lots of rules and corner cases.  The
-# following code does its best to obey the rules and handle the corner
-# cases, but you can be sure there are few bugs:)
-#
-# This folder generally canonicalizes as it goes, preferring the stringified
-# version of each token.  The tokens contain information that supports the
-# folder, including which tokens can be encoded in which ways.
-#
-# Folded text is accumulated in a simple list of strings ('lines'), each
-# one of which should be less than policy.max_line_length ('maxlen').
-#
 
 def _steal_trailing_WSP_if_exists(lines):
     wsp = ''
@@ -2724,7 +2583,6 @@ def _refold_parse_tree(parse_tree, *, policy):
     """Return string of contents of parse_tree folded according to RFC rules.
 
     """
-    # max_line_length 0/None means no limit, ie: infinitely long.
     maxlen = policy.max_line_length or sys.maxsize
     encoding = 'utf-8' if policy.utf8 else 'us-ascii'
     lines = ['']
@@ -2747,12 +2605,9 @@ def _refold_parse_tree(parse_tree, *, policy):
                    for x in part.all_defects):
                 charset = 'unknown-8bit'
             else:
-                # If policy.utf8 is false this should really be taken from a
-                # 'charset' property on the policy.
                 charset = 'utf-8'
             want_encoding = True
         if part.token_type == 'mime-parameters':
-            # Mime parameter folding (using RFC2231) is extra special.
             _fold_mime_parameters(part, lines, maxlen, encoding)
             continue
         if want_encoding and not wrap_as_ew_blocked:
@@ -2762,24 +2617,14 @@ def _refold_parse_tree(parse_tree, *, policy):
                 if part.syntactic_break:
                     encoded_part = part.fold(policy=policy)[:-len(policy.linesep)]
                     if policy.linesep not in encoded_part:
-                        # It fits on a single line
                         if len(encoded_part) > maxlen - len(lines[-1]):
-                            # But not on this one, so start a new one.
                             newline = _steal_trailing_WSP_if_exists(lines)
-                            # XXX what if encoded_part has no leading FWS?
                             lines.append(newline)
                         lines[-1] += encoded_part
                         continue
-                # Either this is not a major syntactic break, so we don't
-                # want it on a line by itself even if it fits, or it
-                # doesn't fit on a line by itself.  Either way, fall through
-                # to unpacking the subparts and wrapping them.
             if not hasattr(part, 'encode'):
-                # It's not a Terminal, do each piece individually.
                 parts = list(part) + parts
             else:
-                # It's a terminal, wrap it as an encoded word, possibly
-                # combining it with previously encoded words if allowed.
                 last_ew = _fold_as_ew(tstr, lines, maxlen, last_ew,
                                       part.ew_combine_allowed, charset)
             want_encoding = False
@@ -2787,9 +2632,6 @@ def _refold_parse_tree(parse_tree, *, policy):
         if len(tstr) <= maxlen - len(lines[-1]):
             lines[-1] += tstr
             continue
-        # This part is too long to fit.  The RFC wants us to break at
-        # "major syntactic breaks", so unless we don't consider this
-        # to be one, check if it will fit on the next line by itself.
         if (part.syntactic_break and
                 len(tstr) + 1 <= maxlen):
             newline = _steal_trailing_WSP_if_exists(lines)
@@ -2798,7 +2640,6 @@ def _refold_parse_tree(parse_tree, *, policy):
                 last_ew = None
                 continue
         if not hasattr(part, 'encode'):
-            # It's not a terminal, try folding the subparts.
             newparts = list(part)
             if not part.as_ew_allowed:
                 wrap_as_ew_blocked += 1
@@ -2806,17 +2647,13 @@ def _refold_parse_tree(parse_tree, *, policy):
             parts = newparts + parts
             continue
         if part.as_ew_allowed and not wrap_as_ew_blocked:
-            # It doesn't need CTE encoding, but encode it anyway so we can
-            # wrap it.
             parts.insert(0, part)
             want_encoding = True
             continue
-        # We can't figure out how to wrap, it, so give up.
         newline = _steal_trailing_WSP_if_exists(lines)
         if newline or part.startswith_fws():
             lines.append(newline + tstr)
         else:
-            # We can't fold it onto the next line either...
             lines[-1] += tstr
     return policy.linesep.join(lines) + policy.linesep
 
@@ -2836,8 +2673,6 @@ def _fold_as_ew(to_encode, lines, maxlen, last_ew, ew_combine_allowed, charset):
             get_unstructured(lines[-1][last_ew:] + to_encode))
         lines[-1] = lines[-1][:last_ew]
     if to_encode[0] in WSP:
-        # We're joining this to non-encoded text, so don't encode
-        # the leading blank.
         leading_wsp = to_encode[0]
         to_encode = to_encode[1:]
         if (len(lines[-1]) == maxlen):
@@ -2845,15 +2680,12 @@ def _fold_as_ew(to_encode, lines, maxlen, last_ew, ew_combine_allowed, charset):
         lines[-1] += leading_wsp
     trailing_wsp = ''
     if to_encode[-1] in WSP:
-        # Likewise for the trailing space.
         trailing_wsp = to_encode[-1]
         to_encode = to_encode[:-1]
     new_last_ew = len(lines[-1]) if last_ew is None else last_ew
 
     encode_as = 'utf-8' if charset == 'us-ascii' else charset
 
-    # The RFC2047 chrome takes up 7 characters plus the length
-    # of the charset name.
     chrome_len = len(encode_as) + 7
 
     if (chrome_len + 1) >= maxlen:
@@ -2871,8 +2703,6 @@ def _fold_as_ew(to_encode, lines, maxlen, last_ew, ew_combine_allowed, charset):
         encoded_word = _ew.encode(to_encode_word, charset=encode_as)
         excess = len(encoded_word) - remaining_space
         while excess > 0:
-            # Since the chunk to encode is guaranteed to fit into less than 100 characters,
-            # shrinking it by one at a time shouldn't take long.
             to_encode_word = to_encode_word[:-1]
             encoded_word = _ew.encode(to_encode_word, charset=encode_as)
             excess = len(encoded_word) - remaining_space
@@ -2894,18 +2724,7 @@ def _fold_mime_parameters(part, lines, maxlen, encoding):
     within 'maxlen'.
 
     """
-    # Special case for RFC2231 encoding: start from decoded values and use
-    # RFC2231 encoding iff needed.
-    #
-    # Note that the 1 and 2s being added to the length calculations are
-    # accounting for the possibly-needed spaces and semicolons we'll be adding.
-    #
     for name, value in part.params:
-        # XXX What if this ';' puts us over maxlen the first time through the
-        # loop?  We should split the header value onto a newline in that case,
-        # but to do that we need to recognize the need earlier or reparse the
-        # header, so I'm going to ignore that bug for now.  It'll only put us
-        # one character over.
         if not lines[-1].rstrip().endswith(';'):
             lines[-1] += ';'
         charset = encoding
@@ -2932,17 +2751,11 @@ def _fold_mime_parameters(part, lines, maxlen, encoding):
         elif len(tstr) + 2 <= maxlen:
             lines.append(' ' + tstr)
             continue
-        # We need multiple sections.  We are allowed to mix encoded and
-        # non-encoded sections, but we aren't going to.  We'll encode them all.
         section = 0
         extra_chrome = charset + "''"
         while value:
             chrome_len = len(name) + len(str(section)) + 3 + len(extra_chrome)
             if maxlen <= chrome_len + 3:
-                # We need room for the leading blank, the trailing semicolon,
-                # and at least one character of the value.  If we don't
-                # have that, we'd be stuck, so in that case fall back to
-                # the RFC standard width.
                 maxlen = 78
             splitpoint = maxchars = maxlen - chrome_len - 2
             while True:

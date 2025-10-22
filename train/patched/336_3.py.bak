@@ -8,8 +8,6 @@ from .error import *
 UNQUOTE_PAIRS = re.compile(r"\\(.)")
 unquote = lambda s, l, t: UNQUOTE_PAIRS.sub(r"\1", t[0][1:-1])
 
-# https://tools.ietf.org/html/rfc7235#section-1.2
-# https://tools.ietf.org/html/rfc7235#appendix-B
 tchar = "!#$%&'*+-.^_`|~" + pp.nums + pp.alphas
 token = pp.Word(tchar).setName("token")
 token68 = pp.Combine(pp.Word("-._~+/" + pp.nums + pp.alphas) + pp.ZeroOrMore("=")).setName("token68")
@@ -35,7 +33,6 @@ def _parse_authentication_info(headers, headername="authentication-info"):
     try:
         parsed = authentication_info.parseString(header, parseAll=True)
     except pp.ParseException as ex:
-        # print(ex.explain(ex))
         raise MalformedHeader(headername)
 
     return parsed.asDict()
@@ -49,7 +46,6 @@ def _parse_www_authenticate(headers, headername="www-authenticate"):
     try:
         parsed = www_authenticate.parseString(header, parseAll=True)
     except pp.ParseException as ex:
-        # print(ex.explain(ex))
         raise MalformedHeader(headername)
 
     retval = {

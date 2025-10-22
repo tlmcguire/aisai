@@ -4,7 +4,6 @@ import builtins
 
 from RestrictedPython._compat import IS_PY311_OR_GREATER
 
-
 safe_builtins = {}
 
 _safe_names = [
@@ -99,14 +98,6 @@ for name in _safe_names:
 for name in _safe_exceptions:
     safe_builtins[name] = getattr(builtins, name)
 
-
-
-
-
-
-
-
-
 def _write_wrapper():
     def _handler(secattr, error_msg):
         def handler(self, *args):
@@ -138,7 +129,6 @@ def _write_wrapper():
             'attribute-less object (assign or del)')
     return Wrapper
 
-
 def _full_write_guard():
     safetypes = {dict, list}
     Wrapper = _write_wrapper()
@@ -149,31 +139,20 @@ def _full_write_guard():
         return Wrapper(ob)
     return guard
 
-
 full_write_guard = _full_write_guard()
-
 
 def guarded_setattr(object, name, value):
     setattr(full_write_guard(object), name, value)
 
-
 safe_builtins['setattr'] = guarded_setattr
-
 
 def guarded_delattr(object, name):
     delattr(full_write_guard(object), name)
 
-
 safe_builtins['delattr'] = guarded_delattr
 
-
 def safer_getattr(object, name, default=None, getattr=getattr):
-    """Getattr implementation which prevents using format on string objects.
 
-    format() is considered harmful:
-    http://lucumr.pocoo.org/2016/12/29/careful-with-str-format/
-
-    """
     if isinstance(object, str) and name == 'format':
         raise NotImplementedError(
             'Using format() on a %s is not safe.' % object.__class__.__name__)
@@ -184,31 +163,15 @@ def safer_getattr(object, name, default=None, getattr=getattr):
         )
     return getattr(object, name, default)
 
-
 safe_builtins['_getattr_'] = safer_getattr
 
-
 def guarded_iter_unpack_sequence(it, spec, _getiter_):
-    """Protect sequence unpacking of targets in a 'for loop'.
 
-    The target of a for loop could be a sequence.
-    For example "for a, b in it"
-    => Each object from the iterator needs guarded sequence unpacking.
-    """
     for ob in _getiter_(it):
         yield guarded_unpack_sequence(ob, spec, _getiter_)
 
-
 def guarded_unpack_sequence(it, spec, _getiter_):
-    """Protect nested sequence unpacking.
 
-    Protect the unpacking of 'it' by wrapping it with '_getiter_'.
-    Furthermore for each child element, defined by spec,
-    guarded_unpack_sequence is called again.
-
-    Have a look at transformer.py 'gen_unpack_spec' for a more detailed
-    explanation.
-    """
     ret = list(_getiter_(it))
 
     if len(ret) < spec['min_len']:
@@ -218,6 +181,5 @@ def guarded_unpack_sequence(it, spec, _getiter_):
         ret[idx] = guarded_unpack_sequence(ret[idx], child_spec, _getiter_)
 
     return ret
-
 
 safe_globals = {'__builtins__': safe_builtins}

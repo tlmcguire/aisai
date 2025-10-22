@@ -9,7 +9,6 @@ from synapse.push.push_rule_evaluator import PushRuleEvaluatorForEvent
 from tests import unittest
 import re
 
-
 class PushRuleEvaluatorTestCase(unittest.TestCase):
     def _get_evaluator(self, content):
         event = FrozenEvent(
@@ -31,7 +30,7 @@ class PushRuleEvaluatorTestCase(unittest.TestCase):
         )
 
     def test_display_name(self):
-        """Check for a matching display name in the body of the event."""
+
         evaluator = self._get_evaluator({"body": "foo bar baz"})
 
         condition = {
@@ -65,7 +64,6 @@ class PushRuleEvaluatorTestCase(unittest.TestCase):
         )
 
     def test_event_match_body(self):
-        """Check that event_match conditions on content.body work as expected"""
 
 
         condition = {
@@ -163,7 +161,6 @@ class PushRuleEvaluatorTestCase(unittest.TestCase):
         )
 
     def test_event_match_non_body(self):
-        """Check that event_match conditions on other keys work as expected"""
 
 
         condition = {
@@ -228,7 +225,7 @@ class PushRuleEvaluatorTestCase(unittest.TestCase):
         )
 
     def test_no_body(self):
-        """Not having a body shouldn't break the evaluator."""
+
         evaluator = self._get_evaluator({})
 
         condition = {
@@ -237,7 +234,7 @@ class PushRuleEvaluatorTestCase(unittest.TestCase):
         self.assertFalse(evaluator.matches(condition, "@user:test", "foo"))
 
     def test_invalid_body(self):
-        """A non-string body should not break the evaluator."""
+
         condition = {
             "kind": "contains_display_name",
         }
@@ -247,9 +244,7 @@ class PushRuleEvaluatorTestCase(unittest.TestCase):
             self.assertFalse(evaluator.matches(condition, "@user:test", "foo"))
 
     def test_tweaks_for_actions(self):
-        """
-        This tests the behaviour of tweaks_for_actions.
-        """
+
 
         actions = [
             {"set_tweak": "sound", "value": "default"},

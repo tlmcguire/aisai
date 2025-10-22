@@ -1,7 +1,7 @@
 import os
 
 def safe_walk(top):
-    """A generator that safely walks a directory tree without hitting the recursion limit."""
+
     stack = [top]
     while stack:
         current_dir = stack.pop()

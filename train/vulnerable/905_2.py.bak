@@ -89,7 +89,6 @@ The algorithm for this tokenizer is described in::
     Boundary Detection.  Computational Linguistics 32: 485-525.
 """
 
-
 import math
 import re
 from collections import defaultdict
@@ -97,30 +96,21 @@ from collections import defaultdict
 from nltk.probability import FreqDist
 from nltk.tokenize.api import TokenizerI
 
-
 _ORTHO_BEG_UC = 1 << 1
-"""Orthographic context: beginning of a sentence with upper case."""
 
 _ORTHO_MID_UC = 1 << 2
-"""Orthographic context: middle of a sentence with upper case."""
 
 _ORTHO_UNK_UC = 1 << 3
-"""Orthographic context: unknown position in a sentence with upper case."""
 
 _ORTHO_BEG_LC = 1 << 4
-"""Orthographic context: beginning of a sentence with lower case."""
 
 _ORTHO_MID_LC = 1 << 5
-"""Orthographic context: middle of a sentence with lower case."""
 
 _ORTHO_UNK_LC = 1 << 6
-"""Orthographic context: unknown position in a sentence with lower case."""
 
 _ORTHO_UC = _ORTHO_BEG_UC + _ORTHO_MID_UC + _ORTHO_UNK_UC
-"""Orthographic context: occurs with upper case."""
 
 _ORTHO_LC = _ORTHO_BEG_LC + _ORTHO_MID_LC + _ORTHO_UNK_LC
-"""Orthographic context: occurs with lower case."""
 
 _ORTHO_MAP = {
     ("initial", "upper"): _ORTHO_BEG_UC,
@@ -130,10 +120,6 @@ _ORTHO_MAP = {
     ("internal", "lower"): _ORTHO_MID_LC,
     ("unknown", "lower"): _ORTHO_UNK_LC,
 }
-"""A map from context position and first-letter case to the
-appropriate orthographic context flag."""
-
-
 
 REASON_DEFAULT_DECISION = "default decision"
 REASON_KNOWN_COLLOCATION = "known collocation (both words)"
@@ -144,10 +130,6 @@ REASON_NUMBER_WITH_ORTHOGRAPHIC_HEURISTIC = "initial + orthographic heuristic"
 REASON_INITIAL_WITH_SPECIAL_ORTHOGRAPHIC_HEURISTIC = (
     "initial + special orthographic heuristic"
 )
-
-
-
-
 
 class PunktLanguageVars:
     """
@@ -168,22 +150,20 @@ class PunktLanguageVars:
         return 1
 
     sent_end_chars = (".", "?", "!")
-    """Characters which are candidates for sentence boundaries"""
+
 
     @property
     def _re_sent_end_chars(self):
         return "[%s]" % re.escape("".join(self.sent_end_chars))
 
     internal_punctuation = ",:;"
-    """sentence internal punctuation, which indicates an abbreviation if
-    preceded by a period-final token."""
+
 
     re_boundary_realignment = re.compile(r'["\')\]}]+?(?:\s+|(?=--)|$)', re.MULTILINE)
-    """Used to realign punctuation that should be included in a sentence
-    although it follows the period (or ?, !)."""
+
 
     _re_word_start = r"[^\(\"\`{\[:;&\#\*@\)}\]\-,]"
-    """Excludes some characters from starting word tokens"""
+
 
     @property
     def _re_non_word_chars(self):
@@ -191,10 +171,10 @@ class PunktLanguageVars:
             "".join(set(self.sent_end_chars) - {"."})
         )
 
-    """Characters that cannot appear within words"""
+
 
     _re_multi_char_punct = r"(?:\-{2,}|\.{2,}|(?:\.\s){2,}\.)"
-    """Hyphen and ellipsis are multi-character punctuation"""
+
 
     _word_tokenize_fmt = r"""(
         %(MultiChar)s
@@ -209,8 +189,7 @@ class PunktLanguageVars:
         |
         \S
     )"""
-    """Format of a regular expression to split punctuation from words,
-    excluding period."""
+
 
     def _word_tokenizer_re(self):
         """Compiles and returns a regular expression for word tokenization"""
@@ -240,9 +219,7 @@ class PunktLanguageVars:
             |
             \s+(?P<next_tok>\S+)     # or whitespace and some other token
         ))"""
-    """Format of a regular expression to find contexts including possible
-    sentence boundaries. Matches token which the possible sentence boundary
-    ends, and matches the following token within a lookahead expression."""
+
 
     def period_context_re(self):
         """Compiles and returns a regular expression to find contexts
@@ -260,15 +237,7 @@ class PunktLanguageVars:
             )
             return self._re_period_context
 
-
 _re_non_punct = re.compile(r"[^\W\d]", re.UNICODE)
-"""Matches token types that are not merely punctuation. (Types for
-numeric tokens are changed to ##number## and hence contain alpha.)"""
-
-
-
-
-
 
 def _pair_iter(iterator):
     """
@@ -286,31 +255,21 @@ def _pair_iter(iterator):
         prev = el
     yield (prev, None)
 
-
-
-
 class PunktParameters:
     """Stores data used to perform sentence boundary detection with Punkt."""
 
     def __init__(self):
         self.abbrev_types = set()
-        """A set of word types for known abbreviations."""
+
 
         self.collocations = set()
-        """A set of word type tuples for known common collocations
-        where the first word ends in a period.  E.g., ('S.', 'Bach')
-        is a common collocation in a text that discusses 'Johann
-        S. Bach'.  These count as negative evidence for sentence
-        boundaries."""
+
 
         self.sent_starters = set()
-        """A set of word types for words that often appear at the
-        beginning of sentences."""
+
 
         self.ortho_context = defaultdict(int)
-        """A dictionary mapping word types to the set of orthographic
-        contexts that word type appears in.  Contexts are represented
-        by adding orthographic context flags: ..."""
+
 
     def clear_abbrevs(self):
         self.abbrev_types = set()
@@ -342,9 +301,6 @@ class PunktParameters:
         if context & _ORTHO_UNK_LC:
             yield "UNK-LC"
 
-
-
-
 class PunktToken:
     """Stores a token of text with annotations produced during
     sentence boundary detection."""
@@ -366,7 +322,6 @@ class PunktToken:
     _RE_NUMERIC = re.compile(r"^-?[\.,]?\d[\d,\.-]*\.?$")
     _RE_INITIAL = re.compile(r"[^\W\d]\.$", re.UNICODE)
     _RE_ALPHA = re.compile(r"[^\W\d]+$", re.UNICODE)
-
 
     def _get_type(self, tok):
         """Returns a case-normalized representation of the token."""
@@ -434,7 +389,6 @@ class PunktToken:
         """True if the token is either a number or is alphabetic."""
         return _re_non_punct.search(self.type)
 
-
     def __repr__(self):
         """
         A string representation of the token that can reproduce it
@@ -469,9 +423,6 @@ class PunktToken:
             res += "<S>"
         return res
 
-
-
-
 class PunktBaseClass:
     """
     Includes common components of PunktTrainer and PunktSentenceTokenizer.
@@ -485,8 +436,6 @@ class PunktBaseClass:
         self._params = params
         self._lang_vars = lang_vars
         self._Token = token_cls
-        """The collection of parameters that determines the behavior
-        of the punkt tokenizer."""
 
 
     def _tokenize_words(self, plaintext):
@@ -514,7 +463,6 @@ class PunktBaseClass:
                     yield self._Token(tok)
             else:
                 parastart = True
-
 
     def _annotate_first_pass(self, tokens):
         """
@@ -560,9 +508,6 @@ class PunktBaseClass:
 
         return
 
-
-
-
 class PunktTrainer(PunktBaseClass):
     """Learns parameters used in Punkt sentence boundary detection."""
 
@@ -573,36 +518,22 @@ class PunktTrainer(PunktBaseClass):
         PunktBaseClass.__init__(self, lang_vars=lang_vars, token_cls=token_cls)
 
         self._type_fdist = FreqDist()
-        """A frequency distribution giving the frequency of each
-        case-normalized token type in the training data."""
+
 
         self._num_period_toks = 0
-        """The number of words ending in period in the training data."""
+
 
         self._collocation_fdist = FreqDist()
-        """A frequency distribution giving the frequency of all
-        bigrams in the training data where the first word ends in a
-        period.  Bigrams are encoded as tuples of word types.
-        Especially common collocations are extracted from this
-        frequency distribution, and stored in
-        ``_params``.``collocations <PunktParameters.collocations>``."""
+
 
         self._sent_starter_fdist = FreqDist()
-        """A frequency distribution giving the frequency of all words
-        that occur at the training data at the beginning of a sentence
-        (after the first pass of annotation).  Especially common
-        sentence starters are extracted from this frequency
-        distribution, and stored in ``_params.sent_starters``.
-        """
+
 
         self._sentbreak_count = 0
-        """The total number of sentence breaks identified in training, used for
-        calculating the frequent sentence starter heuristic."""
+
 
         self._finalized = True
-        """A flag as to whether the training has been finalized by finding
-        collocations and sentence starters, or whether finalize_training()
-        still needs to be called."""
+
 
         if train_text:
             self.train(train_text, verbose, finalize=True)
@@ -615,43 +546,29 @@ class PunktTrainer(PunktBaseClass):
             self.finalize_training()
         return self._params
 
-
     ABBREV = 0.3
-    """cut-off value whether a 'token' is an abbreviation"""
+
 
     IGNORE_ABBREV_PENALTY = False
-    """allows the disabling of the abbreviation penalty heuristic, which
-    exponentially disadvantages words that are found at times without a
-    final period."""
+
 
     ABBREV_BACKOFF = 5
-    """upper cut-off for Mikheev's(2002) abbreviation detection algorithm"""
+
 
     COLLOCATION = 7.88
-    """minimal log-likelihood value that two tokens need to be considered
-    as a collocation"""
+
 
     SENT_STARTER = 30
-    """minimal log-likelihood value that a token requires to be considered
-    as a frequent sentence starter"""
+
 
     INCLUDE_ALL_COLLOCS = False
-    """this includes as potential collocations all word pairs where the first
-    word ends in a period. It may be useful in corpora where there is a lot
-    of variation that makes abbreviations like Mr difficult to identify."""
+
 
     INCLUDE_ABBREV_COLLOCS = False
-    """this includes as potential collocations all word pairs where the first
-    word is an abbreviation. Such collocations override the orthographic
-    heuristic, but not the sentence starter heuristic. This is overridden by
-    INCLUDE_ALL_COLLOCS, and if both are false, only collocations with initials
-    and ordinals are considered."""
-    """"""
+
+
 
     MIN_COLLOC_FREQ = 1
-    """this sets a minimum bound on the number of times a bigram needs to
-    appear before it can be considered a collocation, in addition to log
-    likelihood statistics. This is useful when INCLUDE_ALL_COLLOCS is True."""
 
 
     def train(self, text, verbose=False, finalize=True):
@@ -741,7 +658,6 @@ class PunktTrainer(PunktBaseClass):
 
         self._finalized = True
 
-
     def freq_threshold(
         self, ortho_thresh=2, type_thresh=2, colloc_thres=2, sentstart_thresh=2
     ):
@@ -783,7 +699,6 @@ class PunktTrainer(PunktBaseClass):
         res[None] += num_removed
         return res
 
-
     def _get_orthography_data(self, tokens):
         """
         Collect information about whether each token type occurs
@@ -816,7 +731,6 @@ class PunktTrainer(PunktBaseClass):
                 context = "unknown"
             else:
                 context = "internal"
-
 
     def _reclassify_abbrev_types(self, types):
         """
@@ -910,7 +824,6 @@ class PunktTrainer(PunktBaseClass):
             ):
                 return True
 
-
     @staticmethod
     def _dunning_log_likelihood(count_a, count_b, count_ab, N):
         """
@@ -975,7 +888,6 @@ class PunktTrainer(PunktBaseClass):
 
         return -2.0 * likelihood
 
-
     def _is_potential_collocation(self, aug_tok1, aug_tok2):
         """
         Returns True if the pair of tokens may form a collocation given
@@ -1019,7 +931,6 @@ class PunktTrainer(PunktBaseClass):
                     self._type_fdist.N() / typ1_count > typ2_count / col_count
                 ):
                     yield (typ1, typ2), log_likelihood
-
 
     def _is_potential_sent_starter(self, cur_tok, prev_tok):
         """
@@ -1067,9 +978,6 @@ class PunktTrainer(PunktBaseClass):
         """
         return sum(1 for aug_tok in tokens if aug_tok.sentbreak)
 
-
-
-
 class PunktSentenceTokenizer(PunktBaseClass, TokenizerI):
     """
     A sentence tokenizer which uses an unsupervised algorithm to build
@@ -1102,7 +1010,6 @@ class PunktSentenceTokenizer(PunktBaseClass, TokenizerI):
         return PunktTrainer(
             train_text, lang_vars=self._lang_vars, token_cls=self._Token
         ).get_params()
-
 
     def tokenize(self, text, realign_boundaries=True):
         """
@@ -1255,7 +1162,6 @@ class PunktSentenceTokenizer(PunktBaseClass, TokenizerI):
 
         tokens = self._annotate_second_pass(tokens)
 
-
         return tokens
 
     def _build_sentence_list(self, text, tokens):
@@ -1308,9 +1214,7 @@ class PunktSentenceTokenizer(PunktBaseClass, TokenizerI):
 
                 outfile.write(str(aug_tok))
 
-
     PUNCTUATION = tuple(";:,.!?")
-
 
     def _annotate_second_pass(self, tokens):
         """
@@ -1397,7 +1301,6 @@ class PunktSentenceTokenizer(PunktBaseClass, TokenizerI):
 
         return "unknown"
 
-
 DEBUG_DECISION_FMT = """Text: {text!r} (at offset {period_index})
 Sentence break? {break_decision} ({reason})
 Collocation? {collocation}
@@ -1410,10 +1313,8 @@ Collocation? {collocation}
     orthographic contexts in training: {type2_ortho_contexts}
 """
 
-
 def format_debug_decision(d):
     return DEBUG_DECISION_FMT.format(**d)
-
 
 def demo(text, tok_cls=PunktSentenceTokenizer, train_cls=PunktTrainer):
     """Builds a punkt model and applies it to the same text"""

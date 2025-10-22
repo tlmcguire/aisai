@@ -17,17 +17,17 @@ def use_object(obj_ref):
 def main():
     obj = create_object()
     obj_ref = weakref.ref(obj)
-    
-    
+
+
     def worker():
       time.sleep(0.1)
       use_object(obj_ref)
-      
+
     t = threading.Thread(target=worker)
     t.start()
 
-    del obj # Object is deleted in main thread
-    
+    del obj
+
     t.join()
 
 

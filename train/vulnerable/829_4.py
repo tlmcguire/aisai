@@ -1,8 +1,4 @@
-"""Page Template Expression Engine
 
-Page Template-specific implementation of TALES, with handlers
-for Python expressions, string literals, and paths.
-"""
 
 import logging
 import warnings
@@ -37,21 +33,14 @@ from . import ZRPythonExpr
 from .interfaces import IUnicodeEncodingConflictResolver
 from .interfaces import IZopeAwareEngine
 
-
 SecureModuleImporter = ZRPythonExpr._SecureModuleImporter()
 
 LOG = logging.getLogger('Expressions')
 
 ZopeUndefs = Undefs + (NotFound, Unauthorized)
 
-
 def boboAwareZopeTraverse(object, path_items, econtext):
-    """Traverses a sequence of names, first trying attributes then items.
 
-    This uses zope.traversing path traversal where possible and interacts
-    correctly with objects providing OFS.interface.ITraversable when
-    necessary (bobo-awareness).
-    """
     request = getattr(econtext, 'request', None)
     path_items = list(path_items)
     path_items.reverse()
@@ -73,14 +62,8 @@ def boboAwareZopeTraverse(object, path_items, econtext):
                                          request=request)
     return object
 
-
 def trustedBoboAwareZopeTraverse(object, path_items, econtext):
-    """Traverses a sequence of names, first trying attributes then items.
 
-    This uses zope.traversing path traversal where possible and interacts
-    correctly with objects providing OFS.interface.ITraversable when
-    necessary (bobo-awareness).
-    """
     request = getattr(econtext, 'request', None)
     path_items = list(path_items)
     path_items.reverse()
@@ -94,11 +77,8 @@ def trustedBoboAwareZopeTraverse(object, path_items, econtext):
                                          request=request)
     return object
 
-
 def render(ob, ns):
-    """Calls the object, possibly a document template, or just returns
-    it if not callable.  (From DT_Util.py)
-    """
+
     if hasattr(ob, '__render_with_namespace__'):
         ob = ZRPythonExpr.call_with_ns(ob.__render_with_namespace__, ns)
     else:
@@ -114,12 +94,8 @@ def render(ob, ns):
                 pass
     return ob
 
-
 class _CombinedMapping:
-    """Minimal auxiliary class to combine several mappings.
 
-    Earlier mappings take precedence.
-    """
     def __init__(self, *ms):
         self.mappings = ms
 
@@ -130,16 +106,13 @@ class _CombinedMapping:
                 return value
         return default
 
-
 class UntrustedSubPathExpr(SubPathExpr):
     ALLOWED_BUILTINS = safe_builtins
-
 
 class TrustedSubPathExpr(SubPathExpr):
     ALLOWED_BUILTINS = _CombinedMapping(
         __builtins__,
         safe_builtins)
-
 
 class ZopePathExpr(PathExpr):
 
@@ -179,26 +152,17 @@ class ZopePathExpr(PathExpr):
                 return 1
         return 0
 
-
 class TrustedZopePathExpr(ZopePathExpr):
     _TRAVERSER = staticmethod(trustedBoboAwareZopeTraverse)
     SUBEXPR_FACTORY = TrustedSubPathExpr
 
-
 class SafeMapping(MultiMapping):
-    """Mapping with security declarations and limited method exposure.
 
-    Since it subclasses MultiMapping, this class can be used to wrap
-    one or more mapping objects.  Restricted Python code will not be
-    able to mutate the SafeMapping or the wrapped mappings, but will be
-    able to read any value.
-    """
     __allow_access_to_unprotected_subobjects__ = True
     push = pop = None
 
     _push = MultiMapping.push
     _pop = MultiMapping.pop
-
 
 class ZopeContext(Context):
 
@@ -221,16 +185,12 @@ class ZopeContext(Context):
         return bool(value)
 
     def evaluateStructure(self, expr):
-        """ customized version in order to get rid of unicode
-            errors for all and ever
-        """
+
         text = super().evaluateStructure(expr)
         return self._handleText(text, expr)
 
     def evaluateText(self, expr):
-        """ customized version in order to get rid of unicode
-            errors for all and ever
-        """
+
         text = self.evaluate(expr)
         return self._handleText(text, expr)
 
@@ -243,7 +203,6 @@ class ZopeContext(Context):
             return text
 
         elif isinstance(text, bytes):
-
 
             resolver = queryUtility(IUnicodeEncodingConflictResolver)
             if resolver is None:
@@ -268,30 +227,21 @@ class ZopeContext(Context):
         return ErrorInfo(err, position)
 
     def evaluateCode(self, lang, code):
-        """ See ITALExpressionEngine.
 
-        o This method is a fossil:  nobody actually calls it, but the
-          interface requires it.
-        """
         raise NotImplementedError
 
-
 class ErrorInfo(BaseErrorInfo):
-    """Information about an exception passed to an on-error handler.
-    """
-    __allow_access_to_unprotected_subobjects__ = True
 
+    __allow_access_to_unprotected_subobjects__ = True
 
 @implementer(IZopeAwareEngine)
 class ZopeEngine(Z3Engine):
 
     _create_context = ZopeContext
 
-
 class ZopeIterator(Iterator):
 
     __allow_access_to_unprotected_subobjects__ = True
-
 
     @property
     def index(self):
@@ -335,11 +285,9 @@ class ZopeIterator(Iterator):
             self._last_item = self.item
         return super().next()
 
-
 @implementer(ITraversable)
 class PathIterator(ZopeIterator):
-    """A TALES Iterator with the ability to use first() and last() on
-    subpaths of elements."""
+
 
     def traverse(self, name, furtherPath):
         if name in ('first', 'last'):
@@ -365,7 +313,6 @@ class PathIterator(ZopeIterator):
             return False
         return ob1 == ob2
 
-
 class UnicodeAwareStringExpr(StringExpr):
 
     def __call__(self, econtext):
@@ -378,7 +325,6 @@ class UnicodeAwareStringExpr(StringExpr):
             v = evaluate(var)
             vvals.append(v)
         return self._expr % tuple(vvals)
-
 
 def createZopeEngine(zpe=ZopePathExpr, untrusted=True):
     e = ZopeEngine()
@@ -395,22 +341,17 @@ def createZopeEngine(zpe=ZopePathExpr, untrusted=True):
     e.untrusted = untrusted
     return e
 
-
 def createTrustedZopeEngine():
     e = createZopeEngine(TrustedZopePathExpr, untrusted=False)
     e.types['python'] = PythonExpr
     return e
 
-
 _engine = createZopeEngine()
-
 
 def getEngine():
     return _engine
 
-
 _trusted_engine = createTrustedZopeEngine()
-
 
 def getTrustedEngine():
     return _trusted_engine

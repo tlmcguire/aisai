@@ -1,9 +1,7 @@
 import logging
 
 def parse_multipart(data, boundary):
-    """
-    Parses multipart data, addressing potential excessive logging.
-    """
+
     parts = []
     boundary_bytes = b'--' + boundary
     boundary_len = len(boundary_bytes)
@@ -24,7 +22,6 @@ def parse_multipart(data, boundary):
         parts.append(part_data)
 
         end_index = next_boundary_index + boundary_len
-
 
         if len(data[end_index:].strip(b'\r\n')) == 0 or data[end_index:].startswith(b'--' + boundary + b'--'):
             break

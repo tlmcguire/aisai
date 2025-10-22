@@ -147,7 +147,7 @@ class TestAlgorithms:
             b"APCDzZZ9zQ/dgcMVaBrGrgimrcLbPjueOKFgSO+SSjIElKA=="
         )
 
-        sig += b"123"  # Signature is now invalid
+        sig += b"123"
 
         with open(key_path("testkey_rsa.pub")) as keyfile:
             pub_key = algo.prepare_key(keyfile.read())
@@ -198,15 +198,12 @@ class TestAlgorithms:
             },
         }
 
-        # Invalid JSON
         with pytest.raises(InvalidKeyError):
             algo.from_jwk("<this isn't json>")
 
-        # Bad key type
         with pytest.raises(InvalidKeyError):
             algo.from_jwk('{"kty": "RSA"}')
 
-        # Missing data
         with pytest.raises(InvalidKeyError):
             algo.from_jwk('{"kty": "EC"}')
         with pytest.raises(InvalidKeyError):
@@ -214,22 +211,18 @@ class TestAlgorithms:
         with pytest.raises(InvalidKeyError):
             algo.from_jwk('{"kty": "EC", "y": "1"}')
 
-        # Missing curve
         with pytest.raises(InvalidKeyError):
             algo.from_jwk('{"kty": "EC", "x": "dGVzdA==", "y": "dGVzdA=="}')
 
-        # EC coordinates not equally long
         with pytest.raises(InvalidKeyError):
             algo.from_jwk('{"kty": "EC", "x": "dGVzdHRlc3Q=", "y": "dGVzdA=="}')
 
-        # EC coordinates length invalid
         for curve in ("P-256", "P-384", "P-521", "secp256k1"):
             with pytest.raises(InvalidKeyError):
                 algo.from_jwk(
                     f'{{"kty": "EC", "crv": "{curve}", "x": "dGVzdA==", "y": "dGVzdA=="}}'
                 )
 
-        # EC private key length invalid
         for (curve, point) in valid_points.items():
             with pytest.raises(InvalidKeyError):
                 algo.from_jwk(
@@ -332,11 +325,9 @@ class TestAlgorithms:
     def test_rsa_jwk_raises_exception_if_not_a_valid_key(self):
         algo = RSAAlgorithm(RSAAlgorithm.SHA256)
 
-        # Invalid JSON
         with pytest.raises(InvalidKeyError):
             algo.from_jwk("{not-a-real-key")
 
-        # Missing key parts
         with pytest.raises(InvalidKeyError):
             algo.from_jwk('{"kty": "RSA"}')
 
@@ -463,7 +454,6 @@ class TestAlgorithms:
 
         message = b"Hello World!"
 
-        # Mess up the signature by replacing a known byte
         sig = base64.b64decode(
             b"AC+m4Jf/xI3guAC6w0w37t5zRpSCF6F4udEz5LiMiTIjCS4vcVe6dDOxK+M"
             b"mvkF8PxJuvqxP2CO3TR3okDPCl/NjATTO1jE+qBZ966CRQSSzcCM+tzcHzw"
@@ -535,7 +525,7 @@ class TestAlgorithms:
             b"drUeR1gRtO7vqbZMsCAQ4bpjXxwbYyjQlEVuMl73UL6sOWg=="
         )
 
-        jwt_sig += b"123"  # Signature is now invalid
+        jwt_sig += b"123"
 
         with open(key_path("testkey_rsa.pub")) as keyfile:
             jwt_pub_key = algo.prepare_key(keyfile.read())
@@ -663,7 +653,6 @@ class TestAlgorithmsRFC7520:
         result = algo.verify(signing_input, key, signature)
         assert result
 
-        # private key can also be used.
         with open(key_path("jwk_ec_key_P-521.json")) as keyfile:
             private_key = algo.from_jwk(keyfile.read())
 
@@ -717,7 +706,7 @@ class TestOKPAlgorithms:
         jwt_message = self.hello_world
         jwt_sig = base64.b64decode(self.hello_world_sig)
 
-        jwt_sig += b"123"  # Signature is now invalid
+        jwt_sig += b"123"
 
         with open(key_path("testkey_ed25519.pub")) as keyfile:
             jwt_pub_key = algo.prepare_key(keyfile.read())
@@ -786,45 +775,37 @@ class TestOKPAlgorithms:
         with open(key_path("jwk_okp_key_Ed25519.json")) as keyfile:
             valid_key = json.loads(keyfile.read())
 
-        # Invalid instance type
         with pytest.raises(InvalidKeyError):
             algo.from_jwk(123)
 
-        # Invalid JSON
         with pytest.raises(InvalidKeyError):
             algo.from_jwk("<this isn't json>")
 
-        # Invalid kty, not "OKP"
         v = valid_pub.copy()
         v["kty"] = "oct"
         with pytest.raises(InvalidKeyError):
             algo.from_jwk(v)
 
-        # Invalid crv, not "Ed25519"
         v = valid_pub.copy()
         v["crv"] = "P-256"
         with pytest.raises(InvalidKeyError):
             algo.from_jwk(v)
 
-        # Invalid crv, "Ed448"
         v = valid_pub.copy()
         v["crv"] = "Ed448"
         with pytest.raises(InvalidKeyError):
             algo.from_jwk(v)
 
-        # Missing x
         v = valid_pub.copy()
         del v["x"]
         with pytest.raises(InvalidKeyError):
             algo.from_jwk(v)
 
-        # Invalid x
         v = valid_pub.copy()
         v["x"] = "123"
         with pytest.raises(InvalidKeyError):
             algo.from_jwk(v)
 
-        # Invalid d
         v = valid_key.copy()
         v["d"] = "123"
         with pytest.raises(InvalidKeyError):
@@ -895,45 +876,37 @@ class TestOKPAlgorithms:
         with open(key_path("jwk_okp_key_Ed448.json")) as keyfile:
             valid_key = json.loads(keyfile.read())
 
-        # Invalid instance type
         with pytest.raises(InvalidKeyError):
             algo.from_jwk(123)
 
-        # Invalid JSON
         with pytest.raises(InvalidKeyError):
             algo.from_jwk("<this isn't json>")
 
-        # Invalid kty, not "OKP"
         v = valid_pub.copy()
         v["kty"] = "oct"
         with pytest.raises(InvalidKeyError):
             algo.from_jwk(v)
 
-        # Invalid crv, not "Ed448"
         v = valid_pub.copy()
         v["crv"] = "P-256"
         with pytest.raises(InvalidKeyError):
             algo.from_jwk(v)
 
-        # Invalid crv, "Ed25519"
         v = valid_pub.copy()
         v["crv"] = "Ed25519"
         with pytest.raises(InvalidKeyError):
             algo.from_jwk(v)
 
-        # Missing x
         v = valid_pub.copy()
         del v["x"]
         with pytest.raises(InvalidKeyError):
             algo.from_jwk(v)
 
-        # Invalid x
         v = valid_pub.copy()
         v["x"] = "123"
         with pytest.raises(InvalidKeyError):
             algo.from_jwk(v)
 
-        # Invalid d
         v = valid_key.copy()
         v["d"] = "123"
         with pytest.raises(InvalidKeyError):

@@ -34,7 +34,6 @@ http_badges_failed_counter = Counter(
     "Number of badge updates which failed",
 )
 
-
 class HttpPusher:
     INITIAL_BACKOFF_SEC = 1
     MAX_BACKOFF_SEC = 60 * 60
@@ -85,13 +84,7 @@ class HttpPusher:
         del self.data_minus_url["url"]
 
     def on_started(self, should_check_for_notifs):
-        """Called when this pusher has been started.
 
-        Args:
-            should_check_for_notifs (bool): Whether we should immediately
-                check for push to send. Set to False only if it's known there
-                is nothing to send
-        """
         if should_check_for_notifs:
             self._start_processing()
 
@@ -149,11 +142,7 @@ class HttpPusher:
             self._is_processing = False
 
     async def _unsafe_process(self):
-        """
-        Looks for unset notifications and dispatch them, in order
-        Never call this directly: use _process which will only allow this to
-        run once per pusher.
-        """
+
 
         fn = self.store.get_unread_push_actions_for_user_in_range_for_http
         unprocessed = await fn(
@@ -363,10 +352,7 @@ class HttpPusher:
         return rejected
 
     async def _send_badge(self, badge):
-        """
-        Args:
-            badge (int): number of unread messages
-        """
+
         logger.debug("Sending updated badge count %d to %s", badge, self.name)
         d = {
             "notification": {

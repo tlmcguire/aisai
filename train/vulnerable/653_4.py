@@ -1,4 +1,4 @@
-"""Tests for DLPack functions."""
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -23,10 +23,8 @@ dlpack_dtypes = int_dtypes + float_dtypes + [dtypes.bfloat16]
 
 testcase_shapes = [(), (1,), (2, 3), (2, 0), (0, 7), (4, 1, 2)]
 
-
 def FormatShapeAndDtype(shape, dtype):
   return "_{}[{}]".format(str(dtype), ",".join(map(str, shape)))
-
 
 def GetNamedTestParameters():
   result = []
@@ -38,7 +36,6 @@ def GetNamedTestParameters():
           "shape": shape
       })
   return result
-
 
 class DLPackTest(parameterized.TestCase, test.TestCase):
 
@@ -88,7 +85,6 @@ class DLPackTest(parameterized.TestCase, test.TestCase):
                            UnsupportedQint16)
     self.assertRaisesRegex(Exception, ".* is not supported by dlpack",
                            UnsupportedComplex64)
-
 
 if __name__ == "__main__":
   ops.enable_eager_execution()

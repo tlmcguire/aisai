@@ -1,9 +1,4 @@
-"""Implements Program-Aided Language Models.
 
-This module implements the Program-Aided Language Models (PAL) for generating code
-solutions. PAL is a technique described in the paper "Program-Aided Language Models"
-(https://arxiv.org/pdf/2211.10435.pdf).
-"""
 
 from __future__ import annotations
 
@@ -33,7 +28,7 @@ COMMAND_EXECUTION_ATTRIBUTES = [
 ]
 
 class PALValidation:
-    """Validation for PAL generated code."""
+
 
     SOLUTION_EXPRESSION_TYPE_FUNCTION = ast.FunctionDef
     SOLUTION_EXPRESSION_TYPE_VARIABLE = ast.Name
@@ -45,18 +40,7 @@ class PALValidation:
         allow_imports: bool = False,
         allow_command_exec: bool = False,
     ):
-        """Initialize a PALValidation instance.
 
-        Args:
-            solution_expression_name (str): Name of the expected solution expression.
-                If passed, solution_expression_type must be passed as well.
-            solution_expression_type (str): AST type of the expected solution
-                expression. If passed, solution_expression_name must be passed as well.
-                Must be one of PALValidation.SOLUTION_EXPRESSION_TYPE_FUNCTION,
-                PALValidation.SOLUTION_EXPRESSION_TYPE_VARIABLE.
-            allow_imports (bool): Allow import statements.
-            allow_command_exec (bool): Allow using known command execution functions.
-        """
         self.solution_expression_name = solution_expression_name
         self.solution_expression_type = solution_expression_type
 
@@ -95,21 +79,7 @@ class PALValidation:
         self.allow_command_exec = allow_command_exec
 
 class PALChain(Chain):
-    """Chain that implements Program-Aided Language Models (PAL).
 
-    This class implements the Program-Aided Language Models (PAL) for generating code
-    solutions. PAL is a technique described in the paper "Program-Aided Language Models"
-    (https://arxiv.org/pdf/2211.10435.pdf).
-
-    *Security note*: This class implements an AI technique that generates and evaluates
-        Python code, which can be dangerous and requires a specially sandboxed
-        environment to be safely used. While this class implements some basic guardrails
-        by limiting available locals/globals and by parsing and inspecting
-        the generated Python AST using `PALValidation`, those guardrails will not
-        deter sophisticated attackers and are not a replacement for a proper sandbox.
-        Do not use this class on untrusted inputs, with elevated permissions,
-        or without consulting your security team about proper sandboxing!
-    """
 
     llm_chain: LLMChain
     stop: str = "\n\n"
@@ -129,7 +99,6 @@ class PALChain(Chain):
 
     allow_dangerous_code: bool = False
 
-
     @root_validator(pre=False, skip_on_failure=True)
     def post_init(cls, values: Dict) -> Dict:
         if not values["allow_dangerous_code"]:
@@ -145,25 +114,19 @@ class PALChain(Chain):
         return values
 
     class Config:
-        """Configuration for this pydantic object."""
+
 
         extra = Extra.forbid
         arbitrary_types_allowed = True
 
     @property
     def input_keys(self) -> List[str]:
-        """Return the singular input key.
 
-        :meta private:
-        """
         return self.llm_chain.prompt.input_variables
 
     @property
     def output_keys(self) -> List[str]:
-        """Return the singular output key.
 
-        :meta private:
-        """
         if not self.return_intermediate_steps:
             return [self.output_key]
         else:
@@ -290,14 +253,7 @@ class PALChain(Chain):
 
     @classmethod
     def from_math_prompt(cls, llm: BaseLanguageModel, **kwargs: Any) -> PALChain:
-        """Load PAL from math prompt.
 
-        Args:
-            llm (BaseLanguageModel): The language model to use for generating code.
-
-        Returns:
-            PALChain: An instance of PALChain.
-        """
         llm_chain = LLMChain(llm=llm, prompt=MATH_PROMPT)
         code_validations = PALValidation(
             solution_expression_name="solution",
@@ -316,14 +272,7 @@ class PALChain(Chain):
     def from_colored_object_prompt(
         cls, llm: BaseLanguageModel, **kwargs: Any
     ) -> PALChain:
-        """Load PAL from colored object prompt.
 
-        Args:
-            llm (BaseLanguageModel): The language model to use for generating code.
-
-        Returns:
-            PALChain: An instance of PALChain.
-        """
         llm_chain = LLMChain(llm=llm, prompt=COLORED_OBJECT_PROMPT)
         code_validations = PALValidation(
             solution_expression_name="answer",

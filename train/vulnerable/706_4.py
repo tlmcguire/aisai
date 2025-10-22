@@ -1,4 +1,4 @@
-"""Defun decorator for defining graph-mode functions."""
+
 
 import collections
 import functools
@@ -66,7 +66,6 @@ np_arrays = lazy_loader.LazyLoader(
     "np_arrays", globals(),
     "tensorflow.python.ops.numpy_ops.np_arrays")
 
-
 FORWARD_FUNCTION_ATTRIBUTE_NAME = "forward_function_name"
 BACKWARD_FUNCTION_ATTRIBUTE_NAME = "backward_function_name"
 IMPLEMENTS_ATTRIBUTE_NAME = "_implements"
@@ -78,7 +77,6 @@ _graph_building_time_counter = monitoring.Counter(
     "/tensorflow/core/tf_function/graph_building_time_usecs",
     "Time for tf.function to build a graph (us).")
 
-
 CacheKey = collections.namedtuple("CacheKey", [
     "input_signature",
     "parent_graph",
@@ -89,9 +87,8 @@ CacheKey = collections.namedtuple("CacheKey", [
     "xla_context_id",
 ])
 
-
 def _type_spec_for(x):
-  """Returns a TypeSpec for `x`, or `None` if `x` doesn't have a TensorSpec."""
+
   if isinstance(x, ops.Tensor):
     return tensor_spec.TensorSpec.from_tensor(x)
   elif isinstance(x, type_spec.TypeSpec):
@@ -101,25 +98,22 @@ def _type_spec_for(x):
   else:
     return None
 
-
 def _is_type_subset(a, b):
-  """Returns true if TypeSpec `b` is a subset of type `a` (or if a is None.)"""
+
   if a is None:
     return True
   else:
     return a.most_specific_compatible_type(b) == a
 
-
 def _shape_relaxed_type_for_composite_tensor(x):
-  """Returns a shape-relaxed TypeSpec for x (if composite) or x (if not)."""
+
   if isinstance(x, composite_tensor.CompositeTensor):
     return x._type_spec._with_tensor_ranks_only()
   else:
     return x
 
-
 def common_shape(x, y):
-  """Find a `TensorShape` that is compatible with both `x` and `y`."""
+
   if x is None != y is None:
     raise RuntimeError(
         "Cannot find a common shape when LHS shape is None but RHS shape "
@@ -142,11 +136,10 @@ def common_shape(x, y):
       dims.append(tensor_shape.dimension_value(dim_x))
   return tensor_shape.TensorShape(dims)
 
-
 def is_same_structure(structure1,
                       structure2,
                       check_values=False):
-  """Check two structures for equality, optionally of types and of values."""
+
   try:
     nest.assert_same_structure(structure1, structure2, expand_composites=True)
   except (ValueError, TypeError):
@@ -159,21 +152,8 @@ def is_same_structure(structure1,
     return flattened1 == flattened2
   return True
 
-
 def _parse_func_attrs(attributes):
-  """Convert the keyword arguments into function_def attributes.
 
-  Currently only support primitive types: bool, int, float and string.
-
-  Args:
-    attributes: the dictionary of attributes.
-  Returns:
-    A dict of attributes where the key is the name of attribute and the value
-      is the AttrValue proto.
-  Raises:
-    ValueError: If the kwargs contains unallowlisted name or unsupported value
-      types.
-  """
   attrs = {}
   for key, value in attributes.items():
     if isinstance(value, attr_value_pb2.AttrValue):
@@ -191,9 +171,8 @@ def _parse_func_attrs(attributes):
                        f"AttrValue. Got {type(value)}.")
   return attrs
 
-
 class _InterpolateFunctionError(object):
-  """Context Manager that interpolates the exception from 'top_level_func'."""
+
 
   __slots__ = ["_func"]
 
@@ -232,78 +211,38 @@ class _InterpolateFunctionError(object):
       exc._message = message
     return False
 
-
 _function_callbacks = set()
 
-
 def add_function_callback(function_callback):
-  """Add a callback function for Function creation.
 
-  The callback function has the signature:
-
-    `def function_callback(function, name, graph, inputs, outputs):`
-
-  where:
-  - `function`: _EagerDefinedFunction being created before finalizing the graph.
-      Do not modify the function directly but instead modify the graph.
-  - `name`: name of the function.
-  - `graph`: Graph of the function.
-  - `inputs`: `tuple` of tensors used as inputs to the function.
-  - `outputs`: `tuple` of tensors used as outputs from the function.
-
-  The callback is at the top of the `_EagerDefinedFunction` construction, giving
-  callback an opportunity to make the last edits to the graph. Do not make
-  changes to `graph, inputs`, and `outputs` manually, but, instead, set the
-  `graph` as the default then define ops.
-
-  Repeated registration of the same callback function is idempotent.
-  After a callback is added, it can be removed with the
-  `remove_function_callback()` method.
-
-  Args:
-    function_callback: The callback to add.
-  """
   _function_callbacks.add(function_callback)
 
-
 def remove_function_callback(function_callback):
-  """Remove an already-added function callback.
 
-  See the doc string of `add_function_callback()` for more information.
-
-  Args:
-    function_callback: The callback to remove.
-  """
   _function_callbacks.remove(function_callback)
 
-
 def clear_function_callbacks():
-  """Clear all function callbacks, if any have been regisered."""
-  _function_callbacks.clear()
 
+  _function_callbacks.clear()
 
 _FORWARD_PREFIX = "__forward_"
 _BACKWARD_PREFIX = "__backward_"
 _INFERENCE_PREFIX = "__inference_"
 
-
 def _forward_name(n):
-  """The name of a generated forward defun named n."""
+
   return "%s%s_%s" % (_FORWARD_PREFIX, n, ops.uid())
 
-
 def _backward_name(n):
-  """The name of a generated backward defun named n."""
+
   return "%s%s_%s" % (_BACKWARD_PREFIX, n, ops.uid())
 
-
 def _inference_name(n):
-  """The name of a forward-but-no-gradient defun named n."""
+
   return "%s%s_%s" % (_INFERENCE_PREFIX, n, ops.uid())
 
-
 def _enclosing_xla_context():
-  """Returns the XLAControlFlowContext, which exists inside a tpu.rewrite()."""
+
   graph = ops.get_default_graph()
   while graph is not None:
     context_ = graph._get_control_flow_context()
@@ -314,9 +253,8 @@ def _enclosing_xla_context():
     graph = getattr(graph, "outer_graph", None)
   return None
 
-
 class _EagerDefinedFunctionDeleter(object):
-  """Unregister function from eager context."""
+
 
   __slots__ = ["name"]
 
@@ -331,7 +269,6 @@ class _EagerDefinedFunctionDeleter(object):
     except AttributeError:
       pass
 
-
 class FunctionAlreadyGarbageCollectedError(Exception):
 
   def __init__(self, function_name):
@@ -339,26 +276,11 @@ class FunctionAlreadyGarbageCollectedError(Exception):
         "{} has already been garbage collected and cannot be called.".format(
             function_name))
 
-
 class _EagerDefinedFunction(object):
-  """Callable with the interface of `framework.function._DefinedFunction`.
 
-  `_EagerDefinedFunction` encapsulates a function definition and its properties,
-  and it provides a method for calling the encapsulated function. Some Ops
-  take functions as attributes, which have type `func`; an instance of this
-  class may be provided as the value of these `func` attributes.
-  """
 
   def __init__(self, name, graph, inputs, outputs, attrs):
-    """Initializes an eager defined function.
 
-    Args:
-      name: str, the name for the created function.
-      graph: Graph, the graph containing the operations in the function
-      inputs: the tensors in the graph to be used as inputs to the function
-      outputs: the tensors in the graph which will be outputs from the function
-      attrs: dict mapping names of attributes to their AttrValue values
-    """
     for function_callback in _function_callbacks:
       function_callback(self, name, graph, tuple(inputs), tuple(outputs))
 
@@ -420,12 +342,7 @@ class _EagerDefinedFunction(object):
     self._stateful_ops = tuple(op for op in operations if op._is_stateful)
 
   def add_to_graph(self, g=None):
-    """Add the function to the current context or a graph, if supplied.
 
-    Args:
-      g: the graph to add the function to. If not supplied, the function will
-        be added to the current context.
-    """
     if not g and context.executing_eagerly():
       ctx = context.context()
       if not ctx.has_function(self.name):
@@ -446,25 +363,7 @@ class _EagerDefinedFunction(object):
     return self._stateful_ops
 
   def call(self, ctx, args, cancellation_manager=None):
-    """Calls this function with `args` as inputs.
 
-    `ConcreteFunction` execution respects device annotations only if the
-    function won't be compiled with xla.
-
-    Args:
-      ctx: a Context object
-      args: a list of arguments to supply this function with.
-      cancellation_manager: a `CancellationManager` object that can be used to
-        cancel function execution.
-
-    Returns:
-      The outputs of the function call.
-
-    Raises:
-      ValueError: if the number of arguments is incorrect.
-      FunctionAlreadyGarbageCollectedError: if the function is no longer
-        available to be called because it has been garbage collected.
-    """
     if len(args) != len(self.signature.input_arg):
       raise ValueError(
           f"Signature specifies {len(list(self.signature.input_arg))} "
@@ -521,9 +420,8 @@ class _EagerDefinedFunction(object):
         outputs[i].set_shape(shape)
       return outputs
 
-
 def _create_forward_backward_with_graph(attrs, forward_graph, backwards_graph):
-  """Creates forward and backward functions from the function graphs."""
+
   forward_function_name = _forward_name(forward_graph.name)
   common_attributes = dict(attrs)
   common_attributes.pop(IMPLEMENTS_ATTRIBUTE_NAME, None)
@@ -541,12 +439,11 @@ def _create_forward_backward_with_graph(attrs, forward_graph, backwards_graph):
       forward_graph.outputs, forward_function_attr)
   return forward_function, backward_function
 
-
 class _DelayedRewriteGradientFunctions(object):
-  """Caches forward/backward functions with a delayed forward rewrite."""
+
 
   def __init__(self, func_graph, attrs, func_graph_deleter):
-    """Construct an inference function and initialize caches."""
+
     self._cached_function_pairs = {}
     self._func_graph = func_graph
     self._inference_function = _EagerDefinedFunction(
@@ -558,7 +455,7 @@ class _DelayedRewriteGradientFunctions(object):
     self._func_graph_deleter = func_graph_deleter
 
   def forward_backward(self, num_doutputs=None):
-    """A possibly-cached pair of forward and backward functions."""
+
     if num_doutputs is None:
       num_doutputs = self._num_inference_outputs
     forward_backward = self._cached_function_pairs.get(num_doutputs)
@@ -569,24 +466,7 @@ class _DelayedRewriteGradientFunctions(object):
     return forward, backward
 
   def _construct_forward_backward(self, num_doutputs):
-    """Constructs a pair of forward and backward functions.
 
-    Args:
-      num_doutputs: The constructed backprop function will take output gradients
-        for the first `num_doutputs` outputs of the forward function. Defaults
-        to the number of outputs for the inference function, but when
-        higher-order gradients are computed this will increase to include side
-        outputs.
-
-    Returns:
-      A pair of (forward_function, backward_function):
-        forward_function: A re-generated inference function (an
-          _EagerDefinedFunction) to account for new side outputs, if any extra
-          were required when building the backward pass.
-        backward_function: A ConcreteFunction that Takes `num_doutputs`
-          arguments and returns gradients with respect to inputs of the forward
-          function.
-    """
     trainable_outputs = [
         output for output in self._func_graph.outputs[:num_doutputs]
         if backprop_util.IsTrainable(output)]
@@ -630,7 +510,7 @@ class _DelayedRewriteGradientFunctions(object):
       return forward_function, backward_function
 
   def _rewrite_forward_and_call_backward(self, op, *doutputs):
-    """Add outputs to the forward call and feed them to the grad function."""
+
     forward_function, backwards_function = self.forward_backward(len(doutputs))
     if not backwards_function.outputs:
       return backwards_function.structured_outputs
@@ -666,35 +546,11 @@ class _DelayedRewriteGradientFunctions(object):
         cleaned_doutputs, remapped_captures)
 
   def get_gradient_function(self):
-    """Returns gradient function.
 
-    The gradient rewrites an inference call op to a forward call op, but does
-    not modify a pre-existing forward call op. It then computes the gradient
-    from the output's gradients and the side outputs of the forward op.
-    """
     return self._rewrite_forward_and_call_backward
 
   def forward(self, inference_args=None, input_tangents=None):
-    """A forward function with only user-specified outputs.
 
-    The call operation for the returned inference function can be rewritten into
-    a forward function. This only happens if the backward function (from the
-    `backward` method) ends up being used to compute gradients.
-
-    This approach avoids constructing unnecessary graphs, but it only works if
-    we are calling this function when not executing eagerly.
-
-    Args:
-      inference_args: A flat list of Tensors, arguments to the inference
-        function. Unused, but taken for compatibility with
-        _TapeGradientFunctions.
-      input_tangents: A flat list of Tensors, jvps associated with
-        `inference_args`. Unused; if required, tape functions must be used
-        instead.
-
-    Returns:
-      An _EagerDefinedFunction.
-    """
     del inference_args
     if input_tangents:
       raise errors.InternalError("unexpectedly got forwardprop information in "
@@ -702,32 +558,18 @@ class _DelayedRewriteGradientFunctions(object):
     return self._inference_function
 
   def _backward(self, outputs):
-    """Fetch a backward function for `outputs` from the forward function."""
+
     def _backward_function(*args):
       call_op = outputs[0].op
       return self._rewrite_forward_and_call_backward(call_op, *args)
     return _backward_function, outputs
 
   def record(self, flat_outputs, inference_args, input_tangents):
-    """Record the function call operation.
 
-    _DelayedRewriteGradientFunctions supports only first-order backprop tape
-    gradients (and then only when graph building). It does not work with
-    higher-order tape gradients or forward autodiff, but does work with
-    higher-order symbolic gradients (tf.gradients).
-
-    Args:
-      flat_outputs: The result of running `forward`.
-      inference_args: A flat list of Tensors with inference inputs to the
-        operation.
-      input_tangents: A flat list of Tensors with input tangents consumed by the
-        operation.
-    """
     backward_function, to_record = self._backward(flat_outputs)
     tape.record_operation(self._inference_function.signature.name,
                           to_record, inference_args + input_tangents,
                           backward_function)
-
 
 _ForwardWrapper = collections.namedtuple(
     "_ForwardWrapper", (
@@ -736,19 +578,8 @@ _ForwardWrapper = collections.namedtuple(
         "output_indices",
         "output_tangents"))
 
-
 class _TapeGradientFunctions(object):
-  """Caches forward and backward functions compatible with eager gradients.
 
-  In contrast to the delayed-rewrite approach in
-  `_DelayedRewriteGradientFunctions` which only works with delayed execution,
-  the forward function generated by this class has a fixed set of outputs which
-  may be preserved by a tape in order to compute gradients later.
-
-  This class is abstract; its child classes differ in how many side outputs of
-  the forward function their backward function accepts gradients for, which
-  determines whether higher-order tape gradients are possible.
-  """
 
   def __init__(self, func_graph, attrs, func_graph_deleter,
                forwardprop_input_indices, delayed_rewrite_functions,
@@ -771,7 +602,7 @@ class _TapeGradientFunctions(object):
 
   def _build_functions_for_outputs(
       self, outputs, inference_args, input_tangents):
-    """Forward+backward functions where the backward function sees `outputs`."""
+
     handles_to_variables = self._func_graph.variable_captures
     trainable_outputs = []
     trainable_indices = []
@@ -851,7 +682,7 @@ class _TapeGradientFunctions(object):
   def _wrap_forward_function_with_jvps(
       self, forward_function, backward_function,
       inference_args, input_tangents):
-    """Adds inline JVP computation to a forward function."""
+
     forward_wrapper_graph = func_graph_module.FuncGraph(
         _forward_name(self._func_graph.name))
     with forward_wrapper_graph.as_default():
@@ -922,7 +753,7 @@ class _TapeGradientFunctions(object):
 
   def _wrap_backward_function_with_jvp_backprop(
       self, backward_function, gradients_wrt_outputs, forward_wrapper):
-    """Wraps `backward_function` to include gradients for JVPs."""
+
     wrapped_backwards_graph = func_graph_module.FuncGraph(
         _backward_name(self._func_graph.name))
     with wrapped_backwards_graph.as_default():
@@ -995,7 +826,7 @@ class _TapeGradientFunctions(object):
                                      output_tangents=output_tangents))
 
   def _shuffle_forward_outputs(self, forward_wrapper):
-    """Reorders function outputs so captures are last."""
+
     def _index_map(original):
       if original < self._num_inference_outputs:
         return original
@@ -1012,28 +843,7 @@ class _TapeGradientFunctions(object):
     return forward_wrapper._replace(output_indices=output_indices)
 
   def forward(self, inference_args, input_tangents):
-    """Construct or fetch a forward function with side-outputs.
 
-    When graph building without a tape active, symbolic gradients rely on
-    regenerating the backward function for higher-order gradients (to account
-    for new side outputs of the rewritten forward function call). Thus there is
-    no fixed backward function for this case. However, when a tape is active
-    (eager or graph building), we generate fixed backward and forward functions
-    at forward function call time.
-
-    This difference between the tape and non-tape cases is to avoid building
-    unneeded backward functions while graph building (where we may or may not
-    eventually need gradients).
-
-    Args:
-      inference_args: A flat list of Tensors, arguments to the inference
-        function.
-      input_tangents: A flat list of Tensors, jvps associated with
-        `inference_args`.
-
-    Returns:
-      A forward _EagerDefinedFunction.
-    """
     if self._forward is None:
       (self._forward, self._forward_graph, self._backward,
        self._forwardprop_output_indices, self._num_forwardprop_outputs) = (
@@ -1041,7 +851,7 @@ class _TapeGradientFunctions(object):
     return self._forward
 
   def _wrap_backward_function(self, forward_graph, backward, outputs):
-    """Create a backward function given `outputs` from the forward function."""
+
     capture_mapping = dict(
         zip((ops.tensor_id(t) for t in forward_graph.outputs), outputs))
     captured_inputs = backward.captured_inputs
@@ -1080,7 +890,7 @@ class _TapeGradientFunctions(object):
         variant_zeros_like[output_index] = default_gradient.zeros_like(output)
 
     def _backward_function_wrapper(*args):
-      """Process output gradients and call the backward function."""
+
       if not backward.outputs:
         return backward.structured_outputs
 
@@ -1109,19 +919,7 @@ class _TapeGradientFunctions(object):
     return _backward_function_wrapper, recorded_outputs
 
   def record(self, flat_outputs, inference_args, input_tangents):
-    """Record the function call operation.
 
-    For backprop, indicates the backward function to use and which new Tensors
-    must be watched. For forwardprop from eager, the function call itself will
-    have produced tangents which need to be recorded.
-
-    Args:
-      flat_outputs: The result of running `forward`.
-      inference_args: A flat list of Tensors with inference inputs to the
-        operation.
-      input_tangents: A flat list of Tensors with input tangents consumed by the
-        operation.
-    """
     backward_function, to_record = self._wrap_backward_function(
         self._forward_graph, self._backward, flat_outputs)
     if self._forwardprop_output_indices:
@@ -1139,9 +937,8 @@ class _TapeGradientFunctions(object):
                             to_record, inference_args + input_tangents,
                             backward_function)
 
-
 class _FirstOrderTapeGradientFunctions(_TapeGradientFunctions):
-  """Caches tape-friendly functions for first-order gradients."""
+
 
   def __init__(self, func_graph, attrs, func_graph_deleter,
                forwardprop_input_indices, delayed_rewrite_functions,
@@ -1153,60 +950,16 @@ class _FirstOrderTapeGradientFunctions(_TapeGradientFunctions):
     self._forwardprop_input_indices = forwardprop_input_indices
 
   def _forward_and_backward_functions(self, inference_args, input_tangents):
-    """Shortcut for when only first-order gradients are required.
 
-    The returned backward function does not accept gradients with respect to
-    side output of forward_function. This is fine as long as the user can't
-    possibly request second order tape gradients, as when they've used a single
-    non-persistent GradientTape. Since we don't need the backward function to
-    take gradients with respect to side outputs, we can skip some potentially
-    slow graph building.
-
-    Args:
-      inference_args: A flat list of Tensors, arguments to the inference
-        function.
-      input_tangents: A flat list of Tensors, jvps associated with
-        `inference_args`.
-
-    Returns:
-      A tuple of (forward_function, backward_function):
-        forward_function: Takes the same inputs as the inference function, but
-          returns side outputs used by backward_function in addition to the
-          inference function's outputs.
-        backward_function: Takes side outputs from forward_function and
-          gradients with respect to the "real" outputs of forward_function and
-          returns gradients with respect to the inputs.
-    """
     outputs = self._func_graph.outputs[:self._num_inference_outputs]
     return self._build_functions_for_outputs(
         outputs, inference_args, input_tangents)
 
-
 class _HigherOrderTapeGradientFunctions(_TapeGradientFunctions):
-  """Caches tape-friendly functions for higher-order gradients."""
+
 
   def _forward_and_backward_functions(self, inference_args, input_tangents):
-    """Forward and backward functions suitable for higher-order gradients.
 
-    Unlike in `_FirstOrderTapeGradientFunctions`, the backward function built by
-    this method accepts gradients for all of the outputs of the returned forward
-    function, including side outputs.
-
-    Args:
-      inference_args: A flat list of Tensors, arguments to the inference
-        function.
-      input_tangents: A flat list of Tensors, jvps associated with
-        `inference_args`.
-
-    Returns:
-      A tuple of (forward_function, backward_function):
-        forward_function: Takes the same inputs as the inference function, but
-          returns side outputs used by backward_function in addition to the
-          inference function's outputs.
-        backward_function: Takes side outputs from forward_function and
-          gradients with respect to all of its outputs, real and side. Returns
-          gradients with respect to the inputs.
-    """
     outputs = []
     iteration_count = 0
     while (len(outputs) < len(self._func_graph.outputs)
@@ -1249,74 +1002,45 @@ class _HigherOrderTapeGradientFunctions(_TapeGradientFunctions):
     return (forward_function, forward_graph, backward_function, output_indices,
             num_output_tangents)
 
-
 class _ForwardBackwardCall(object):
-  """Holds the state of a function call between execution and recording."""
+
 
   __slots__ = [
       "_functions", "_inference_args", "_input_tangents", "_tape_watching"
   ]
 
   def __init__(self, functions, inference_args, input_tangents, tape_watching):
-    """Collects information about the function call.
 
-    Args:
-      functions: An object which produces forward and backward functions, either
-        a _DelayedRewriteGradientFunctions or a _TapeGradientFunctions object.
-      inference_args: A flat list of Tensors, arguments to the inference
-        function.
-      input_tangents: A flat list of Tensors, jvps associated with
-        `inference_args`.
-      tape_watching: Boolean, with True indicating that recording is necessary.
-    """
     self._functions = functions
     self._inference_args = inference_args
     self._input_tangents = input_tangents
     self._tape_watching = tape_watching
 
   def forward(self):
-    """Builds or retrieves a forward function for this call."""
+
     forward_function = self._functions.forward(
         self._inference_args, self._input_tangents)
     return forward_function, self._inference_args + self._input_tangents
 
   def record(self, flat_outputs):
-    """Given outputs from the execution of `forward`, records the operation."""
+
     if (self._tape_watching
         and not isinstance(flat_outputs, ops.Operation)
         and flat_outputs is not None):
       self._functions.record(
           flat_outputs, self._inference_args, self._input_tangents)
 
-
 _BOUND_VALUE = object()
 
-
 class ConcreteFunction(core.ConcreteFunction):
-  """A `tf.types.experimental.ConcreteFunction` created from `tf.function`."""
+
 
   def __init__(self,
                func_graph,
                attrs=None,
                shared_func_graph=True,
                function_spec=None):
-    """Initialize a `ConcreteFunction`.
 
-    Args:
-      func_graph: An instance of FuncGraph: the function body to wrap.
-      attrs: (optional) dict mapping names of attributes to their AttrValue
-        values. Attributes in `attrs` will be included in this function's
-        definition.
-     shared_func_graph: If False, the ConcreteFunction takes ownership of
-       `func_graph` and will break reference cycles when it is deleted. This
-       makes the FuncGraph inoperable.
-     function_spec: FunctionSpec for the original function.  If not specified,
-       then this ConcreteFunction may only be called using the flat signature.
-
-    Raises:
-      ValueError: If number of input_placeholders is not equal to the number
-        of function inputs.
-    """
     self._arg_keywords = None
     self._num_positional_args = None
 
@@ -1358,7 +1082,7 @@ class ConcreteFunction(core.ConcreteFunction):
     self._inference_function = self._delayed_rewrite_functions.forward()
 
   def _set_function_spec(self, function_spec):
-    """Enables the structured signature by supplying a function_spec."""
+
     self._function_spec = None
     self._pre_initialized_function_spec = function_spec
 
@@ -1367,16 +1091,7 @@ class ConcreteFunction(core.ConcreteFunction):
       self._initialize_function_spec()
 
   def _initialize_function_spec(self):
-    """Updates `self._function_spec` to include varargs and bound variables.
 
-    Adds new positional arguments for any varargs (i.e., for args that are
-    in `structured_input_signature`, but not in the original fullargspec.args).
-
-    Replaces `defaults` and `kwonlydefaults` with the `_BOUND_VALUE`, for
-    all args and kwargs in `structured_input_signature`.
-
-    Sets `varkw` and `varargs` to None.
-    """
     if self._pre_initialized_function_spec is None:
       return
     assert not self._function_spec, "already initialized"
@@ -1401,68 +1116,20 @@ class ConcreteFunction(core.ConcreteFunction):
 
   @property
   def variables(self):
-    """Sequence of variables for this function."""
+
     return tuple(self._func_graph.variables)
 
   @property
   def trainable_variables(self):
-    """Sequence of trainable variables for this function."""
+
     return tuple(self._func_graph.trainable_variables)
 
   def __call__(self, *args, **kwargs):
-    """Executes the wrapped function.
 
-    ConcreteFunctions have two signatures:
-
-    * The signature of the original function wrapped by this ConcreteFunction.
-    * A flat signature, where each argument accepts a single Tensor.
-
-    The original function signature is generally preferred, but the flat input
-    signature is supported for backward compatibility.
-
-    ### Original Function Signature
-
-    When calling a ConcreteFunction with the signature of the original function,
-    each argument must match the type or value that was used when the
-    ConcreteFunction's graph was traced.  In particular:
-
-    * Tensor arguments (including CompositeTensors, such as RaggedTensor) must
-      have matching `TypeSpec`s.
-    * Non-Tensor arguments (such as booleans or ints) must have equal values.
-    * Nested arguments (such as lists, tuples, or dictionaries) must have the
-      same nesting structure; and each nested value must have a matching type
-      or value.
-
-    The default value for any arguments that were traced with non-Tensor values
-    is the value that was used in the trace.  Arguments that were traced with
-    tensor arguments do not have a default value (even if the original function
-    had a default value for that argument).
-
-    ### Flat Signature
-
-    When calling a ConcreteFunction with the flat signature, the arguments
-    correspond to the flattened component tensors of the arguments that were
-    used to construct the ConcreteFunction.  Parameter names are assigned based
-    on `TensorSpec.name` (when specified) or the original argument names (with
-    suffixes automatically added for nested arguments or composite tensors with
-    multiple components).
-
-    Args:
-      *args: Positional arguments to the concrete function.
-      **kwargs: Keyword arguments to the concrete function.
-
-    Returns:
-      The result of applying the TF function on the given Tensors.
-
-    Raises:
-      AssertionError: If this `ConcreteFunction` was not created through
-        `get_concrete_function`.
-      TypeError: If the arguments do not match the function's signature.
-    """
     return self._call_impl(args, kwargs)
 
   def _call_impl(self, args, kwargs, cancellation_manager=None):
-    """See `__call__` for details."""
+
     with trace.Trace(self._func_graph.name, tf_function_call="concrete"):
       if self._function_spec is not None:
         try:
@@ -1478,21 +1145,7 @@ class ConcreteFunction(core.ConcreteFunction):
       return self._call_with_flat_signature(args, kwargs, cancellation_manager)
 
   def _call_with_flat_signature(self, args, kwargs, cancellation_manager):
-    """Executes the wrapped function with the flat signature.
 
-    Args:
-      args: Positional arguments to the concrete function.
-      kwargs: Keyword arguments to the concrete function.
-      cancellation_manager: A `CancellationManager` that can be used to cancel
-        function invocation.
-
-    Returns:
-      The result of applying the function on the Tensors/Variables contained in
-      `args` and `kwargs`.
-    Raises:
-      TypeError: if `args` and `kwargs` do not match the flat signature of this
-        `ConcreteFunction`.
-    """
     if len(args) > self._num_positional_args:
       raise TypeError(
           f"{self._flat_signature_summary()} takes {self._num_positional_args} "
@@ -1527,21 +1180,7 @@ class ConcreteFunction(core.ConcreteFunction):
     return self._call_flat(args, self.captured_inputs, cancellation_manager)
 
   def _call_with_structured_signature(self, args, kwargs, cancellation_manager):
-    """Executes the wrapped function with the structured signature.
 
-    Args:
-      args: Positional arguments to the concrete function.
-      kwargs: Keyword arguments to the concrete function.
-      cancellation_manager: A `CancellationManager` that can be used to cancel
-        function invocation.
-
-    Returns:
-      The result of applying the function on the Tensors/Variables contained in
-      `args` and `kwargs`.
-    Raises:
-      TypeError: if `args` and `kwargs` do not match the structured signature
-        of this `ConcreteFunction`.
-    """
     args, kwargs, _, filtered_flat_args = \
         self._function_spec.canonicalize_function_inputs(*args, **kwargs)
     self._structured_signature_check_missing_args(args, kwargs)
@@ -1553,7 +1192,7 @@ class ConcreteFunction(core.ConcreteFunction):
         cancellation_manager=cancellation_manager)
 
   def _structured_signature_check_missing_args(self, args, kwargs):
-    """Raises a TypeError if any args are missing."""
+
     arg_specs, kwarg_specs = self.structured_input_signature
     missing_arguments = []
     for i, (arg, spec) in enumerate(zip(args, arg_specs)):
@@ -1568,7 +1207,7 @@ class ConcreteFunction(core.ConcreteFunction):
                       f"{', '.join(sorted(missing_arguments))}.")
 
   def _structured_signature_check_unexpected_args(self, args, kwargs):
-    """Raises a TypeError if there are any extra args."""
+
     arg_specs, kwarg_specs = self.structured_input_signature
     if len(args) > len(arg_specs):
       raise TypeError(
@@ -1581,7 +1220,7 @@ class ConcreteFunction(core.ConcreteFunction):
                       f"keyword arguments: {', '.join(extra_args)}.")
 
   def _structured_signature_check_arg_types(self, args, kwargs):
-    """Raises a TypeError if any args have the wrong type."""
+
     arg_specs, kwarg_specs = self.structured_input_signature
     for i, (arg, spec) in enumerate(zip(args, arg_specs)):
       name = self._function_spec.arg_names[i]
@@ -1590,7 +1229,7 @@ class ConcreteFunction(core.ConcreteFunction):
       self._structured_signature_check_arg_type(arg, kwarg_specs[name], name)
 
   def _structured_signature_check_arg_type(self, arg, spec, name):
-    """Raise TypeError if `arg`'s type doesn't match `spec`."""
+
     if arg is _BOUND_VALUE:
       return
 
@@ -1630,24 +1269,7 @@ class ConcreteFunction(core.ConcreteFunction):
               f"{type(arg_piece).__name__} value {arg_piece}.")
 
   def _call_flat(self, args, captured_inputs, cancellation_manager=None):
-    """Executes the wrapped function.
 
-    Args:
-      args: a list of Tensors or Variables. Arguments from the Python function
-        should be filtered before calling this method: objects aside from
-        Tensors, CompositeTensors, and Variables are ignored. Any
-        CompositeTensors should be expanded before calling this method.
-      captured_inputs: the captured inputs that are also part of the input args
-        to the actual execution. By default, it should be self._captured_inputs.
-      cancellation_manager: (Optional.) A `CancellationManager` that can be
-        used to cancel function invocation.
-
-    Returns:
-      The result of applying the TF function to `args`.
-
-    Raises:
-      ValueError: If `args` contains anything other than Tensors or Variables.
-    """
     ctx = context.context()
     executing_eagerly = ctx.executing_eagerly()
 
@@ -1712,15 +1334,7 @@ class ConcreteFunction(core.ConcreteFunction):
     return self._build_call_outputs(flat_outputs)
 
   def _experimental_with_cancellation_manager(self, cancellation_manager):
-    """Returns a callable that invokes a cancellable version of this function.
 
-    Args:
-      cancellation_manager: A `CancellationManager` object that can be used to
-        cancel function invocation.
-
-    Returns:
-      A callable with the same signature as this concrete function.
-    """
 
     def cancellable_call(*args, **kwargs):
       return self._call_impl(
@@ -1730,64 +1344,36 @@ class ConcreteFunction(core.ConcreteFunction):
 
   @property
   def name(self):
-    """`ConcreteFunction` name."""
+
     return self._delayed_rewrite_functions.forward().name
 
   @property
   def graph(self):
-    """Returns the graph from which this function was constructed."""
+
     return self._func_graph
 
   @property
   def inputs(self):
-    """Returns tensors in `self.graph` corresponding to arguments."""
+
     return self._func_graph.inputs
 
   @property
   def structured_input_signature(self):
-    """Returns structured signature for this concrete function.
 
-    Returns:
-      A tuple `(args, kwargs)`, where:
-
-        * `args` is a tuple that specifies the expected type or value each for
-          positional argument.
-        * `kwargs` is a dictionary that specifies the expected type or value
-          for each keyword-only argument.
-
-      The type or value for each argument is specified using one of the
-      following:
-
-        * A `tf.TypeSpec`, indicating that a Tensor or other TensorFlow-native
-          value is expected.
-        * A Python value, such as an integer, indicating that an equal value
-          is expected.
-        * A nested structure of `tf.TypeSpec`s and Python values, indicating
-          that a corresponding nested structure is expected.
-    """
     return self._func_graph.structured_input_signature
 
   @property
   def outputs(self):
-    """Returns tensors in `self.graph` corresponding to returned tensors."""
+
     return self._func_graph.outputs
 
   @property
   def structured_outputs(self):
-    """Returns outputs in `self.graph` as returned by the original function."""
+
     return self._func_graph.structured_outputs
 
   def set_external_captures(self, captures):
-    """Updates the function capture values.
 
-    The new values must have tensor types and shapes consistent with the
-    original captures of the concrete function, but it is allowed to change a
-    value captured with a deferred one and vice-versa.
-
-    Args:
-      captures: A list of tensors or closures. Tensors are value captures, and
-        closures are call-time (deferred captures).
-    """
     self._captured_inputs = captures
 
   def replace_capture_with_deferred_capture(self,
@@ -1796,63 +1382,7 @@ class ConcreteFunction(core.ConcreteFunction):
                                             spec,
                                             placeholder=None,
                                             default_value=None):
-    """Replaces existing capture `tensor` with a deferred capture `closure`.
 
-    This API replaces the capture `tensor` from the concrete function's captured
-    inputs list, and places the deferred capture `closure` in
-    its spot so the order of captured inputs is preserved. This is important
-    because the old `tensor` and the new `closure` will have the same internal
-    placeholder, which can be passed through the `placeholder` argument, or
-    skipped, in which case we find the placeholder from internal inputs by
-    indexing `tensor` in the external captured inputs list. Thus, it is
-    important that the new deferred capture has output spec (specified by the
-    `spec` argument) compatible with the internal placeholder (`placeholder`)
-    and the original capture (`tensor`).
-
-    For example,
-
-    ```python
-    bool_captured_tensor = tf.constant(True)
-    float_captured_tensor = tf.constant([3.], dtype=tf.float32)
-    value = tf.constant([2.], dtype=tf.float32)
-
-    @tf.function
-    def fn():
-      deferred_tensor = ops.get_default_graph().capture_call_time_value(
-          lambda: value,
-          tf.TensorSpec(shape=(1,), dtype=tf.float32))
-      if bool_captured_tensor:
-        return deferred_tensor
-      else:
-        return deferred_tensor + float_captured_tensor
-
-    concrete_fn = fn.get_concrete_function()
-    print(concrete_fn())  # tf.Tensor([2.], shape=(1,), dtype=float32)
-
-    new_bool_captured_tensor = constant_op.constant(False)
-    def bool_closure():
-      return new_bool_captured_tensor
-
-    concrete_fn.replace_capture_with_deferred_capture(
-        bool_captured_tensor,
-        bool_closure,
-        spec=tensor_spec.TensorSpec(shape=(), dtype=dtypes.bool))
-
-    print(concrete_fn())  # tf.Tensor([5.], shape=(1,), dtype=float32)
-    ```
-
-    Args:
-      tensor: Tensor already captured. This `tensor` should be listed in
-        concrete_function.captured_inputs except when it's empty such as when
-        the concrete function is restored from SavedModel.
-      closure: function which takes no arguments, to be evaluated at function
-        call time, returning a nest of tensors compatible with `spec`.
-      spec: nest of TypeSpec for the value to capture.
-      placeholder: optional. The internal placeholder corresponding to the
-        captured `tensor` and the new `closure`.
-      default_value: optional value to use in environments that cannot safely
-        evaluate closure.
-    """
     capture_index = None
     for i, capture in enumerate(self._captured_inputs):
       if id(tensor) == id(capture):
@@ -1887,22 +1417,19 @@ class ConcreteFunction(core.ConcreteFunction):
 
   @property
   def captured_inputs(self):
-    """Returns external Tensors captured by this function.
 
-    self.__call__(*args) passes `args + self.captured_inputs` to the function.
-    """
     return nest.flatten(
         [x() if callable(x) else x for x in self._captured_inputs],
         expand_composites=True)
 
   @property
   def function_def(self):
-    """Returns a `FunctionDef` object representing this function."""
+
     return self._delayed_rewrite_functions.forward().definition
 
   @property
   def output_shapes(self):
-    """The function's output shapes."""
+
     return nest.map_structure(
         lambda x: getattr(x, "shape", tensor_shape.TensorShape(None)),
         composite_tensor.replace_composites_with_components(
@@ -1918,19 +1445,14 @@ class ConcreteFunction(core.ConcreteFunction):
         expand_composites=False)
 
   def add_to_graph(self, g=None):
-    """Registers the function, adds it to the graph g or default graph.
 
-    Args:
-      g: If specified, registers the function with this graph. Defaults to the
-        current context (either the default graph or the eager context).
-    """
 
     if not context.executing_eagerly() and not g:
       g = ops.get_default_graph()
     self._delayed_rewrite_functions.forward().add_to_graph(g)
 
   def add_gradient_functions_to_graph(self, g=None):
-    """Add forward/backward functions to graph `g` or the current context."""
+
     if not context.executing_eagerly() and not g:
       g = ops.get_default_graph()
     self._delayed_rewrite_functions.forward().add_to_graph(g)
@@ -1940,28 +1462,12 @@ class ConcreteFunction(core.ConcreteFunction):
     backward_function.add_to_graph(g)
 
   def _get_gradient_function(self):
-    """Returns gradient function. It will be lazily created at first call."""
+
     return self._delayed_rewrite_functions._rewrite_forward_and_call_backward
 
   def _select_forward_and_backward_functions(
       self, args, possible_gradient_type, executing_eagerly):
-    """Selects forward and backward functions based on the calling context.
 
-    The forward function computes the "real" function outputs, `self._outputs`,
-    and any extra values needed by the corresponding backward function.
-
-    Args:
-      args: A flat list of Tensors with all of the inputs to the forward
-        function (including user-specified and captured inputs).
-      possible_gradient_type: One of gradients_util.POSSIBLE_GRADIENT_TYPES_*.
-      executing_eagerly: Boolean, the value of context.executing_eagerly().
-
-    Returns:
-      An object with a `forward` method returning a tuple of (forward_function :
-      _EagerDefinedFunction, augmented_arguments : List), and a corresponding
-      `record` method which takes outputs from the forward function and records
-      the operation. forward_function should be called with augmented_arguments.
-    """
     if executing_eagerly:
       input_tangents = forwardprop_util.pack_tangents(args)
     else:
@@ -2004,13 +1510,7 @@ class ConcreteFunction(core.ConcreteFunction):
         tape_watching=False)
 
   def _build_call_outputs(self, result):
-    """Maps the fdef output list to actual output structure.
 
-    Args:
-      result: Output lists defined by FunctionDef.
-    Returns:
-      The actual call output.
-    """
     if self._func_graph.structured_outputs is None:
       return result
 
@@ -2028,21 +1528,14 @@ class ConcreteFunction(core.ConcreteFunction):
 
   @property
   def _as_name_attr_list(self):
-    """Returns a `NameAttrList` representing this function."""
+
     ret = attr_value_pb2.NameAttrList(name=self.name)
     for name, value in self._attrs.items():
       ret.attr[name].CopyFrom(value)
     return ret
 
   def _structured_signature_summary(self, default_values=False):
-    """Returns a string summarizing this function's structured signature.
 
-    Args:
-      default_values: If true, then include default values in the signature.
-
-    Returns:
-      A `string`.
-    """
     assert self._function_spec is not None
     arg_specs, kwarg_specs = self.structured_input_signature
     arg_names = list(self._function_spec.arg_names)
@@ -2064,7 +1557,7 @@ class ConcreteFunction(core.ConcreteFunction):
     return signature
 
   def _flat_signature_summary(self):
-    """Returns a string summarizing this function's flat signature."""
+
     assert self._arg_keywords is not None
     assert self._num_positional_args is not None
     arg_names = self._arg_keywords
@@ -2075,12 +1568,12 @@ class ConcreteFunction(core.ConcreteFunction):
     return f"{self._func_graph.name}({', '.join(arg_names)})"
 
   def pretty_printed_signature(self, verbose=True):
-    """Returns a string summarizing the signature of this concrete function."""
+
     if not verbose:
       return self._structured_signature_summary(default_values=True)
 
     def pretty_print_spec(spec):
-      """Returns a string describing the spec for a single argument."""
+
       if isinstance(spec, tensor_spec.TensorSpec):
         return "{} Tensor, shape={}".format(spec.dtype.name, spec.shape)
       elif nest.is_sequence(spec):
@@ -2097,7 +1590,6 @@ class ConcreteFunction(core.ConcreteFunction):
     lines = [self._structured_signature_summary(default_values=True)]
     arg_specs, kwarg_specs = self.structured_input_signature
     names = list(self._function_spec.arg_names)
-
 
     arg_details = []
     for (name, spec) in zip(names[:len(arg_specs)], list(arg_specs)):
@@ -2143,18 +1635,15 @@ class ConcreteFunction(core.ConcreteFunction):
     else:
       return self.__repr__()
 
-
 _pywrap_utils.RegisterType("Tensor", ops.Tensor)
 _pywrap_utils.RegisterType("EagerTensor", ops.EagerTensor)
 _pywrap_utils.RegisterType("IndexedSlices", ops.IndexedSlices)
 
-
 def _deterministic_dict_values(dictionary):
   return tuple(dictionary[key] for key in sorted(dictionary))
 
-
 class FunctionSpec(object):
-  """Specification of how to bind arguments to a function."""
+
 
   @staticmethod
   def from_function_and_signature(python_function,
@@ -2162,19 +1651,7 @@ class FunctionSpec(object):
                                   is_pure=False,
                                   experimental_follow_type_hints=False,
                                   jit_compile=None):
-    """Create a FunctionSpec instance given a python function and signature.
 
-    Args:
-      python_function: a function to inspect
-      input_signature: a signature of the function (None, if variable)
-      is_pure: if True all input arguments (including variables and constants)
-      will be converted to tensors and no variable changes allowed.
-      experimental_follow_type_hints: see `tf.function`
-      jit_compile: see `tf.function`
-
-    Returns:
-      instance of FunctionSpec
-    """
     fullargspec = tf_inspect.getfullargspec(python_function)
     if (input_signature is not None and
         set(fullargspec.kwonlyargs) - set(fullargspec.kwonlydefaults or ())):
@@ -2244,18 +1721,7 @@ class FunctionSpec(object):
                experimental_follow_type_hints=False,
                name=None,
                jit_compile=None):
-    """Constructs a FunctionSpec describing a python function.
 
-    Args:
-      fullargspec: `tf_inspect.FullArgSpec` object describing the function.
-      is_method: True if the function is a method.
-      input_signature: a signature of the function (None, if variable)
-      is_pure: if True all input arguments (including variables and constants)
-        will be converted to tensors and no variable changes allowed.
-      experimental_follow_type_hints: see `tf.function`.
-      name: Name of the function
-      jit_compile: see `tf.function`.
-    """
     self._fullargspec = fullargspec
     self._is_method = is_method
     self._is_pure = is_pure
@@ -2332,14 +1798,7 @@ class FunctionSpec(object):
     return self._fullargspec.varkw
 
   def signature_summary(self, default_values=False):
-    """Returns a string summarizing this function's signature.
 
-    Args:
-      default_values: If true, then include default values in the signature.
-
-    Returns:
-      A `string`.
-    """
     args = list(self._arg_names)
     if default_values:
       for (i, default) in self._arg_indices_to_default_values.items():
@@ -2363,7 +1822,7 @@ class FunctionSpec(object):
     return tuple(args), kwargs
 
   def _convert_annotated_args_to_tensors(self, args, kwargs):
-    """Attempts to autobox arguments annotated as tf.Tensor."""
+
     if self.input_signature is not None:
       return
 
@@ -2389,44 +1848,14 @@ class FunctionSpec(object):
     return tuple(args), kwargs
 
   def _validate_inputs(self, flat_inputs):
-    """Raises an error if inputs contain illegal values."""
+
     for inp in flat_inputs:
       if isinstance(inp, weakref.ref):
         raise ValueError(
             f"weakref input {inp} not supported for function {self._name}")
 
   def canonicalize_function_inputs(self, *args, **kwargs):
-    """Canonicalizes `args` and `kwargs`.
 
-    Canonicalize the inputs to the Python function using a `FunctionSpec`
-    instance. In particular, we parse the varargs and kwargs that the
-    original function was called with into a tuple corresponding to the
-    Python function's positional (named) arguments and a dictionary
-    corresponding to its kwargs.  Missing default arguments are added.
-
-    If this `FunctionSpec` has an input signature, then it is used to convert
-    arguments to tensors; otherwise, any inputs containing numpy arrays are
-    converted to tensors.
-
-    Additionally, any inputs containing numpy arrays are converted to Tensors.
-
-    Args:
-      *args: The varargs this object was called with.
-      **kwargs: The keyword args this function was called with.
-
-    Returns:
-      A canonicalized ordering of the inputs, as well as full and filtered
-      (Tensors and Variables only) versions of their concatenated flattened
-      representations, represented by a tuple in the form (args, kwargs,
-      flat_args, filtered_flat_args). Here: `args` is a full list of bound
-      arguments, and `kwargs` contains only true keyword arguments, as opposed
-      to named arguments called in a keyword-like fashion.
-
-    Raises:
-      ValueError: If a keyword in `kwargs` cannot be matched with a positional
-        argument when an input signature is specified, or when the inputs
-        do not conform to the input signature.
-    """
     if self._is_pure:
       args, kwargs = self._convert_variables_to_tensors(args, kwargs)
     if self._experimental_follow_type_hints:
@@ -2516,9 +1945,8 @@ class FunctionSpec(object):
 
     return inputs, kwargs, flat_inputs, filtered_flat_inputs
 
-
 def _convert_numpy_inputs(inputs):
-  """Convert numpy array inputs to tensors."""
+
   flat_inputs = nest.flatten(inputs, expand_composites=True)
 
   need_packing = False
@@ -2544,9 +1972,8 @@ def _convert_numpy_inputs(inputs):
   else:
     return inputs, flat_inputs, filtered_flat_inputs
 
-
 def _convert_inputs_to_signature(inputs, input_signature, flat_input_signature):
-  """Convert inputs to pass into a function with an explicit signature."""
+
 
   def format_error_message(inputs, input_signature):
     return ("  inputs: (\n" + "    " + ",\n    ".join(str(i) for i in inputs) +
@@ -2598,10 +2025,8 @@ def _convert_inputs_to_signature(inputs, input_signature, flat_input_signature):
       if isinstance(t, (ops.Tensor, resource_variable_ops.BaseResourceVariable))
   ])
 
-
 class FunctionCache(object):
-  """A lightweight container for cached functions.
-  """
+
 
   __slots__ = [
       "missed", "primary", "arg_relaxed_specs", "arg_relaxed",
@@ -2619,25 +2044,13 @@ class FunctionCache(object):
         _FunctionGarbageCollector(self.arg_relaxed_specs)]
 
   def all_values(self):
-    """A list of all `ConcreteFunction` instances held by this cache."""
+
     primary_functions = set(self.primary.values())
     return list(self.primary.values()) + [
         v for v in self.arg_relaxed.values() if v not in primary_functions]
 
-
 class Function(object):
-  """Wrapper class for the graph functions defined for a Python function.
 
-  See the documentation for `defun` for more information on the semantics of
-  defined functions.
-
-  `Function` class is thread-compatible meaning that minimal usage of defuns
-  (defining and calling) is thread-safe, but if users call other methods or
-  invoke the base `python_function` themselves, external synchronization is
-  necessary.
-  In addition, Function is not reentrant, so recursive functions need to call
-  the wrapped function, not the wrapper.
-  """
 
   def __init__(self,
                python_function,
@@ -2650,35 +2063,7 @@ class Function(object):
                capture_by_value=None,
                jit_compile=None,
                experimental_follow_type_hints=False):
-    """Initializes a `Function`.
 
-    Args:
-      python_function: the function to be wrapped.
-      name: the name given to it.
-      input_signature: a possibly nested sequence of `TensorSpec` objects
-        specifying the input signature of this function. If `None`, a separate
-        function is instantiated for each inferred input signature.
-      attributes: dict, extra keyword arguments that will be added as attribute
-        of the function.
-      autograph: whether to use autograph to compile
-        `python_function`. See https://www.tensorflow.org/guide/autograph for
-        more information.
-      autograph_options: Experimental knobs to control behavior
-        `when autograph=True`. See https://www.tensorflow.org/guide/autograph
-        for more information.
-      experimental_relax_shapes: When true, argument shapes may be relaxed to
-        avoid unnecessary retracing.
-      capture_by_value: Experimental. Whether to capture resource variables by
-        value or reference. If None, will inherit from a parent context or
-        default to False.
-      jit_compile: Force-compile the function with XLA, cf.
-        def_function.Function doc on jit_compile.
-      experimental_follow_type_hints: See the documentation for `tf.function`.
-
-    Raises:
-      ValueError: if `input_signature` is not None and the `python_function`'s
-        argspec has keyword arguments.
-    """
     self._python_function = python_function
     pure_function = attributes and IMPLEMENTS_ATTRIBUTE_NAME in attributes
     self._function_spec = FunctionSpec.from_function_and_signature(
@@ -2703,7 +2088,7 @@ class Function(object):
     self._experimental_follow_type_hints = experimental_follow_type_hints
 
   def __call__(self, *args, **kwargs):
-    """Calls a graph function specialized to the inputs."""
+
     with self._lock:
       (graph_function,
        filtered_flat_args) = self._maybe_define_function(args, kwargs)
@@ -2712,7 +2097,7 @@ class Function(object):
 
   @property
   def python_function(self):
-    """Returns the wrapped Python function."""
+
     return self._python_function
 
   @property
@@ -2721,16 +2106,16 @@ class Function(object):
 
   @property
   def input_signature(self):
-    """Returns the input signature."""
+
     return self._function_spec.input_signature
 
   @property
   def flat_input_signature(self):
-    """Returns the flattened input signature."""
+
     return self._function_spec.flat_input_signature
 
   def _get_concrete_function_internal_garbage_collected(self, *args, **kwargs):
-    """Returns a concrete function which cleans up its graph function."""
+
     if self.input_signature:
       args, kwargs = None, None
     with self._lock:
@@ -2738,24 +2123,14 @@ class Function(object):
     return graph_function
 
   def _get_concrete_function_internal(self, *args, **kwargs):
-    """Bypasses error checking when getting a graph function."""
+
     graph_function = self._get_concrete_function_internal_garbage_collected(
         *args, **kwargs)
     graph_function._garbage_collector.release()
     return graph_function
 
   def _get_concrete_function_garbage_collected(self, *args, **kwargs):
-    """Returns a `ConcreteFunction` specialized to inputs and execution context.
 
-    Unlike `get_concrete_function(...)`, the graph will be deleted when the
-    returned function is deleted.  It's useful to avoid creating a reference
-    cycle when you know for sure that the graph will be no longer used without
-    the returned function.
-
-    Args:
-      *args: inputs to specialize on.
-      **kwargs: inputs to specialize on.
-    """
     if self.input_signature:
       if kwargs:
         raise ValueError("Cannot define a TensorFlow function from a Python "
@@ -2805,21 +2180,14 @@ class Function(object):
       return graph_function
 
   def get_concrete_function(self, *args, **kwargs):
-    """Returns a `ConcreteFunction` specialized to inputs and execution context.
 
-    Args:
-      *args: inputs to specialize on. Can be concrete values (e.g. 1)
-         or `tf.Tensor` or `tf.TensorSpec`.
-      **kwargs: keyword inputs to specialize on. Concrete values (e.g. 1)
-         or `tf.Tensor` or `tf.TensorSpec`.
-    """
     graph_function = self._get_concrete_function_garbage_collected(
         *args, **kwargs)
     graph_function._garbage_collector.release()
     return graph_function
 
   def __get__(self, instance, owner):
-    """Makes it possible to defun instance methods."""
+
     del owner
     if instance not in self._descriptor_cache:
       if instance is None:
@@ -2835,7 +2203,7 @@ class Function(object):
                  kwargs,
                  cache_key_context,
                  include_tensor_ranks_only=False):
-    """Computes the cache key given inputs and execution context."""
+
     if self.input_signature is None:
       inputs = (args, kwargs)
       hashable_input_signature = function_trace_type.get_arg_spec(
@@ -2854,7 +2222,7 @@ class Function(object):
                     xla_context_id)
 
   def _cache_key_context(self):
-    """Returns execution context."""
+
     ctx = context.context()
 
     executing_eagerly = ctx.executing_eagerly()
@@ -2907,7 +2275,7 @@ class Function(object):
             in_cross_replica_context, variable_policy, xla_context_id)
 
   def _create_graph_function(self, args, kwargs, override_flat_arg_shapes=None):
-    """Create a `ConcreteFunction` from `args` and `kwargs`."""
+
     self.tracing_count += 1
 
     if self.input_signature is None:
@@ -2941,7 +2309,7 @@ class Function(object):
   def _define_function_with_shape_relaxation(self, args, kwargs, flat_args,
                                              filtered_flat_args,
                                              cache_key_context):
-    """Define a function, relaxing arg shapes to avoid unnecessary retracing."""
+
     flat_no_comp = nest.flatten((args, kwargs), expand_composites=False)
 
     any_composite_args = any(
@@ -3005,28 +2373,7 @@ class Function(object):
     ])
 
   def _maybe_define_function(self, args, kwargs):
-    """Gets a function for these inputs, defining it if necessary.
 
-    `args` and `kwargs` can be None if this `Function` was created with an
-    `input_signature`.
-
-    Caller must hold self._lock.
-
-    Args:
-      args: The varargs for the Python function.
-      kwargs: The keyword args for the Python function.
-
-    Returns:
-      A graph function corresponding to the input signature implied by args and
-      kwargs, as well as filtered flattened inputs (only Tensors and Variables)
-      that the object should be called with.
-
-    Raises:
-      ValueError: If inputs are incompatible with the input signature.
-      TypeError: If the function inputs include non-hashable objects
-      RuntimeError: If there's an internal bug (inconsistency) in handling
-        shape relaxation retracing.
-    """
     if self.input_signature is None or args is not None or kwargs is not None:
       args, kwargs, flat_args, filtered_flat_args = \
           self._function_spec.canonicalize_function_inputs(*args, **kwargs)
@@ -3075,25 +2422,8 @@ class Function(object):
 
           return graph_function, filtered_flat_args
 
-
 def register(func, *args, **kwargs):
-  """Register a specialization of a `Function` into the graph.
 
-  This won't actually call the function with the inputs, and only put the
-  function definition into graph. Register function with different input param
-  will result into multiple version of functions registered in graph.
-
-  Args:
-    func: the `Function` instance that generated by a @defun
-    *args: input arguments for the Python function.
-    **kwargs: input keyword arguments for the Python function.
-
-  Returns:
-    a `ConcreteFunction` object specialized to inputs and execution context.
-
-  Raises:
-    ValueError: When the input function is not a defun wrapped python function.
-  """
   if not isinstance(func, Function):
     raise ValueError("Only defun function is allowed to be registered. "
                      f"Got {func} with type {type(func)}.")
@@ -3101,7 +2431,6 @@ def register(func, *args, **kwargs):
   concrete_func.add_to_graph()
   concrete_func.add_gradient_functions_to_graph()
   return concrete_func
-
 
 def validate_signature(signature):
   if not isinstance(signature, (tuple, list)):
@@ -3116,353 +2445,22 @@ def validate_signature(signature):
                     f"TensorSpec objects, got invalid args {bad_args} with "
                     f"types {list(map(type, bad_args))}.")
 
-
 def validate_python_function(python_function):
   if not callable(python_function):
     raise TypeError(f"{python_function} is not a callable object.")
-
 
 def defun(func=None,
           input_signature=None,
           autograph=True,
           experimental_autograph_options=None,
           experimental_relax_shapes=False):
-  """Compiles a Python function into a callable TensorFlow graph.
 
-  `defun` (short for "define function") compiles a Python function
-  composed of TensorFlow operations into a callable that executes a `tf.Graph`
-  containing those operations. The callable produced by `defun` contains only
-  the subgraph of TensorFlow operations that were executed when the Python
-  function was called with a particular input signature, defined as a list
-  of the shapes and dtypes of the Python function's Tensor-valued arguments and
-  the values of its non-Tensor Python objects.
-
-  When eager execution is enabled, the ability to create graphs from Python
-  functions makes it possible to incrementally trade off debuggability and
-  interactivity for performance.  Functions compiled with `defun` cannot be
-  inspected with `pdb`; however, executing a graph
-  generated by `defun` sometimes takes less time and memory than eagerly
-  executing the corresponding Python function, since specifying computations as
-  graphs allows for optimizations like automatic buffer reuse and
-  parallelization among ops. Note that executing a `defun`-compiled function
-  incurs a small constant overhead, so eagerly executing sufficiently small
-  Python functions might take less time than executing their corresponding
-  `defun`-generated graphs.
-
-  For a Python function to be compatible with `defun`, all of its arguments must
-  be hashable Python objects or lists thereof. The function itself may not
-  modify the list/map structure of its arguments. Additionally, it must return
-  zero or more `tf.Tensor` objects. If the Python function returns
-  a `tf.Variable`, its compiled version will return the value of that variable
-  as a `tf.Tensor`.
-
-  Executing a graph generated by `defun` respects device annotations (i.e.,
-  all `with tf.device` directives present in a Python function will also be
-  present in its corresponding graph), but it is not yet possible to execute the
-  generated graphs across multiple machines.
-
-  _Example Usage_
-
-  ```python
-  import tensorflow as tf
-
-  tf.compat.v1.enable_eager_execution()
-
-  # A simple example.
-  def f(x, y):
-    return tf.reduce_mean(tf.multiply(x ** 2, 3) + y)
-
-  g = tf.contrib.eager.defun(f)
-
-  x = tf.constant([[2.0, 3.0]])
-  y = tf.constant([[3.0, -2.0]])
-
-  # `f` and `g` will return the same value, but `g` will be executed as a
-  # TensorFlow graph.
-  assert f(x, y).numpy() == g(x, y).numpy()
-
-  # `defun` is capable of compiling Python functions that close over Python
-  # objects, including Tensors and Variables.
-  @tf.contrib.eager.defun
-  def h():
-    return f(x, y)
-
-  assert (h().numpy() == f(x, y).numpy()).all()
-
-  # `defun` automatically lifts variables out of the graphs it creates,
-  # allowing you to compile the `call` methods of `tf.keras.layers.Layer` and
-  # `tf.keras.Model` objects.
-  class MyModel(tf.keras.Model):
-
-    def __init__(self, keep_probability=0.2):
-      super(MyModel, self).__init__()
-      self.dense1 = tf.keras.layers.Dense(4, activation=tf.nn.relu)
-      self.dense2 = tf.keras.layers.Dense(5, activation=tf.nn.softmax)
-      self.keep_probability = keep_probability
-
-    @tf.contrib.eager.defun
-    def call(self, inputs, training=True):
-      x = self.dense2(self.dense1(inputs))
-      if training:
-        return tf.nn.dropout(x, self.keep_probability)
-      else:
-        return x
-
-  model = MyModel()
-  model(x, training=True)  # executes a graph, with dropout
-  model(x, training=False) # executes a graph, without dropout
-
-  # `defun`-compiled functions are differentiable.
-  optimizer = tf.compat.v1.train.GradientDescentOptimizer(learning_rate=0.01)
-  with tf.GradientTape() as tape:
-    outputs = model(x)
-  gradient = tape.gradient(outputs, model.trainable_variables)
-  optimizer.apply_gradients((grad, var) for grad, var in zip(gradient,
-                            model.trainable_variables))
-  ```
-
-  When using `defun`, there are subtleties regarding inputs, Python control
-  flow, and variable creation that one should be aware of. For concreteness, let
-  `f` be a Python function that returns zero or more `tf.Tensor` objects and
-  let `F = defun(f)`. `F` builds a graph for each unique input signature it
-  sees, Python control flow is baked into graphs, and operations related to
-  variable initialization are automatically lifted out of the graphs that `F`
-  generates and placed in the eager context if executing eagerly or into an
-  outer graph otherwise.
-
-  _Input Signatures_
-
-  By default, `F = tf.contrib.eager.defun(f)` instantiates a separate graph
-  for every unique sequence of the shapes and dtypes of Tensor arguments and
-  the values of Python objects it is invoked with. For example, calling
-  `F(tf.random.uniform([2])` will execute a different graph than
-  `F(tf.random.uniform([3])` because the two inputs have different shapes.
-  The first time that `F(*args, **kwargs)` is called with a particular sequence
-  of Tensor shapes and dtypes and Python values, it constructs a graph by
-  tracing the execution of `f(*args, **kwargs)`; this graph is bound to an
-  input signature inferred from `(*args, **kwargs)` and cached for future reuse.
-
-  NumPy arrays passed as inputs to `F` are converted to `tf.Tensor` objects
-  before being passed to `f`, and are treated as Tensors for caching. This
-  allows a function to be called multiple times with NumPy arrays having
-  different values but the same shape and dtype without re-tracing each time.
-
-  `tf.contrib.eager.defun` caches graphs for your convenience, letting you
-  define TensorFlow functions without explicitly specifying their signatures.
-  However, this policy is conservative and potentially expensive; for example,
-  when different invocations of your function have differently-shaped Tensor
-  inputs, this policy might generate more graph functions than necessary. To
-  eliminate such costs, `tf.contrib.eager.defun` allows you to supply an
-  optional `input_signature` argument specifying the shapes and dtypes of the
-  inputs. In particular, the shapes may be partially unspecified, with `None`s
-  in the unknown dimensions.  When an input signature is provided,
-  `tf.contrib.eager.defun` will only instantiate a single graph for the
-  decorated Python function. The following is an example:
-
-  ```python
-  import tensorflow as tf
-
-  # The first `TensorSpec` below describes the shape and dtype of `words`,
-  # and the second describes the shape and dtype of `another_tensor`. Note that
-  # the last dimension of the `words` `TensorSpec` is left unspecified.
-  @tf.contrib.eager.defun(input_signature=[
-    tf.contrib.eager.TensorSpec(shape=[50, 300, None], dtype=tf.float32),
-    tf.contrib.eager.TensorSpec(shape=[300, 100], dtype=tf.float32)
-  ])
-  def my_sequence_model(words, another_tensor):
-    ...
-
-  # Note how the third dimension of the first input can vary freely.
-  words = tf.random.uniform(([50, 300, 10])
-  second_input = tf.random.uniform([300, 100])
-  my_sequence_model(words, second_input)
-
-  words = tf.random.uniform(([50, 300, 20])
-  my_sequence_model(words, second_input)
-
-  # Passing an input with an incompatible shape will raise an error.
-  words = tf.random.uniform(([50, 100, 20])
-  my_sequence_model(words, second_input)  # <---- This will raise an error.
-
-  ```
-
-  Python functions that are compiled with an `input_signature` must only accept
-  Tensors as arguments and must not take unnamed keyword arguments (**kwargs).
-
-  _Tracing_
-
-  Be aware that because `F` only logs TensorFlow operations, all the other
-  Python code that `f` executes will only shape the _construction_ of the graphs
-  that `F` executes: the Python code won't be executed when the graphs
-  themselves are executed, though it will be executed every time the Python
-  function is traced (and a given Python function might be traced multiple
-  times, once for each input signature it is invoked with). For example, whereas
-  the Python function
-
-  ```python
-  import tensorflow as tf
-  import numpy as np
-
-  tf.compat.v1.enable_eager_execution()
-
-  def add_noise():
-    return tf.eye(5) + np.random.randn(5, 5)
-  ```
-
-  will return a different output everytime it is invoked, the compiled function
-  `compiled = tf.contrib.eager.defun(add_noise)` will return the same value
-  every time it is called, since a particular random offset generated by NumPy
-  will be inserted into the graph as a TensorFlow constant. The solution is to
-  replace the call to `np.random.randn` with `tf.random.normal((5, 5))`.
-
-  _Python Side-Effects_
-
-  A corollary of the previous discussion on tracing is the following: If a
-  Python function `f` has Python side-effects, then executing `f` multiple times
-  will not necessarily be semantically equivalent to executing `F =
-  tf.contrib.eager.defun(f)` multiple times; this difference is due to the fact
-  that `defun` only captures the subgraph of TensorFlow operations that is
-  constructed when `f` is called in a graph-building context.
-
-  _Python Control Flow_
-
-  The structure of many machine learning computations depend upon whether one is
-  training or validating, and it is common to nest specialized logic under `if
-  training:` blocks. By mapping each input signature to a unique graph, `defun`
-  lets users transparently compile such code, as the following code snippet
-  demonstrates:
-
-  ```python
-  import tensorflow as tf
-
-  tf.compat.v1.enable_eager_execution()
-
-  @tf.contrib.eager.defun
-  def lossy_matmul(W, x, training=True):
-    outputs = tf.matmul(W, x)
-    if training:
-      outputs = tf.nn.dropout(outputs, keep_probability=0.2)
-    return outputs
-
-  W = tf.random.normal((3, 5))
-  x = tf.random.normal((5, 1))
-
-  # Executes a graph that applies dropout.
-  lossy_outputs = lossy_matmul(W, x, training=True)
-
-  # Executes a graph that does not apply dropout.
-  exact_outputs = lossy_matmul(W, x, training=False)
-  ```
-
-  _TensorFlow Control Flow_
-
-  When `autograph` is `True`, data-dependent control flow is allowed as well.
-  Control flow statements that depend on `Tensor` values are staged into
-  corresponding TensorFlow ops. For example, the following code will work as
-  expected:
-
-  ```python
-  @tf.contrib.eager.defun
-  def dynamic_rnn_loop(cell, seq):
-    state, output = cell.zero_state()
-    for input in seq:
-      state, output = cell(input, state)
-    return output
-  ```
-
-  For more information see `tf.autograph`.
-
-  _Variables_
-
-  TensorFlow operations related to variable creation and initialization are
-  automatically lifted out of the graphs generated by `defun`. In practice, this
-  implies that variable creation and initialization only happen the first time
-  `F` is called, and that variables are reused every time thereafter. Many
-  TensorFlow APIs, like `tf.keras.layers.Layer` objects, create variables the
-  first time they are called and reuse them thereafter. Automatic variable
-  lifting makes it possible to compile these APIs without extra effort, at the
-  cost of introducing a discrepancy between the semantics of executing Python
-  functions and their corresponding compiled functions. For example:
-
-  ```python
-  import tensorflow as tf
-
-  tf.compat.v1.enable_eager_execution()
-
-  def fn():
-    x = tf.Variable(0.0)
-    x.assign_add(1.0)
-    return x.read_value()
-
-  # `fn` is a Python function, so x is created, initialized, and destroyed upon
-  # every invocation
-  assert fn().numpy() == fn().numpy() == 1.0
-
-  compiled = tf.contrib.eager.defun(fn)
-
-  # Compiling `fn` with `defun` hoists all variables outside of the generated
-  # graph, so initialization happens exactly once.
-  assert compiled().numpy() == 1.0
-  assert compiled().numpy() == 2.0
-  ```
-
-  Finally, because each input signature is bound to a unique graph, if your
-  Python function constructs `tf.Variable` objects, then each graph constructed
-  for that Python function will reference a unique set of variables. To
-  circumvent this problem, we recommend against compiling Python functions that
-  create `tf.Variable` objects. Instead, Python functions should either
-  lexically close over `tf.Variable` objects or accept them as arguments,
-  preferably encapsulated in an object-oriented container. If you must create
-  variables inside your Python function and you want each graph generated for it
-  to reference the same set of variables, add logic to your Python function that
-  ensures that variables are only created the first time it is called and are
-  reused for every subsequent invocation; note that this is precisely what
-  `tf.keras.layers.Layer` objects do, so we recommend using them to represent
-  variable-bearing computations whenever possible.
-
-  Args:
-    func: function to be compiled. If `func` is None, returns a
-      decorator that can be invoked with a single argument - `func`. The
-      end result is equivalent to providing all the arguments up front.
-      In other words, defun(input_signature=...)(func) is equivalent to
-      defun(func, input_signature=...). The former allows
-      the following use case:
-        @tf.contrib.eager.defun(input_signature=...)
-        def foo(...):
-          ...
-
-    input_signature: A possibly nested sequence of
-      `tf.contrib.eager.TensorSpec` objects specifying the shapes and dtypes of
-      the Tensors that will be supplied to this function. If `None`, a separate
-      function is instantiated for each inferred input signature.  If a
-      signature is specified, every input to `func` must be a `Tensor`, and
-      `func` cannot accept `**kwargs`.
-    autograph: Whether `func` should be compiled before
-      constructing the graph. See https://www.tensorflow.org/guide/autograph
-      for more information.
-    experimental_autograph_options: Experimental knobs (in the form of a tuple
-      of tensorflow.autograph.Feature values) to control behavior when
-      autograph=True.
-    experimental_relax_shapes: When true, argument shapes may be relaxed to
-      avoid unnecessary retracing.
-
-  Returns:
-     If `func` is not None, returns a callable that will execute the compiled
-     function (and return zero or more `tf.Tensor` objects).
-     If `func` is None, returns a decorator that, when invoked with a single
-     `func` argument, returns a callable equivalent to the case above.
-
-  Raises:
-    TypeError: If `input_signature` is neither `None` nor a sequence of
-      `tf.contrib.eager.TensorSpec` objects.
-  """
   return defun_with_attributes(
       func=func,
       input_signature=input_signature,
       autograph=autograph,
       experimental_autograph_options=experimental_autograph_options,
       experimental_relax_shapes=experimental_relax_shapes)
-
 
 @tf_export("__internal__.function.defun_with_attributes", v1=[])
 def defun_with_attributes(func=None,
@@ -3473,33 +2471,7 @@ def defun_with_attributes(func=None,
                           jit_compile=None,
                           experimental_relax_shapes=False,
                           experimental_follow_type_hints=False):
-  """Compiles a Python function into a callable TensorFlow graph.
 
-  This function supports adding extra function attributes. See detailed
-  documentation in defun(). Currently this is not exposed in public API since we
-  don't expect user to directly use attributes, and attribute won't work by
-  itself. This assumption might change in future.
-
-  Args:
-    func: function to be compiled.
-    input_signature: same as defun()'s input_signature.
-    attributes: A dictionary of arguments which will be added to function def as
-      attributes. Currently only support primitive types as value, and only
-      allowlisted attribute name is allowed. Unallowlisted attribute name or
-      unsupported value will result into ValueError. `func_name` is also one of
-      the allowlisted argument which is a python string, and sets the name for
-      this `ConcreteFunction` in the graph.
-    autograph: same as defun()'s autograph.
-    experimental_autograph_options: same as defun()'s
-      experimental_autograph_options.
-    jit_compile: same as defun()'s jit_compile.
-    experimental_relax_shapes: same as defun()'s experimental_relax_shapes
-    experimental_follow_type_hints: see `tf.function`.
-
-  Returns:
-    Same as the return value of defun, with attributes added to the function in
-    graph.
-  """
   if input_signature is not None:
     validate_signature(input_signature)
 
@@ -3529,9 +2501,8 @@ def defun_with_attributes(func=None,
 
   return decorated
 
-
 class TfMethodTarget(object):
-  """Binding target for methods replaced by function and defun."""
+
 
   __slots__ = ("weakrefself_target__", "weakrefself_func__")
 
@@ -3557,9 +2528,8 @@ class TfMethodTarget(object):
       wrapped_fn = six.get_unbound_function(wrapped_fn)
     return wrapped_fn(self.weakrefself_target__(), *args, **kwargs)
 
-
 def class_method_to_instance_method(original_function, instance):
-  """Constructs a new `Function` with `self` bound."""
+
   weak_instance = weakref.ref(instance)
 
   bound_method = types_lib.MethodType(
@@ -3573,7 +2543,7 @@ def class_method_to_instance_method(original_function, instance):
 
   weak_bound_method_wrapper = None
   def bound_method_wrapper(*args, **kwargs):
-    """Wraps either a dummy MethodType or a converted AutoGraph function."""
+
     strong_bound_method_wrapper = weak_bound_method_wrapper()
     wrapped_fn = strong_bound_method_wrapper.__wrapped__
 
@@ -3598,9 +2568,8 @@ def class_method_to_instance_method(original_function, instance):
                                                       instance_func)
   return wrapped_instance_func
 
-
 class _FunctionGarbageCollector(object):
-  """Cleans up cycles when a defun goes out of scope."""
+
 
   __slots__ = ["_cache"]
 
@@ -3617,9 +2586,8 @@ class _FunctionGarbageCollector(object):
     except:
       pass
 
-
 class ConcreteFunctionGarbageCollector(object):
-  """Cleans up reference cycles when a `ConcreteFunction` goes out of scope."""
+
 
   __slots__ = ["_func_graph"]
 
@@ -3627,7 +2595,7 @@ class ConcreteFunctionGarbageCollector(object):
     self._func_graph = func_graph
 
   def release(self):
-    """Call off the FuncGraph deletion."""
+
     self._func_graph = None
 
   def __del__(self):
@@ -3638,9 +2606,8 @@ class ConcreteFunctionGarbageCollector(object):
     except:
       pass
 
-
 class _Marker(object):
-  """Markers used to pretty-print nested args in function signatures."""
+
 
   __slots__ = ["_s"]
 
@@ -3650,9 +2617,8 @@ class _Marker(object):
   def __repr__(self):
     return str(self._s)
 
-
 def _structure_summary(structure):
-  """Displays a summary of the nesting structure of the given value."""
+
 
   def type_name(x):
     if isinstance(x, type_spec.TypeSpec):
@@ -3662,7 +2628,6 @@ def _structure_summary(structure):
 
   markers = [_Marker(type_name(v)) for v in nest.flatten(structure)]
   return str(nest.pack_sequence_as(structure, markers))
-
 
 def _contains_type_spec(value):
   return any(isinstance(x, type_spec.TypeSpec) for x in nest.flatten(value))

@@ -23,7 +23,6 @@ import subprocess
 import logging
 logging.captureWarnings(True)
 
-
 version = VERSION = __version__ = '2.0.15'
 
 COLOR = True
@@ -101,7 +100,6 @@ is_report = re.compile('.*('
 
 opj = os.path.join
 
-
 def write(text, color=None):
     global COLOR
     if COLOR:
@@ -130,7 +128,6 @@ def write(text, color=None):
 
     sys.stdout.write(text + '\n')
 
-
 def fopen(path):
     try:
         if sys.version_info < (3, 0):
@@ -146,7 +143,6 @@ def fopen(path):
     except Exception as e:
         write('    - Ignored: ' + str(e))
 
-
 def read(filepath):
     try:
         report = fopen(filepath)
@@ -156,7 +152,6 @@ def read(filepath):
         return '# path=' + filepath + '\n' + report
     except Exception as e:
         write('    - Ignored: ' + str(e))
-
 
 def check_output(cmd, **popen_args):
     from subprocess import Popen, PIPE, CalledProcessError
@@ -168,7 +163,6 @@ def check_output(cmd, **popen_args):
         assert process.returncode == 0
         return output.decode('utf-8')
 
-
 def try_to_run(cmd, shell=True):
     try:
         return check_output(cmd, shell=shell)
@@ -176,11 +170,7 @@ def try_to_run(cmd, shell=True):
         write('    Error running `%s`: %s' % (cmd, e.output or str(e)))
 
 def run_python_coverage(args):
-    """Run the Python coverage tool
-    
-    If it's importable in this Python, launch it using 'python -m'.
-    Otherwise, look it up on PATH like any other command.
-    """
+
     try:
         import coverage
     except ImportError:
@@ -194,11 +184,9 @@ def remove_non_ascii(data):
     except:
         return ''.join([i if ord(i) < 128 else '' for i in data])
 
-
 def _add_env_if_not_empty(lst, value):
     if os.getenv(value) is not None:
         lst.add(value)
-
 
 def main(*argv, **kwargs):
     root = os.getcwd()
@@ -686,7 +674,6 @@ def main(*argv, **kwargs):
     else:
         if kwargs.get('debug'):
             return dict(reports=reports, codecov=codecov, query=query, urlargs=urlargs, result=result)
-
 
 if __name__ == '__main__':
     main()

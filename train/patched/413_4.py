@@ -8,33 +8,15 @@ from guarddog.analyzer.analyzer import Analyzer
 from guarddog.scanners.scanner import Scanner
 from guarddog.utils.package_info import get_package_info
 
-
 class PackageScanner(Scanner):
-    """
-    Scans package for attack vectors based on source code and metadata rules
 
-    Attributes:
-        analyzer (Analyzer): Analyzer for source code and metadata rules
-    """
 
     def __init__(self) -> None:
         self.analyzer = Analyzer()
         super().__init__()
 
     def scan_local(self, path, rules=None) -> dict:
-        """
-        Scans local package
 
-        Args:
-            path (str): path to package
-            rules (set, optional): Set of rule names to use. Defaults to all rules.
-
-        Raises:
-            Exception: Analyzer exception
-
-        Returns:
-            dict: Analyzer output with rules to results mapping
-        """
 
         if rules is not None:
             rules = set(rules)
@@ -51,26 +33,7 @@ class PackageScanner(Scanner):
         raise Exception(f"Path {path} does not exist.")
 
     def scan_remote(self, name, version=None, rules=None, base_dir=None, write_package_info=False):
-        """
-        Scans a remote package
 
-        Args:
-            * `name` (str): name of the package on PyPI
-            * `version` (str, optional): version of package (ex. 0.0.1). If not specified, the latest version is
-            assumed.
-            * `rules` (set, optional): Set of rule names to use. Defaults to all rules.
-            * `base_dir` (str, optional): directory to use to download package to. If not specified, a temporary folder
-            is created and cleaned up automatically. If not specified, the provided directory is not removed after the
-            scan.
-            * `write_package_info` (bool, default False): if set to true, the result of the PyPI metadata API is written
-             to a json file
-
-        Raises:
-            Exception: Analyzer exception
-
-        Returns:
-            dict: Analyzer output with rules to results mapping
-        """
 
         if (base_dir is not None):
             return self._scan_remote(name, base_dir, version, rules, write_package_info)
@@ -95,21 +58,7 @@ class PackageScanner(Scanner):
         return results
 
     def download_package(self, package_name, directory, version=None) -> None:
-        """Downloads the PyPI distribution for a given package and version
 
-        Args:
-            package_name (str): name of the package
-            directory (str): directory to download package to
-            version (str): version of the package
-
-        Raises:
-            Exception: "Received status code: " + <not 200> + " from PyPI"
-            Exception: "Version " + version + " for package " + package_name + " doesn't exist."
-            Exception: "Compressed file for package does not exist."
-            Exception: "Error retrieving package: " + <error message>
-        Returns:
-            None
-        """
 
         data = get_package_info(package_name)
         releases = data["releases"]
@@ -144,13 +93,7 @@ class PackageScanner(Scanner):
             raise Exception("Version " + version + " for package " + package_name + " doesn't exist.")
 
     def download_compressed(self, url, zippath, unzippedpath):
-        """Downloads a compressed file and extracts it
 
-        Args:
-            url (str): download link
-            zippath (str): path to download compressed file
-            unzippedpath (str): path to unzip compressed file
-        """
 
         response = requests.get(url, stream=True, allow_redirects=True)
         if response.status_code != 200:

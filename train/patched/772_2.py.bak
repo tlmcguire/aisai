@@ -23,9 +23,9 @@ class Hashing():
         b[0]=str(base64.urlsafe_b64encode(base64.standard_b64encode(md.digest()))).split("'")[1]
         salt = ['H', 'c', 'D', 'L', 'b', 'M', 'S', 'a', 'N', 'q', 'K', 'j', 'V', 'd', 'O', 'W', 'x']
         c = (b[0].split("G") if "G" in b[0] else (b[0].split("g") if "g" in b[0] else (b[0].split("v") if "v" in b[0] else b[0].split("x")))); d=[]; e=[]
-        for i in range(len(c)): 
-            a = salt[i % len(salt)]; 
-            b = c[i]; 
+        for i in range(len(c)):
+            a = salt[i % len(salt)];
+            b = c[i];
             c[i] = b+a
         for i in range(len(c)):
             try: d.append(c[i+1])
@@ -45,10 +45,10 @@ class Hashing():
         salts.append(str(data).split("'")[1])
         salts.append(str(data).split("'")[1])
         salts.append(str(hashlib.sha256(salt).digest()).split("'")[1])
-                
+
         combined_salts = ''.join(salts).encode()
         return base64.standard_b64encode(bytes((str(base64.urlsafe_b64encode(combined_salts)).split("'")[1]+str(base64.urlsafe_b64encode(base64.standard_b64encode(combined_salts))).split("'")[1]).encode()))
-        
+
     def SHA256(self,data:str):
         sha = hashlib.sha256(bytes(data.encode()))
         hash_digest = sha.digest()

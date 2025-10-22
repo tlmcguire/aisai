@@ -7,7 +7,6 @@ import flask
 import flask_themes2
 from pyload.core.api import Perms, Role, has_permission
 
-
 class JSONEncoder(json.JSONEncoder):
     def default(self, obj):
         try:
@@ -15,7 +14,6 @@ class JSONEncoder(json.JSONEncoder):
         except TypeError:
             pass
         return super().default(obj)
-
 
 try:
     JSONProviderBase = flask.json.provider.JSONProvider
@@ -29,12 +27,10 @@ else:
         def loads(self, s, **kwargs):
             return json.loads(s, **kwargs)
 
-
 def is_safe_url(location):
     ref_url = urlparse(flask.request.host_url)
     test_url = urlparse(urljoin(flask.request.host_url, location))
     return test_url.scheme in ('http', 'https') and ref_url.netloc == test_url.netloc
-
 
 def get_redirect_url(fallback=None):
     login_url = urljoin(flask.request.url_root, flask.url_for('app.login'))
@@ -48,20 +44,16 @@ def get_redirect_url(fallback=None):
             return location
     return fallback
 
-
 def render_base(messages):
     return render_template("base.html", messages=messages)
-
 
 def clear_session(session=flask.session, permanent=True):
     session.permanent = bool(permanent)
     session.clear()
 
-
 def current_theme_id():
     api = flask.current_app.config["PYLOAD_API"]
     return api.get_config_value("webui", "theme").lower()
-
 
 def static_file_url(filename):
     themeid = current_theme_id()
@@ -71,15 +63,12 @@ def static_file_url(filename):
         url = flask.url_for("static", filename=filename)
     return url
 
-
 def theme_template(filename):
     return flask.url_for("app.render", filename=filename)
-
 
 def render_template(template, **context):
     themeid = current_theme_id()
     return flask_themes2.render_theme_template(themeid, template, **context)
-
 
 def parse_permissions(session=flask.session):
     perms = {x.name: False for x in Perms}
@@ -100,29 +89,18 @@ def parse_permissions(session=flask.session):
 
     return perms
 
-
 def permlist():
     return [x.name for x in Perms if x.name != "ANY"]
 
-
 def get_permission(userperms):
-    """
-    Returns a dict with permission key.
 
-    :param userperms: permission bits
-    """
     return {
         name: has_permission(userperms, getattr(Perms, name).value)
         for name in permlist()
     }
 
-
 def set_permission(perms):
-    """
-    generates permission bits from dictionary.
 
-    :param perms: dict
-    """
     permission = 0
     for name in permlist():
         if name.startswith("_"):
@@ -132,7 +110,6 @@ def set_permission(perms):
             permission |= getattr(Perms, name)
 
     return permission
-
 
 def set_session(user_info, session=flask.session, permanent=True):
     session.permanent = bool(permanent)
@@ -148,14 +125,12 @@ def set_session(user_info, session=flask.session, permanent=True):
     )
     return session
 
-
 def parse_userdata(session=flask.session):
     return {
         "name": session.get("name", "Anonymous"),
         "is_admin": session.get("role", 1) == 0,
         "is_authenticated": session.get("authenticated", False),
     }
-
 
 def apiver_check(func):
     @wraps(func)
@@ -168,14 +143,12 @@ def apiver_check(func):
 
     return wrapper
 
-
 def is_authenticated(session=flask.session):
     api = flask.current_app.config["PYLOAD_API"]
     user = session.get("name")
     authenticated = session.get("authenticated")
 
     return authenticated and api.user_exists(user)
-
 
 def login_required(perm):
     def decorator(func):

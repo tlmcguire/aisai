@@ -154,7 +154,6 @@ def basic_auth_protocol_factory(
             return hmac.compare_digest(expected_password, password)
 
     if create_protocol is None:
-        # Not sure why mypy cannot figure this out.
         create_protocol = cast(
             Callable[[Any], BasicAuthWebSocketServerProtocol],
             BasicAuthWebSocketServerProtocol,

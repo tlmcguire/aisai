@@ -63,17 +63,8 @@ _TYPE_TIMEOUT = typing.Union[Timeout, float, _TYPE_DEFAULT, None]
 
 _SelfT = typing.TypeVar("_SelfT")
 
-
 class ConnectionPool:
-    """
-    Base class for all connection pools, such as
-    :class:`.HTTPConnectionPool` and :class:`.HTTPSConnectionPool`.
 
-    .. note::
-       ConnectionPool.urlopen() does not normalize or percent-encode target URIs
-       which is useful if your target server doesn't support percent-encoded
-       target URIs.
-    """
 
     scheme: str | None = None
     QueueCls = queue.LifoQueue
@@ -103,65 +94,12 @@ class ConnectionPool:
         return False
 
     def close(self) -> None:
-        """
-        Close all pooled connections and disable the pool.
-        """
 
 
 _blocking_errnos = {errno.EAGAIN, errno.EWOULDBLOCK}
 
-
 class HTTPConnectionPool(ConnectionPool, RequestMethods):
-    """
-    Thread-safe connection pool for one host.
 
-    :param host:
-        Host used for this HTTP Connection (e.g. "localhost"), passed into
-        :class:`http.client.HTTPConnection`.
-
-    :param port:
-        Port used for this HTTP Connection (None is equivalent to 80), passed
-        into :class:`http.client.HTTPConnection`.
-
-    :param timeout:
-        Socket timeout in seconds for each individual connection. This can
-        be a float or integer, which sets the timeout for the HTTP request,
-        or an instance of :class:`urllib3.util.Timeout` which gives you more
-        fine-grained control over request timeouts. After the constructor has
-        been parsed, this is always a `urllib3.util.Timeout` object.
-
-    :param maxsize:
-        Number of connections to save that can be reused. More than 1 is useful
-        in multithreaded situations. If ``block`` is set to False, more
-        connections will be created but they will not be saved once they've
-        been used.
-
-    :param block:
-        If set to True, no more than ``maxsize`` connections will be used at
-        a time. When no free connections are available, the call will block
-        until a connection has been released. This is a useful side effect for
-        particular multithreaded situations where one does not want to use more
-        than maxsize connections per host to prevent flooding.
-
-    :param headers:
-        Headers to include with all requests, unless other headers are given
-        explicitly.
-
-    :param retries:
-        Retry configuration to use by default with requests in this pool.
-
-    :param _proxy:
-        Parsed proxy URL, should not be used directly, instead, see
-        :class:`urllib3.ProxyManager`
-
-    :param _proxy_headers:
-        A dictionary with proxy headers, should not be used directly,
-        instead, see :class:`urllib3.ProxyManager`
-
-    :param \\**conn_kw:
-        Additional parameters are used to create fresh :class:`urllib3.connection.HTTPConnection`,
-        :class:`urllib3.connection.HTTPSConnection` instances.
-    """
 
     scheme = "http"
     ConnectionCls: (
@@ -219,9 +157,7 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
         weakref.finalize(self, _close_pool_connections, pool)
 
     def _new_conn(self) -> BaseHTTPConnection:
-        """
-        Return a fresh :class:`HTTPConnection`.
-        """
+
         self.num_connections += 1
         log.debug(
             "Starting new HTTP connection (%d): %s:%s",
@@ -239,17 +175,7 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
         return conn
 
     def _get_conn(self, timeout: float | None = None) -> BaseHTTPConnection:
-        """
-        Get a connection. Will return a pooled connection if one is available.
 
-        If no connections are available and :prop:`.block` is ``False``, then a
-        fresh connection is returned.
-
-        :param timeout:
-            Seconds to wait before giving up and raising
-            :class:`urllib3.exceptions.EmptyPoolError` if the pool is empty and
-            :prop:`.block` is ``True``.
-        """
         conn = None
 
         if self.pool is None:
@@ -276,19 +202,7 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
         return conn or self._new_conn()
 
     def _put_conn(self, conn: BaseHTTPConnection | None) -> None:
-        """
-        Put a connection back into the pool.
 
-        :param conn:
-            Connection object for the current host and port as returned by
-            :meth:`._new_conn` or :meth:`._get_conn`.
-
-        If the pool is already full, the connection is closed and discarded
-        because we exceeded maxsize. If connections are discarded frequently,
-        then maxsize should be increased.
-
-        If the pool is closed, then the connection will be closed and discarded.
-        """
         if self.pool is not None:
             try:
                 self.pool.put(conn, block=False)
@@ -315,15 +229,13 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
             conn.close()
 
     def _validate_conn(self, conn: BaseHTTPConnection) -> None:
-        """
-        Called right before a request is made, after the socket is created.
-        """
+
 
     def _prepare_proxy(self, conn: BaseHTTPConnection) -> None:
         pass
 
     def _get_timeout(self, timeout: _TYPE_TIMEOUT) -> Timeout:
-        """Helper that always returns a :class:`urllib3.util.Timeout`"""
+
         if timeout is _DEFAULT_TIMEOUT:
             return self.timeout.clone()
 
@@ -338,7 +250,7 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
         url: str,
         timeout_value: _TYPE_TIMEOUT | None,
     ) -> None:
-        """Is the error actually a timeout? Will raise a ReadTimeout or pass"""
+
 
         if isinstance(err, SocketTimeout):
             raise ReadTimeoutError(
@@ -365,69 +277,7 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
         decode_content: bool = True,
         enforce_content_length: bool = True,
     ) -> BaseHTTPResponse:
-        """
-        Perform a request on a given urllib connection object taken from our
-        pool.
 
-        :param conn:
-            a connection from one of our connection pools
-
-        :param method:
-            HTTP request method (such as GET, POST, PUT, etc.)
-
-        :param url:
-            The URL to perform the request on.
-
-        :param body:
-            Data to send in the request body, either :class:`str`, :class:`bytes`,
-            an iterable of :class:`str`/:class:`bytes`, or a file-like object.
-
-        :param headers:
-            Dictionary of custom headers to send, such as User-Agent,
-            If-None-Match, etc. If None, pool headers are used. If provided,
-            these headers completely replace any pool-specific headers.
-
-        :param retries:
-            Configure the number of retries to allow before raising a
-            :class:`~urllib3.exceptions.MaxRetryError` exception.
-
-            Pass ``None`` to retry until you receive a response. Pass a
-            :class:`~urllib3.util.retry.Retry` object for fine-grained control
-            over different types of retries.
-            Pass an integer number to retry connection errors that many times,
-            but no other types of errors. Pass zero to never retry.
-
-            If ``False``, then retries are disabled and any exception is raised
-            immediately. Also, instead of raising a MaxRetryError on redirects,
-            the redirect response will be returned.
-
-        :type retries: :class:`~urllib3.util.retry.Retry`, False, or an int.
-
-        :param timeout:
-            If specified, overrides the default timeout for this one
-            request. It may be a float (in seconds) or an instance of
-            :class:`urllib3.util.Timeout`.
-
-        :param chunked:
-            If True, urllib3 will send the body using chunked transfer
-            encoding. Otherwise, urllib3 will send the body using the standard
-            content-length form. Defaults to False.
-
-        :param response_conn:
-            Set this to ``None`` if you will handle releasing the connection or
-            set the connection to have the response release it.
-
-        :param preload_content:
-          If True, the response's body will be preloaded during construction.
-
-        :param decode_content:
-            If True, will attempt to decode the body based on the
-            'content-encoding' header.
-
-        :param enforce_content_length:
-            Enforce content length checking. Body returned by server must match
-            value of Content-Length header, if present. Otherwise, raise error.
-        """
         self.num_requests += 1
 
         timeout_obj = self._get_timeout(timeout)
@@ -510,9 +360,7 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
         return response
 
     def close(self) -> None:
-        """
-        Close all pooled connections and disable the pool.
-        """
+
         if self.pool is None:
             return
         old_pool, self.pool = self.pool, None
@@ -520,10 +368,7 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
         _close_pool_connections(old_pool)
 
     def is_same_host(self, url: str) -> bool:
-        """
-        Check if the given ``url`` is a member of the same host as this
-        connection pool.
-        """
+
         if url.startswith("/"):
             return True
 
@@ -557,101 +402,7 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
         decode_content: bool = True,
         **response_kw: typing.Any,
     ) -> BaseHTTPResponse:
-        """
-        Get a connection from the pool and perform an HTTP request. This is the
-        lowest level call for making a request, so you'll need to specify all
-        the raw details.
 
-        .. note::
-
-           More commonly, it's appropriate to use a convenience method
-           such as :meth:`request`.
-
-        .. note::
-
-           `release_conn` will only behave as expected if
-           `preload_content=False` because we want to make
-           `preload_content=False` the default behaviour someday soon without
-           breaking backwards compatibility.
-
-        :param method:
-            HTTP request method (such as GET, POST, PUT, etc.)
-
-        :param url:
-            The URL to perform the request on.
-
-        :param body:
-            Data to send in the request body, either :class:`str`, :class:`bytes`,
-            an iterable of :class:`str`/:class:`bytes`, or a file-like object.
-
-        :param headers:
-            Dictionary of custom headers to send, such as User-Agent,
-            If-None-Match, etc. If None, pool headers are used. If provided,
-            these headers completely replace any pool-specific headers.
-
-        :param retries:
-            Configure the number of retries to allow before raising a
-            :class:`~urllib3.exceptions.MaxRetryError` exception.
-
-            Pass ``None`` to retry until you receive a response. Pass a
-            :class:`~urllib3.util.retry.Retry` object for fine-grained control
-            over different types of retries.
-            Pass an integer number to retry connection errors that many times,
-            but no other types of errors. Pass zero to never retry.
-
-            If ``False``, then retries are disabled and any exception is raised
-            immediately. Also, instead of raising a MaxRetryError on redirects,
-            the redirect response will be returned.
-
-        :type retries: :class:`~urllib3.util.retry.Retry`, False, or an int.
-
-        :param redirect:
-            If True, automatically handle redirects (status codes 301, 302,
-            303, 307, 308). Each redirect counts as a retry. Disabling retries
-            will disable redirect, too.
-
-        :param assert_same_host:
-            If ``True``, will make sure that the host of the pool requests is
-            consistent else will raise HostChangedError. When ``False``, you can
-            use the pool on an HTTP proxy and request foreign hosts.
-
-        :param timeout:
-            If specified, overrides the default timeout for this one
-            request. It may be a float (in seconds) or an instance of
-            :class:`urllib3.util.Timeout`.
-
-        :param pool_timeout:
-            If set and the pool is set to block=True, then this method will
-            block for ``pool_timeout`` seconds and raise EmptyPoolError if no
-            connection is available within the time period.
-
-        :param bool preload_content:
-            If True, the response's body will be preloaded into memory.
-
-        :param bool decode_content:
-            If True, will attempt to decode the body based on the
-            'content-encoding' header.
-
-        :param release_conn:
-            If False, then the urlopen call will not release the connection
-            back into the pool once a response is received (but will release if
-            you read the entire contents of the response such as when
-            `preload_content=True`). This is useful if you're not preloading
-            the response's content immediately. You will need to call
-            ``r.release_conn()`` on the response ``r`` to return the connection
-            back into the pool. If None, it takes the value of ``preload_content``
-            which defaults to ``True``.
-
-        :param bool chunked:
-            If True, urllib3 will send the body using chunked transfer
-            encoding. Otherwise, urllib3 will send the body using the standard
-            content-length form. Defaults to False.
-
-        :param int body_pos:
-            Position to seek to in file-like body in the event of a retry or
-            redirect. Typically this won't need to be set because urllib3 will
-            auto-populate the value when needed.
-        """
         parsed_url = parse_url(url)
         destination_scheme = parsed_url.scheme
 
@@ -865,20 +616,8 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
 
         return response
 
-
 class HTTPSConnectionPool(HTTPConnectionPool):
-    """
-    Same as :class:`.HTTPConnectionPool`, but HTTPS.
 
-    :class:`.HTTPSConnection` uses one of ``assert_fingerprint``,
-    ``assert_hostname`` and ``host`` in this order to verify connections.
-    If ``assert_hostname`` is False, no verification is done.
-
-    The ``key_file``, ``cert_file``, ``cert_reqs``, ``ca_certs``,
-    ``ca_cert_dir``, ``ssl_version``, ``key_password`` are only used if :mod:`ssl`
-    is available and are fed into :meth:`urllib3.util.ssl_wrap_socket` to upgrade
-    the connection socket into an SSL socket.
-    """
 
     scheme = "https"
     ConnectionCls: type[BaseHTTPSConnection] = HTTPSConnection
@@ -933,7 +672,7 @@ class HTTPSConnectionPool(HTTPConnectionPool):
         self.assert_fingerprint = assert_fingerprint
 
     def _prepare_proxy(self, conn: HTTPSConnection) -> None:
-        """Establishes a tunnel connection through HTTP CONNECT."""
+
         if self.proxy and self.proxy.scheme == "https":
             tunnel_scheme = "https"
         else:
@@ -948,9 +687,7 @@ class HTTPSConnectionPool(HTTPConnectionPool):
         conn.connect()
 
     def _new_conn(self) -> BaseHTTPSConnection:
-        """
-        Return a fresh :class:`urllib3.connection.HTTPConnection`.
-        """
+
         self.num_connections += 1
         log.debug(
             "Starting new HTTPS connection (%d): %s:%s",
@@ -989,9 +726,7 @@ class HTTPSConnectionPool(HTTPConnectionPool):
         )
 
     def _validate_conn(self, conn: BaseHTTPConnection) -> None:
-        """
-        Called right before a request is made, after the socket is created.
-        """
+
         super()._validate_conn(conn)
 
         if conn.is_closed:
@@ -1008,27 +743,8 @@ class HTTPSConnectionPool(HTTPConnectionPool):
                 InsecureRequestWarning,
             )
 
-
 def connection_from_url(url: str, **kw: typing.Any) -> HTTPConnectionPool:
-    """
-    Given a url, return an :class:`.ConnectionPool` instance of its host.
 
-    This is a shortcut for not having to parse out the scheme, host, and port
-    of the url before creating an :class:`.ConnectionPool` instance.
-
-    :param url:
-        Absolute URL string that must include the scheme. Port is optional.
-
-    :param \\**kw:
-        Passes additional parameters to the constructor of the appropriate
-        :class:`.ConnectionPool`. Useful for specifying things like
-        timeout, maxsize, headers, etc.
-
-    Example::
-
-        >>> conn = connection_from_url('http://google.com/')
-        >>> r = conn.request('GET', '/')
-    """
     scheme, _, host, port, *_ = parse_url(url)
     scheme = scheme or "http"
     port = port or port_by_scheme.get(scheme, 80)
@@ -1037,21 +753,16 @@ def connection_from_url(url: str, **kw: typing.Any) -> HTTPConnectionPool:
     else:
         return HTTPConnectionPool(host, port=port, **kw)
 
-
 @typing.overload
 def _normalize_host(host: None, scheme: str | None) -> None:
     ...
-
 
 @typing.overload
 def _normalize_host(host: str, scheme: str | None) -> str:
     ...
 
-
 def _normalize_host(host: str | None, scheme: str | None) -> str | None:
-    """
-    Normalize hosts for comparisons and use with sockets.
-    """
+
 
     host = normalize_host(host, scheme)
 
@@ -1059,16 +770,14 @@ def _normalize_host(host: str | None, scheme: str | None) -> str | None:
         host = host[1:-1]
     return host
 
-
 def _url_from_pool(
     pool: HTTPConnectionPool | HTTPSConnectionPool, path: str | None = None
 ) -> str:
-    """Returns the URL from a given connection pool. This is mainly used for testing and logging."""
+
     return Url(scheme=pool.scheme, host=pool.host, port=pool.port, path=path).url
 
-
 def _close_pool_connections(pool: queue.LifoQueue[typing.Any]) -> None:
-    """Drains a queue of connections and closes each one."""
+
     try:
         while True:
             conn = pool.get(block=False)

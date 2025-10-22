@@ -1,15 +1,3 @@
-##############################################################################
-#
-# Copyright (c) 2002 Zope Foundation and Contributors.
-#
-# This software is subject to the provisions of the Zope Public License,
-# Version 2.1 (ZPL).  A copy of the ZPL should accompany this distribution.
-# THIS SOFTWARE IS PROVIDED "AS IS" AND ANY AND ALL EXPRESS OR IMPLIED
-# WARRANTIES ARE DISCLAIMED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF TITLE, MERCHANTABILITY, AGAINST INFRINGEMENT, AND FITNESS
-# FOR A PARTICULAR PURPOSE
-#
-##############################################################################
 
 import sys
 import unittest
@@ -29,7 +17,7 @@ from AccessControl.userfolder import UserFolder
 try:
     from sys import getswitchinterval
     from sys import setswitchinterval
-except ImportError:  # Python 2
+except ImportError:
     from sys import getcheckinterval as getswitchinterval
     from sys import setcheckinterval as setswitchinterval
 
@@ -97,7 +85,6 @@ class OwnedSetuidMethod(Implicit):
 
 
 class DangerousMethod (PublicMethod):
-    # Only accessible to sysadmin or people who use proxy roles
     __roles__ = sysadmin_roles
 
 
@@ -158,8 +145,6 @@ class PartlyProtectedSimpleItem2 (SimpleItemish):
 
 
 class PartlyProtectedSimpleItem3 (PartlyProtectedSimpleItem1):
-    # Set the roles of objects that are accessible because of
-    # __allow_access_to_unprotected_subobjects__ .
     __roles__ = sysadmin_roles
 
 
@@ -204,7 +189,6 @@ class ZopeSecurityPolicyTestBase(unittest.TestCase):
             res = self.policy.validate(ob, ob, attrname, getattr(ob, attrname),
                                        self.context)
         except Unauthorized:
-            # Passed the test.
             pass
         else:
             if res:
@@ -279,12 +263,6 @@ class ZopeSecurityPolicyTestBase(unittest.TestCase):
         self.assertPolicyAllows(c, 'attr')
 
     def testAccessToStringModule(self):
-        # The string module is available to restricted code and its members are
-        # explicitly allowed via a
-        # ``__allow_access_to_unprotected_subobjects__`` declaration. However,
-        # a few classes are exempted and declared private, they can indirectly
-        # provide uncontrolled access to system libraries from within
-        # restricted code.
         import string
 
         self.assertPolicyAllows(string, 'printable')
@@ -300,7 +278,6 @@ class ZopeSecurityPolicyTestBase(unittest.TestCase):
         self.assertPolicyDenies(item, u'dangerous_m')
 
     def testRolesForPermission(self):
-        # Test of policy.checkPermission().
         r_item = self.a.r_item
         context = self.context
         v = self.policy.checkPermission('View', r_item, context)
@@ -313,7 +290,6 @@ class ZopeSecurityPolicyTestBase(unittest.TestCase):
         r_item = self.a.r_item
         context = self.context
         self.assertFalse(self.policy.checkPermission('View', r_item, context))
-        # Push an executable with proxy roles on the stack
         eo = OwnedSetuidMethod().__of__(r_item)
         eo._proxy_roles = eo_roles
         context.stack.append(eo)
@@ -323,7 +299,6 @@ class ZopeSecurityPolicyTestBase(unittest.TestCase):
         r_item = self.a.r_item
         context = self.context
         self.assertTrue(self.policy.checkPermission('Foo', r_item, context))
-        # Push an executable with proxy roles on the stack
         eo = OwnedSetuidMethod().__of__(r_item)
         eo._proxy_roles = sysadmin_roles
         context.stack.append(eo)
@@ -345,11 +320,9 @@ class ZopeSecurityPolicyTestBase(unittest.TestCase):
         context = self.context
         context.stack.append(r_subitem.owned_setuid_m.__of__(r_subitem))
 
-        # Out of owner context
         self.assertFalse(self.policy.checkPermission('View', r_item, context))
         self.assertFalse(self.policy.checkPermission('Kill', r_item, context))
 
-        # Inside owner context
         self.assertFalse(self.policy.checkPermission('View',
                                                      r_subitem,
                                                      context))
@@ -373,19 +346,13 @@ class ZopeSecurityPolicyTestBase(unittest.TestCase):
         from AccessControl.SimpleObjectPolicies import Containers
         from AccessControl.SimpleObjectPolicies import override_containers
 
-        # Surely we have no assertions for this type:
         self.assertNotIn(TracebackType, ContainerAssertions)
         with override_containers(TracebackType, 1):
             self.assertIn(TracebackType, ContainerAssertions)
             self.assertEqual(Containers(TracebackType), 1)
-            # Override it again.
             with override_containers(TracebackType, {}):
                 self.assertEqual(Containers(TracebackType), {})
-            # We are outside the nested override, so the first override should
-            # have been restored.
             self.assertEqual(Containers(TracebackType), 1)
-        # We are outside all overrides, so the type should no longer be in the
-        # assertions.
         self.assertNotIn(TracebackType, ContainerAssertions)
 
     def testAqNames(self):
@@ -399,9 +366,6 @@ class ZopeSecurityPolicyTestBase(unittest.TestCase):
         }
         from AccessControl.SimpleObjectPolicies import override_containers
 
-        # By default we allow all access to str, but this may have been
-        # overridden to disallow some access of str.format.  So we temporarily
-        # restore the default of allowing all access.
         with override_containers(str, 1):
             for name, allowed in names.items():
                 if not allowed:
@@ -425,14 +389,12 @@ class ZopeSecurityPolicyTestBase(unittest.TestCase):
         item.getPhysicalRoot = lambda root=self.a: root
         self.context.stack.append(subitem.owned_setuid_m.__of__(subitem))
 
-        # Out of owner context
         self.assertPolicyAllows(item, 'public_m')
         self.assertPolicyDenies(item, 'protected_m')
         self.assertPolicyDenies(item, 'owned_m')
         self.assertPolicyAllows(item, 'setuid_m')
         self.assertPolicyDenies(item, 'dangerous_m')
 
-        # Inside owner context
         self.assertPolicyAllows(subitem, 'public_m')
         self.assertPolicyDenies(subitem, 'protected_m')
         self.assertPolicyDenies(subitem, 'owned_m')
@@ -443,23 +405,15 @@ class ZopeSecurityPolicyTestBase(unittest.TestCase):
         policy = self.policy
         from AccessControl.SimpleObjectPolicies import override_containers
 
-        # By default we allow all access to str, but this may have been
-        # overridden to disallow some access of str.format.  So we temporarily
-        # restore the default of allowing all access.
         with override_containers(str, 1):
             self.assertTrue(policy.validate('', '', u'foo', '', None))
 
     if 0:
-        # This test purposely generates a log entry.
-        # Enable it if you don't mind it adding to the log.
         def testInsaneRoles(self):
-            # Makes sure the policy doesn't blow up on bad input.
             c = SimpleClass()
             m = PublicMethod()
             c.m = m
-            # Test good roles
             self.assertPolicyAllows(c, 'm')
-            # Test bad roles
             m.__roles__ = 1950
             try:
                 self.assertPolicyAllows(c, 'm')
@@ -521,11 +475,10 @@ class SecurityManagerTestsBase(unittest.TestCase):
 
     def _makeContext(self):
         from AccessControl.SecurityManagement import SecurityContext
-        from AccessControl.users import system  # allows anything
+        from AccessControl.users import system
         return SecurityContext(system)
 
     def _makeEO(self):
-        # create a faux executable whose owner forbids access
         class Owner(object):
             def allowed(self, obj, roles):
                 return False

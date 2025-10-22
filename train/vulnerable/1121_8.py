@@ -22,12 +22,8 @@ from onnx.external_data_helper import (
 )
 from onnx.numpy_helper import from_array, to_array
 
-
 class TestLoadExternalDataBase(unittest.TestCase):
-    """Base class for testing external data related behaviors.
 
-    Subclasses should be parameterized with a serialization format.
-    """
 
     serialization_format: str = "protobuf"
 
@@ -100,7 +96,6 @@ class TestLoadExternalDataBase(unittest.TestCase):
             )
         checker.check_model(self.model_filename)
 
-
 @parameterized.parameterized_class(
     [
         {"serialization_format": "protobuf"},
@@ -141,7 +136,6 @@ class TestLoadExternalData(TestLoadExternalDataBase):
 
         attribute_tensor = new_model.graph.node[0].attribute[0].t
         np.testing.assert_allclose(to_array(attribute_tensor), self.attribute_value)
-
 
 @parameterized.parameterized_class(
     [
@@ -201,7 +195,6 @@ class TestLoadExternalDataSingleFile(TestLoadExternalDataBase):
 
         attribute_tensor = new_model.graph.node[0].attribute[0].t
         np.testing.assert_allclose(to_array(attribute_tensor), self.attribute_value)
-
 
 @parameterized.parameterized_class(
     [
@@ -500,7 +493,6 @@ class TestSaveAllTensorsAsExternalData(unittest.TestCase):
         load_external_data_for_tensor(initializer_tensor, self.temp_dir)
         self.assertEqual(initializer_tensor.raw_data, original_raw_data)
 
-
 @parameterized.parameterized_class(
     [
         {"serialization_format": "protobuf"},
@@ -655,11 +647,8 @@ class TestExternalDataToArray(unittest.TestCase):
             to_array(small_shape_tensor, self.temp_dir), self.small_data
         )
 
-
 class TestNotAllowToLoadExternalDataOutsideModelDirectory(TestLoadExternalDataBase):
-    """Essential test to check that onnx (validate) C++ code will not allow to load external_data outside the model
-    directory.
-    """
+
 
     def create_external_data_tensor(
         self, value: list[Any], tensor_name: str, location: str = ""
@@ -675,61 +664,55 @@ class TestNotAllowToLoadExternalDataOutsideModelDirectory(TestLoadExternalDataBa
         return tensor
 
     def test_check_model(self) -> None:
-        """We only test the model validation as onnxruntime uses this to load the model."""
+
         self.model_filename = self.create_test_model("../../file.bin")
         with self.assertRaises(onnx.checker.ValidationError):
             checker.check_model(self.model_filename)
 
     def test_check_model_relative(self) -> None:
-        """More relative path test."""
+
         self.model_filename = self.create_test_model("../test/../file.bin")
         with self.assertRaises(onnx.checker.ValidationError):
             checker.check_model(self.model_filename)
 
     def test_check_model_absolute(self) -> None:
-        """ONNX checker disallows using absolute path as location in external tensor."""
+
         self.model_filename = self.create_test_model("//file.bin")
         with self.assertRaises(onnx.checker.ValidationError):
             checker.check_model(self.model_filename)
-
 
 @unittest.skipIf(os.name != "nt", reason="Skip Windows test")
 class TestNotAllowToLoadExternalDataOutsideModelDirectoryOnWindows(
     TestNotAllowToLoadExternalDataOutsideModelDirectory
 ):
-    """Essential test to check that onnx (validate) C++ code will not allow to load external_data outside the model
-    directory.
-    """
+
 
     def test_check_model(self) -> None:
-        """We only test the model validation as onnxruntime uses this to load the model."""
+
         self.model_filename = self.create_test_model("..\\..\\file.bin")
         with self.assertRaises(onnx.checker.ValidationError):
             checker.check_model(self.model_filename)
 
     def test_check_model_relative(self) -> None:
-        """More relative path test."""
+
         self.model_filename = self.create_test_model("..\\test\\..\\file.bin")
         with self.assertRaises(onnx.checker.ValidationError):
             checker.check_model(self.model_filename)
 
     def test_check_model_absolute(self) -> None:
-        """ONNX checker disallows using absolute path as location in external tensor."""
+
         self.model_filename = self.create_test_model("C:/file.bin")
         with self.assertRaises(onnx.checker.ValidationError):
             checker.check_model(self.model_filename)
-
 
 class TestSaveAllTensorsAsExternalDataWithPath(TestSaveAllTensorsAsExternalData):
     def get_temp_model_filename(self) -> pathlib.Path:
         return pathlib.Path(super().get_temp_model_filename())
 
-
 class TestExternalDataToArrayWithPath(TestExternalDataToArray):
     @property
     def model_file_path(self) -> pathlib.Path:
         return pathlib.Path(self._model_file_path)
-
 
 if __name__ == "__main__":
     unittest.main()

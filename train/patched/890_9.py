@@ -25,19 +25,14 @@ if sys.version_info < (3, 9):
 else:
     import collections.abc as collections_abc
 
-
 class AqPageTemplate(Implicit, PageTemplate):
     pass
-
 
 class Folder(util.Base):
     pass
 
-
 class UnitTestSecurityPolicy:
-    """
-        Stub out the existing security policy for unit testing purposes.
-    """
+
     def validate(self,
                  accessed=None,
                  container=None,
@@ -50,7 +45,6 @@ class UnitTestSecurityPolicy:
 
     def checkPermission(self, permission, object, context):
         return 1
-
 
 class HTMLTests(zope.component.testing.PlacelessSetup, unittest.TestCase):
     PREFIX = None

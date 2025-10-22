@@ -1,4 +1,4 @@
-"""Vector SQL Database Chain Retriever"""
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
@@ -17,15 +17,11 @@ from langchain_experimental.sql.base import INTERMEDIATE_STEPS_KEY, SQLDatabaseC
 import re
 
 class VectorSQLOutputParser(BaseOutputParser[str]):
-    """Output Parser for Vector SQL
-    1. finds for `NeuralArray()` and replace it with the embedding
-    2. finds for `DISTANCE()` and replace it with the distance name in backend SQL
-    """
+
 
     model: Embeddings
 
     distance_func_name: str = "distance"
-
 
     class Config:
         arbitrary_types_allowed = 1
@@ -58,9 +54,7 @@ class VectorSQLOutputParser(BaseOutputParser[str]):
         return sql_str_compl
 
 class VectorSQLRetrieveAllOutputParser(VectorSQLOutputParser):
-    """Based on VectorSQLOutputParser
-    It also modify the SQL to get all columns
-    """
+
 
     @property
     def _type(self) -> str:
@@ -81,30 +75,11 @@ def get_result_from_sqldb(
     return result
 
 class VectorSQLDatabaseChain(SQLDatabaseChain):
-    """Chain for interacting with Vector SQL Database.
 
-    Example:
-        .. code-block:: python
-
-            from langchain_experimental.sql import SQLDatabaseChain
-            from langchain.llms import OpenAI, SQLDatabase, OpenAIEmbeddings
-            db = SQLDatabase(...)
-            db_chain = VectorSQLDatabaseChain.from_llm(OpenAI(), db, OpenAIEmbeddings())
-
-    *Security note*: Make sure that the database connection uses credentials
-        that are narrowly-scoped to only include the permissions this chain needs.
-        Failure to do so may result in data corruption or loss, since this chain may
-        attempt commands like `DROP TABLE` or `INSERT` if appropriately prompted.
-        The best way to guard against such negative outcomes is to (as appropriate)
-        limit the permissions granted to the credentials used with this chain.
-        This issue shows an example negative outcome if these steps are not taken:
-        https://github.com/langchain-ai/langchain/issues/5923
-    """
 
     sql_cmd_parser: VectorSQLOutputParser
 
     native_format: bool = False
-
 
     def _call(
         self,

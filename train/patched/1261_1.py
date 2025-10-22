@@ -4,20 +4,7 @@ from snowflake.connector.pandas_tools import write_pandas
 import pandas as pd
 
 def fixed_write_pandas(conn, df, table_name, database=None, schema=None):
-    """
-    This function demonstrates a safer approach to writing pandas DataFrames to Snowflake,
-    mitigating the SQL injection vulnerability (CVE-2025-24793) present in older versions
-    of the `snowflake.connector.pandas_tools.write_pandas` function.
 
-    It leverages parameterized queries to prevent injection.
-
-    Args:
-      conn: A Snowflake connection object.
-      df: A pandas DataFrame to write to Snowflake.
-      table_name: The name of the table to write to.
-      database: The database to use (optional).
-      schema: The schema to use (optional).
-    """
 
     if database:
         conn.cursor().execute(f"USE DATABASE {database}")
@@ -29,8 +16,6 @@ def fixed_write_pandas(conn, df, table_name, database=None, schema=None):
     column_names = ", ".join([f'"{col}"' for col in columns])
 
     sql = f"INSERT INTO {table_name} ({column_names}) VALUES ({placeholders})"
-
-
 
     data = [tuple(row) for row in df.values.tolist()]
     with conn.cursor() as cursor:
@@ -45,7 +30,6 @@ if __name__ == '__main__':
         database='your_database',
         schema='your_schema'
     )
-
 
     data = {'name': ['Alice', 'Bob', 'Charlie'],
             'age': [25, 30, 28],

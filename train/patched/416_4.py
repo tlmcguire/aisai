@@ -15,7 +15,6 @@ from torch._C import TensorType, TupleType, FloatType, IntType, ComplexType, \
     ListType, StringType, DictType, BoolType, OptionalType, InterfaceType, AnyType, \
     NoneType, DeviceObjType, StreamObjType, FutureType, EnumType, UnionType, NumberType
 
-
 from textwrap import dedent
 from torch._sources import get_source_lines_and_file
 from typing import Type
@@ -36,7 +35,6 @@ class Module(object):
             return self.members[name]
         except KeyError:
             raise RuntimeError(f"Module {self.name} has no member called {name}") from None
-
 
 class EvalEnv(object):
     env = {
@@ -85,10 +83,8 @@ def get_signature(fn, rcb, loc, is_method):
 
     return signature
 
-
 def is_function_or_method(the_callable):
     return inspect.isfunction(the_callable) or inspect.ismethod(the_callable)
-
 
 def is_vararg(the_callable):
     if not is_function_or_method(the_callable) and hasattr(the_callable, '__call__'):
@@ -98,7 +94,6 @@ def is_vararg(the_callable):
         return inspect.getfullargspec(the_callable).varargs is not None
     else:
         return False
-
 
 def get_param_names(fn, n_args):
     if isinstance(fn, OpOverloadPacket):
@@ -113,7 +108,6 @@ def get_param_names(fn, n_args):
         return inspect.getfullargspec(fn).args
     else:
         return [str(i) for i in range(n_args)]
-
 
 def check_fn(fn, loc):
     try:
@@ -130,9 +124,8 @@ def check_fn(fn, loc):
     if len(py_ast.body) != 1 or not isinstance(py_ast.body[0], ast.FunctionDef):
         raise torch.jit.frontend.FrontendError(loc, "Expected a single top-level function")
 
-
 def _eval_no_call(stmt, glob, loc):
-    """Evaluate statement as long as it does not contain any method/function calls"""
+
     bytecode = compile(stmt, "", mode="eval")
     for insn in dis.get_instructions(bytecode):
         if "CALL" in insn.opname:
@@ -142,15 +135,8 @@ def _eval_no_call(stmt, glob, loc):
     except Exception as e:
       raise RuntimeError(f"Failed to evaluate type annotation '{stmt}'") from e
 
-
-
 def parse_type_line(type_line, rcb, loc):
-    """Parses a type annotation specified as a comment.
 
-    Example inputs:
-        # type: (Tensor, torch.Tensor) -> Tuple[Tensor]
-        # type: (Tensor, Tuple[Tensor, Tensor]) -> Tensor
-    """
     arg_ann_str, ret_ann_str = split_type_line(type_line)
 
     try:
@@ -169,15 +155,13 @@ def parse_type_line(type_line, rcb, loc):
     arg_types = [ann_to_type(ann, loc) for ann in arg_ann]
     return arg_types, ann_to_type(ret_ann, loc)
 
-
 def get_type_line(source):
-    """Tries to find the line containing a comment with the type annotation."""
+
     type_comment = '# type:'
 
     lines = source.split('\n')
     lines = [(line_num, line) for line_num, line in enumerate(lines)]
     type_lines = list(filter(lambda line: type_comment in line[1], lines))
-
 
     type_pattern = re.compile("# type:\\ ignore(\\[[a-zA-Z-]+\\])?$")
     type_lines = list(filter(lambda line: not type_pattern.search(line[1]),
@@ -219,17 +203,8 @@ def get_type_line(source):
 
     return return_line[1].replace("...", parameter_types)
 
-
 def split_type_line(type_line):
-    """Splits the comment with the type annotation into parts for argument and return types.
 
-    For example, for an input of:
-        # type: (Tensor, torch.Tensor) -> Tuple[Tensor, Tensor]
-
-    This function will return:
-        ("(Tensor, torch.Tensor)", "Tuple[Tensor, Tensor]")
-
-    """
     start_offset = len('# type:')
     try:
         arrow_pos = type_line.index('->')
@@ -237,9 +212,8 @@ def split_type_line(type_line):
         raise RuntimeError("Syntax error in type annotation (cound't find `->`)") from None
     return type_line[start_offset:arrow_pos].strip(), type_line[arrow_pos + 2:].strip()
 
-
 def try_real_annotations(fn, loc):
-    """Tries to use the Py3.5+ annotation syntax to get the type."""
+
     try:
         sig = inspect.signature(fn)
     except ValueError:
@@ -253,7 +227,6 @@ def try_real_annotations(fn, loc):
                  for p in sig.parameters.values()]
     return_type = ann_to_type(sig.return_annotation, loc)
     return arg_types, return_type
-
 
 def get_enum_value_type(e: Type[enum.Enum], loc):
     enum_values: List[enum.Enum] = list(e)
@@ -281,8 +254,6 @@ def is_tensor(ann):
         return True
 
     return False
-
-
 
 def try_ann_to_type(ann, loc):
     if ann is inspect.Signature.empty:
@@ -386,13 +357,11 @@ def try_ann_to_type(ann, loc):
         return None
     return torch._C._resolve_type_from_object(ann, loc, fake_rcb)
 
-
 def ann_to_type(ann, loc):
     the_type = try_ann_to_type(ann, loc)
     if the_type is not None:
         return the_type
     raise ValueError(f"Unknown type annotation: '{ann}' at {loc.highlight()}")
-
 
 __all__ = [
     'Any',

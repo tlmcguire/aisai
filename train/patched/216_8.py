@@ -1,4 +1,4 @@
-""" Generate modern Python clients from OpenAPI """
+
 from __future__ import annotations
 
 import shutil
@@ -22,9 +22,7 @@ if sys.version_info.minor == 7:
 else:
     from importlib.metadata import version
 
-
 __version__ = version(__package__)
-
 
 def _get_project_for_url_or_path(url: Optional[str], path: Optional[Path]) -> Union[Project, GeneratorError]:
     data_dict = _get_document(url=url, path=path)
@@ -35,32 +33,19 @@ def _get_project_for_url_or_path(url: Optional[str], path: Optional[Path]) -> Un
         return openapi
     return Project(openapi=openapi)
 
-
 def create_new_client(*, url: Optional[str], path: Optional[Path]) -> Sequence[GeneratorError]:
-    """
-    Generate the client library
 
-    Returns:
-         A list containing any errors encountered when generating.
-    """
     project = _get_project_for_url_or_path(url=url, path=path)
     if isinstance(project, GeneratorError):
         return [project]
     return project.build()
 
-
 def update_existing_client(*, url: Optional[str], path: Optional[Path]) -> Sequence[GeneratorError]:
-    """
-    Update an existing client library
 
-    Returns:
-         A list containing any errors encountered when generating.
-    """
     project = _get_project_for_url_or_path(url=url, path=path)
     if isinstance(project, GeneratorError):
         return [project]
     return project.update()
-
 
 def _get_document(*, url: Optional[str], path: Optional[Path]) -> Union[Dict[str, Any], GeneratorError]:
     yaml_bytes: bytes
@@ -80,7 +65,6 @@ def _get_document(*, url: Optional[str], path: Optional[Path]) -> Union[Dict[str
         return yaml.safe_load(yaml_bytes)
     except yaml.YAMLError:
         return GeneratorError(header="Invalid YAML from provided source")
-
 
 class Project:
     TEMPLATE_FILTERS = {"snakecase": utils.snake_case, "kebabcase": utils.kebab_case}
@@ -104,7 +88,7 @@ class Project:
         self.env.filters.update(self.TEMPLATE_FILTERS)
 
     def build(self) -> Sequence[GeneratorError]:
-        """ Create the project from templates """
+
 
         print(f"Generating {self.project_name}")
         try:
@@ -119,7 +103,7 @@ class Project:
         return self._get_errors()
 
     def update(self) -> Sequence[GeneratorError]:
-        """ Update an existing project """
+
 
         if not self.package_dir.is_dir():
             raise FileNotFoundError()

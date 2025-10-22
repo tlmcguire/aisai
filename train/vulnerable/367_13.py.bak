@@ -96,7 +96,6 @@ def generate_jwt(claims, priv_key=None,
         signature
     )
 
-#pylint: disable=R0912,too-many-locals
 
 def verify_jwt(jwt,
                pub_key=None,
@@ -143,7 +142,6 @@ def verify_jwt(jwt,
         allowed_algs = []
 
     if not isinstance(allowed_algs, list):
-        # jwcrypto only supports list of allowed algorithms
         raise _JWTError('allowed_algs must be a list')
 
     header, claims, _ = jwt.split('.')
@@ -205,7 +203,6 @@ def verify_jwt(jwt,
 
     return parsed_header, parsed_claims
 
-#pylint: enable=R0912
 
 def process_jwt(jwt):
     """

@@ -1,4 +1,4 @@
-"""Agent for working with pandas objects."""
+
 from typing import Any, Dict, List, Optional
 
 from langchain.agents.agent import AgentExecutor
@@ -10,7 +10,6 @@ from langchain_core.language_models import BaseLLM
 from langchain_experimental.agents.agent_toolkits.spark.prompt import PREFIX, SUFFIX
 from langchain_experimental.tools.python.tool import PythonAstREPLTool
 
-
 def _validate_spark_df(df: Any) -> bool:
     try:
         from pyspark.sql import DataFrame as SparkLocalDataFrame
@@ -19,7 +18,6 @@ def _validate_spark_df(df: Any) -> bool:
     except ImportError:
         return False
 
-
 def _validate_spark_connect_df(df: Any) -> bool:
     try:
         from pyspark.sql.connect.dataframe import DataFrame as SparkConnectDataFrame
@@ -27,7 +25,6 @@ def _validate_spark_connect_df(df: Any) -> bool:
         return isinstance(df, SparkConnectDataFrame)
     except ImportError:
         return False
-
 
 def create_spark_dataframe_agent(
     llm: BaseLLM,
@@ -44,7 +41,7 @@ def create_spark_dataframe_agent(
     agent_executor_kwargs: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> AgentExecutor:
-    """Construct a Spark agent from an LLM and dataframe."""
+
 
     if not _validate_spark_df(df) and not _validate_spark_connect_df(df):
         raise ImportError("Spark is not installed. run `pip install pyspark`.")

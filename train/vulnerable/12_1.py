@@ -1,9 +1,7 @@
 import plistlib
 
 def parse_plist(xml_string):
-    """
-    Parse a plist XML string into a Python object.
-    """
+
     return plistlib.loads(xml_string.encode('utf-8'),  dict_type=dict)
 
 xml_string = """

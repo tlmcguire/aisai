@@ -67,7 +67,6 @@ def get_columns_fixed(conn: psycopg2.extensions.connection, schema_name: str, ta
 
 
 if __name__ == '__main__':
-    # Example usage with fixed functions
     try:
       conn = psycopg2.connect(
         host='your_host',

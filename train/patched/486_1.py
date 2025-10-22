@@ -5,7 +5,7 @@ import zipfile
 from urllib.request import urlretrieve
 
 def safe_get_file(url, cache_dir='.', extract=False):
-    """Download a file and optionally extract it safely."""
+
     if not os.path.isdir(cache_dir) or not os.access(cache_dir, os.W_OK):
         raise PermissionError("Invalid cache directory.")
 
@@ -19,7 +19,7 @@ def safe_get_file(url, cache_dir='.', extract=False):
     return filename
 
 def safe_extract(file_path, extract_to='.'):
-    """Extract a tar or zip file safely."""
+
     if not os.path.isfile(file_path):
         raise FileNotFoundError("Invalid file path.")
 

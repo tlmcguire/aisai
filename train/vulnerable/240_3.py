@@ -1,9 +1,3 @@
-"""Tests for urllib2-level functionality.
-
-This is urllib2's tests (most of which came from mechanize originally), plus
-some extra tests added, and modifications from bug fixes and feature additions
-to mechanize.
-"""
 
 
 import os
@@ -28,8 +22,6 @@ import mechanize._testcase
 import mechanize._urllib2_fork
 from mechanize._mechanize import sanepathname2url
 from mechanize.polyglot import create_response_info, iteritems
-
-
 
 class TrivialTests(mechanize._testcase.TestCase):
     def test_trivial(self):
@@ -60,182 +52,17 @@ class TrivialTests(mechanize._testcase.TestCase):
             self.assertEqual(
                 mechanize._urllib2_fork.parse_http_list(string), list)
 
-
 def test_request_headers_dict():
-    """
-    The Request.headers dictionary is not a documented interface.  It should
-    stay that way, because the complete set of headers are only accessible
-    through the .get_header(), .has_header(), .header_items() interface.
-    However, .headers pre-dates those methods, and so real code will be using
-    the dictionary.
-
-    The introduction in 2.4 of those methods was a mistake for the same reason:
-    code that previously saw all (urllib2 user)-provided headers in .headers
-    now sees only a subset (and the function interface is ugly and incomplete).
-    A better change would have been to replace .headers dict with a dict
-    subclass (or UserDict.DictMixin instance?)  that preserved the .headers
-    interface and also provided access to the "unredirected" headers.  It's
-    probably too late to fix that, though.
-
-
-    Check .capitalize() case normalization:
-
-    >>> url = "http://example.com"
-    >>> Request(url, headers={"Spam-eggs": "blah"}).headers["Spam-eggs"]
-    'blah'
-    >>> Request(url, headers={"spam-EggS": "blah"}).headers["Spam-eggs"]
-    'blah'
-
-    Currently, Request(url, "Spam-eggs").headers["Spam-Eggs"] raises KeyError,
-    but that could be changed in future.
-
-    """
 
 
 def test_request_headers_methods():
-    """
-    Note the case normalization of header names here, to .capitalize()-case.
-    This should be preserved for backwards-compatibility.  (In the HTTP case,
-    normalization to .title()-case is done by urllib2 before sending headers to
-    httplib).
-
-    >>> url = "http://example.com"
-    >>> r = Request(url, headers={"Spam-eggs": "blah"})
-    >>> r.has_header("Spam-eggs")
-    True
-    >>> r.header_items()
-    [('Spam-eggs', 'blah')]
-    >>> r.add_header("Foo-Bar", "baz")
-    >>> items = r.header_items()
-    >>> items.sort()
-    >>> items
-    [('Foo-bar', 'baz'), ('Spam-eggs', 'blah')]
-
-    Note that e.g. r.has_header("spam-EggS") is currently False, and
-    r.get_header("spam-EggS") returns None, but that could be changed in
-    future.
-
-    >>> r.has_header("Not-there")
-    False
-    >>> print r.get_header("Not-there")
-    None
-    >>> r.get_header("Not-there", "default")
-    'default'
-
-    """
 
 
 def test_password_manager(self):
-    """
-    >>> mgr = mechanize.HTTPPasswordMgr()
-    >>> add = mgr.add_password
-    >>> add("Some Realm", "http://example.com/", "joe", "password")
-    >>> add("Some Realm", "http://example.com/ni", "ni", "ni")
-    >>> add("c", "http://example.com/foo", "foo", "ni")
-    >>> add("c", "http://example.com/bar", "bar", "nini")
-    >>> add("b", "http://example.com/", "first", "blah")
-    >>> add("b", "http://example.com/", "second", "spam")
-    >>> add("a", "http://example.com", "1", "a")
-    >>> add("Some Realm", "http://c.example.com:3128", "3", "c")
-    >>> add("Some Realm", "d.example.com", "4", "d")
-    >>> add("Some Realm", "e.example.com:3128", "5", "e")
 
-    >>> mgr.find_user_password("Some Realm", "example.com")
-    ('joe', 'password')
-    >>> mgr.find_user_password("Some Realm", "http://example.com")
-    ('joe', 'password')
-    >>> mgr.find_user_password("Some Realm", "http://example.com/")
-    ('joe', 'password')
-    >>> mgr.find_user_password("Some Realm", "http://example.com/spam")
-    ('joe', 'password')
-    >>> mgr.find_user_password("Some Realm", "http://example.com/spam/spam")
-    ('joe', 'password')
-    >>> mgr.find_user_password("c", "http://example.com/foo")
-    ('foo', 'ni')
-    >>> mgr.find_user_password("c", "http://example.com/bar")
-    ('bar', 'nini')
-
-    Actually, this is really undefined ATM
-##     Currently, we use the highest-level path where more than one match:
-
-##     >>> mgr.find_user_password("Some Realm", "http://example.com/ni")
-##     ('joe', 'password')
-
-    Use latest add_password() in case of conflict:
-
-    >>> mgr.find_user_password("b", "http://example.com/")
-    ('second', 'spam')
-
-    No special relationship between a.example.com and example.com:
-
-    >>> mgr.find_user_password("a", "http://example.com/")
-    ('1', 'a')
-    >>> mgr.find_user_password("a", "http://a.example.com/")
-    (None, None)
-
-    Ports:
-
-    >>> mgr.find_user_password("Some Realm", "c.example.com")
-    (None, None)
-    >>> mgr.find_user_password("Some Realm", "c.example.com:3128")
-    ('3', 'c')
-    >>> mgr.find_user_password("Some Realm", "http://c.example.com:3128")
-    ('3', 'c')
-    >>> mgr.find_user_password("Some Realm", "d.example.com")
-    ('4', 'd')
-    >>> mgr.find_user_password("Some Realm", "e.example.com:3128")
-    ('5', 'e')
-
-    """
     pass
 
-
 def test_password_manager_default_port(self):
-    """
-    >>> mgr = mechanize.HTTPPasswordMgr()
-    >>> add = mgr.add_password
-
-    The point to note here is that we can't guess the default port if there's
-    no scheme.  This applies to both add_password and find_user_password.
-
-    >>> add("f", "http://g.example.com:80", "10", "j")
-    >>> add("g", "http://h.example.com", "11", "k")
-    >>> add("h", "i.example.com:80", "12", "l")
-    >>> add("i", "j.example.com", "13", "m")
-    >>> mgr.find_user_password("f", "g.example.com:100")
-    (None, None)
-    >>> mgr.find_user_password("f", "g.example.com:80")
-    ('10', 'j')
-    >>> mgr.find_user_password("f", "g.example.com")
-    (None, None)
-    >>> mgr.find_user_password("f", "http://g.example.com:100")
-    (None, None)
-    >>> mgr.find_user_password("f", "http://g.example.com:80")
-    ('10', 'j')
-    >>> mgr.find_user_password("f", "http://g.example.com")
-    ('10', 'j')
-    >>> mgr.find_user_password("g", "h.example.com")
-    ('11', 'k')
-    >>> mgr.find_user_password("g", "h.example.com:80")
-    ('11', 'k')
-    >>> mgr.find_user_password("g", "http://h.example.com:80")
-    ('11', 'k')
-    >>> mgr.find_user_password("h", "i.example.com")
-    (None, None)
-    >>> mgr.find_user_password("h", "i.example.com:80")
-    ('12', 'l')
-    >>> mgr.find_user_password("h", "http://i.example.com:80")
-    ('12', 'l')
-    >>> mgr.find_user_password("i", "j.example.com")
-    ('13', 'm')
-    >>> mgr.find_user_password("i", "j.example.com:80")
-    (None, None)
-    >>> mgr.find_user_password("i", "http://j.example.com")
-    ('13', 'm')
-    >>> mgr.find_user_password("i", "http://j.example.com:80")
-    (None, None)
-
-    """
 
 
 class MockOpener:
@@ -251,7 +78,6 @@ class MockOpener:
     def error(self, proto, *args):
         self.proto, self.args = proto, args
 
-
 class MockFile:
     def read(self, count=None):
         pass
@@ -266,13 +92,8 @@ class MockFile:
         for i in ():
             yield i
 
-
 def http_message(mapping):
-    """
-    >>> http_message({"Content-Type": "text/html"}).items()
-    [('content-type', 'text/html')]
 
-    """
     f = []
     for kv in iteritems(mapping):
         f.append("%s: %s" % kv)
@@ -282,7 +103,6 @@ def http_message(mapping):
         msg = msg.encode('iso-8859-1')
     msg = create_response_info(BytesIO(msg))
     return msg
-
 
 class MockResponse(BytesIO):
     def __init__(self, code, msg, headers, data, url=None):
@@ -297,14 +117,12 @@ class MockResponse(BytesIO):
     def geturl(self):
         return self.url
 
-
 class MockCookieJar:
     def add_cookie_header(self, request, unverifiable=False):
         self.ach_req, self.ach_u = request, unverifiable
 
     def extract_cookies(self, response, request, unverifiable=False):
         self.ec_req, self.ec_r, self.ec_u = request, response, unverifiable
-
 
 class FakeMethod:
     def __init__(self, meth_name, action, handle):
@@ -314,7 +132,6 @@ class FakeMethod:
 
     def __call__(self, *args):
         return self.handle(self.meth_name, self.action, *args)
-
 
 class MockHandler:
     handler_order = 500
@@ -366,26 +183,8 @@ class MockHandler:
             return True
         return self.handler_order < other.handler_order
 
-
 def add_ordered_mock_handlers(opener, meth_spec):
-    """Create MockHandlers and add them to an OpenerDirector.
 
-    meth_spec: list of lists of tuples and strings defining methods to define
-    on handlers.  eg:
-
-    [["http_error", "ftp_open"], ["http_open"]]
-
-    defines methods .http_error() and .ftp_open() on one handler, and
-    .http_open() on another.  These methods just record their arguments and
-    return None.  Using a tuple instead of a string causes the method to
-    perform some action (see MockHandler.handle()), eg:
-
-    [["http_error"], [("http_open", "return request")]]
-
-    defines .http_error() on one handler (which simply returns None), and
-    .http_open() on another handler, which returns a Request object.
-
-    """
     handlers = []
     count = 0
     for meths in meth_spec:
@@ -401,13 +200,11 @@ def add_ordered_mock_handlers(opener, meth_spec):
         opener.add_handler(h)
     return handlers
 
-
 def build_test_opener(*handler_instances):
     opener = OpenerDirector()
     for h in handler_instances:
         opener.add_handler(h)
     return opener
-
 
 class MockHTTPHandler(mechanize.BaseHandler):
 
@@ -434,7 +231,6 @@ class MockHTTPHandler(mechanize.BaseHandler):
             self.req = req
             return test_response("", [], req.get_full_url())
 
-
 class MockHTTPResponse:
     def __init__(self, fp, msg, status, reason):
         self.fp = fp
@@ -450,7 +246,6 @@ class MockHTTPResponse:
 
     def close(self):
         self.fp = None
-
 
 class MockHTTPClass:
     def __init__(self):
@@ -490,13 +285,11 @@ class MockHTTPClass:
     def getresponse(self):
         return MockHTTPResponse(MockFile(), {}, 200, "OK")
 
-
 class MockHTTPSHandler(AbstractHTTPHandler):
     httpconn = MockHTTPClass()
 
     def https_open(self, req):
         return self.do_open(self.httpconn, req)
-
 
 class OpenerDirectorTests(unittest.TestCase):
     def test_add_non_handler(self):
@@ -507,7 +300,6 @@ class OpenerDirectorTests(unittest.TestCase):
                           NonHandler())
 
     def test_badly_named_methods(self):
-
 
         from mechanize import URLError
 
@@ -615,7 +407,6 @@ class OpenerDirectorTests(unittest.TestCase):
         self.assertRaises(mechanize.URLError, o.open, req)
         self.assertEqual(o.calls, [(handlers[0], "http_open", (req, ), {})])
 
-
     def test_http_error(self):
         o = OpenerDirector()
         meth_spec = [
@@ -721,7 +512,6 @@ class OpenerDirectorTests(unittest.TestCase):
                     self.assertTrue(args[1] is None or isinstance(
                         args[1], MockResponse))
 
-
 class MockRobotFileParserClass:
     def __init__(self):
         self.calls = []
@@ -750,7 +540,6 @@ class MockRobotFileParserClass:
         self.calls.append(("can_fetch", ua, url))
         return self._can_fetch
 
-
 class MockPasswordManager:
     def add_password(self, realm, uri, user, password):
         self.realm = realm
@@ -762,7 +551,6 @@ class MockPasswordManager:
         self.target_realm = realm
         self.target_url = authuri
         return self.user, self.password
-
 
 class HandlerTests(mechanize._testcase.TestCase):
     def test_ftp(self):
@@ -1323,7 +1111,6 @@ class HandlerTests(mechanize._testcase.TestCase):
                                  "location": url
                              }))
 
-
         req = Request(from_url, origin_req_host="example.com")
         count = 0
         try:
@@ -1599,7 +1386,6 @@ class HandlerTests(mechanize._testcase.TestCase):
         self.assertEqual(len(http_handler.requests), 1)
         self.assertFalse(http_handler.requests[0].has_header(auth_header))
 
-
 class HeadParserTests(unittest.TestCase):
     def test(self):
         from mechanize import HTTPEquivParser
@@ -1632,11 +1418,9 @@ class HeadParserTests(unittest.TestCase):
             headers = HTTPEquivParser(html)()
             self.assertEqual(result, headers)
 
-
 class A:
     def a(self):
         pass
-
 
 class B(A):
     def a(self):
@@ -1645,11 +1429,9 @@ class B(A):
     def b(self):
         pass
 
-
 class C(A):
     def c(self):
         pass
-
 
 class D(C, B):
     def a(self):
@@ -1657,7 +1439,6 @@ class D(C, B):
 
     def d(self):
         pass
-
 
 class FunctionTests(unittest.TestCase):
     def test_build_opener(self):
@@ -1703,7 +1484,6 @@ class FunctionTests(unittest.TestCase):
                 break
         else:
             self.assertTrue(False)
-
 
 class RequestTests(unittest.TestCase):
     def setUp(self):
@@ -1766,7 +1546,6 @@ class RequestTests(unittest.TestCase):
         self.assertEqual(r.get_method(), 'GET')
         self.assertEqual(r.get_data(), None)
         self.assertEqual(r.get_full_url(), 'https://example.com?a=1')
-
 
 if __name__ == "__main__":
     import doctest

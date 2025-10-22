@@ -1,12 +1,4 @@
-"""
-project: lollms_user
-file: lollms_user.py 
-author: ParisNeo
-description: 
-    This module contains a set of FastAPI routes that provide information about the Lord of Large Language and Multimodal Systems (LoLLMs) Web UI
-    application. These routes allow users to do advanced stuff like executing code.
 
-"""
 from fastapi import APIRouter, Request
 from lollms_webui import LOLLMSWebUI
 from pydantic import BaseModel, Field
@@ -43,12 +35,8 @@ from utilities.execution_engines.html_execution_engine import execute_html
 from utilities.execution_engines.mermaid_execution_engine import execute_mermaid
 from utilities.execution_engines.graphviz_execution_engine import execute_graphviz
 
-
-
-
 router = APIRouter()
 lollmsElfServer:LOLLMSWebUI = LOLLMSWebUI.get_instance()
-
 
 class CodeRequest(BaseModel):
     client_id: str  = Field(...)
@@ -59,12 +47,7 @@ class CodeRequest(BaseModel):
 
 @router.post("/execute_code")
 async def execute_code(request: CodeRequest):
-    """
-    Executes Python code and returns the output.
 
-    :param request: The HTTP request object.
-    :return: A JSON response with the status of the operation.
-    """
     client = lollmsElfServer.session.get_client(request.client_id)
     if lollmsElfServer.config.headless_server_mode:
         return {"status":False,"error":"Code execution is blocked when in headless mode for obvious security reasons!"}
@@ -120,19 +103,12 @@ async def execute_code(request: CodeRequest):
         lollmsElfServer.error(ex)
         return {"status":False,"error":str(ex)}
 
-
-
 class FilePath(BaseModel):
     path: Optional[str] = Field(None, max_length=500)
 
 @router.post("/open_file")
 async def open_file(file_path: FilePath):
-    """
-    Opens code in vs code.
 
-    :param file_path: The file path object.
-    :return: A JSON response with the status of the operation.
-    """
     if lollmsElfServer.config.headless_server_mode:
         return {"status":False,"error":"Open file is blocked when in headless mode for obvious security reasons!"}
 
@@ -160,19 +136,12 @@ async def open_file(file_path: FilePath):
         lollmsElfServer.error(ex)
         return {"status":False,"error":str(ex)}
 
-
-
 class FilePath(BaseModel):
     path: Optional[str] = Field(None, max_length=500)
 
 @router.post("/open_folder")
 async def open_folder(file_path: FilePath):
-    """
-    Opens a folder
 
-    :param file_path: The file path object.
-    :return: A JSON response with the status of the operation.
-    """
     if lollmsElfServer.config.headless_server_mode:
         return {"status":False,"error":"Open file is blocked when in headless mode for obvious security reasons!"}
 
@@ -195,7 +164,6 @@ async def open_folder(file_path: FilePath):
             subprocess.run(['xdg-open', str(path)], check=True)
         elif platform.system() == 'Darwin':
             subprocess.run(['open', str(path)], check=True)
-
 
         return {"status": True, "execution_time": 0}
 
@@ -238,7 +206,6 @@ async def open_code_folder_in_vs_code(request: OpenCodeFolderInVsCodeRequestMode
                 path = '"'+str(root_folder)+'"'.replace("\\","/")
                 subprocess.run(['code', path], shell=True)
 
-
         return {"status": True, "execution_time": 0}
     except Exception as ex:
         trace_exception(ex)
@@ -253,12 +220,7 @@ class VSCodeData(BaseModel):
 
 @router.post("/open_code_in_vs_code")
 async def open_code_in_vs_code(vs_code_data: VSCodeData):
-    """
-    Opens code in vs code.
 
-    :param vs_code_data: The data object.
-    :return: A JSON response with the status of the operation.
-    """
     client = lollmsElfServer.session.get_client(vs_code_data.client_id)
     if lollmsElfServer.config.headless_server_mode:
         return {"status":False,"error":"Open code in vs code is blocked when in headless mode for obvious security reasons!"}
@@ -298,12 +260,7 @@ class FolderRequest(BaseModel):
 
 @router.post("/open_code_folder")
 async def open_code_folder(request: FolderRequest):
-    """
-    Opens code folder.
 
-    :param request: The HTTP request object.
-    :return: A JSON response with the status of the operation.
-    """
     client = lollmsElfServer.session.get_client(request.client_id)
     if lollmsElfServer.config.headless_server_mode:
         return {"status":False,"error":"Open code folder is blocked when in headless mode for obvious security reasons!"}
@@ -350,7 +307,6 @@ def start_recording():
         lollmsElfServer.audio_cap.start_recording()
     except:
         lollmsElfServer.InfoMessage("Couldn't load media library.\nYou will not be able to perform any of the media linked operations. please verify the logs and install any required installations")
-
 
 @router.get("/stop_recording")
 def stop_recording():

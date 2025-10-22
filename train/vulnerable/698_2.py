@@ -58,7 +58,6 @@ from ..mutations.base import INVALID_TOKEN
 from ..mutations.staff import CustomerDelete, StaffDelete, StaffUpdate, UserDelete
 from ..tests.utils import convert_dict_keys_to_camel_case
 
-
 def generate_address_webhook_call_args(address, event, requestor, webhook):
     return [
         json.dumps(
@@ -81,7 +80,6 @@ def generate_address_webhook_call_args(address, event, requestor, webhook):
         SimpleLazyObject(lambda: requestor),
     ]
 
-
 @pytest.fixture
 def query_customer_with_filter():
     query = """
@@ -100,7 +98,6 @@ def query_customer_with_filter():
     """
     return query
 
-
 @pytest.fixture
 def query_staff_users_with_filter():
     query = """
@@ -118,7 +115,6 @@ def query_staff_users_with_filter():
     }
     """
     return query
-
 
 FULL_USER_QUERY = """
     query User($id: ID!) {
@@ -214,7 +210,6 @@ FULL_USER_QUERY = """
         }
     }
 """
-
 
 def test_query_customer_user(
     staff_api_client,
@@ -315,7 +310,6 @@ def test_query_customer_user(
         "Checkout", checkout.pk
     )
 
-
 def test_query_customer_user_with_orders(
     staff_api_client,
     customer_user,
@@ -354,7 +348,6 @@ def test_query_customer_user_with_orders(
         graphene.Node.to_global_id("Order", order.pk) for order in order_list
     }
 
-
 def test_query_customer_user_with_orders_no_manage_orders_perm(
     staff_api_client,
     customer_user,
@@ -385,7 +378,6 @@ def test_query_customer_user_with_orders_no_manage_orders_perm(
     )
 
     assert_no_permission(response)
-
 
 def test_query_customer_user_app(
     app_api_client,
@@ -421,7 +413,6 @@ def test_query_customer_user_app(
     data = content["data"]["user"]
     assert data["email"] == user.email
 
-
 def test_query_customer_user_with_orders_by_app_no_manage_orders_perm(
     app_api_client,
     customer_user,
@@ -452,7 +443,6 @@ def test_query_customer_user_with_orders_by_app_no_manage_orders_perm(
     )
 
     assert_no_permission(response)
-
 
 def test_query_staff_user(
     staff_api_client,
@@ -529,7 +519,6 @@ def test_query_staff_user(
         expected_data = {"code": perm.codename, "groups": source_groups}
         assert expected_data in formated_user_permissions_result
 
-
 def test_query_staff_user_with_order_and_without_manage_orders_perm(
     staff_api_client,
     staff_user,
@@ -566,7 +555,6 @@ def test_query_staff_user_with_order_and_without_manage_orders_perm(
         graphene.Node.to_global_id("Order", order.pk)
         for order in [order_unfulfilled, order_unconfirmed]
     }
-
 
 def test_query_staff_user_with_orders_and_manage_orders_perm(
     staff_api_client,
@@ -606,7 +594,6 @@ def test_query_staff_user_with_orders_and_manage_orders_perm(
         for order in [order_unfulfilled, order_unconfirmed, order_draft]
     }
 
-
 USER_QUERY = """
     query User($id: ID $email: String, $externalReference: String) {
         user(id: $id, email: $email, externalReference: $externalReference) {
@@ -616,7 +603,6 @@ USER_QUERY = """
         }
     }
 """
-
 
 def test_query_user_by_email_address(
     user_api_client, customer_user, permission_manage_users
@@ -629,7 +615,6 @@ def test_query_user_by_email_address(
     content = get_graphql_content(response)
     data = content["data"]["user"]
     assert customer_user.email == data["email"]
-
 
 def test_query_user_by_external_reference(
     user_api_client, customer_user, permission_manage_users
@@ -648,7 +633,6 @@ def test_query_user_by_external_reference(
     data = content["data"]["user"]
     assert data["externalReference"] == user.external_reference
 
-
 def test_query_user_by_id_and_email(
     user_api_client, customer_user, permission_manage_users
 ):
@@ -665,19 +649,16 @@ def test_query_user_by_id_and_email(
         response, "Argument 'id' cannot be combined with 'email'"
     )
 
-
 def test_customer_can_not_see_other_users_data(user_api_client, staff_user):
     id = graphene.Node.to_global_id("User", staff_user.id)
     variables = {"id": id}
     response = user_api_client.post_graphql(USER_QUERY, variables)
     assert_no_permission(response)
 
-
 def test_user_query_anonymous_user(api_client):
     variables = {"id": ""}
     response = api_client.post_graphql(USER_QUERY, variables)
     assert_no_permission(response)
-
 
 def test_user_query_permission_manage_users_get_customer(
     staff_api_client, customer_user, permission_manage_users
@@ -691,7 +672,6 @@ def test_user_query_permission_manage_users_get_customer(
     data = content["data"]["user"]
     assert customer_user.email == data["email"]
 
-
 def test_user_query_as_app(app_api_client, customer_user, permission_manage_users):
     customer_id = graphene.Node.to_global_id("User", customer_user.pk)
     variables = {"id": customer_id}
@@ -701,7 +681,6 @@ def test_user_query_as_app(app_api_client, customer_user, permission_manage_user
     content = get_graphql_content(response)
     data = content["data"]["user"]
     assert customer_user.email == data["email"]
-
 
 def test_user_query_permission_manage_users_get_staff(
     staff_api_client, staff_user, permission_manage_users
@@ -714,7 +693,6 @@ def test_user_query_permission_manage_users_get_staff(
     content = get_graphql_content(response)
     assert not content["data"]["user"]
 
-
 def test_user_query_permission_manage_staff_get_customer(
     staff_api_client, customer_user, permission_manage_staff
 ):
@@ -725,7 +703,6 @@ def test_user_query_permission_manage_staff_get_customer(
     )
     content = get_graphql_content(response)
     assert not content["data"]["user"]
-
 
 def test_user_query_permission_manage_staff_get_staff(
     staff_api_client, staff_user, permission_manage_staff
@@ -738,7 +715,6 @@ def test_user_query_permission_manage_staff_get_staff(
     content = get_graphql_content(response)
     data = content["data"]["user"]
     assert staff_user.email == data["email"]
-
 
 @pytest.mark.parametrize("id", ["'", "abc"])
 def test_user_query_invalid_id(
@@ -754,7 +730,6 @@ def test_user_query_invalid_id(
     assert content["errors"][0]["message"] == f"Couldn't resolve id: {id}."
     assert content["data"]["user"] is None
 
-
 def test_user_query_object_with_given_id_does_not_exist(
     staff_api_client, permission_manage_users
 ):
@@ -766,7 +741,6 @@ def test_user_query_object_with_given_id_does_not_exist(
 
     content = get_graphql_content(response)
     assert content["data"]["user"] is None
-
 
 def test_user_query_object_with_invalid_object_type(
     staff_api_client, customer_user, permission_manage_users
@@ -780,7 +754,6 @@ def test_user_query_object_with_invalid_object_type(
     content = get_graphql_content(response)
     assert content["data"]["user"] is None
 
-
 USER_AVATAR_QUERY = """
     query User($id: ID, $size: Int, $format: ThumbnailFormatEnum) {
         user(id: $id) {
@@ -792,7 +765,6 @@ USER_AVATAR_QUERY = """
         }
     }
 """
-
 
 def test_query_user_avatar_with_size_and_format_proxy_url_returned(
     staff_api_client, media_root, permission_manage_staff, site_settings
@@ -821,7 +793,6 @@ def test_query_user_avatar_with_size_and_format_proxy_url_returned(
         == f"http://{domain}/thumbnail/{user_uuid}/128/{format.lower()}/"
     )
 
-
 def test_query_user_avatar_with_size_proxy_url_returned(
     staff_api_client, media_root, permission_manage_staff, site_settings
 ):
@@ -845,7 +816,6 @@ def test_query_user_avatar_with_size_proxy_url_returned(
         data["avatar"]["url"]
         == f"http://{site_settings.site.domain}/thumbnail/{user_uuid}/128/"
     )
-
 
 def test_query_user_avatar_with_size_thumbnail_url_returned(
     staff_api_client, media_root, permission_manage_staff, site_settings
@@ -874,7 +844,6 @@ def test_query_user_avatar_with_size_thumbnail_url_returned(
         == f"http://{site_settings.site.domain}/media/thumbnails/{thumbnail_mock.name}"
     )
 
-
 def test_query_user_avatar_original_size_custom_format_provided_original_image_returned(
     staff_api_client, media_root, permission_manage_staff, site_settings
 ):
@@ -899,7 +868,6 @@ def test_query_user_avatar_original_size_custom_format_provided_original_image_r
         data["avatar"]["url"]
         == f"http://{site_settings.site.domain}/media/user-avatars/{avatar_mock.name}"
     )
-
 
 def test_query_user_avatar_no_size_value(
     staff_api_client, media_root, permission_manage_staff, site_settings
@@ -926,7 +894,6 @@ def test_query_user_avatar_no_size_value(
         == f"http://{site_settings.site.domain}/thumbnail/{user_uuid}/4096/"
     )
 
-
 def test_query_user_avatar_no_image(staff_api_client, permission_manage_staff):
     user = staff_api_client.user
 
@@ -941,7 +908,6 @@ def test_query_user_avatar_no_image(staff_api_client, permission_manage_staff):
     data = content["data"]["user"]
     assert data["id"]
     assert not data["avatar"]
-
 
 def test_query_customers(staff_api_client, user_api_client, permission_manage_users):
     query = """
@@ -967,7 +933,6 @@ def test_query_customers(staff_api_client, user_api_client, permission_manage_us
 
     response = user_api_client.post_graphql(query, variables)
     assert_no_permission(response)
-
 
 def test_query_staff(
     staff_api_client, user_api_client, staff_user, admin_user, permission_manage_staff
@@ -998,7 +963,6 @@ def test_query_staff(
     response = user_api_client.post_graphql(query, variables)
     assert_no_permission(response)
 
-
 def test_who_can_see_user(
     staff_user, customer_user, staff_api_client, permission_manage_users
 ):
@@ -1027,7 +991,6 @@ def test_who_can_see_user(
     content = get_graphql_content(response)
     assert content["data"]["customers"]["totalCount"] == 1
 
-
 ME_QUERY = """
     query Me {
         me {
@@ -1052,13 +1015,11 @@ ME_QUERY = """
     }
 """
 
-
 def test_me_query(user_api_client):
     response = user_api_client.post_graphql(ME_QUERY)
     content = get_graphql_content(response)
     data = content["data"]["me"]
     assert data["email"] == user_api_client.user.email
-
 
 def test_me_user_permissions_query(
     user_api_client, permission_manage_users, permission_group_manage_users
@@ -1073,12 +1034,10 @@ def test_me_user_permissions_query(
     assert len(user_permissions) == 1
     assert user_permissions[0]["code"] == permission_manage_users.codename.upper()
 
-
 def test_me_query_anonymous_client(api_client):
     response = api_client.post_graphql(ME_QUERY)
     content = get_graphql_content(response)
     assert content["data"]["me"] is None
-
 
 def test_me_query_customer_can_not_see_note(
     staff_user, staff_api_client, permission_manage_users
@@ -1103,7 +1062,6 @@ def test_me_query_customer_can_not_see_note(
     assert data["email"] == staff_api_client.user.email
     assert data["note"] == staff_api_client.user.note
 
-
 def test_me_query_checkout(user_api_client, checkout):
     user = user_api_client.user
     checkout.user = user
@@ -1116,7 +1074,6 @@ def test_me_query_checkout(user_api_client, checkout):
     assert data["checkouts"]["edges"][0]["node"]["id"] == graphene.Node.to_global_id(
         "Checkout", checkout.pk
     )
-
 
 def test_me_query_checkout_with_inactive_channel(user_api_client, checkout):
     user = user_api_client.user
@@ -1131,7 +1088,6 @@ def test_me_query_checkout_with_inactive_channel(user_api_client, checkout):
     data = content["data"]["me"]
     assert not data["checkout"]
     assert not data["checkouts"]["edges"]
-
 
 def test_me_query_checkouts_with_channel(user_api_client, checkout, checkout_JPY):
     query = """
@@ -1167,7 +1123,6 @@ def test_me_query_checkouts_with_channel(user_api_client, checkout, checkout_JPY
     assert data["totalCount"] == 1
     assert data["edges"][0]["node"]["channel"]["slug"] == checkout.channel.slug
 
-
 QUERY_ME_CHECKOUT_TOKENS = """
 query getCheckoutTokens($channel: String) {
   me {
@@ -1175,7 +1130,6 @@ query getCheckoutTokens($channel: String) {
   }
 }
 """
-
 
 def test_me_checkout_tokens_without_channel_param(
     user_api_client, checkouts_assigned_to_customer
@@ -1189,7 +1143,6 @@ def test_me_checkout_tokens_without_channel_param(
     assert len(data["checkoutTokens"]) == len(checkouts)
     for checkout in checkouts:
         assert str(checkout.token) in data["checkoutTokens"]
-
 
 def test_me_checkout_tokens_without_channel_param_inactive_channel(
     user_api_client, channel_PLN, checkouts_assigned_to_customer
@@ -1205,7 +1158,6 @@ def test_me_checkout_tokens_without_channel_param_inactive_channel(
     assert str(checkouts[0].token) in data["checkoutTokens"]
     assert str(checkouts[1].token) not in data["checkoutTokens"]
 
-
 def test_me_checkout_tokens_with_channel(
     user_api_client, channel_USD, checkouts_assigned_to_customer
 ):
@@ -1219,7 +1171,6 @@ def test_me_checkout_tokens_with_channel(
     data = content["data"]["me"]
     assert str(checkouts[0].token) in data["checkoutTokens"]
     assert str(checkouts[1].token) not in data["checkoutTokens"]
-
 
 def test_me_checkout_tokens_with_inactive_channel(
     user_api_client, channel_USD, checkouts_assigned_to_customer
@@ -1235,7 +1186,6 @@ def test_me_checkout_tokens_with_inactive_channel(
     data = content["data"]["me"]
     assert not data["checkoutTokens"]
 
-
 def test_me_checkout_tokens_with_not_existing_channel(
     user_api_client, checkouts_assigned_to_customer
 ):
@@ -1247,7 +1197,6 @@ def test_me_checkout_tokens_with_not_existing_channel(
     content = get_graphql_content(response)
     data = content["data"]["me"]
     assert not data["checkoutTokens"]
-
 
 def test_me_with_cancelled_fulfillments(
     user_api_client, fulfilled_order_with_cancelled_fulfillment
@@ -1279,7 +1228,6 @@ def test_me_with_cancelled_fulfillments(
     fulfillments = order["fulfillments"]
     assert len(fulfillments) == 1
     assert fulfillments[0]["status"] == FulfillmentStatus.FULFILLED.upper()
-
 
 def test_user_with_cancelled_fulfillments(
     staff_api_client,
@@ -1322,7 +1270,6 @@ def test_user_with_cancelled_fulfillments(
     assert fulfillments[0]["status"] == FulfillmentStatus.FULFILLED.upper()
     assert fulfillments[1]["status"] == FulfillmentStatus.CANCELED.upper()
 
-
 ACCOUNT_REGISTER_MUTATION = """
     mutation RegisterAccount(
         $password: String!,
@@ -1358,7 +1305,6 @@ ACCOUNT_REGISTER_MUTATION = """
         }
     }
 """
-
 
 @override_settings(
     ENABLE_ACCOUNT_CONFIRMATION_BY_EMAIL=True, ALLOWED_CLIENT_HOSTS=["localhost"]
@@ -1431,7 +1377,6 @@ def test_customer_register(
     assert customer_creation_event.type == account_events.CustomerEvents.ACCOUNT_CREATED
     assert customer_creation_event.user == new_user
 
-
 @override_settings(ENABLE_ACCOUNT_CONFIRMATION_BY_EMAIL=False)
 @patch("saleor.plugins.manager.PluginsManager.notify")
 def test_customer_register_disabled_email_confirmation(mocked_notify, api_client):
@@ -1447,7 +1392,6 @@ def test_customer_register_disabled_email_confirmation(mocked_notify, api_client
     expected_payload["redirect_url"] = "http://localhost:3000"
     mocked_notify.assert_not_called()
 
-
 @override_settings(ENABLE_ACCOUNT_CONFIRMATION_BY_EMAIL=True)
 @patch("saleor.plugins.manager.PluginsManager.notify")
 def test_customer_register_no_redirect_url(mocked_notify, api_client):
@@ -1456,7 +1400,6 @@ def test_customer_register_no_redirect_url(mocked_notify, api_client):
     errors = response.json()["data"]["accountRegister"]["errors"]
     assert "redirectUrl" in map(lambda error: error["field"], errors)
     mocked_notify.assert_not_called()
-
 
 @override_settings(ENABLE_ACCOUNT_CONFIRMATION_BY_EMAIL=False)
 def test_customer_register_upper_case_email(api_client):
@@ -1469,7 +1412,6 @@ def test_customer_register_upper_case_email(api_client):
     data = content["data"]["accountRegister"]
     assert not data["errors"]
     assert data["user"]["email"].lower()
-
 
 CUSTOMER_CREATE_MUTATION = """
     mutation CreateCustomer(
@@ -1515,7 +1457,6 @@ CUSTOMER_CREATE_MUTATION = """
         }
     }
 """
-
 
 @patch("saleor.account.notifications.default_token_generator.make_token")
 @patch("saleor.plugins.manager.PluginsManager.notify")
@@ -1604,7 +1545,6 @@ def test_customer_create(
     assert customer_creation_event.type == account_events.CustomerEvents.ACCOUNT_CREATED
     assert customer_creation_event.user == new_customer
 
-
 @patch("saleor.account.notifications.default_token_generator.make_token")
 @patch("saleor.plugins.manager.PluginsManager.notify")
 def test_customer_create_send_password_with_url(
@@ -1649,7 +1589,6 @@ def test_customer_create_send_password_with_url(
         channel_slug=channel_PLN.slug,
     )
 
-
 def test_customer_create_without_send_password(
     staff_api_client, permission_manage_users
 ):
@@ -1662,7 +1601,6 @@ def test_customer_create_without_send_password(
     data = content["data"]["customerCreate"]
     assert not data["errors"]
     User.objects.get(email=email)
-
 
 def test_customer_create_with_invalid_url(staff_api_client, permission_manage_users):
     email = "api_user@example.com"
@@ -1679,7 +1617,6 @@ def test_customer_create_with_invalid_url(staff_api_client, permission_manage_us
     }
     staff_user = User.objects.filter(email=email)
     assert not staff_user
-
 
 def test_customer_create_with_not_allowed_url(
     staff_api_client, permission_manage_users
@@ -1699,7 +1636,6 @@ def test_customer_create_with_not_allowed_url(
     staff_user = User.objects.filter(email=email)
     assert not staff_user
 
-
 def test_customer_create_with_upper_case_email(
     staff_api_client, permission_manage_users
 ):
@@ -1714,7 +1650,6 @@ def test_customer_create_with_upper_case_email(
     data = content["data"]["customerCreate"]
     assert not data["errors"]
     assert data["user"]["email"] == email.lower()
-
 
 def test_customer_create_with_non_unique_external_reference(
     staff_api_client, permission_manage_users, customer_user
@@ -1734,7 +1669,6 @@ def test_customer_create_with_non_unique_external_reference(
     assert error["field"] == "externalReference"
     assert error["code"] == AccountErrorCode.UNIQUE.name
     assert error["message"] == "User with this External reference already exists."
-
 
 def test_customer_update(
     staff_api_client, staff_user, customer_user, address, permission_manage_users
@@ -1859,7 +1793,6 @@ def test_customer_update(
         in customer_user.search_document
     )
 
-
 UPDATE_CUSTOMER_BY_EXTERNAL_REFERENCE = """
     mutation UpdateCustomer(
         $id: ID, $externalReference: String, $input: CustomerInput!
@@ -1878,7 +1811,6 @@ UPDATE_CUSTOMER_BY_EXTERNAL_REFERENCE = """
         }
     }
     """
-
 
 def test_customer_update_by_external_reference(
     staff_api_client, customer_user, permission_manage_users
@@ -1907,7 +1839,6 @@ def test_customer_update_by_external_reference(
     assert data["user"]["id"] == graphene.Node.to_global_id("User", user.id)
     assert data["user"]["externalReference"] == ext_ref
 
-
 def test_update_customer_by_both_id_and_external_reference(
     staff_api_client, customer_user, permission_manage_users
 ):
@@ -1925,7 +1856,6 @@ def test_update_customer_by_both_id_and_external_reference(
         data["errors"][0]["message"]
         == "Argument 'id' cannot be combined with 'external_reference'"
     )
-
 
 def test_update_customer_by_external_reference_not_existing(
     staff_api_client, customer_user, permission_manage_users
@@ -1946,7 +1876,6 @@ def test_update_customer_by_external_reference_not_existing(
     assert not data["user"]
     assert data["errors"][0]["message"] == f"Couldn't resolve to a node: {ext_ref}"
     assert data["errors"][0]["field"] == "externalReference"
-
 
 def test_update_customer_with_non_unique_external_reference(
     staff_api_client, permission_manage_users, user_list
@@ -1971,7 +1900,6 @@ def test_update_customer_with_non_unique_external_reference(
     assert error["code"] == AccountErrorCode.UNIQUE.name
     assert error["message"] == "User with this External reference already exists."
 
-
 UPDATE_CUSTOMER_EMAIL_MUTATION = """
     mutation UpdateCustomer(
             $id: ID!, $firstName: String, $lastName: String, $email: String) {
@@ -1987,7 +1915,6 @@ UPDATE_CUSTOMER_EMAIL_MUTATION = """
         }
     }
 """
-
 
 def test_customer_update_generates_event_when_changing_email(
     staff_api_client, staff_user, customer_user, address, permission_manage_users
@@ -2015,7 +1942,6 @@ def test_customer_update_generates_event_when_changing_email(
     assert email_changed_event.user.pk == staff_user.pk
     assert email_changed_event.parameters == {"message": "mirumee@example.com"}
 
-
 UPDATE_CUSTOMER_IS_ACTIVE_MUTATION = """
     mutation UpdateCustomer(
         $id: ID!, $isActive: Boolean) {
@@ -2029,7 +1955,6 @@ UPDATE_CUSTOMER_IS_ACTIVE_MUTATION = """
         }
     }
 """
-
 
 def test_customer_update_generates_event_when_deactivating(
     staff_api_client, staff_user, customer_user, address, permission_manage_users
@@ -2050,7 +1975,6 @@ def test_customer_update_generates_event_when_deactivating(
     )
     assert account_deactivated_event.user.pk == staff_user.pk
     assert account_deactivated_event.parameters == {"account_id": customer_user.id}
-
 
 def test_customer_update_generates_event_when_activating(
     staff_api_client, staff_user, customer_user, address, permission_manage_users
@@ -2074,7 +1998,6 @@ def test_customer_update_generates_event_when_activating(
     assert account_activated_event.user.pk == staff_user.pk
     assert account_activated_event.parameters == {"account_id": customer_user.id}
 
-
 def test_customer_update_generates_event_when_deactivating_as_app(
     app_api_client, staff_user, customer_user, address, permission_manage_users
 ):
@@ -2093,7 +2016,6 @@ def test_customer_update_generates_event_when_deactivating_as_app(
     assert account_deactivated_event.user is None
     assert account_deactivated_event.app.pk == app_api_client.app.pk
     assert account_deactivated_event.parameters == {"account_id": customer_user.id}
-
 
 def test_customer_update_generates_event_when_activating_as_app(
     app_api_client, staff_user, customer_user, address, permission_manage_users
@@ -2115,7 +2037,6 @@ def test_customer_update_generates_event_when_activating_as_app(
     assert account_activated_event.user is None
     assert account_activated_event.app.pk == app_api_client.app.pk
     assert account_activated_event.parameters == {"account_id": customer_user.id}
-
 
 def test_customer_update_without_any_changes_generates_no_event(
     staff_api_client, customer_user, address, permission_manage_users
@@ -2140,7 +2061,6 @@ def test_customer_update_without_any_changes_generates_no_event(
 
     assert not account_events.CustomerEvent.objects.exists()
 
-
 def test_customer_update_generates_event_when_changing_email_by_app(
     app_api_client, staff_user, customer_user, address, permission_manage_users
 ):
@@ -2164,7 +2084,6 @@ def test_customer_update_generates_event_when_changing_email_by_app(
     assert email_changed_event.type == account_events.CustomerEvents.EMAIL_ASSIGNED
     assert email_changed_event.user is None
     assert email_changed_event.parameters == {"message": "mirumee@example.com"}
-
 
 def test_customer_update_assign_gift_cards_and_orders(
     staff_api_client,
@@ -2212,7 +2131,6 @@ def test_customer_update_assign_gift_cards_and_orders(
     order.refresh_from_db()
     assert order.user == customer_user
 
-
 ACCOUNT_UPDATE_QUERY = """
     mutation accountUpdate(
         $billing: AddressInput
@@ -2251,7 +2169,6 @@ ACCOUNT_UPDATE_QUERY = """
     }
 """
 
-
 def test_logged_customer_updates_language_code(user_api_client):
     language_code = "PL"
     user = user_api_client.user
@@ -2267,7 +2184,6 @@ def test_logged_customer_updates_language_code(user_api_client):
     user.refresh_from_db()
     assert user.language_code == language_code.lower()
     assert user.search_document
-
 
 def test_logged_customer_update_names(user_api_client):
     first_name = "first"
@@ -2285,7 +2201,6 @@ def test_logged_customer_update_names(user_api_client):
     assert not data["errors"]
     assert user.first_name == first_name
     assert user.last_name == last_name
-
 
 def test_logged_customer_update_addresses(user_api_client, graphql_address_data):
     user = user_api_client.user
@@ -2313,7 +2228,6 @@ def test_logged_customer_update_addresses(user_api_client, graphql_address_data)
     assert user.default_shipping_address.first_name == new_first_name
     assert user.search_document
 
-
 def test_logged_customer_update_addresses_invalid_shipping_address(
     user_api_client, graphql_address_data
 ):
@@ -2331,7 +2245,6 @@ def test_logged_customer_update_addresses_invalid_shipping_address(
     assert errors[0]["field"] == "country"
     assert errors[0]["code"] == AccountErrorCode.REQUIRED.name
     assert errors[0]["addressType"] == AddressType.SHIPPING.upper()
-
 
 def test_logged_customer_update_addresses_invalid_billing_address(
     user_api_client, graphql_address_data
@@ -2351,12 +2264,10 @@ def test_logged_customer_update_addresses_invalid_billing_address(
     assert errors[0]["code"] == AccountErrorCode.REQUIRED.name
     assert errors[0]["addressType"] == AddressType.BILLING.upper()
 
-
 def test_logged_customer_update_anonymous_user(api_client):
     query = ACCOUNT_UPDATE_QUERY
     response = api_client.post_graphql(query, {})
     assert_no_permission(response)
-
 
 ACCOUNT_REQUEST_DELETION_MUTATION = """
     mutation accountRequestDeletion($redirectUrl: String!, $channel: String) {
@@ -2369,7 +2280,6 @@ ACCOUNT_REQUEST_DELETION_MUTATION = """
         }
     }
 """
-
 
 @patch("saleor.account.notifications.account_delete_token_generator.make_token")
 @patch("saleor.plugins.manager.PluginsManager.notify")
@@ -2403,7 +2313,6 @@ def test_account_request_deletion(
         channel_slug=channel_PLN.slug,
     )
 
-
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.manager.PluginsManager.notify")
 def test_account_request_deletion_token_validation(
@@ -2436,14 +2345,12 @@ def test_account_request_deletion_token_validation(
         channel_slug=channel_PLN.slug,
     )
 
-
 @patch("saleor.plugins.manager.PluginsManager.notify")
 def test_account_request_deletion_anonymous_user(mocked_notify, api_client):
     variables = {"redirectUrl": "https://www.example.com"}
     response = api_client.post_graphql(ACCOUNT_REQUEST_DELETION_MUTATION, variables)
     assert_no_permission(response)
     mocked_notify.assert_not_called()
-
 
 @patch("saleor.plugins.manager.PluginsManager.notify")
 def test_account_request_deletion_storefront_hosts_not_allowed(
@@ -2462,7 +2369,6 @@ def test_account_request_deletion_storefront_hosts_not_allowed(
         "message": ANY,
     }
     mocked_notify.assert_not_called()
-
 
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.manager.PluginsManager.notify")
@@ -2501,7 +2407,6 @@ def test_account_request_deletion_all_storefront_hosts_allowed(
         channel_slug=channel_PLN.slug,
     )
 
-
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.manager.PluginsManager.notify")
 def test_account_request_deletion_subdomain(
@@ -2535,7 +2440,6 @@ def test_account_request_deletion_subdomain(
         channel_slug=channel_PLN.slug,
     )
 
-
 ACCOUNT_DELETE_MUTATION = """
     mutation AccountDelete($token: String!){
         accountDelete(token: $token){
@@ -2546,7 +2450,6 @@ ACCOUNT_DELETE_MUTATION = """
         }
     }
 """
-
 
 @patch("saleor.core.tasks.delete_from_storage_task.delay")
 @freeze_time("2018-05-31 12:00:01")
@@ -2576,7 +2479,6 @@ def test_account_delete(delete_from_storage_task_mock, user_api_client, media_ro
     assert not Thumbnail.objects.filter(user_id=user_id).exists()
     delete_from_storage_task_mock.assert_called_once_with(img_path)
 
-
 @freeze_time("2018-05-31 12:00:01")
 def test_account_delete_user_never_log_in(user_api_client):
     user = user_api_client.user
@@ -2588,7 +2490,6 @@ def test_account_delete_user_never_log_in(user_api_client):
     data = content["data"]["accountDelete"]
     assert not data["errors"]
     assert not User.objects.filter(pk=user.id).exists()
-
 
 @freeze_time("2018-05-31 12:00:01")
 def test_account_delete_log_out_after_deletion_request(user_api_client):
@@ -2609,7 +2510,6 @@ def test_account_delete_log_out_after_deletion_request(user_api_client):
     assert not data["errors"]
     assert not User.objects.filter(pk=user.id).exists()
 
-
 def test_account_delete_invalid_token(user_api_client):
     user = user_api_client.user
     variables = {"token": "invalid"}
@@ -2621,13 +2521,11 @@ def test_account_delete_invalid_token(user_api_client):
     assert data["errors"][0]["message"] == "Invalid or expired token."
     assert User.objects.filter(pk=user.id).exists()
 
-
 def test_account_delete_anonymous_user(api_client):
     variables = {"token": "invalid"}
 
     response = api_client.post_graphql(ACCOUNT_DELETE_MUTATION, variables)
     assert_no_permission(response)
-
 
 def test_account_delete_staff_user(staff_api_client):
     user = staff_api_client.user
@@ -2639,7 +2537,6 @@ def test_account_delete_staff_user(staff_api_client):
     assert len(data["errors"]) == 1
     assert data["errors"][0]["message"] == "Cannot delete a staff account."
     assert User.objects.filter(pk=user.id).exists()
-
 
 @freeze_time("2018-05-31 12:00:01")
 def test_account_delete_other_customer_token(user_api_client):
@@ -2656,7 +2553,6 @@ def test_account_delete_other_customer_token(user_api_client):
     assert User.objects.filter(pk=user.id).exists()
     assert User.objects.filter(pk=other_user.id).exists()
 
-
 CUSTOMER_DELETE_MUTATION = """
     mutation CustomerDelete($id: ID, $externalReference: String) {
         customerDelete(id: $id, externalReference: $externalReference) {
@@ -2672,7 +2568,6 @@ CUSTOMER_DELETE_MUTATION = """
     }
 """
 
-
 @patch("saleor.account.signals.delete_from_storage_task.delay")
 @patch("saleor.graphql.account.utils.account_events.customer_deleted_event")
 def test_customer_delete(
@@ -2685,8 +2580,7 @@ def test_customer_delete(
     permission_manage_users,
     media_root,
 ):
-    """Ensure deleting a customer actually deletes the customer and creates proper
-    related events"""
+
 
     query = CUSTOMER_DELETE_MUTATION
     customer_id = graphene.Node.to_global_id("User", customer_user.pk)
@@ -2705,7 +2599,6 @@ def test_customer_delete(
         staff_user=staff_user, app=None, deleted_count=1
     )
     delete_from_storage_task_mock.assert_called_once_with(customer_user.avatar.name)
-
 
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.webhook.plugin.get_webhooks_for_event")
@@ -2741,7 +2634,6 @@ def test_customer_delete_trigger_webhook(
         SimpleLazyObject(lambda: staff_api_client.user),
     )
 
-
 @patch("saleor.account.signals.delete_from_storage_task.delay")
 @patch("saleor.graphql.account.utils.account_events.customer_deleted_event")
 def test_customer_delete_by_app(
@@ -2754,8 +2646,7 @@ def test_customer_delete_by_app(
     permission_manage_users,
     media_root,
 ):
-    """Ensure deleting a customer actually deletes the customer and creates proper
-    related events"""
+
 
     query = CUSTOMER_DELETE_MUTATION
     customer_id = graphene.Node.to_global_id("User", customer_user.pk)
@@ -2777,7 +2668,6 @@ def test_customer_delete_by_app(
     assert kwargs["app"] == app
     delete_from_storage_task_mock.assert_called_once_with(customer_user.avatar.name)
 
-
 def test_customer_delete_errors(customer_user, admin_user, staff_user):
     info = Mock(context=Mock(user=admin_user))
     with pytest.raises(ValidationError) as e:
@@ -2787,7 +2677,6 @@ def test_customer_delete_errors(customer_user, admin_user, staff_user):
     assert e.value.error_dict["id"][0].message == msg
 
     CustomerDelete.clean_instance(info, customer_user)
-
 
 def test_customer_delete_by_external_reference(
     staff_api_client, customer_user, permission_manage_users
@@ -2811,7 +2700,6 @@ def test_customer_delete_by_external_reference(
     assert data["user"]["externalReference"] == ext_ref
     assert data["user"]["id"] == graphene.Node.to_global_id("User", user.id)
 
-
 def test_delete_customer_by_both_id_and_external_reference(
     staff_api_client, customer_user, permission_manage_users
 ):
@@ -2829,7 +2717,6 @@ def test_delete_customer_by_both_id_and_external_reference(
         == "Argument 'id' cannot be combined with 'external_reference'"
     )
 
-
 def test_delete_customer_by_external_reference_not_existing(
     staff_api_client, customer_user, permission_manage_users
 ):
@@ -2844,7 +2731,6 @@ def test_delete_customer_by_external_reference_not_existing(
 
     errors = content["data"]["customerDelete"]["errors"]
     assert errors[0]["message"] == f"Couldn't resolve to a node: {ext_ref}"
-
 
 STAFF_CREATE_MUTATION = """
     mutation CreateStaff(
@@ -2880,7 +2766,6 @@ STAFF_CREATE_MUTATION = """
         }
     }
 """
-
 
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.manager.PluginsManager.notify")
@@ -2951,7 +2836,6 @@ def test_staff_create(
         channel_slug=None,
     )
 
-
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.manager.PluginsManager.notify")
 def test_promote_customer_to_staff_user(
@@ -3003,7 +2887,6 @@ def test_promote_customer_to_staff_user(
     assert {perm["code"].lower() for perm in groups[0]["permissions"]} == expected_perms
 
     mocked_notify.assert_not_called()
-
 
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.webhook.plugin.get_webhooks_for_event")
@@ -3064,7 +2947,6 @@ def test_staff_create_trigger_webhook(
 
     assert expected_call in mocked_webhook_trigger.call_args_list
 
-
 def test_staff_create_app_no_permission(
     app_api_client,
     staff_user,
@@ -3090,7 +2972,6 @@ def test_staff_create_app_no_permission(
 
     assert_no_permission(response)
 
-
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.manager.PluginsManager.notify")
 def test_staff_create_out_of_scope_group(
@@ -3104,9 +2985,7 @@ def test_staff_create_out_of_scope_group(
     channel_PLN,
     site_settings,
 ):
-    """Ensure user can't create staff with groups which are out of user scope.
-    Ensure superuser pass restrictions.
-    """
+
     group = permission_group_manage_users
     group2 = Group.objects.create(name="second group")
     group2.permissions.add(permission_manage_staff)
@@ -3191,7 +3070,6 @@ def test_staff_create_out_of_scope_group(
         channel_slug=None,
     )
 
-
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.manager.PluginsManager.notify")
 def test_staff_create_send_password_with_url(
@@ -3229,7 +3107,6 @@ def test_staff_create_send_password_with_url(
         channel_slug=None,
     )
 
-
 def test_staff_create_without_send_password(
     staff_api_client, media_root, permission_manage_staff
 ):
@@ -3242,7 +3119,6 @@ def test_staff_create_without_send_password(
     data = content["data"]["staffCreate"]
     assert not data["errors"]
     User.objects.get(email=email)
-
 
 def test_staff_create_with_invalid_url(
     staff_api_client, media_root, permission_manage_staff
@@ -3263,7 +3139,6 @@ def test_staff_create_with_invalid_url(
     staff_user = User.objects.filter(email=email)
     assert not staff_user
 
-
 def test_staff_create_with_not_allowed_url(
     staff_api_client, media_root, permission_manage_staff
 ):
@@ -3283,7 +3158,6 @@ def test_staff_create_with_not_allowed_url(
     staff_user = User.objects.filter(email=email)
     assert not staff_user
 
-
 def test_staff_create_with_upper_case_email(
     staff_api_client, media_root, permission_manage_staff
 ):
@@ -3298,7 +3172,6 @@ def test_staff_create_with_upper_case_email(
     data = content["data"]["staffCreate"]
     assert not data["errors"]
     assert data["user"]["email"] == email.lower()
-
 
 STAFF_UPDATE_MUTATIONS = """
     mutation UpdateStaff(
@@ -3327,7 +3200,6 @@ STAFF_UPDATE_MUTATIONS = """
     }
 """
 
-
 def test_staff_update(staff_api_client, permission_manage_staff, media_root):
     query = STAFF_UPDATE_MUTATIONS
     staff_user = User.objects.create(email="staffuser@example.com", is_staff=True)
@@ -3346,7 +3218,6 @@ def test_staff_update(staff_api_client, permission_manage_staff, media_root):
     assert not data["user"]["isActive"]
     staff_user.refresh_from_db()
     assert not staff_user.search_document
-
 
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.webhook.plugin.get_webhooks_for_event")
@@ -3395,7 +3266,6 @@ def test_staff_update_trigger_webhook(
         SimpleLazyObject(lambda: staff_api_client.user),
     )
 
-
 def test_staff_update_email(staff_api_client, permission_manage_staff, media_root):
     query = STAFF_UPDATE_MUTATIONS
     staff_user = User.objects.create(email="staffuser@example.com", is_staff=True)
@@ -3415,7 +3285,6 @@ def test_staff_update_email(staff_api_client, permission_manage_staff, media_roo
     assert data["user"]["isActive"]
     staff_user.refresh_from_db()
     assert staff_user.search_document == f"{new_email}\n"
-
 
 @pytest.mark.parametrize("field", ["firstName", "lastName"])
 def test_staff_update_name_field(
@@ -3441,7 +3310,6 @@ def test_staff_update_name_field(
     staff_user.refresh_from_db()
     assert staff_user.search_document == f"{email}\n{value.lower()}\n"
 
-
 def test_staff_update_app_no_permission(
     app_api_client, permission_manage_staff, media_root
 ):
@@ -3455,7 +3323,6 @@ def test_staff_update_app_no_permission(
     )
 
     assert_no_permission(response)
-
 
 def test_staff_update_groups_and_permissions(
     staff_api_client,
@@ -3505,7 +3372,6 @@ def test_staff_update_groups_and_permissions(
         group3.name,
     }
 
-
 def test_staff_update_out_of_scope_user(
     staff_api_client,
     superuser_api_client,
@@ -3513,9 +3379,7 @@ def test_staff_update_out_of_scope_user(
     permission_manage_orders,
     media_root,
 ):
-    """Ensure that staff user cannot update user with wider scope of permission.
-    Ensure superuser pass restrictions.
-    """
+
     query = STAFF_UPDATE_MUTATIONS
     staff_user = User.objects.create(email="staffuser@example.com", is_staff=True)
     staff_user.user_permissions.add(permission_manage_orders)
@@ -3539,7 +3403,6 @@ def test_staff_update_out_of_scope_user(
     assert data["user"]["isActive"] is False
     assert not data["errors"]
 
-
 def test_staff_update_out_of_scope_groups(
     staff_api_client,
     superuser_api_client,
@@ -3549,10 +3412,7 @@ def test_staff_update_out_of_scope_groups(
     permission_manage_orders,
     permission_manage_products,
 ):
-    """Ensure that staff user cannot add to groups which permission scope is wider
-    than user's scope.
-    Ensure superuser pass restrictions.
-    """
+
     query = STAFF_UPDATE_MUTATIONS
 
     groups = Group.objects.bulk_create(
@@ -3620,7 +3480,6 @@ def test_staff_update_out_of_scope_groups(
         group2.name,
     }
 
-
 def test_staff_update_duplicated_input_items(
     staff_api_client,
     permission_manage_staff,
@@ -3671,7 +3530,6 @@ def test_staff_update_duplicated_input_items(
     }
     assert errors[0]["permissions"] is None
 
-
 def test_staff_update_doesnt_change_existing_avatar(
     staff_api_client,
     permission_manage_staff,
@@ -3697,7 +3555,6 @@ def test_staff_update_doesnt_change_existing_avatar(
     staff_user.refresh_from_db()
     assert not staff_user.avatar
 
-
 def test_staff_update_deactivate_with_manage_staff_left_not_manageable_perms(
     staff_api_client,
     superuser_api_client,
@@ -3707,9 +3564,7 @@ def test_staff_update_deactivate_with_manage_staff_left_not_manageable_perms(
     permission_manage_orders,
     media_root,
 ):
-    """Ensure that staff user can't and superuser can deactivate user where some
-    permissions will be not manageable.
-    """
+
     query = STAFF_UPDATE_MUTATIONS
     groups = Group.objects.bulk_create(
         [
@@ -3759,7 +3614,6 @@ def test_staff_update_deactivate_with_manage_staff_left_not_manageable_perms(
     assert not errors
     assert not staff_user1.is_active
 
-
 def test_staff_update_deactivate_with_manage_staff_all_perms_manageable(
     staff_api_client,
     staff_users,
@@ -3802,7 +3656,6 @@ def test_staff_update_deactivate_with_manage_staff_all_perms_manageable(
     assert not errors
     assert staff_user1.is_active is False
 
-
 def test_staff_update_update_email_assign_gift_cards_and_orders(
     staff_api_client, permission_manage_staff, gift_card, order
 ):
@@ -3838,7 +3691,6 @@ def test_staff_update_update_email_assign_gift_cards_and_orders(
     order.refresh_from_db()
     assert order.user == staff_user
 
-
 STAFF_DELETE_MUTATION = """
         mutation DeleteStaff($id: ID!) {
             staffDelete(id: $id) {
@@ -3855,7 +3707,6 @@ STAFF_DELETE_MUTATION = """
         }
     """
 
-
 def test_staff_delete(staff_api_client, permission_manage_staff):
     query = STAFF_DELETE_MUTATION
     staff_user = User.objects.create(email="staffuser@example.com", is_staff=True)
@@ -3869,7 +3720,6 @@ def test_staff_delete(staff_api_client, permission_manage_staff):
     data = content["data"]["staffDelete"]
     assert data["errors"] == []
     assert not User.objects.filter(pk=staff_user.id).exists()
-
 
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.webhook.plugin.get_webhooks_for_event")
@@ -3915,7 +3765,6 @@ def test_staff_delete_trigger_webhook(
         SimpleLazyObject(lambda: staff_api_client.user),
     )
 
-
 @patch("saleor.account.signals.delete_from_storage_task.delay")
 def test_staff_delete_with_avatar(
     delete_from_storage_task_mock,
@@ -3940,7 +3789,6 @@ def test_staff_delete_with_avatar(
     assert not User.objects.filter(pk=staff_user.id).exists()
     delete_from_storage_task_mock.assert_called_once_with(staff_user.avatar.name)
 
-
 def test_staff_delete_app_no_permission(app_api_client, permission_manage_staff):
     query = STAFF_DELETE_MUTATION
     staff_user = User.objects.create(email="staffuser@example.com", is_staff=True)
@@ -3953,17 +3801,13 @@ def test_staff_delete_app_no_permission(app_api_client, permission_manage_staff)
 
     assert_no_permission(response)
 
-
 def test_staff_delete_out_of_scope_user(
     staff_api_client,
     superuser_api_client,
     permission_manage_staff,
     permission_manage_products,
 ):
-    """Ensure staff user cannot delete users even when some of user permissions are
-    out of requestor scope.
-    Ensure superuser pass restrictions.
-    """
+
     query = STAFF_DELETE_MUTATION
     staff_user = User.objects.create(email="staffuser@example.com", is_staff=True)
     staff_user.user_permissions.add(permission_manage_products)
@@ -3987,7 +3831,6 @@ def test_staff_delete_out_of_scope_user(
     assert data["errors"] == []
     assert not User.objects.filter(pk=staff_user.id).exists()
 
-
 def test_staff_delete_left_not_manageable_permissions(
     staff_api_client,
     superuser_api_client,
@@ -3996,9 +3839,7 @@ def test_staff_delete_left_not_manageable_permissions(
     permission_manage_users,
     permission_manage_orders,
 ):
-    """Ensure staff user can't and superuser can delete staff user when some of
-    permissions will be not manageable.
-    """
+
     query = STAFF_DELETE_MUTATION
     groups = Group.objects.bulk_create(
         [
@@ -4047,7 +3888,6 @@ def test_staff_delete_left_not_manageable_permissions(
     assert not errors
     assert not User.objects.filter(pk=staff_user1.id).exists()
 
-
 def test_staff_delete_all_permissions_manageable(
     staff_api_client,
     staff_users,
@@ -4088,7 +3928,6 @@ def test_staff_delete_all_permissions_manageable(
     assert len(errors) == 0
     assert not User.objects.filter(pk=staff_user1.id).exists()
 
-
 def test_user_delete_errors(staff_user, admin_user):
     info = Mock(context=Mock(user=staff_user))
     with pytest.raises(ValidationError) as e:
@@ -4104,7 +3943,6 @@ def test_user_delete_errors(staff_user, admin_user):
     msg = "Cannot delete this account."
     assert e.value.error_dict["id"][0].message == msg
 
-
 def test_staff_delete_errors(staff_user, customer_user, admin_user):
     info = Mock(context=Mock(user=staff_user, app=None))
     with pytest.raises(ValidationError) as e:
@@ -4114,7 +3952,6 @@ def test_staff_delete_errors(staff_user, customer_user, admin_user):
 
     info = Mock(context=Mock(user=admin_user, app=None))
     StaffDelete.clean_instance(info, staff_user)
-
 
 def test_staff_update_errors(staff_user, customer_user, admin_user):
     errors = defaultdict(list)
@@ -4142,7 +3979,6 @@ def test_staff_update_errors(staff_user, customer_user, admin_user):
     StaffUpdate.clean_is_active(input, customer_user, staff_user, errors)
     assert not errors["is_active"]
 
-
 SET_PASSWORD_MUTATION = """
     mutation SetPassword($email: String!, $token: String!, $password: String!) {
         setPassword(email: $email, token: $token, password: $password) {
@@ -4164,7 +4000,6 @@ SET_PASSWORD_MUTATION = """
     }
 """
 
-
 @freeze_time("2018-05-31 12:00:01")
 def test_set_password(user_api_client, customer_user):
     token = default_token_generator.make_token(customer_user)
@@ -4184,7 +4019,6 @@ def test_set_password(user_api_client, customer_user):
     assert password_resent_event.type == account_events.CustomerEvents.PASSWORD_RESET
     assert password_resent_event.user == customer_user
 
-
 def test_set_password_invalid_token(user_api_client, customer_user):
     variables = {"email": customer_user.email, "password": "pass", "token": "token"}
     response = user_api_client.post_graphql(SET_PASSWORD_MUTATION, variables)
@@ -4195,7 +4029,6 @@ def test_set_password_invalid_token(user_api_client, customer_user):
     account_errors = content["data"]["setPassword"]["errors"]
     assert account_errors[0]["message"] == INVALID_TOKEN
     assert account_errors[0]["code"] == AccountErrorCode.INVALID.name
-
 
 def test_set_password_invalid_email(user_api_client):
     variables = {"email": "fake@example.com", "password": "pass", "token": "token"}
@@ -4209,7 +4042,6 @@ def test_set_password_invalid_email(user_api_client):
     assert len(account_errors) == 1
     assert account_errors[0]["field"] == "email"
     assert account_errors[0]["code"] == AccountErrorCode.NOT_FOUND.name
-
 
 @freeze_time("2018-05-31 12:00:01")
 def test_set_password_invalid_password(user_api_client, customer_user, settings):
@@ -4237,7 +4069,6 @@ def test_set_password_invalid_password(user_api_client, customer_user, settings)
     assert account_errors[0]["code"] == str_to_enum("password_too_short")
     assert account_errors[1]["code"] == str_to_enum("password_entirely_numeric")
 
-
 CHANGE_PASSWORD_MUTATION = """
     mutation PasswordChange($oldPassword: String, $newPassword: String!) {
         passwordChange(oldPassword: $oldPassword, newPassword: $newPassword) {
@@ -4251,7 +4082,6 @@ CHANGE_PASSWORD_MUTATION = """
         }
     }
 """
-
 
 def test_password_change(user_api_client):
     customer_user = user_api_client.user
@@ -4271,7 +4101,6 @@ def test_password_change(user_api_client):
     assert password_change_event.type == account_events.CustomerEvents.PASSWORD_CHANGED
     assert password_change_event.user == customer_user
 
-
 def test_password_change_incorrect_old_password(user_api_client):
     customer_user = user_api_client.user
     variables = {"oldPassword": "incorrect", "newPassword": ""}
@@ -4282,7 +4111,6 @@ def test_password_change_incorrect_old_password(user_api_client):
     assert customer_user.check_password("password")
     assert data["errors"]
     assert data["errors"][0]["field"] == "oldPassword"
-
 
 def test_password_change_invalid_new_password(user_api_client, settings):
     settings.AUTH_PASSWORD_VALIDATORS = [
@@ -4309,7 +4137,6 @@ def test_password_change_invalid_new_password(user_api_client, settings):
     assert errors[1]["field"] == "newPassword"
     assert errors[1]["message"] == "This password is entirely numeric."
 
-
 def test_password_change_user_unusable_password_fails_if_old_password_is_set(
     user_api_client,
 ):
@@ -4328,7 +4155,6 @@ def test_password_change_user_unusable_password_fails_if_old_password_is_set(
 
     customer_user.refresh_from_db()
     assert not customer_user.has_usable_password()
-
 
 def test_password_change_user_unusable_password_if_old_password_is_omitted(
     user_api_client,
@@ -4353,7 +4179,6 @@ def test_password_change_user_unusable_password_if_old_password_is_omitted(
     assert password_change_event.type == account_events.CustomerEvents.PASSWORD_CHANGED
     assert password_change_event.user == customer_user
 
-
 def test_password_change_user_usable_password_fails_if_old_password_is_omitted(
     user_api_client,
 ):
@@ -4371,7 +4196,6 @@ def test_password_change_user_usable_password_fails_if_old_password_is_omitted(
     customer_user.refresh_from_db()
     assert customer_user.has_usable_password()
     assert not customer_user.check_password(new_password)
-
 
 ADDRESS_CREATE_MUTATION = """
     mutation CreateUserAddress($user: ID!, $address: AddressInput!) {
@@ -4393,7 +4217,6 @@ ADDRESS_CREATE_MUTATION = """
         }
     }
 """
-
 
 def test_create_address_mutation(
     staff_api_client, customer_user, permission_manage_users, graphql_address_data
@@ -4417,7 +4240,6 @@ def test_create_address_mutation(
     customer_user.refresh_from_db()
     for field in ["city", "country"]:
         assert variables["address"][field].lower() in customer_user.search_document
-
 
 @freeze_time("2022-05-12 12:00:00")
 @patch("saleor.plugins.webhook.plugin.get_webhooks_for_event")
@@ -4456,7 +4278,6 @@ def test_create_address_mutation_trigger_webhook(
         )
     )
 
-
 @override_settings(MAX_USER_ADDRESSES=2)
 def test_create_address_mutation_the_oldest_address_is_deleted(
     staff_api_client,
@@ -4493,7 +4314,6 @@ def test_create_address_mutation_the_oldest_address_is_deleted(
     with pytest.raises(address._meta.model.DoesNotExist):
         address.refresh_from_db()
 
-
 def test_create_address_validation_fails(
     staff_api_client,
     customer_user,
@@ -4517,7 +4337,6 @@ def test_create_address_validation_fails(
     assert data["errors"][0]["field"] == "postalCode"
     assert data["address"] is None
 
-
 ADDRESS_UPDATE_MUTATION = """
     mutation updateUserAddress($addressId: ID!, $address: AddressInput!) {
         addressUpdate(id: $addressId, input: $address) {
@@ -4530,7 +4349,6 @@ ADDRESS_UPDATE_MUTATION = """
         }
     }
 """
-
 
 def test_address_update_mutation(
     staff_api_client, customer_user, permission_manage_users, graphql_address_data
@@ -4555,7 +4373,6 @@ def test_address_update_mutation(
         generate_address_search_document_value(address_obj)
         in customer_user.search_document
     )
-
 
 @freeze_time("2022-05-12 12:00:00")
 @patch("saleor.plugins.webhook.plugin.get_webhooks_for_event")
@@ -4596,7 +4413,6 @@ def test_address_update_mutation_trigger_webhook(
         )
     )
 
-
 @patch("saleor.graphql.account.mutations.base.prepare_user_search_document_value")
 def test_address_update_mutation_no_user_assigned(
     prepare_user_search_document_value_mock,
@@ -4621,7 +4437,6 @@ def test_address_update_mutation_no_user_assigned(
     assert data["address"]["city"] == graphql_address_data["city"].upper()
     prepare_user_search_document_value_mock.assert_not_called()
 
-
 ACCOUNT_ADDRESS_UPDATE_MUTATION = """
     mutation updateAccountAddress($addressId: ID!, $address: AddressInput!) {
         accountAddressUpdate(id: $addressId, input: $address) {
@@ -4634,7 +4449,6 @@ ACCOUNT_ADDRESS_UPDATE_MUTATION = """
         }
     }
 """
-
 
 def test_customer_update_own_address(
     user_api_client, customer_user, graphql_address_data
@@ -4658,7 +4472,6 @@ def test_customer_update_own_address(
     assert address_obj.city == address_data["city"].upper()
     user.refresh_from_db()
     assert generate_address_search_document_value(address_obj) in user.search_document
-
 
 @freeze_time("2022-05-12 12:00:00")
 @patch("saleor.plugins.webhook.plugin.get_webhooks_for_event")
@@ -4699,7 +4512,6 @@ def test_customer_address_update_trigger_webhook(
         )
     )
 
-
 def test_update_address_as_anonymous_user(
     api_client, customer_user, graphql_address_data
 ):
@@ -4712,7 +4524,6 @@ def test_update_address_as_anonymous_user(
     }
     response = api_client.post_graphql(query, variables)
     assert_no_permission(response)
-
 
 def test_customer_update_own_address_not_updated_when_validation_fails(
     user_api_client, customer_user, graphql_address_data
@@ -4733,7 +4544,6 @@ def test_customer_update_own_address_not_updated_when_validation_fails(
     assert address_obj.city != address_data["city"]
     assert address_obj.postal_code != address_data["postalCode"]
 
-
 @pytest.mark.parametrize(
     "query", [ADDRESS_UPDATE_MUTATION, ACCOUNT_ADDRESS_UPDATE_MUTATION]
 )
@@ -4751,7 +4561,6 @@ def test_customer_update_address_for_other(
     response = user_api_client.post_graphql(query, variables)
     assert_no_permission(response)
 
-
 ADDRESS_DELETE_MUTATION = """
     mutation deleteUserAddress($id: ID!) {
         addressDelete(id: $id) {
@@ -4764,7 +4573,6 @@ ADDRESS_DELETE_MUTATION = """
         }
     }
 """
-
 
 def test_address_delete_mutation(
     staff_api_client, customer_user, permission_manage_users
@@ -4787,7 +4595,6 @@ def test_address_delete_mutation(
         generate_address_search_document_value(address_obj)
         not in customer_user.search_document
     )
-
 
 @freeze_time("2022-05-12 12:00:00")
 @patch("saleor.plugins.webhook.plugin.get_webhooks_for_event")
@@ -4822,7 +4629,6 @@ def test_address_delete_mutation_trigger_webhook(
         )
     )
 
-
 def test_address_delete_mutation_as_app(
     app_api_client, customer_user, permission_manage_users
 ):
@@ -4839,7 +4645,6 @@ def test_address_delete_mutation_as_app(
     with pytest.raises(address_obj._meta.model.DoesNotExist):
         address_obj.refresh_from_db()
 
-
 ACCOUNT_ADDRESS_DELETE_MUTATION = """
     mutation deleteUserAddress($id: ID!) {
         accountAddressDelete(id: $id) {
@@ -4852,7 +4657,6 @@ ACCOUNT_ADDRESS_DELETE_MUTATION = """
         }
     }
 """
-
 
 def test_customer_delete_own_address(user_api_client, customer_user):
     query = ACCOUNT_ADDRESS_DELETE_MUTATION
@@ -4869,7 +4673,6 @@ def test_customer_delete_own_address(user_api_client, customer_user):
     assert (
         generate_address_search_document_value(address_obj) not in user.search_document
     )
-
 
 @freeze_time("2022-05-12 12:00:00")
 @patch("saleor.plugins.webhook.plugin.get_webhooks_for_event")
@@ -4901,7 +4704,6 @@ def test_customer_delete_address_trigger_webhook(
         )
     )
 
-
 @pytest.mark.parametrize(
     "query", [ADDRESS_DELETE_MUTATION, ACCOUNT_ADDRESS_DELETE_MUTATION]
 )
@@ -4914,7 +4716,6 @@ def test_customer_delete_address_for_other(
     response = user_api_client.post_graphql(query, variables)
     assert_no_permission(response)
     address_obj.refresh_from_db()
-
 
 SET_DEFAULT_ADDRESS_MUTATION = """
 mutation($address_id: ID!, $user_id: ID!, $type: AddressTypeEnum!) {
@@ -4934,7 +4735,6 @@ mutation($address_id: ID!, $user_id: ID!, $type: AddressTypeEnum!) {
   }
 }
 """
-
 
 def test_set_default_address(
     staff_api_client, address_other_country, customer_user, permission_manage_users
@@ -4966,7 +4766,6 @@ def test_set_default_address(
     content = get_graphql_content(response)
     data = content["data"]["addressSetDefault"]
     assert data["user"]["defaultShippingAddress"]["id"] == address_id
-
 
 GET_ADDRESS_VALIDATION_RULES_QUERY = """
     query getValidator(
@@ -5005,7 +4804,6 @@ GET_ADDRESS_VALIDATION_RULES_QUERY = """
     }
 """
 
-
 def test_address_validation_rules(user_api_client):
     query = GET_ADDRESS_VALIDATION_RULES_QUERY
     variables = {"country_code": "PL", "country_area": None, "city_area": None}
@@ -5036,7 +4834,6 @@ def test_address_validation_rules(user_api_client):
     }
     assert set(data["requiredFields"]) == {"postalCode", "streetAddress1", "city"}
     assert set(data["upperFields"]) == {"city"}
-
 
 def test_address_validation_rules_with_country_area(user_api_client):
     query = GET_ADDRESS_VALIDATION_RULES_QUERY
@@ -5078,7 +4875,6 @@ def test_address_validation_rules_with_country_area(user_api_client):
     }
     assert set(data["upperFields"]) == {"countryArea"}
 
-
 def test_address_validation_rules_fields_in_camel_case(user_api_client):
     query = """
     query getValidator(
@@ -5099,7 +4895,6 @@ def test_address_validation_rules_fields_in_camel_case(user_api_client):
     assert "streetAddress2" not in required_fields
     assert "streetAddress1" in allowed_fields
     assert "streetAddress2" in allowed_fields
-
 
 REQUEST_PASSWORD_RESET_MUTATION = """
     mutation RequestPasswordReset(
@@ -5128,7 +4923,6 @@ CONFIRM_ACCOUNT_MUTATION = """
         }
     }
 """
-
 
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.manager.PluginsManager.notify")
@@ -5168,7 +4962,6 @@ def test_account_reset_password(
         channel_slug=channel_PLN.slug,
     )
 
-
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.manager.PluginsManager.notify")
 def test_account_reset_password_with_upper_case_email(
@@ -5207,7 +5000,6 @@ def test_account_reset_password_with_upper_case_email(
         channel_slug=channel_PLN.slug,
     )
 
-
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.graphql.account.mutations.base.assign_user_gift_cards")
 @patch("saleor.graphql.account.mutations.base.match_orders_with_new_user")
@@ -5235,7 +5027,6 @@ def test_account_confirmation(
     assign_gift_cards_mock.assert_called_once_with(customer_user)
     assert customer_user.is_active is True
 
-
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.graphql.account.mutations.base.assign_user_gift_cards")
 @patch("saleor.graphql.account.mutations.base.match_orders_with_new_user")
@@ -5261,7 +5052,6 @@ def test_account_confirmation_invalid_user(
     match_orders_with_new_user_mock.assert_not_called()
     assign_gift_cards_mock.assert_not_called()
 
-
 @patch("saleor.graphql.account.mutations.base.assign_user_gift_cards")
 @patch("saleor.graphql.account.mutations.base.match_orders_with_new_user")
 def test_account_confirmation_invalid_token(
@@ -5285,7 +5075,6 @@ def test_account_confirmation_invalid_token(
     )
     match_orders_with_new_user_mock.assert_not_called()
     assign_gift_cards_mock.assert_not_called()
-
 
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.manager.PluginsManager.notify")
@@ -5316,7 +5105,6 @@ def test_request_password_reset_email_for_staff(
         channel_slug=None,
     )
 
-
 @patch("saleor.plugins.manager.PluginsManager.notify")
 def test_account_reset_password_invalid_email(
     mocked_notify, user_api_client, channel_USD
@@ -5331,7 +5119,6 @@ def test_account_reset_password_invalid_email(
     data = content["data"]["requestPasswordReset"]
     assert len(data["errors"]) == 1
     mocked_notify.assert_not_called()
-
 
 @patch("saleor.plugins.manager.PluginsManager.notify")
 def test_account_reset_password_user_is_inactive(
@@ -5355,7 +5142,6 @@ def test_account_reset_password_user_is_inactive(
     )
     assert not mocked_notify.called
 
-
 @patch("saleor.plugins.manager.PluginsManager.notify")
 def test_account_reset_password_storefront_hosts_not_allowed(
     mocked_notify, user_api_client, customer_user, channel_USD
@@ -5371,7 +5157,6 @@ def test_account_reset_password_storefront_hosts_not_allowed(
     assert len(data["errors"]) == 1
     assert data["errors"][0]["field"] == "redirectUrl"
     mocked_notify.assert_not_called()
-
 
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.manager.PluginsManager.notify")
@@ -5414,7 +5199,6 @@ def test_account_reset_password_all_storefront_hosts_allowed(
         channel_slug=channel_PLN.slug,
     )
 
-
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.manager.PluginsManager.notify")
 def test_account_reset_password_subdomain(
@@ -5450,7 +5234,6 @@ def test_account_reset_password_subdomain(
         channel_slug=channel_PLN.slug,
     )
 
-
 ACCOUNT_ADDRESS_CREATE_MUTATION = """
 mutation($addressInput: AddressInput!, $addressType: AddressTypeEnum) {
   accountAddressCreate(input: $addressInput, type: $addressType) {
@@ -5469,7 +5252,6 @@ mutation($addressInput: AddressInput!, $addressType: AddressTypeEnum) {
   }
 }
 """
-
 
 def test_customer_create_address(user_api_client, graphql_address_data):
     user = user_api_client.user
@@ -5491,7 +5273,6 @@ def test_customer_create_address(user_api_client, graphql_address_data):
         generate_address_search_document_value(user.addresses.last())
         in user.search_document
     )
-
 
 @freeze_time("2022-05-12 12:00:00")
 @patch("saleor.plugins.webhook.plugin.get_webhooks_for_event")
@@ -5523,7 +5304,6 @@ def test_customer_create_address_trigger_webhook(
         )
     )
 
-
 def test_account_address_create_return_user(user_api_client, graphql_address_data):
     user = user_api_client.user
     variables = {"addressInput": graphql_address_data}
@@ -5531,7 +5311,6 @@ def test_account_address_create_return_user(user_api_client, graphql_address_dat
     content = get_graphql_content(response)
     data = content["data"]["accountAddressCreate"]["user"]
     assert data["email"] == user.email
-
 
 def test_customer_create_default_address(user_api_client, graphql_address_data):
     user = user_api_client.user
@@ -5566,13 +5345,11 @@ def test_customer_create_default_address(user_api_client, graphql_address_data):
         graphene.Node.from_global_id(data["address"]["id"])[1]
     )
 
-
 @override_settings(MAX_USER_ADDRESSES=2)
 def test_customer_create_address_the_oldest_address_is_deleted(
     user_api_client, graphql_address_data, address
 ):
-    """Ensure that when mew address it added to user with max amount of addressess,
-    the oldest address will be removed."""
+
     user = user_api_client.user
     same_address = Address.objects.create(**address.as_data())
     user.addresses.set([address, same_address])
@@ -5595,13 +5372,11 @@ def test_customer_create_address_the_oldest_address_is_deleted(
     with pytest.raises(address._meta.model.DoesNotExist):
         address.refresh_from_db()
 
-
 def test_anonymous_user_create_address(api_client, graphql_address_data):
     query = ACCOUNT_ADDRESS_CREATE_MUTATION
     variables = {"addressInput": graphql_address_data}
     response = api_client.post_graphql(query, variables)
     assert_no_permission(response)
-
 
 def test_address_not_created_after_validation_fails(
     user_api_client, graphql_address_data
@@ -5627,7 +5402,6 @@ def test_address_not_created_after_validation_fails(
     user.refresh_from_db()
     assert user.addresses.count() == user_addresses_count
 
-
 ACCOUNT_SET_DEFAULT_ADDRESS_MUTATION = """
 mutation($id: ID!, $type: AddressTypeEnum!) {
   accountSetDefaultAddress(id: $id, type: $type) {
@@ -5638,7 +5412,6 @@ mutation($id: ID!, $type: AddressTypeEnum!) {
   }
 }
 """
-
 
 def test_customer_set_address_as_default(user_api_client):
     user = user_api_client.user
@@ -5674,7 +5447,6 @@ def test_customer_set_address_as_default(user_api_client):
     user.refresh_from_db()
     assert user.default_billing_address == address
 
-
 def test_customer_change_default_address(user_api_client, address_other_country):
     user = user_api_client.user
     assert user.default_billing_address
@@ -5704,7 +5476,6 @@ def test_customer_change_default_address(user_api_client, address_other_country)
     assert user.default_shipping_address == address
     assert address_other_country in user.addresses.all()
 
-
 def test_customer_change_default_address_invalid_address(
     user_api_client, address_other_country
 ):
@@ -5722,7 +5493,6 @@ def test_customer_change_default_address_invalid_address(
     content = get_graphql_content(response)
     assert content["data"][mutation_name]["errors"][0]["field"] == "id"
 
-
 USER_AVATAR_UPDATE_MUTATION = """
     mutation userAvatarUpdate($image: Upload!) {
         userAvatarUpdate(image: $image) {
@@ -5735,9 +5505,8 @@ USER_AVATAR_UPDATE_MUTATION = """
     }
 """
 
-
 def test_user_avatar_update_mutation_permission(api_client):
-    """Should raise error if user is not staff."""
+
 
     query = USER_AVATAR_UPDATE_MUTATION
 
@@ -5747,7 +5516,6 @@ def test_user_avatar_update_mutation_permission(api_client):
     response = api_client.post_multipart(body)
 
     assert_no_permission(response)
-
 
 def test_user_avatar_update_mutation(
     monkeypatch, staff_api_client, media_root, site_settings
@@ -5776,7 +5544,6 @@ def test_user_avatar_update_mutation(
     assert file_name != image_file._name
     assert file_name.startswith(f"user-avatars/{img_name}")
     assert file_name.endswith(format)
-
 
 def test_user_avatar_update_mutation_image_exists(
     staff_api_client, media_root, site_settings
@@ -5809,7 +5576,6 @@ def test_user_avatar_update_mutation_image_exists(
     )
     assert not user.thumbnails.exists()
 
-
 USER_AVATAR_DELETE_MUTATION = """
     mutation userAvatarDelete {
         userAvatarDelete {
@@ -5822,16 +5588,14 @@ USER_AVATAR_DELETE_MUTATION = """
     }
 """
 
-
 def test_user_avatar_delete_mutation_permission(api_client):
-    """Should raise error if user is not staff."""
+
 
     query = USER_AVATAR_DELETE_MUTATION
 
     response = api_client.post_graphql(query)
 
     assert_no_permission(response)
-
 
 def test_user_avatar_delete_mutation(staff_api_client):
     query = USER_AVATAR_DELETE_MUTATION
@@ -5848,7 +5612,6 @@ def test_user_avatar_delete_mutation(staff_api_client):
     assert not user.avatar
     assert not content["data"]["userAvatarDelete"]["user"]["avatar"]
     assert not user.thumbnails.exists()
-
 
 @pytest.mark.parametrize(
     "customer_filter, count",
@@ -5880,7 +5643,6 @@ def test_query_customers_with_filter_placed_orders(
     users = content["data"]["customers"]["edges"]
 
     assert len(users) == count
-
 
 @pytest.mark.parametrize(
     "customer_filter, count",
@@ -5923,7 +5685,6 @@ def test_query_customers_with_filter_date_joined_and_updated_at(
     users = content["data"]["customers"]["edges"]
     assert len(users) == count
 
-
 @pytest.mark.parametrize(
     "customer_filter, count",
     [
@@ -5961,7 +5722,6 @@ def test_query_customers_with_filter_placed_orders_(
 
     assert len(users) == count
 
-
 def test_query_customers_with_filter_metadata(
     query_customer_with_filter,
     staff_api_client,
@@ -5983,7 +5743,6 @@ def test_query_customers_with_filter_metadata(
     user = users[0]
     _, user_id = graphene.Node.from_global_id(user["node"]["id"])
     assert second_customer.id == int(user_id)
-
 
 def test_query_customers_search_without_duplications(
     query_customer_with_filter,
@@ -6015,7 +5774,6 @@ def test_query_customers_search_without_duplications(
     users = content["data"]["customers"]["edges"]
     assert len(users) == 1
 
-
 def test_query_customers_with_permission_manage_orders(
     query_customer_with_filter,
     customer_user,
@@ -6033,7 +5791,6 @@ def test_query_customers_with_permission_manage_orders(
     users = content["data"]["customers"]["totalCount"]
     assert users == 1
 
-
 QUERY_CUSTOMERS_WITH_SORT = """
     query ($sort_by: UserSortingInput!) {
         customers(first:5, sortBy: $sort_by) {
@@ -6045,7 +5802,6 @@ QUERY_CUSTOMERS_WITH_SORT = """
             }
         }
 """
-
 
 @pytest.mark.parametrize(
     "customer_sort, result_order",
@@ -6110,7 +5866,6 @@ def test_query_customers_with_sort(
     for order, user_first_name in enumerate(result_order):
         assert users[order]["node"]["firstName"] == user_first_name
 
-
 @pytest.mark.parametrize(
     "customer_filter, count",
     [
@@ -6166,7 +5921,6 @@ def test_query_customer_members_with_filter_search(
 
     assert len(users) == count
 
-
 def test_query_customers_with_filter_by_one_id(
     query_customer_with_filter,
     staff_api_client,
@@ -6189,7 +5943,6 @@ def test_query_customers_with_filter_by_one_id(
     result_user = content["data"]["customers"]["edges"][0]
     _, id = graphene.Node.from_global_id(result_user["node"]["id"])
     assert id == str(search_user.pk)
-
 
 def test_query_customers_with_filter_by_multiple_ids(
     query_customer_with_filter,
@@ -6217,7 +5970,6 @@ def test_query_customers_with_filter_by_multiple_ids(
         _, id = graphene.Node.from_global_id(result_user["node"]["id"])
         assert id in expected_ids
 
-
 def test_query_customers_with_filter_by_empty_list(
     query_customer_with_filter,
     staff_api_client,
@@ -6239,7 +5991,6 @@ def test_query_customers_with_filter_by_empty_list(
         _, id = graphene.Node.from_global_id(result_user["node"]["id"])
         assert id in expected_ids
 
-
 def test_query_customers_with_filter_by_not_existing_id(
     query_customer_with_filter,
     staff_api_client,
@@ -6258,7 +6009,6 @@ def test_query_customers_with_filter_by_not_existing_id(
     result_users = content["data"]["customers"]["edges"]
 
     assert len(result_users) == 0
-
 
 @pytest.mark.parametrize(
     "staff_member_filter, count",
@@ -6288,7 +6038,6 @@ def test_query_staff_members_with_filter_status(
 
     assert len(users) == count
 
-
 def test_query_staff_members_with_filter_by_ids(
     query_staff_users_with_filter,
     staff_api_client,
@@ -6308,7 +6057,6 @@ def test_query_staff_members_with_filter_by_ids(
 
     users = content["data"]["staffUsers"]["edges"]
     assert len(users) == 1
-
 
 @pytest.mark.parametrize(
     "staff_member_filter, count",
@@ -6372,7 +6120,6 @@ def test_query_staff_members_with_filter_search(
 
     assert len(users) == count
 
-
 QUERY_STAFF_USERS_WITH_SORT = """
     query ($sort_by: UserSortingInput!) {
         staffUsers(first:5, sortBy: $sort_by) {
@@ -6384,7 +6131,6 @@ QUERY_STAFF_USERS_WITH_SORT = """
             }
         }
 """
-
 
 @pytest.mark.parametrize(
     "customer_sort, result_order",
@@ -6439,7 +6185,6 @@ def test_query_staff_members_with_sort(
     for order, user_first_name in enumerate(result_order):
         assert users[order]["node"]["firstName"] == user_first_name
 
-
 USER_CHANGE_ACTIVE_STATUS_MUTATION = """
     mutation userChangeActiveStatus($ids: [ID!]!, $is_active: Boolean!) {
         userBulkSetActive(ids: $ids, isActive: $is_active) {
@@ -6451,7 +6196,6 @@ USER_CHANGE_ACTIVE_STATUS_MUTATION = """
         }
     }
     """
-
 
 def test_staff_bulk_set_active(
     staff_api_client, user_list_not_active, permission_manage_users
@@ -6473,7 +6217,6 @@ def test_staff_bulk_set_active(
     users = User.objects.filter(pk__in=[user.pk for user in users])
     assert all(user.is_active for user in users)
 
-
 def test_staff_bulk_set_not_active(
     staff_api_client, user_list, permission_manage_users
 ):
@@ -6493,7 +6236,6 @@ def test_staff_bulk_set_not_active(
     assert data["count"] == len(users)
     users = User.objects.filter(pk__in=[user.pk for user in users])
     assert not any(user.is_active for user in users)
-
 
 def test_change_active_status_for_superuser(
     staff_api_client, superuser, permission_manage_users
@@ -6518,7 +6260,6 @@ def test_change_active_status_for_superuser(
         "superuser's account."
     )
 
-
 def test_change_active_status_for_himself(staff_api_client, permission_manage_users):
     users = [staff_api_client.user]
     user_id = graphene.Node.to_global_id("User", staff_api_client.user.id)
@@ -6540,7 +6281,6 @@ def test_change_active_status_for_himself(staff_api_client, permission_manage_us
         "your own account."
     )
 
-
 ADDRESS_QUERY = """
 query address($id: ID!) {
     address(id: $id) {
@@ -6555,7 +6295,6 @@ query address($id: ID!) {
 }
 """
 
-
 def test_address_query_as_owner(user_api_client, customer_user):
     address = customer_user.addresses.first()
     variables = {"id": graphene.Node.to_global_id("Address", address.pk)}
@@ -6563,7 +6302,6 @@ def test_address_query_as_owner(user_api_client, customer_user):
     content = get_graphql_content(response)
     data = content["data"]["address"]
     assert data["country"]["code"] == address.country.code
-
 
 def test_address_query_as_not_owner(
     user_api_client, customer_user, address_other_country
@@ -6573,7 +6311,6 @@ def test_address_query_as_not_owner(
     content = get_graphql_content(response)
     data = content["data"]["address"]
     assert not data
-
 
 def test_address_query_as_app_with_permission(
     app_api_client,
@@ -6588,7 +6325,6 @@ def test_address_query_as_app_with_permission(
     data = content["data"]["address"]
     assert data["country"]["code"] == address_other_country.country.code
 
-
 def test_address_query_as_app_without_permission(
     app_api_client, app, address_other_country
 ):
@@ -6596,12 +6332,10 @@ def test_address_query_as_app_without_permission(
     response = app_api_client.post_graphql(ADDRESS_QUERY, variables)
     assert_no_permission(response)
 
-
 def test_address_query_as_anonymous_user(api_client, address_other_country):
     variables = {"id": graphene.Node.to_global_id("Address", address_other_country.pk)}
     response = api_client.post_graphql(ADDRESS_QUERY, variables)
     assert_no_permission(response)
-
 
 def test_address_query_invalid_id(
     staff_api_client,
@@ -6615,7 +6349,6 @@ def test_address_query_invalid_id(
     assert content["errors"][0]["message"] == f"Couldn't resolve id: {id}."
     assert content["data"]["address"] is None
 
-
 def test_address_query_with_invalid_object_type(
     staff_api_client,
     address_other_country,
@@ -6624,7 +6357,6 @@ def test_address_query_with_invalid_object_type(
     response = staff_api_client.post_graphql(ADDRESS_QUERY, variables)
     content = get_graphql_content(response)
     assert content["data"]["address"] is None
-
 
 REQUEST_EMAIL_CHANGE_QUERY = """
 mutation requestEmailChange(
@@ -6647,7 +6379,6 @@ mutation requestEmailChange(
   }
 }
 """
-
 
 @freeze_time("2018-05-31 12:00:01")
 @patch("saleor.plugins.manager.PluginsManager.notify")
@@ -6698,7 +6429,6 @@ def test_account_request_email_change_with_upper_case_email(
         channel_slug=channel_PLN.slug,
     )
 
-
 def test_request_email_change(user_api_client, customer_user, channel_PLN):
     variables = {
         "password": "password",
@@ -6711,7 +6441,6 @@ def test_request_email_change(user_api_client, customer_user, channel_PLN):
     content = get_graphql_content(response)
     data = content["data"]["requestEmailChange"]
     assert data["user"]["email"] == customer_user.email
-
 
 def test_request_email_change_to_existing_email(
     user_api_client, customer_user, staff_user
@@ -6734,7 +6463,6 @@ def test_request_email_change_to_existing_email(
         }
     ]
 
-
 def test_request_email_change_with_invalid_redirect_url(
     user_api_client, customer_user, staff_user
 ):
@@ -6756,7 +6484,6 @@ def test_request_email_change_with_invalid_redirect_url(
         }
     ]
 
-
 def test_request_email_change_with_invalid_password(user_api_client, customer_user):
     variables = {
         "password": "spanishinquisition",
@@ -6769,7 +6496,6 @@ def test_request_email_change_with_invalid_password(user_api_client, customer_us
     assert not data["user"]
     assert data["errors"][0]["code"] == AccountErrorCode.INVALID_CREDENTIALS.name
     assert data["errors"][0]["field"] == "password"
-
 
 EMAIL_UPDATE_QUERY = """
 mutation emailUpdate($token: String!, $channel: String) {
@@ -6785,7 +6511,6 @@ mutation emailUpdate($token: String!, $channel: String) {
   }
 }
 """
-
 
 @patch("saleor.graphql.account.mutations.account.match_orders_with_new_user")
 @patch("saleor.graphql.account.mutations.account.assign_user_gift_cards")
@@ -6816,7 +6541,6 @@ def test_email_update(
     assign_gift_cards_mock.assert_called_once_with(customer_user)
     assign_orders_mock.assert_called_once_with(customer_user)
 
-
 def test_email_update_to_existing_email(user_api_client, customer_user, staff_user):
     payload = {
         "old_email": customer_user.email,
@@ -6838,7 +6562,6 @@ def test_email_update_to_existing_email(user_api_client, customer_user, staff_us
         }
     ]
 
-
 USER_FEDERATION_QUERY = """
   query GetUserInFederation($representations: [_Any]) {
     _entities(representations: $representations) {
@@ -6850,7 +6573,6 @@ USER_FEDERATION_QUERY = """
     }
   }
 """
-
 
 def test_staff_query_user_by_id_for_federation(
     staff_api_client, customer_user, permission_manage_users
@@ -6880,7 +6602,6 @@ def test_staff_query_user_by_id_for_federation(
         }
     ]
 
-
 def test_staff_query_user_by_email_for_federation(
     staff_api_client, customer_user, permission_manage_users
 ):
@@ -6909,7 +6630,6 @@ def test_staff_query_user_by_email_for_federation(
         }
     ]
 
-
 def test_staff_query_user_by_id_without_permission_for_federation(
     staff_api_client, customer_user
 ):
@@ -6927,7 +6647,6 @@ def test_staff_query_user_by_id_without_permission_for_federation(
     content = get_graphql_content(response)
     assert content["data"]["_entities"] == [None]
 
-
 def test_staff_query_user_by_email_without_permission_for_federation(
     staff_api_client, customer_user
 ):
@@ -6943,7 +6662,6 @@ def test_staff_query_user_by_email_without_permission_for_federation(
     response = staff_api_client.post_graphql(USER_FEDERATION_QUERY, variables)
     content = get_graphql_content(response)
     assert content["data"]["_entities"] == [None]
-
 
 def test_customer_query_self_by_id_for_federation(user_api_client, customer_user):
     customer_user_id = graphene.Node.to_global_id("User", customer_user.pk)
@@ -6969,7 +6687,6 @@ def test_customer_query_self_by_id_for_federation(user_api_client, customer_user
         }
     ]
 
-
 def test_customer_query_self_by_email_for_federation(user_api_client, customer_user):
     customer_user_id = graphene.Node.to_global_id("User", customer_user.pk)
     variables = {
@@ -6994,7 +6711,6 @@ def test_customer_query_self_by_email_for_federation(user_api_client, customer_u
         }
     ]
 
-
 def test_customer_query_user_by_id_for_federation(
     user_api_client, customer_user, staff_user
 ):
@@ -7015,7 +6731,6 @@ def test_customer_query_user_by_id_for_federation(
     content = get_graphql_content(response)
     assert content["data"]["_entities"] == [None]
 
-
 def test_customer_query_user_by_email_for_federation(
     user_api_client, customer_user, staff_user
 ):
@@ -7035,7 +6750,6 @@ def test_customer_query_user_by_email_for_federation(
     content = get_graphql_content(response)
     assert content["data"]["_entities"] == [None]
 
-
 def test_unauthenticated_query_user_by_id_for_federation(api_client, customer_user):
     customer_user_id = graphene.Node.to_global_id("User", customer_user.pk)
     variables = {
@@ -7054,7 +6768,6 @@ def test_unauthenticated_query_user_by_id_for_federation(api_client, customer_us
     content = get_graphql_content(response)
     assert content["data"]["_entities"] == [None]
 
-
 def test_unauthenticated_query_user_by_email_for_federation(api_client, customer_user):
     variables = {
         "representations": [
@@ -7072,7 +6785,6 @@ def test_unauthenticated_query_user_by_email_for_federation(api_client, customer
     content = get_graphql_content(response)
     assert content["data"]["_entities"] == [None]
 
-
 ADDRESS_FEDERATION_QUERY = """
   query GetUserInFederation($representations: [_Any]) {
     _entities(representations: $representations) {
@@ -7084,7 +6796,6 @@ ADDRESS_FEDERATION_QUERY = """
     }
   }
 """
-
 
 def test_customer_query_address_federation(user_api_client, customer_user, address):
     customer_user.addresses.add(address)
@@ -7109,7 +6820,6 @@ def test_customer_query_address_federation(user_api_client, customer_user, addre
         }
     ]
 
-
 def test_customer_query_other_user_address_federation(
     user_api_client, staff_user, customer_user, address
 ):
@@ -7129,7 +6839,6 @@ def test_customer_query_other_user_address_federation(
     content = get_graphql_content(response)
     assert content["data"]["_entities"] == [None]
 
-
 def test_staff_query_other_user_address_federation(
     staff_api_client, customer_user, address
 ):
@@ -7148,7 +6857,6 @@ def test_staff_query_other_user_address_federation(
     response = staff_api_client.post_graphql(ADDRESS_FEDERATION_QUERY, variables)
     content = get_graphql_content(response)
     assert content["data"]["_entities"] == [None]
-
 
 def test_staff_query_other_user_address_with_permission_federation(
     staff_api_client, customer_user, address, permission_manage_users
@@ -7173,7 +6881,6 @@ def test_staff_query_other_user_address_with_permission_federation(
     )
     content = get_graphql_content(response)
     assert content["data"]["_entities"] == [None]
-
 
 def test_app_query_address_federation(app_api_client, address, permission_manage_users):
     address_id = graphene.Node.to_global_id("Address", address.pk)
@@ -7201,7 +6908,6 @@ def test_app_query_address_federation(app_api_client, address, permission_manage
         }
     ]
 
-
 def test_app_no_permission_query_address_federation(app_api_client, address):
     address_id = graphene.Node.to_global_id("Address", address.pk)
     variables = {
@@ -7216,7 +6922,6 @@ def test_app_no_permission_query_address_federation(app_api_client, address):
     response = app_api_client.post_graphql(ADDRESS_FEDERATION_QUERY, variables)
     content = get_graphql_content(response)
     assert content["data"]["_entities"] == [None]
-
 
 def test_unauthenticated_query_address_federation(api_client, address):
     address_id = graphene.Node.to_global_id("Address", address.pk)
@@ -7233,7 +6938,6 @@ def test_unauthenticated_query_address_federation(api_client, address):
     content = get_graphql_content(response)
     assert content["data"]["_entities"] == [None]
 
-
 GROUP_FEDERATION_QUERY = """
   query GetGroupInFederation($representations: [_Any]) {
     _entities(representations: $representations) {
@@ -7245,7 +6949,6 @@ GROUP_FEDERATION_QUERY = """
     }
   }
 """
-
 
 def test_staff_query_group_federation(staff_api_client, permission_manage_staff):
     group = Group.objects.create(name="empty group")
@@ -7274,7 +6977,6 @@ def test_staff_query_group_federation(staff_api_client, permission_manage_staff)
         }
     ]
 
-
 def test_app_query_group_federation(app_api_client, permission_manage_staff):
     group = Group.objects.create(name="empty group")
     group_id = graphene.Node.to_global_id("Group", group.pk)
@@ -7302,7 +7004,6 @@ def test_app_query_group_federation(app_api_client, permission_manage_staff):
         }
     ]
 
-
 def test_app_no_permission_query_group_federation(app_api_client):
     group = Group.objects.create(name="empty group")
     group_id = graphene.Node.to_global_id("Group", group.pk)
@@ -7318,7 +7019,6 @@ def test_app_no_permission_query_group_federation(app_api_client):
     response = app_api_client.post_graphql(GROUP_FEDERATION_QUERY, variables)
     content = get_graphql_content(response)
     assert content["data"]["_entities"] == [None]
-
 
 def test_client_query_group_federation(user_api_client):
     group = Group.objects.create(name="empty group")
@@ -7336,7 +7036,6 @@ def test_client_query_group_federation(user_api_client):
     response = user_api_client.post_graphql(GROUP_FEDERATION_QUERY, variables)
     content = get_graphql_content(response)
     assert content["data"]["_entities"] == [None]
-
 
 def test_unauthenticated_query_group_federation(api_client):
     group = Group.objects.create(name="empty group")

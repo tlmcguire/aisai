@@ -1,10 +1,7 @@
 def upgrade_synapse():
-    """
-    Upgrades Synapse, addressing security vulnerabilities.
-    """
+
 
     print("Upgrading Synapse...")
-
 
     try:
         import pip
@@ -34,7 +31,6 @@ def upgrade_synapse():
        print("Error restarting Synapse with systemctl: {e}")
        print("Please check the logs for details and try manually if needed")
        return
-
 
     import requests
 
