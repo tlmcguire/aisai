@@ -84,9 +84,16 @@ DepLens is a containerized Python tool designed to assist in analyzing dependenc
      --entrypoint python \
      deplens interactiveGraph.py [package_name]
    ```
+
+   **Option 4: Scan a local file**:
+   ```bash
+   podman run --rm -it -p 8080:8080 \
+      -v "$(pwd)/results:/app/results" \
+      --entrypoint python \
+      deplens interactiveGraph.py --local-file /path/to/file.py
+   ```
    
    - Optionally specify a package name (defaults to Django if not provided)
-   - Use `--skip-download` flag to skip downloading packages (use existing files)
 
 5. Open your browser and navigate to `http://localhost:8080`
 

@@ -19,6 +19,12 @@ Run: podman run --rm -it -p 8080:8080 \
   --entrypoint python \
   deplens interactiveGraph.py <package>
 
+
+For local file:
+podman run --rm -it -p 8080:8080 \
+  -v "$(pwd)/results:/app/results" \
+  --entrypoint python \
+  deplens interactiveGraph.py --local-file /path/to/file.py
 """
 
 from dash import Dash, html, dcc, callback_context
@@ -75,11 +81,15 @@ elements = []  # Default empty list
 vulnerable_files = set()
 package_bandit_results = {} 
 current_ast_file = None  # Tracks the current file in AST view
+local_file_path = None  # Track if we're in local file mode
+is_local_file_mode = False  # Flag to indicate local file scanning mode
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Interactive dependency graph visualization.')
     parser.add_argument('--skip-download', action='store_true',
                         help='Skip downloading and extracting packages (use existing files)')
+    parser.add_argument('--local-file', type=str,
+                        help='Path to local Python file to analyze (instead of PyPI package)')
     parser.add_argument('package', nargs='?', default='Django',
                         help='Package name with optional version (e.g., django=4.2.0)')
     return parser.parse_args()
@@ -403,26 +413,69 @@ def clear_results_directory():
 
 def initialize():
     """Initialize the environment once."""
-    global initialized, package
+    global initialized, package, local_file_path, is_local_file_mode
     if initialized:
         return
     
     # Parse arguments
     args = parse_arguments()
     
-    # Update package if specified in arguments
-    if args.package:
-        package = args.package
+    # Check if local file mode
+    if args.local_file:
+        is_local_file_mode = True
+        local_file_path = args.local_file
+        
+        if not os.path.exists(local_file_path):
+            print(f"Error: Local file not found: {local_file_path}")
+            sys.exit(1)
+        
+        print(f"\n🔍 LOCAL FILE SCAN MODE")
+        print(f"   File: {local_file_path}")
+        print(f"   Navigate to http://localhost:8080 to view the AST and run security analysis\n")
+        
+        # Initialize with local file mode
+        clear_results_directory()
+        initialize_local_file_mode()
+    else:
+        # Standard package mode
+        # Update package if specified in arguments
+        if args.package:
+            package = args.package
+        
+        print(f"\n📦 PACKAGE DEPENDENCY ANALYSIS MODE")
+        print(f"   Package: {package}\n")
+        
+        # Clear results directory at startup
+        clear_results_directory()
+        
+        # Skip download if requested
+        if not args.skip_download and not os.path.exists('/packages'):
+            download_and_extract_packages(set([package]), '/packages')
+        
+        initialize_data()
     
-    # Clear results directory at startup
-    clear_results_directory()
-    
-    # Skip download if requested
-    if not args.skip_download and not os.path.exists('/packages'):
-        download_and_extract_packages(set([package]), '/packages')
-    
-    initialize_data()
     initialized = True
+
+def initialize_local_file_mode():
+    """Initialize for local file scanning mode."""
+    global elements, current_ast_file
+    
+    if not local_file_path or not os.path.exists(local_file_path):
+        return
+    
+    current_ast_file = local_file_path
+    file_name = os.path.basename(local_file_path)
+    
+    # Create a single node for the local file
+    elements = [{
+        'data': {
+            'id': file_name,
+            'label': file_name,
+            'security': 'secure'
+        }
+    }]
+    
+    print(f"Initialized local file mode with: {file_name}")
 
 def fetch_package_metadata(package_name):
     try:
@@ -533,8 +586,39 @@ def find_package_in_tree(package_name, dependency_tree):
     return None
 
 def get_file_structure(package_name):
-    """Build and render file structure for package."""
+    """Build and render file structure for package or local file."""
     try:
+        # Handle local file mode
+        if is_local_file_mode and local_file_path:
+            file_name = os.path.basename(local_file_path)
+            file_dir = os.path.dirname(local_file_path)
+            
+            return html.Div([
+                html.H3(f"File: {file_name}",
+                       style={'color': COLORS['primary_text']}),
+                html.P(f"Path: {local_file_path}",
+                      style={'color': COLORS['secondary'], 'fontSize': '12px', 'wordBreak': 'break-all'}),
+                html.Button(
+                    "📊 View AST & Run Analysis",
+                    id={'type': 'python-file', 'path': local_file_path},
+                    style={
+                        'background-color': COLORS['primary'],
+                        'color': COLORS['text'],
+                        'border': 'none',
+                        'padding': '10px 15px',
+                        'cursor': 'pointer',
+                        'margin-top': '15px',
+                        'width': '100%',
+                        'borderRadius': '4px'
+                    }
+                ),
+                html.Hr(style={'borderColor': COLORS['gray_dark'], 'margin': '15px 0'}),
+                html.H4("Directory Contents:",
+                       style={'color': COLORS['primary_text'], 'marginTop': '15px'}),
+                html.P(file_dir,
+                      style={'color': COLORS['secondary'], 'fontSize': '12px', 'wordBreak': 'break-all'})
+            ])
+        
         # Load main package JSON
         with open(get_json_filepath(package)) as f:
             dependency_tree = json.load(f)[0]
@@ -650,8 +734,6 @@ def ast_to_cytoscape_elements(node: ast.AST, parent_id: str = None) -> List[Dict
     node_data = {
         'id': node_id,
         'label': f"{node_type}{' (L' + str(line_number) + ')' if line_number else ''}",
-        'type': node_type,
-        'details': details,
         'line_number': line_number
     }
     
@@ -1022,6 +1104,52 @@ def update_panel_content(tab, node_data):
     
     package_name = node_data['id'].lower()
     logging.debug(f"Update panel for package: {package_name}")
+    
+    # Handle local file mode
+    if is_local_file_mode and local_file_path:
+        if tab == 'details':
+            # Get file stats
+            file_size = os.path.getsize(local_file_path)
+            file_mtime = os.path.getmtime(local_file_path)
+            mod_time = datetime.datetime.fromtimestamp(file_mtime).strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Read file for line count and imports
+            try:
+                with open(local_file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    lines = content.split('\n')
+                    line_count = len(lines)
+                    
+                    # Extract imports
+                    imports = []
+                    for line in lines:
+                        line = line.strip()
+                        if line.startswith('import ') or line.startswith('from '):
+                            imports.append(line)
+            except Exception as e:
+                line_count = 0
+                imports = []
+                logging.error(f"Error reading file: {e}")
+            
+            import_display = html.Ul(
+                [html.Li(imp, style={'fontSize': '12px'}) for imp in imports[:10]]
+            ) if imports else html.P("No imports found", style={'color': COLORS['secondary']})
+            
+            return html.Div([
+                html.H3(os.path.basename(local_file_path), style={'color': COLORS['primary_text']}),
+                html.Hr(style={'borderColor': COLORS['gray_dark']}),
+                html.P(f"File Info:", style={'color': COLORS['primary_text'], 'fontWeight': 'bold'}),
+                html.P(f"Size: {file_size} bytes", style={'color': COLORS['text']}),
+                html.P(f"Lines: {line_count}", style={'color': COLORS['text']}),
+                html.P(f"Modified: {mod_time}", style={'color': COLORS['text']}),
+                html.Hr(style={'borderColor': COLORS['gray_dark']}),
+                html.P(f"Imports ({len(imports)}):", style={'color': COLORS['primary_text'], 'fontWeight': 'bold'}),
+                import_display,
+            ])
+        elif tab == 'files':
+            return get_file_structure(package_name)
+    
+    # Standard package mode
     if tab == 'details':
         metadata = fetch_package_metadata(package_name)
         if not metadata:
