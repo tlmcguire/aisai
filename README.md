@@ -1,6 +1,6 @@
-# DepLens
+# AISAI
 
-DepLens is a containerized Python tool designed to assist in analyzing dependencies, visualizing code structure, and identifying security vulnerabilities in Python packages.
+AISAI is a containerized Python tool designed to assist in analyzing dependencies, visualizing code structure, and identifying security vulnerabilities in Python packages.
 
 ## Features
 
