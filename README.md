@@ -34,11 +34,7 @@ AISAI is a containerized Python tool designed to assist in analyzing dependencie
 
 ### Setup Instructions
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/yourusername/aisai.git
-   cd aisai
-   ```
+1. **Clone the repository**
 
 2. **Build the Podman image**:
    ```bash
