@@ -15,7 +15,7 @@ Workflow for Package Testing and Vulnerability Analysis
   -v "$(pwd)/models:/models" \
   -v "$(pwd)/results:/app/results" \
   --entrypoint /bin/bash \
-  deplens
+  aisai
 
 2. Download and extract a package (this script):
    python setupPackage.py <package_name>==<version>

@@ -52,7 +52,7 @@ AISAI is a containerized Python tool designed to assist in analyzing dependencie
    
    AISAI requires LLM models to perform LLM-based security analysis.
 
-4. **Run DepLens**:
+4. **Run AISAI**:
    
    **Option 1: Use --network=host (Recommended for Linux)**:
    ```bash
@@ -133,7 +133,7 @@ For testing specific package versions or modifying code before analysis:
      -v "$(pwd)/models:/models" \
      -v "$(pwd)/results:/app/results" \
      --entrypoint /bin/bash \
-     deplens
+     aisai
    ```
 
 2. **Download and extract a package**:

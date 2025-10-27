@@ -1,5 +1,5 @@
-# podman build -t deplens .
-# podman run --rm -it -v "$(pwd)/graphs:/graphs" deplens
+# podman build -t aisai .
+# podman run --rm -it -v "$(pwd)/graphs:/graphs" aisai
 
 import subprocess
 import sys
