@@ -36,13 +36,13 @@ AISAI is a containerized Python tool designed to assist in analyzing dependencie
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/deplens.git
-   cd deplens
+   git clone https://github.com/yourusername/aisai.git
+   cd aisai
    ```
 
 2. **Build the Podman image**:
    ```bash
-   podman build -t deplens .
+   podman build -t aisai .
    ```
 
 3. **Run Ollama in a separate terminal**:
@@ -50,7 +50,7 @@ AISAI is a containerized Python tool designed to assist in analyzing dependencie
    ollama serve
    ```
    
-   DepLens requires LLM models to perform LLM-based security analysis.
+   AISAI requires LLM models to perform LLM-based security analysis.
 
 4. **Run DepLens**:
    
@@ -61,7 +61,7 @@ AISAI is a containerized Python tool designed to assist in analyzing dependencie
      -v "$(pwd)/models:/models" \
      -v "$(pwd)/results:/app/results" \
      --entrypoint python \
-     deplens interactiveGraph.py [package_name]
+     aisai interactiveGraph.py [package_name]
    ```
 
    **Option 2: Use localhost connection (Works on macOS/Linux)**:
@@ -71,7 +71,7 @@ AISAI is a containerized Python tool designed to assist in analyzing dependencie
      -v "$(pwd)/models:/models" \
      -v "$(pwd)/results:/app/results" \
      --entrypoint python \
-     deplens interactiveGraph.py [package_name]
+     aisai interactiveGraph.py [package_name]
    ```
 
    **Option 3: Set the Ollama URL explicitly (Recommended for macOS)**:
@@ -82,7 +82,7 @@ AISAI is a containerized Python tool designed to assist in analyzing dependencie
      -v "$(pwd)/models:/models" \
      -v "$(pwd)/results:/app/results" \
      --entrypoint python \
-     deplens interactiveGraph.py [package_name]
+     aisai interactiveGraph.py [package_name]
    ```
 
    **Option 4: Scan a local file**:
@@ -90,7 +90,7 @@ AISAI is a containerized Python tool designed to assist in analyzing dependencie
    podman run --rm -it -p 8080:8080 \
       -v "$(pwd)/results:/app/results" \
       --entrypoint python \
-      deplens interactiveGraph.py --local-file /path/to/file.py
+      aisai interactiveGraph.py --local-file /path/to/file.py
    ```
    
    - Optionally specify a package name (defaults to Django if not provided)

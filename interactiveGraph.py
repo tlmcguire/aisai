@@ -2,14 +2,14 @@
 Interactive dependency graph visualization using Dash and Cytoscape.
 Analyzes Python package dependencies and displays them in an interactive web interface.
 
-Build: podman build -t deplens .
+Build: podman build -t aisai .
 In a separate terminal, run: ollama serve
 Run: podman run --rm -it -p 8080:8080 --network=host \
   -v "$(pwd)/graphs:/graphs" \
   -v "$(pwd)/models:/models" \
   -v "$(pwd)/results:/app/results" \
   --entrypoint python \
-  deplens interactiveGraph.py <package>
+  aisai interactiveGraph.py <package>
 
 Alternative for macOS (if --network=host doesn't work):
 Run: podman run --rm -it -p 8080:8080 \
@@ -17,14 +17,14 @@ Run: podman run --rm -it -p 8080:8080 \
   -v "$(pwd)/models:/models" \
   -v "$(pwd)/results:/app/results" \
   --entrypoint python \
-  deplens interactiveGraph.py <package>
+  aisai interactiveGraph.py <package>
 
 
 For local file:
 podman run --rm -it -p 8080:8080 \
   -v "$(pwd)/results:/app/results" \
   --entrypoint python \
-  deplens interactiveGraph.py --local-file /path/to/file.py
+  aisai interactiveGraph.py --local-file /path/to/file.py
 """
 
 from dash import Dash, html, dcc, callback_context
@@ -858,7 +858,7 @@ initialize()  # Call once at startup
 app.layout = html.Div([
     # ----- APP HEADER SECTION -----
     html.Div([
-        html.H1("DepLens", style={'text-align': 'left', 'color': COLORS['text']}),
+        html.H1("AISAI", style={'text-align': 'left', 'color': COLORS['text']}),
         html.Div(id='output-div', style={'padding': '2px', 'color': COLORS['text']})
     ], style={'background-color': COLORS['dark'], 'padding': '3px', 'width': '80%'}),
     
@@ -1579,12 +1579,12 @@ def main():
         except ValueError:
             print(f"Ignoring invalid port argument: {sys.argv[2]}")
     else:
-        env_port = os.environ.get("DEPLENS_PORT") or os.environ.get("PORT")
+        env_port = os.environ.get("AISAI_PORT") or os.environ.get("PORT")
         if env_port:
             try:
                 requested_port = int(env_port)
             except ValueError:
-                print(f"Ignoring invalid DEPLENS_PORT/PORT env value: {env_port}")
+                print(f"Ignoring invalid AISAI_PORT/PORT env value: {env_port}")
 
     final_port = _pick_port(requested_port)
     if final_port != requested_port:
