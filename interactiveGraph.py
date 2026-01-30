@@ -49,9 +49,10 @@ from dash.exceptions import PreventUpdate
 import base64
 import datetime
 import socket
+from tqdm import tqdm
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout)
@@ -83,6 +84,14 @@ package_bandit_results = {}
 current_ast_file = None  # Tracks the current file in AST view
 local_file_path = None  # Track if we're in local file mode
 is_local_file_mode = False  # Flag to indicate local file scanning mode
+DEBUG = False
+
+def debug_print(message: str) -> None:
+    if DEBUG:
+        print(message)
+
+def _tqdm(iterable, *, desc: str, total: int = None, unit: str = "it"):
+    return tqdm(iterable, desc=desc, total=total, unit=unit, disable=DEBUG or not sys.stdout.isatty())
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Interactive dependency graph visualization.')
@@ -90,6 +99,8 @@ def parse_arguments():
                         help='Skip downloading and extracting packages (use existing files)')
     parser.add_argument('--local-file', type=str,
                         help='Path to local Python file to analyze (instead of PyPI package)')
+    parser.add_argument('--debug', action='store_true',
+                        help='Enable verbose debug logging')
     parser.add_argument('package', nargs='?', default='Django',
                         help='Package name with optional version (e.g., django=4.2.0)')
     return parser.parse_args()
@@ -206,7 +217,7 @@ def clean_package_directory(package_name):
     package_path = f'/packages/{base_name}'
     try:
         if os.path.exists(package_path):
-            print(f"Removing existing directory: {package_path}")
+            debug_print(f"Removing existing directory: {package_path}")
             shutil.rmtree(package_path)
     except Exception as e:
         print(f"Error cleaning directory for {base_name}: {e}")
@@ -239,17 +250,27 @@ def download_and_extract_packages(package_names, download_dir):
 
     # Extract the original version from global package variable
     original_name, original_version = separate_package_and_version(package)
-    print(f"Original package request: {package} (name: {original_name}, version: {original_version})")
+    debug_print(f"Original package request: {package} (name: {original_name}, version: {original_version})")
 
     # Load main package JSON
     filepath = get_json_filepath(package)
     try:
         with open(filepath, "r") as f:
             dependency_tree = json.load(f)
-            print(f"Loaded dependency tree from: {filepath}")  
+            debug_print(f"Loaded dependency tree from: {filepath}")  
     except FileNotFoundError:
         print(f"JSON file not found: {filepath}")
         return None
+
+    all_packages = []
+    def collect_packages(packages):
+        for pkg in packages:
+            all_packages.append(pkg)
+            if pkg.get('dependencies'):
+                collect_packages(pkg['dependencies'])
+    collect_packages(dependency_tree)
+
+    progress = _tqdm(all_packages, desc="Downloading packages", total=len(all_packages), unit="pkg")
 
     def update_package_paths(packages):
         for pkg in packages:
@@ -260,9 +281,9 @@ def download_and_extract_packages(package_names, download_dir):
                 # Apply original version to the main package if it matches
                 if base_name.lower() == original_name.lower() and original_version:
                     version = original_version
-                    print(f"Applying original version constraint: {version} to {base_name}")
+                    debug_print(f"Applying original version constraint: {version} to {base_name}")
                     
-                print(f"Processing package: {package_name} (base name: {base_name}, version: {version})")  
+                debug_print(f"Processing package: {package_name} (base name: {base_name}, version: {version})")  
                 
                 # Use version if specified in the PyPI API call
                 if version:
@@ -270,7 +291,7 @@ def download_and_extract_packages(package_names, download_dir):
                 else:
                     api_url = f"https://pypi.org/pypi/{base_name}/json"
                 
-                print(f"PyPI API URL: {api_url}")  # Print the URL being used
+                debug_print(f"PyPI API URL: {api_url}")  # Print the URL being used
                 
                 response = requests.get(api_url)
                 if response.status_code != 200:
@@ -280,7 +301,7 @@ def download_and_extract_packages(package_names, download_dir):
                 urls = response.json().get('urls', [])
                 
                 if not urls:
-                    print(f"No download URLs found for {base_name} (version: {version})")  
+                    debug_print(f"No download URLs found for {base_name} (version: {version})")  
                     continue
 
                 for url in urls:
@@ -296,16 +317,16 @@ def download_and_extract_packages(package_names, download_dir):
                             'package_dir': package_dir
                         }
                         
-                        print(f"Using package dir: {package_dir}")
+                        debug_print(f"Using package dir: {package_dir}")
 
                         with open(tarball_path, 'wb') as f:
                             response = requests.get(tarball_url)
                             f.write(response.content)
 
-                        print(f"Cleaning directory: {package_dir}")  
+                        debug_print(f"Cleaning directory: {package_dir}")  
                         clean_package_directory(base_name)  # Use base name
                         
-                        print(f"Extracting {tarball_filename}")  
+                        debug_print(f"Extracting {tarball_filename}")  
                         with tarfile.open(tarball_path, 'r:gz') as tar:
                             tar.extractall(path=download_dir)
 
@@ -313,13 +334,13 @@ def download_and_extract_packages(package_names, download_dir):
                         extracted_dir = tarball_filename.replace('.tar.gz', '')
                         src_dir = os.path.join(download_dir, extracted_dir)
                         if os.path.exists(src_dir):
-                            print(f"Renaming {src_dir} to {package_dir}")  
+                            debug_print(f"Renaming {src_dir} to {package_dir}")  
                             # If target already exists, remove it first
                             if os.path.exists(package_dir):
                                 shutil.rmtree(package_dir)
                             os.rename(src_dir, package_dir)
                         else:
-                            print(f"Source directory not found: {src_dir}")  
+                            debug_print(f"Source directory not found: {src_dir}")  
                         
                         break
 
@@ -331,11 +352,14 @@ def download_and_extract_packages(package_names, download_dir):
                 print(f"Error processing {package_name}: {str(e)}")
                 import traceback
                 traceback.print_exc()
+            finally:
+                progress.update(1)
 
     # Update paths and save
     update_package_paths(dependency_tree)
+    progress.close()
     
-    print(f"Saving updated dependency tree to: {filepath}")  
+    debug_print(f"Saving updated dependency tree to: {filepath}")  
     with open(filepath, "w") as f:
         json.dump(dependency_tree, f, indent=2)
 
@@ -416,7 +440,7 @@ def initialize_data():
         # Debug: count nodes vs edges
         nodes = [e for e in elements if 'source' not in e['data']]
         edges = [e for e in elements if 'source' in e['data']]
-        print(f"Graph initialized: {len(nodes)} nodes, {len(edges)} edges")
+        debug_print(f"Graph initialized: {len(nodes)} nodes, {len(edges)} edges")
         
     except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
         print(f"Error initializing data: {e}")
@@ -448,12 +472,15 @@ def clear_results_directory():
 
 def initialize():
     """Initialize the environment once."""
-    global initialized, package, local_file_path, is_local_file_mode
+    global initialized, package, local_file_path, is_local_file_mode, DEBUG
     if initialized:
         return
     
     # Parse arguments
     args = parse_arguments()
+    DEBUG = bool(args.debug)
+    if DEBUG:
+        logging.getLogger().setLevel(logging.DEBUG)
     
     # Check if local file mode
     if args.local_file:
@@ -510,7 +537,7 @@ def initialize_local_file_mode():
         }
     }]
     
-    print(f"Initialized local file mode with: {file_name}")
+    debug_print(f"Initialized local file mode with: {file_name}")
 
 def fetch_package_metadata(package_name):
     try:
@@ -796,15 +823,15 @@ def ast_to_cytoscape_elements(node: ast.AST, parent_id: str = None) -> List[Dict
 def generate_ast_graph(file_path: str) -> List[Dict[str, Any]]:
     """Generate Cytoscape elements from Python file AST."""
     try:
-        print(f"Generating AST for: {file_path}")
+        debug_print(f"Generating AST for: {file_path}")
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
             
-        print(f"File content length: {len(content)} bytes")
+        debug_print(f"File content length: {len(content)} bytes")
         tree = ast.parse(content)
         elements = ast_to_cytoscape_elements(tree)
         
-        print(f"Generated {len(elements)} AST elements")
+        debug_print(f"Generated {len(elements)} AST elements")
         if not elements:
             print(f"Warning: No AST elements generated for {file_path}")
             return []
@@ -833,12 +860,12 @@ def run_bandit_analysis(package_dir: str, severity: str = 'HIGH', profile: str =
             check=False
         )
         
-        print(f"Bandit return code: {result.returncode}")
-        print(f"Bandit stderr: {result.stderr}")
+        debug_print(f"Bandit return code: {result.returncode}")
+        debug_print(f"Bandit stderr: {result.stderr}")
         if result.returncode in [0, 1]:
             try:
                 if not result.stdout.strip():
-                    print("Empty Bandit output")
+                    debug_print("Empty Bandit output")
                     return []
                     
                 data = json.loads(result.stdout)
@@ -847,7 +874,7 @@ def run_bandit_analysis(package_dir: str, severity: str = 'HIGH', profile: str =
                 return data.get('results', [])
             except json.JSONDecodeError as e:
                 print(f"Invalid JSON from Bandit: {e}")
-                print(f"Raw output: {result.stdout[:200]}...")
+                debug_print(f"Raw output: {result.stdout[:200]}...")
                 return []
         else:
             print(f"Bandit analysis failed with code {result.returncode}: {result.stderr}")
@@ -880,7 +907,7 @@ def analyze_package_security(package_name: str, dependency_tree: Dict) -> Dict[s
     collect_packages(dependency_tree)
     
     # Now scan each package exactly once
-    for pkg_data in packages_to_scan:
+    for pkg_data in _tqdm(packages_to_scan, desc="Bandit analysis", total=len(packages_to_scan), unit="pkg"):
         pkg_name = pkg_data.get('package_name', '').lower()
         pkg_dir = pkg_data.get('source_paths', {}).get('package_dir')
         
@@ -1436,6 +1463,8 @@ def run_ast_security_analysis(n_clicks, elements):
                 print(f"Removed previous analysis file to ensure fresh scan")
                 
             cmd = [sys.executable, 'llmScan.py', current_ast_file]
+            if DEBUG:
+                cmd.append('--debug')
             process = subprocess.run(
                 cmd,
                 stdout=subprocess.PIPE,

@@ -1,5 +1,5 @@
 # Use a two-stage build to reduce the final image size
-FROM python:3.11-slim AS builder
+FROM python:3.13-slim AS builder
 
 # Set working directory
 WORKDIR /app
@@ -17,7 +17,7 @@ RUN apt-get update && \
     pip install --no-cache-dir --root-user-action=ignore \
         dash dash-bootstrap-components dash-cytoscape && \
     pip install --no-cache-dir --root-user-action=ignore \
-        bandit && \
+        bandit tqdm && \
     pip install --no-cache-dir --root-user-action=ignore \
         langchain-core langchain-ollama langchain && \
     # Remove pip cache and temp files to save space
@@ -26,7 +26,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Final stage - use a clean base image
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # Set working directory
 WORKDIR /app
@@ -35,7 +35,7 @@ WORKDIR /app
 COPY . .
 
 # Copy installed packages from builder stage
-COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/
+COPY --from=builder /usr/local/lib/python3.13/site-packages/ /usr/local/lib/python3.13/site-packages/
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
 
 # Install runtime dependencies (graphviz binaries needed for visualization)

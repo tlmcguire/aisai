@@ -6,11 +6,22 @@ import sys
 import re
 import time
 from typing import List
+import argparse
+from tqdm import tqdm
 
 try:
     import requests
 except ImportError:  # Fallback if requests somehow missing in runtime image
     requests = None
+
+DEBUG = False
+
+def debug_print(message: str) -> None:
+    if DEBUG:
+        print(message)
+
+def _tqdm(iterable, *, desc: str, total: int = None, unit: str = "it"):
+    return tqdm(iterable, desc=desc, total=total, unit=unit, disable=DEBUG or not sys.stdout.isatty())
 
 def load_python_file(file_path):
     with open(file_path, 'r') as file:
@@ -114,7 +125,7 @@ def _parse_ollama_urls() -> List[str]:
 
 # Resolved list of candidate base URLs
 OLLAMA_URLS = _parse_ollama_urls()
-PRIMARY_MODEL = os.environ.get("OLLAMA_PRIMARY_MODEL", "phi4:14b")
+PRIMARY_MODEL = os.environ.get("OLLAMA_PRIMARY_MODEL", "gemma3n:e4b")
 FALLBACK_MODEL = os.environ.get("OLLAMA_FALLBACK_MODEL", PRIMARY_MODEL)
 MAX_RETRIES = int(os.environ.get("OLLAMA_MAX_RETRIES", "3"))
 RETRY_DELAY = int(os.environ.get("OLLAMA_RETRY_DELAY", "5"))
@@ -145,26 +156,26 @@ def initialize_llm(model_name=None):
     failed_urls = []
     for base_url in OLLAMA_URLS:
         if not _health_check(base_url):
-            print(f"Skipping {base_url} (health check failed)")
+            debug_print(f"Skipping {base_url} (health check failed)")
             failed_urls.append((base_url, "health check failed"))
             continue
         retries = 0
         while retries < MAX_RETRIES:
             try:
-                print(f"Attempting to initialize LLM with model {model_name} at {base_url}...")
+                debug_print(f"Attempting to initialize LLM with model {model_name} at {base_url}...")
                 model = OllamaLLM(model=model_name, temperature=0, base_url=base_url)
                 _ = model.invoke("ping")  # simple call
-                print(f"Successfully initialized model: {model_name} at {base_url}")
+                debug_print(f"Successfully initialized model: {model_name} at {base_url}")
                 return model
             except Exception as e:
                 retries += 1
                 msg = str(e)
-                print(f"Attempt {retries}/{MAX_RETRIES} failed for {base_url}: {msg}")
+                debug_print(f"Attempt {retries}/{MAX_RETRIES} failed for {base_url}: {msg}")
                 if retries < MAX_RETRIES:
                     time.sleep(RETRY_DELAY)
                 else:
                     failed_urls.append((base_url, msg))
-                    print(f"Failed to connect to {base_url} after {MAX_RETRIES} attempts")
+                    debug_print(f"Failed to connect to {base_url} after {MAX_RETRIES} attempts")
                     break
     detail = "; ".join(f"{u}: {m}" for u,m in failed_urls) or "no candidate URLs"
     raise RuntimeError(f"Failed to initialize LLM. Tried {len(OLLAMA_URLS)} URLs. Details: {detail}")
@@ -182,13 +193,13 @@ def get_model_and_chain():
         try:
             model = initialize_llm(PRIMARY_MODEL)
         except Exception as e:
-            print(f"Primary model failed: {e}")
+            debug_print(f"Primary model failed: {e}")
             if FALLBACK_MODEL != PRIMARY_MODEL:
                 try:
-                    print(f"Attempting fallback to {FALLBACK_MODEL}...")
+                    debug_print(f"Attempting fallback to {FALLBACK_MODEL}...")
                     model = initialize_llm(FALLBACK_MODEL)
                 except Exception as fe:
-                    print(f"Fallback model also failed: {fe}")
+                    debug_print(f"Fallback model also failed: {fe}")
                     model = None
             if model is None:
                 print("WARNING: No working LLM model. Set DISABLE_LLM=1 to suppress this warning.")
@@ -226,38 +237,45 @@ def scan_vulnerabilities(python_code_path):
             )
             return False, guidance
             
-        # Load Python code
-        python_code = load_python_file(python_code_path)
-        
-        # Invoke the chain with retries
-        retries = 0
-        while retries < MAX_RETRIES:
-            try:
-                response = chain.invoke({"python_code": python_code})
-                break
-            except Exception as e:
-                retries += 1
-                error_msg = f"LLM invocation failed (attempt {retries}/{MAX_RETRIES}): {str(e)}"
-                print(error_msg)
-                if retries >= MAX_RETRIES:
-                    return False, error_msg
-                print(f"Retrying in {RETRY_DELAY} seconds...")
-                time.sleep(RETRY_DELAY)
-        
-        json_text = response.strip()
-        
-        if not json_text.startswith('{') or not json_text.endswith('}'):
-            json_match = re.search(r'({[\s\S]*})', json_text)
-            if json_match:
-                json_text = json_match.group(1)
-        
-        # Parse the resulting JSON
-        analyzed_ast = json.loads(json_text)
-        
-        # Correct the line numbers based on code snippets
-        analyzed_ast = append_line_numbers(analyzed_ast, python_code_path)
-        
-        return True, analyzed_ast
+        progress = _tqdm(range(3), desc="LLM scan", total=3, unit="step")
+        try:
+            # Load Python code
+            python_code = load_python_file(python_code_path)
+            progress.update(1)
+
+            # Invoke the chain with retries
+            retries = 0
+            while retries < MAX_RETRIES:
+                try:
+                    response = chain.invoke({"python_code": python_code})
+                    break
+                except Exception as e:
+                    retries += 1
+                    error_msg = f"LLM invocation failed (attempt {retries}/{MAX_RETRIES}): {str(e)}"
+                    debug_print(error_msg)
+                    if retries >= MAX_RETRIES:
+                        return False, error_msg
+                    debug_print(f"Retrying in {RETRY_DELAY} seconds...")
+                    time.sleep(RETRY_DELAY)
+            progress.update(1)
+            
+            json_text = response.strip()
+            
+            if not json_text.startswith('{') or not json_text.endswith('}'):
+                json_match = re.search(r'({[\s\S]*})', json_text)
+                if json_match:
+                    json_text = json_match.group(1)
+            
+            # Parse the resulting JSON
+            analyzed_ast = json.loads(json_text)
+            
+            # Correct the line numbers based on code snippets
+            analyzed_ast = append_line_numbers(analyzed_ast, python_code_path)
+            progress.update(1)
+            
+            return True, analyzed_ast
+        finally:
+            progress.close()
         
     except FileNotFoundError:
         return False, f"Error: Could not find file at {python_code_path}"
@@ -281,7 +299,7 @@ def clear_results_directory():
     """
     results_dir = os.path.join(os.getcwd(), "results")
     if os.path.exists(results_dir):
-        print(f"Clearing results directory: {results_dir}")
+        debug_print(f"Clearing results directory: {results_dir}")
         # Remove all files but keep the directory
         for file_name in os.listdir(results_dir):
             file_path = os.path.join(results_dir, file_name)
@@ -290,7 +308,13 @@ def clear_results_directory():
     else:
         # Create the directory if it doesn't exist
         os.makedirs(results_dir, exist_ok=True)
-        print(f"Created results directory: {results_dir}")
+        debug_print(f"Created results directory: {results_dir}")
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run LLM security scan on a Python file")
+    parser.add_argument("python_file", nargs="?", help="Path to the Python file to analyze")
+    parser.add_argument("--debug", action="store_true", help="Enable verbose debug logging")
+    return parser.parse_args()
 
 # Update the main function to use file-specific output names
 def main(python_file_path=None):
@@ -300,11 +324,14 @@ def main(python_file_path=None):
     Args:
         python_file_path (str): Path to the Python file to analyze
     """
+    global DEBUG
     if not python_file_path:
-        if len(sys.argv) < 2:
+        args = parse_args()
+        DEBUG = bool(args.debug)
+        python_file_path = args.python_file
+        if not python_file_path:
             print("Usage: python llmScan.py <path_to_python_file>")
             return
-        python_file_path = sys.argv[1]
     
     print(f"Analyzing Python code for security vulnerabilities: {python_file_path}")
     success, result = scan_vulnerabilities(python_file_path)
@@ -324,6 +351,11 @@ def main(python_file_path=None):
         vulns = sum(1 for _ in result.get("vulnerabilities", []))
         if vulns > 0:
             print(f"Found {vulns} potential vulnerabilities")
+            # Ensure the "vulnerable" flag is set to true when vulnerabilities found
+            result["vulnerable"] = True
+            # Update the file with the corrected vulnerable flag
+            with open(output_file, 'w') as f:
+                json.dump(result, f, indent=2)
         else:
             print("✅ Security scan completed: No vulnerabilities detected!")
             # Also ensure the "vulnerable" flag is set to false when no issues found
