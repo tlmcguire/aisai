@@ -946,7 +946,46 @@ initialize()  # Call once at startup
 app.layout = html.Div([
     # ----- APP HEADER SECTION -----
     html.Div([
-        html.H1("AISAI", style={'text-align': 'left', 'color': COLORS['text']}),
+        html.Div([
+            html.H1("AISAI", style={'text-align': 'left', 'color': COLORS['text'], 'display': 'inline-block', 'margin-right': '30px'}),
+            # ----- EXPORT DEPENDENCY TREE BUTTONS -----
+            html.Label("Export Dependency Tree:", style={'margin-right': '10px', 'color': COLORS['text'], 'display': 'inline-block'}),
+            html.Button(
+                "PNG",
+                id='btn-export-dep-png',
+                style={
+                    'background-color': COLORS['primary'],
+                    'color': COLORS['text'],
+                    'border': 'none',
+                    'padding': '5px 10px',
+                    'cursor': 'pointer',
+                    'margin-right': '5px'
+                }
+            ),
+            html.Button(
+                "JPG",
+                id='btn-export-dep-jpg',
+                style={
+                    'background-color': COLORS['primary'],
+                    'color': COLORS['text'],
+                    'border': 'none',
+                    'padding': '5px 10px',
+                    'cursor': 'pointer',
+                    'margin-right': '5px'
+                }
+            ),
+            html.Button(
+                "SVG",
+                id='btn-export-dep-svg',
+                style={
+                    'background-color': COLORS['primary'],
+                    'color': COLORS['text'],
+                    'border': 'none',
+                    'padding': '5px 10px',
+                    'cursor': 'pointer'
+                }
+            ),
+        ], style={'display': 'flex', 'align-items': 'center'}),
         html.Div(id='output-div', style={'padding': '2px', 'color': COLORS['text']})
     ], style={'background-color': COLORS['dark'], 'padding': '3px', 'width': '80%'}),
     
@@ -1636,6 +1675,46 @@ def export_ast_image(png_clicks, jpg_clicks, svg_clicks):
             'type': 'svg',
             'action': 'download',
             'filename': f'ast_visualization_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}'
+        }
+    else:
+        raise PreventUpdate
+
+# Export Dependency Tree as PNG, JPG, or SVG
+@app.callback(
+    Output("cytoscape", "generateImage"),
+    [Input("btn-export-dep-png", "n_clicks"),
+     Input("btn-export-dep-jpg", "n_clicks"),
+     Input("btn-export-dep-svg", "n_clicks")],
+    prevent_initial_call=True
+)
+def export_dependency_tree_image(png_clicks, jpg_clicks, svg_clicks):
+    """Handle dependency tree visualization export as image files."""
+    ctx = callback_context
+    if not ctx.triggered:
+        raise PreventUpdate
+    
+    button_id = ctx.triggered[0]["prop_id"].split(".")[0]
+    
+    if button_id == "btn-export-dep-png":
+        print("Exporting Dependency Tree as PNG")
+        return {
+            'type': 'png',
+            'action': 'download',
+            'filename': f'dependency_tree_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}'
+        }
+    elif button_id == "btn-export-dep-jpg":
+        print("Exporting Dependency Tree as JPG")
+        return {
+            'type': 'jpeg',
+            'action': 'download',
+            'filename': f'dependency_tree_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}'
+        }
+    elif button_id == "btn-export-dep-svg":
+        print("Exporting Dependency Tree as SVG")
+        return {
+            'type': 'svg',
+            'action': 'download',
+            'filename': f'dependency_tree_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}'
         }
     else:
         raise PreventUpdate
