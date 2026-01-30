@@ -381,10 +381,22 @@ def initialize_data():
     global elements
     try:
         dep_data = get_data(package)
-        elements = def_elems(dep_data[0], vulnerable_packages=vulnerable_files)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
+
+        # Try the list-first path
+        try:
+            root = dep_data[0]
+        except (TypeError, IndexError):
+            # Fallback safeguard
+            if isinstance(dep_data, dict):
+                root = dep_data
+            elif isinstance(dep_data, list) and dep_data:
+                root = dep_data[0]
+            else:
+                raise ValueError("Dependency data is empty or invalid")
+
+        elements = def_elems(root, vulnerable_packages=vulnerable_files)
+    except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
         print(f"Error initializing data: {e}")
-        # Set default elements if initialization fails
         elements = [{'data': {'id': package, 'label': package, 'security': 'secure'}}]
 
 def get_analysis_filename(python_file_path):
