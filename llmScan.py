@@ -236,46 +236,39 @@ def scan_vulnerabilities(python_code_path):
                 "Or set DISABLE_LLM=1 to skip LLM scans gracefully."
             )
             return False, guidance
-            
-        progress = _tqdm(range(3), desc="LLM scan", total=3, unit="step")
-        try:
-            # Load Python code
-            python_code = load_python_file(python_code_path)
-            progress.update(1)
+        
+        # Load Python code
+        python_code = load_python_file(python_code_path)
 
-            # Invoke the chain with retries
-            retries = 0
-            while retries < MAX_RETRIES:
-                try:
-                    response = chain.invoke({"python_code": python_code})
-                    break
-                except Exception as e:
-                    retries += 1
-                    error_msg = f"LLM invocation failed (attempt {retries}/{MAX_RETRIES}): {str(e)}"
-                    debug_print(error_msg)
-                    if retries >= MAX_RETRIES:
-                        return False, error_msg
-                    debug_print(f"Retrying in {RETRY_DELAY} seconds...")
-                    time.sleep(RETRY_DELAY)
-            progress.update(1)
-            
-            json_text = response.strip()
-            
-            if not json_text.startswith('{') or not json_text.endswith('}'):
-                json_match = re.search(r'({[\s\S]*})', json_text)
-                if json_match:
-                    json_text = json_match.group(1)
-            
-            # Parse the resulting JSON
-            analyzed_ast = json.loads(json_text)
-            
-            # Correct the line numbers based on code snippets
-            analyzed_ast = append_line_numbers(analyzed_ast, python_code_path)
-            progress.update(1)
-            
-            return True, analyzed_ast
-        finally:
-            progress.close()
+        # Invoke the chain with retries
+        retries = 0
+        while retries < MAX_RETRIES:
+            try:
+                response = chain.invoke({"python_code": python_code})
+                break
+            except Exception as e:
+                retries += 1
+                error_msg = f"LLM invocation failed (attempt {retries}/{MAX_RETRIES}): {str(e)}"
+                debug_print(error_msg)
+                if retries >= MAX_RETRIES:
+                    return False, error_msg
+                debug_print(f"Retrying in {RETRY_DELAY} seconds...")
+                time.sleep(RETRY_DELAY)
+        
+        json_text = response.strip()
+        
+        if not json_text.startswith('{') or not json_text.endswith('}'):
+            json_match = re.search(r'({[\s\S]*})', json_text)
+            if json_match:
+                json_text = json_match.group(1)
+        
+        # Parse the resulting JSON
+        analyzed_ast = json.loads(json_text)
+        
+        # Correct the line numbers based on code snippets
+        analyzed_ast = append_line_numbers(analyzed_ast, python_code_path)
+        
+        return True, analyzed_ast
         
     except FileNotFoundError:
         return False, f"Error: Could not find file at {python_code_path}"

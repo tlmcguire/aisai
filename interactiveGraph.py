@@ -717,11 +717,25 @@ def get_file_structure(package_name):
             """Render file tree node with clickable Python files."""
             icon = '📁 ' if node.type == 'directory' else '📄 '
             
+            # Check if directory contains vulnerable files
+            def has_vulnerable_files(file_node):
+                """Recursively check if node or its children contain vulnerable files."""
+                if file_node.type != 'directory' and file_node.path in vulnerable_files:
+                    return True
+                if file_node.children:
+                    return any(has_vulnerable_files(child) for child in file_node.children)
+                return False
+            
             if node.children:
+                dir_has_vulns = has_vulnerable_files(node)
                 return html.Details([
                     html.Summary(
                         icon + node.name,
-                        style={'color': COLORS['primary_text'], 'cursor': 'pointer', 'fontWeight': 'bold'}
+                        style={
+                            'color': COLORS['error'] if dir_has_vulns else COLORS['primary_text'],
+                            'cursor': 'pointer',
+                            'fontWeight': 'bold' if dir_has_vulns else 'bold'
+                        }
                     ),
                     html.Ul([
                         render_node(child) for child in node.children
