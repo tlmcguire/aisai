@@ -88,6 +88,18 @@ AISAI is a containerized Python tool designed to assist in analyzing dependencie
       --entrypoint python \
       aisai interactiveGraph.py --local-file /path/to/file.py
    ```
+
+   **Additional Flags**:
+   - `--debug`: Enable verbose debug logging to see detailed package processing information
+     ```bash
+     podman run --rm -it -p 8080:8080 --network=host \
+       -v "$(pwd)/graphs:/graphs" \
+       -v "$(pwd)/models:/models" \
+       -v "$(pwd)/results:/app/results" \
+       --entrypoint python \
+       aisai interactiveGraph.py --debug [package_name]
+     ```
+   - `--skip-download`: Use existing downloaded packages without re-downloading
    
    - Optionally specify a package name (defaults to Django if not provided)
 
@@ -110,6 +122,13 @@ AISAI is a containerized Python tool designed to assist in analyzing dependencie
 - Click on Python files to view their AST (Abstract Syntax Tree)
 - In the AST view, click "Run LLM Security Analysis" to detect code vulnerabilities
 - Export AST visualizations as PNG, JPG, or SVG for documentation
+
+### Exporting Visualizations
+- Both dependency tree and AST graphs can be exported as PNG, JPG, or SVG images
+- Use the export buttons in the header (for dependency tree) or in the AST modal
+- **Note**: Exported images are positional - they capture the current layout of the graph
+- Arrange nodes by dragging them to your desired positions before exporting
+- Once exported, the image will reflect the exact positioning you see on screen
 
 ### LLM Security Scanning
 The tool uses Ollama to analyze Python code for security issues:
@@ -167,7 +186,3 @@ For testing specific package versions or modifying code before analysis:
    - Verify Ollama has downloaded the required models
    - The tool will attempt to use a fallback model if the primary model fails
    - Check system memory
-
-## Migration from Docker
-
-This project has been migrated from Docker to Podman. If you were previously using Docker, see `PODMAN_MIGRATION.md` for detailed migration information and troubleshooting tips.
