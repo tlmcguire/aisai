@@ -1660,14 +1660,22 @@ def export_ast_image(png_clicks, jpg_clicks, svg_clicks):
         return {
             'type': 'png',
             'action': 'download',
-            'filename': f'ast_visualization_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}'
+            'filename': f'ast_visualization_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}',
+            'options': {
+                'scale': 10,  # Maximum resolution for highest quality
+                'quality': 1.0  # Maximum quality
+            }
         }
     elif button_id == "btn-export-jpg":
         print("Exporting AST as JPG")
         return {
             'type': 'jpeg',
             'action': 'download',
-            'filename': f'ast_visualization_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}'
+            'filename': f'ast_visualization_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}',
+            'options': {
+                'scale': 3,  # 3x resolution for higher quality
+                'quality': 0.95  # High JPEG quality (0.0-1.0)
+            }
         }
     elif button_id == "btn-export-svg":
         print("Exporting AST as SVG")
@@ -1700,14 +1708,22 @@ def export_dependency_tree_image(png_clicks, jpg_clicks, svg_clicks):
         return {
             'type': 'png',
             'action': 'download',
-            'filename': f'dependency_tree_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}'
+            'filename': f'dependency_tree_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}',
+            'options': {
+                'scale': 10,  # Maximum resolution for highest quality
+                'quality': 1.0  # Maximum quality
+            }
         }
     elif button_id == "btn-export-dep-jpg":
         print("Exporting Dependency Tree as JPG")
         return {
             'type': 'jpeg',
             'action': 'download',
-            'filename': f'dependency_tree_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}'
+            'filename': f'dependency_tree_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}',
+            'options': {
+                'scale': 3,  # 3x resolution for higher quality
+                'quality': 0.95  # High JPEG quality (0.0-1.0)
+            }
         }
     elif button_id == "btn-export-dep-svg":
         print("Exporting Dependency Tree as SVG")
