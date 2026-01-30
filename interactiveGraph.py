@@ -341,39 +341,56 @@ def download_and_extract_packages(package_names, download_dir):
 
     return dependency_tree
 
-def def_elems(pkg_data, parent=None, vulnerable_packages=None):
+def def_elems(pkg_data, parent=None, vulnerable_packages=None, seen_nodes=None, seen_edges=None):
     """
     Recursively map package data into Cytoscape elements.
 
     :param pkg_data: The package data dictionary.
     :param parent: The parent node ID, if any.
     :param vulnerable_packages: Set of package names marked as vulnerable.
+    :param seen_nodes: Set of node IDs already added.
+    :param seen_edges: Set of (source, target) edges already added.
     :return: List of Cytoscape elements.
     """
     if vulnerable_packages is None:
         vulnerable_packages = set()
-        
+    if seen_nodes is None:
+        seen_nodes = set()
+    if seen_edges is None:
+        seen_edges = set()
+
     elements = []
     node_id = pkg_data["package_name"]
     label = f"{node_id}\nv{pkg_data['installed_version']}"
-    
-    # Add the current node with security status in data
-    elements.append({
-        'data': {
-            'id': node_id, 
-            'label': label,
-            'security': 'vulnerable' if node_id in vulnerable_packages else 'secure'
-        }
-    })
-    
-    # Add an edge if there's a parent
+
+    # Add node once
+    if node_id not in seen_nodes:
+        elements.append({
+            'data': {
+                'id': node_id,
+                'label': label,
+                'security': 'vulnerable' if node_id in vulnerable_packages else 'secure'
+            }
+        })
+        seen_nodes.add(node_id)
+
+    # Add edge once
     if parent:
-        elements.append({'data': {'source': parent, 'target': node_id}})
-    
+        edge_key = (parent, node_id)
+        if edge_key not in seen_edges:
+            elements.append({'data': {'source': parent, 'target': node_id}})
+            seen_edges.add(edge_key)
+
     # Process dependencies recursively
     for dep in pkg_data.get("dependencies", []):
-        elements += def_elems(dep, parent=node_id, vulnerable_packages=vulnerable_packages)
-    
+        elements += def_elems(
+            dep,
+            parent=node_id,
+            vulnerable_packages=vulnerable_packages,
+            seen_nodes=seen_nodes,
+            seen_edges=seen_edges
+        )
+
     return elements
 
 def initialize_data():
@@ -395,6 +412,12 @@ def initialize_data():
                 raise ValueError("Dependency data is empty or invalid")
 
         elements = def_elems(root, vulnerable_packages=vulnerable_files)
+        
+        # Debug: count nodes vs edges
+        nodes = [e for e in elements if 'source' not in e['data']]
+        edges = [e for e in elements if 'source' in e['data']]
+        print(f"Graph initialized: {len(nodes)} nodes, {len(edges)} edges")
+        
     except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
         print(f"Error initializing data: {e}")
         elements = [{'data': {'id': package, 'label': package, 'security': 'secure'}}]
@@ -836,28 +859,40 @@ def run_bandit_analysis(package_dir: str, severity: str = 'HIGH', profile: str =
 
 def analyze_package_security(package_name: str, dependency_tree: Dict) -> Dict[str, str]:
     """
-    Analyze security of a package and its dependencies.
+    Analyze security of a package and its dependencies (non-recursive to avoid duplication).
     
     Returns:
         Dict mapping package names to security status ('secure'/'vulnerable')
     """
     security_status = {}
+    seen_packages = set()
+    packages_to_scan = []
     
-    def analyze_tree(pkg_data):
-        pkg_name = pkg_data.get('package_name', package_name).lower()
+    # Flatten dependency tree first
+    def collect_packages(pkg_data):
+        pkg_name = pkg_data.get('package_name', '').lower()
+        if pkg_name and pkg_name not in seen_packages:
+            seen_packages.add(pkg_name)
+            packages_to_scan.append(pkg_data)
+            for dep in pkg_data.get('dependencies', []):
+                collect_packages(dep)
+    
+    collect_packages(dependency_tree)
+    
+    # Now scan each package exactly once
+    for pkg_data in packages_to_scan:
+        pkg_name = pkg_data.get('package_name', '').lower()
         pkg_dir = pkg_data.get('source_paths', {}).get('package_dir')
+        
         if pkg_dir and os.path.exists(pkg_dir):
+            logging.debug(f"Scanning {pkg_name}: {pkg_dir}")
             issues = run_bandit_analysis(pkg_dir)
-            # Only mark as vulnerable if there are high severity issues
             high_severity_issues = [i for i in issues if i.get('issue_severity', '').lower() == 'high']
             security_status[pkg_name] = 'vulnerable' if high_severity_issues else 'secure'
             package_bandit_results[pkg_name] = high_severity_issues
-        
-        # Recursively analyze dependencies
-        for dep in pkg_data.get('dependencies', []):
-            analyze_tree(dep)
+        else:
+            logging.debug(f"Skipping {pkg_name}: no package directory")
     
-    analyze_tree(dependency_tree)
     return security_status
 
 # Dash app setup
