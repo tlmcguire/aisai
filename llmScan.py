@@ -1,5 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_ollama.llms import OllamaLLM
+from langchain_ollama import ChatOllama
 import json
 import os
 import sys
@@ -95,6 +96,38 @@ Return your analysis as a JSON dictionary with the following structure:
 
 </user>
 """
+
+ANALYSIS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "vulnerable": {"type": "boolean"},
+        "vulnerabilities": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "line_number": {"type": "integer"},
+                    "node_type": {"type": "string"},
+                    "code_snippet": {"type": "string"},
+                    "vulnerability_type": {"type": "string"},
+                    "description": {"type": "string"},
+                    "remediation": {"type": "string"}
+                },
+                "required": [
+                    "line_number",
+                    "node_type",
+                    "code_snippet",
+                    "vulnerability_type",
+                    "description",
+                    "remediation"
+                ],
+                "additionalProperties": False
+            }
+        }
+    },
+    "required": ["vulnerable", "vulnerabilities"],
+    "additionalProperties": False
+}
 
 from langchain_ollama import __version__ as ollama_version
 # print(f"Using langchain_ollama version: {ollama_version}")
@@ -207,7 +240,14 @@ def get_model_and_chain():
         # Create chain if model was successfully initialized
         if model is not None:
             prompt = ChatPromptTemplate.from_template(template)
-            chain = prompt | model
+            llm_kwargs = {
+                "model": getattr(model, "model", PRIMARY_MODEL),
+            }
+            base_url = getattr(model, "base_url", None)
+            if base_url:
+                llm_kwargs["base_url"] = base_url
+            structured_model = ChatOllama(**llm_kwargs).with_structured_output(ANALYSIS_SCHEMA)
+            chain = prompt | structured_model
     
     return model, chain
 
@@ -255,15 +295,26 @@ def scan_vulnerabilities(python_code_path):
                 debug_print(f"Retrying in {RETRY_DELAY} seconds...")
                 time.sleep(RETRY_DELAY)
         
-        json_text = response.strip()
-        
-        if not json_text.startswith('{') or not json_text.endswith('}'):
-            json_match = re.search(r'({[\s\S]*})', json_text)
-            if json_match:
-                json_text = json_match.group(1)
-        
-        # Parse the resulting JSON
-        analyzed_ast = json.loads(json_text)
+        if isinstance(response, dict):
+            analyzed_ast = response
+        elif isinstance(response, str):
+            json_text = response.strip()
+
+            if not json_text.startswith('{') or not json_text.endswith('}'):
+                json_match = re.search(r'({[\s\S]*})', json_text)
+                if json_match:
+                    json_text = json_match.group(1)
+
+            # Parse the resulting JSON
+            analyzed_ast = json.loads(json_text)
+        else:
+            return False, f"Unexpected response type from LLM: {type(response)}"
+
+        # Ensure expected keys exist even if the model returns a partial object.
+        if "vulnerabilities" not in analyzed_ast or not isinstance(analyzed_ast.get("vulnerabilities"), list):
+            analyzed_ast["vulnerabilities"] = []
+        if "vulnerable" not in analyzed_ast or not isinstance(analyzed_ast.get("vulnerable"), bool):
+            analyzed_ast["vulnerable"] = bool(analyzed_ast["vulnerabilities"])
         
         # Correct the line numbers based on code snippets
         analyzed_ast = append_line_numbers(analyzed_ast, python_code_path)
