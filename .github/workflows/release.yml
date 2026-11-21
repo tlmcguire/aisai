@@ -336,18 +336,19 @@ jobs:
             node .github/run-builder.mjs ${{ matrix.target }} ${{ matrix.archs }} --release --unsigned
           fi
 
-      # The two Linux jobs would write the same update metadata file, and
-      # the merge would keep only one of them. The file names carry the
-      # platform instead.
+      # The update metadata of the two Linux jobs has to end up in the same
+      # release without overwriting itself. electron-builder writes
+      # latest-linux.yml for the x64 build and latest-linux-arm64.yml for
+      # the arm64 one, so only the x64 file is renamed.
       - name: Give the update metadata a unique name
         if: startsWith(matrix.platform, 'linux-')
         run: |
           set -euo pipefail
           cd electron/release
-          for file in latest-linux*.yml; do
-            [ -e "$file" ] || continue
-            mv "$file" "latest-${{ matrix.platform }}.yml"
-          done
+          if [ -e latest-linux.yml ]; then
+            mv latest-linux.yml "latest-${{ matrix.platform }}.yml"
+          fi
+          ls -l latest-*.yml
 
       - name: Upload the artifacts
         uses: actions/upload-artifact@v7
