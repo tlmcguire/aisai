@@ -32,7 +32,7 @@ function visNode(node: GraphNode): VisNodeData {
     shape: node.direct ? 'diamond' : 'dot',
     color: nodeColor(node),
     borderWidth: node.direct ? 2 : 1,
-    font: { color: '#e6edf3', size: 10, face: 'monospace', multi: true },
+    font: { color: '#e6edf3', size: 11, face: 'monospace', multi: true },
   };
 }
 
@@ -404,9 +404,14 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
         [],
         [],
         {
+          // The labels do not scale with the zoom: a graph that is fitted
+          // into a narrow pane would otherwise shrink its labels until
+          // they cannot be read.
+          scaling: { label: { enabled: false } },
           nodes: {
             shape: 'dot',
-            font: { color: '#e6edf3', size: 10, face: 'monospace', multi: true },
+            font: { color: '#e6edf3', size: 11, face: 'monospace', multi: true },
+            margin: { top: 6, right: 10, bottom: 6, left: 10 },
             borderWidth: 1,
           },
           edges: {

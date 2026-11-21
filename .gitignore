@@ -25,6 +25,9 @@ node_modules/
 electron/dist/
 electron/out/
 electron/release/
+# The staged Go sidecar: the release workflow downloads it here before
+# electron-builder packages it into the app.
+electron/build/
 *.tsbuildinfo
 
 # --- Benchmark output ---

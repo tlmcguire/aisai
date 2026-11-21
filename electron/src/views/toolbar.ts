@@ -3,6 +3,7 @@ import type { ProviderInfo } from '../api/types';
 import { h } from '../lib/dom';
 import { useAuditStore } from '../state/audit';
 import { useUiStore } from '../state/ui';
+import { createPackagePicker } from './packagePicker';
 
 /** Toggle a button into its busy state (spinner + disabled). */
 export function setBusy(button: HTMLButtonElement, busy: boolean, label?: string): void {
@@ -31,38 +32,30 @@ export interface Toolbar {
 }
 
 export function createToolbar(controller: AppController, container: HTMLElement): Toolbar {
-  const packageInput = h('input', {
-    type: 'text',
-    id: 'package-input',
-    placeholder: 'flask',
-    value: 'flask',
-    'aria-label': 'Package name',
-    size: 18,
-  });
-
-  const versionInput = h('input', {
-    type: 'text',
-    id: 'version-input',
-    placeholder: 'latest',
-    value: '2.0.0',
-    'aria-label': 'Package version',
-    size: 10,
-  });
+  const picker = createPackagePicker(controller);
 
   const scanButton = button('Scan', 'primary');
   const llmButton = button('Scan LLM');
 
   const providerChip = h('span', { class: 'badge neutral', text: 'checking provider…' });
   const mockBadge = h('span', { class: 'badge mock', text: 'MOCK DATA', hidden: true });
-  const settingsButton = h('button', { class: 'ghost', type: 'button', title: 'Settings' }, '⚙');
+  const settingsButton = h(
+    'button',
+    { class: 'ghost icon', type: 'button', title: 'Settings', 'aria-label': 'Settings' },
+    '⚙',
+  );
+
+  picker.onScan((packageName, version) => {
+    void controller.startAudit(packageName, version);
+  });
 
   scanButton.addEventListener('click', () => {
-    const pkg = packageInput.value.trim();
+    const pkg = picker.packageName();
     if (!pkg) {
-      packageInput.focus();
+      picker.focus();
       return;
     }
-    void controller.startAudit(pkg, versionInput.value.trim());
+    void controller.startAudit(pkg, picker.version());
   });
 
   llmButton.addEventListener('click', () => {
@@ -75,18 +68,7 @@ export function createToolbar(controller: AppController, container: HTMLElement)
 
   container.append(
     h('div', { class: 'brand', text: 'AISAI' }),
-    h(
-      'div',
-      { class: 'field' },
-      h('label', { for: 'package-input', text: 'Package' }),
-      packageInput,
-    ),
-    h(
-      'div',
-      { class: 'field' },
-      h('label', { for: 'version-input', text: 'Version' }),
-      versionInput,
-    ),
+    picker.element,
     scanButton,
     llmButton,
     h('div', { class: 'toolbar-spacer' }),
@@ -107,6 +89,13 @@ export function createToolbar(controller: AppController, container: HTMLElement)
 
   const unsubscribeBackend = window.aisai.onBackendStatus((status) => {
     mockBadge.hidden = status.mode !== 'mock';
+    // The first refresh happens while the sidecar is still starting, so
+    // it sees no providers at all. When the backend becomes ready the
+    // list is fetched again, otherwise the chip would keep saying that
+    // no provider is configured for the rest of the session.
+    if (status.state === 'ready') {
+      void refreshProviders();
+    }
   });
 
   return {
@@ -115,6 +104,7 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     dispose: () => {
       unsubscribeAudit();
       unsubscribeBackend();
+      picker.dispose();
     },
   };
 }

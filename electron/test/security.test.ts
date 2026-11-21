@@ -50,6 +50,8 @@ const EXPECTED_API_PREFIXES = [
   '/api/health',
   '/api/config',
   '/api/providers',
+  '/api/models',
+  '/api/packages',
   '/api/audits',
   '/api/advisories',
   '/api/chat',
@@ -209,6 +211,10 @@ return isAllowedApiPath;`;
     expect(predicate('/api/health')).toBe(true);
     expect(predicate('/api/config')).toBe(true);
     expect(predicate('/api/providers')).toBe(true);
+    expect(predicate('/api/models')).toBe(true);
+    expect(predicate('/api/models/unload')).toBe(true);
+    expect(predicate('/api/packages')).toBe(true);
+    expect(predicate('/api/packages?name=flask')).toBe(true);
     expect(predicate('/api/audits')).toBe(true);
     expect(predicate('/api/audits/a1/findings')).toBe(true);
     expect(predicate('/api/audits/a1/file')).toBe(true);

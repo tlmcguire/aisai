@@ -266,9 +266,11 @@ static leg is the one that is deterministic, so it is the one that gates.
   targets, the hardened runtime, the entitlements, and
   `forceCodeSigning: false` so that a developer can package on a machine
   without a certificate.
-* `electron/.github/electron-builder.release.json` holds the **release**
-  configuration: `forceCodeSigning: true`, the notarization block and the
-  `publish` provider.
+* `electron/.github/electron-builder.release.json` holds the **signed
+  release** configuration: `forceCodeSigning: true`, the notarization
+  block and the `publish` provider.
+* `electron/.github/electron-builder.unsigned.json` holds the **unsigned
+  release** configuration: `forceCodeSigning: false` and no notarization.
 * `electron/.github/run-builder.mjs` merges the two, checks the
   credentials and starts electron-builder.
 * `electron/.github/verify-release-env.mjs` is the electron-builder
@@ -282,6 +284,30 @@ static leg is the one that is deterministic, so it is the one that gates.
 | macOS | `dmg` and `zip`, `x64` and `arm64` | `CSC_LINK` + `CSC_KEY_PASSWORD`, notarised with `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`; `hardenedRuntime: true` |
 | Windows | `nsis` and `zip`, `x64` | `WIN_CSC_LINK` + `WIN_CSC_KEY_PASSWORD`; `WINDOWS_PUBLISHER_NAME` is the name the updater verifies against |
 | Linux | `AppImage` and `deb`, `x64` and `arm64` | not signed (the Linux artifacts are not in the signed update feed) |
+
+### Signed and unsigned releases
+
+The pipeline publishes a release for every platform in both modes.
+
+| Mode | How it is started | What it produces |
+|---|---|---|
+| Signed | the **Actions** tab with the `signed` option | signed and notarised artifacts, published to the signed update feed |
+| Unsigned | a `v*` tag, or the **Actions** tab without the option | artifacts that are not signed and not notarised |
+
+An unsigned release is what the pipeline can publish today, because the
+signing identities do not exist in this repository yet. It is a deliberate
+mode rather than a fallback: the workflow decides which one to use before
+it builds anything, and a signed release still stops with a message that
+names every missing credential.
+
+An unsigned macOS build is quarantined by Gatekeeper and has to be opened
+with a right-click; an unsigned Windows build shows a SmartScreen warning.
+
+The unsigned configuration also turns off the automatic discovery of a
+signing identity (`CSC_IDENTITY_AUTO_DISCOVERY=false`). Without it,
+electron-builder picks up whatever certificate is in the keychain of the
+machine it runs on — which is how a build that is supposed to be unsigned
+ends up trying to sign with a development certificate.
 
 ### Failing loudly instead of skipping
 
@@ -353,7 +379,8 @@ the same string in the build and in the updater.
 
 **None of these exist in this repository, and nothing was signed or
 notarised here.** The pipeline is configured for them and it fails loudly
-when they are missing.
+when they are missing. An unsigned release needs none of them, and that is
+the mode the pipeline publishes in today.
 
 ---
 

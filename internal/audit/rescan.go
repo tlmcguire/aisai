@@ -81,6 +81,10 @@ func (m *Manager) RescanFile(ctx context.Context, id, relPath string) (*RescanRe
 	if !replaced {
 		a.files = append(a.files, parsed)
 	}
+	if a.filesByPath == nil {
+		a.filesByPath = map[string]*ast.File{}
+	}
+	a.filesByPath[target] = parsed
 	pkgByDir := a.pkgByDir
 	a.mu.Unlock()
 

@@ -274,6 +274,27 @@ type Audit struct {
 	FileCount    int         `json:"fileCount"`
 	ChunkCount   int         `json:"chunkCount"`
 	FindingCount int         `json:"findingCount"`
+	// SandboxBytes is the size of the downloaded sources of the audit.
+	SandboxBytes int64 `json:"sandboxBytes"`
+	// SourcesDeleted reports that the downloaded sources were deleted.
+	SourcesDeleted bool `json:"sourcesDeleted"`
+}
+
+// PackageLookup is the result of resolving a package name on the index.
+//
+// It is what the package picker shows: the summary of the project and the
+// versions that can be audited.
+type PackageLookup struct {
+	// Name is the canonical name of the project.
+	Name string `json:"name"`
+	// Summary is the short description of the project.
+	Summary string `json:"summary,omitempty"`
+	// Latest is the newest stable version.
+	Latest string `json:"latest,omitempty"`
+	// Versions are the published versions, newest first.
+	Versions []string `json:"versions,omitempty"`
+	// Error explains why the project could not be resolved.
+	Error string `json:"error,omitempty"`
 }
 
 // FileNode is a node in the file tree.
@@ -361,6 +382,8 @@ type AST struct {
 	Path  string    `json:"path"`
 	Nodes []ASTNode `json:"nodes"`
 	Edges []ASTEdge `json:"edges"`
+	// Language is the language the file was parsed with.
+	Language string `json:"language,omitempty"`
 }
 
 // ProviderInfo describes the status of an LLM provider.
@@ -371,6 +394,28 @@ type ProviderInfo struct {
 	OK     bool     `json:"ok"`
 	Models []string `json:"models,omitempty"`
 	Error  string   `json:"error,omitempty"`
+}
+
+// ModelInfo describes one model installed on the Ollama server.
+//
+// It carries enough detail for the model picker to show what a model will
+// cost the machine before it is selected: the download size, the parameter
+// count and the quantization level.
+type ModelInfo struct {
+	// Name is the tag to pass to Ollama, for example "qwen3.5:4b".
+	Name string `json:"name"`
+	// Size is the size of the model on disk, in bytes.
+	Size int64 `json:"size"`
+	// SizeText is the human readable size, for example "3.3GB".
+	SizeText string `json:"sizeText"`
+	// Family is the model family, for example "qwen3".
+	Family string `json:"family,omitempty"`
+	// ParameterSize is the parameter count, for example "4.0B".
+	ParameterSize string `json:"parameterSize,omitempty"`
+	// QuantizationLevel is the quantization, for example "Q4_K_M".
+	QuantizationLevel string `json:"quantizationLevel,omitempty"`
+	// ModifiedAt is when the model was pulled, in RFC 3339.
+	ModifiedAt string `json:"modifiedAt,omitempty"`
 }
 
 // Config is the effective server configuration.

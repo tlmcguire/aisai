@@ -1,0 +1,6 @@
+{
+  "forceCodeSigning": false,
+  "mac": {
+    "notarize": false
+  }
+}

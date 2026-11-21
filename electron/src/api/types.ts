@@ -209,6 +209,24 @@ export interface Audit {
   fileCount: number;
   chunkCount: number;
   findingCount: number;
+  /** The size of the downloaded sources of the audit, in bytes. */
+  sandboxBytes: number;
+  /** Whether the downloaded sources were deleted. */
+  sourcesDeleted: boolean;
+}
+
+/** Mirrors model.PackageLookup — a package name resolved on the index. */
+export interface PackageLookup {
+  name: string;
+  summary?: string;
+  latest?: string;
+  versions?: string[];
+  error?: string;
+}
+
+/** The response of the package lookup endpoint. */
+export interface PackageLookupResponse {
+  package: PackageLookup;
 }
 
 /** Mirrors model.FileNode. */
@@ -253,6 +271,8 @@ export interface AST {
   path: string;
   nodes: ASTNode[];
   edges: ASTEdge[];
+  /** The language the file was parsed with. */
+  language?: string;
 }
 
 /** Mirrors model.ProviderInfo. */
@@ -274,6 +294,39 @@ export interface Config {
   embedModel: string;
   scanModel: string;
   numCtx: number;
+  /** How long Ollama keeps a model in memory after the last request. */
+  keepAlive?: string;
+}
+
+/** Mirrors model.ModelInfo — one model installed on the Ollama server. */
+export interface ModelInfo {
+  name: string;
+  size: number;
+  sizeText: string;
+  family?: string;
+  parameterSize?: string;
+  quantizationLevel?: string;
+  modifiedAt?: string;
+}
+
+/** The response of the model endpoints: installed and selected models. */
+export interface ModelState {
+  models: ModelInfo[];
+  chatModel: string;
+  scanModel: string;
+  embedModel: string;
+  numCtx: number;
+  keepAlive: string;
+  error?: string;
+}
+
+/** The body of POST /api/models. Empty names leave a role unchanged. */
+export interface ModelSelection {
+  chatModel?: string;
+  scanModel?: string;
+  embedModel?: string;
+  numCtx?: number;
+  keepAlive?: string;
 }
 
 /** Mirrors model.Event. */
@@ -349,6 +402,12 @@ export interface ProvidersResponse {
 
 export interface ProviderTestResponse {
   provider: ProviderInfo;
+}
+
+export type ModelsResponse = ModelState;
+
+export interface UnloadResponse {
+  unloaded: string[];
 }
 
 export interface AuditsResponse {

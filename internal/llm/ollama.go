@@ -17,10 +17,11 @@ import (
 
 // Ollama provider endpoints.
 const (
-	ollamaChatPath  = "/api/chat"
-	ollamaEmbedPath = "/api/embed"
-	ollamaTagsPath  = "/api/tags"
-	ollamaShowPath  = "/api/show"
+	ollamaChatPath     = "/api/chat"
+	ollamaEmbedPath    = "/api/embed"
+	ollamaTagsPath     = "/api/tags"
+	ollamaShowPath     = "/api/show"
+	ollamaGeneratePath = "/api/generate"
 )
 
 // ollamaMaxAttempts is the total number of HTTP attempts made for a single
@@ -39,6 +40,10 @@ type OllamaProvider struct {
 	opts   Options
 	urls   []string
 	client *http.Client
+
+	// models holds the models in use. When it is nil the provider falls
+	// back to the model names baked into opts.
+	models *Models
 
 	mu     sync.Mutex
 	active int
@@ -59,7 +64,52 @@ func NewOllama(opts Options) *OllamaProvider {
 		opts:   opts,
 		urls:   urls,
 		client: &http.Client{Timeout: opts.Timeout},
+		models: opts.Models,
 	}
+}
+
+// chatModel returns the model used for chat turns.
+func (p *OllamaProvider) chatModel() string {
+	if p.models != nil {
+		if name := p.models.Chat(); name != "" {
+			return name
+		}
+	}
+	return p.opts.chatModel()
+}
+
+// embedModel returns the model used for embeddings.
+func (p *OllamaProvider) embedModel() string {
+	if p.models != nil {
+		if name := p.models.Embed(); name != "" {
+			return name
+		}
+	}
+	return p.opts.embedModel()
+}
+
+// numCtx returns the effective context window.
+func (p *OllamaProvider) numCtx() int {
+	if p.models != nil {
+		return p.models.NumCtx()
+	}
+	return p.opts.numCtx()
+}
+
+// keepAlive returns the keep-alive window sent with every request.
+//
+// Ollama unloads a model once no request has used it for this long, which
+// is what returns the memory to the rest of the system on a small laptop.
+func (p *OllamaProvider) keepAlive() string {
+	if p.models != nil {
+		if s := p.models.KeepAlive(); s != "" {
+			return s
+		}
+	}
+	if p.opts.KeepAlive != "" {
+		return p.opts.KeepAlive
+	}
+	return DefaultKeepAlive
 }
 
 // ID returns the stable provider identifier.
@@ -176,14 +226,14 @@ type ollamaStreamLine struct {
 func (p *OllamaProvider) chatPayload(req ChatRequest, stream bool) (*ollamaChatRequest, error) {
 	model := req.Model
 	if model == "" {
-		model = p.opts.chatModel()
+		model = p.chatModel()
 	}
 	if model == "" {
 		return nil, errors.New("ollama: no model configured")
 	}
 	numCtx := req.NumCtx
 	if numCtx <= 0 {
-		numCtx = p.opts.numCtx()
+		numCtx = p.numCtx()
 	}
 	temperature := req.Temperature
 	seed := req.Seed
@@ -200,7 +250,7 @@ func (p *OllamaProvider) chatPayload(req ChatRequest, stream bool) (*ollamaChatR
 			"temperature": temperature,
 			"seed":        seed,
 		},
-		KeepAlive: "5m",
+		KeepAlive: p.keepAlive(),
 	}
 	if req.Schema != nil {
 		raw, err := json.Marshal(req.Schema)
@@ -400,14 +450,15 @@ func (p *OllamaProvider) Embed(ctx context.Context, texts []string) ([][]float32
 	if len(texts) == 0 {
 		return nil, nil
 	}
-	model := p.opts.embedModel()
+	model := p.embedModel()
 	if model == "" {
 		return nil, errors.New("ollama: no embedding model configured")
 	}
 	payload := map[string]any{
-		"model":    model,
-		"input":    texts,
-		"truncate": true,
+		"model":      model,
+		"input":      texts,
+		"truncate":   true,
+		"keep_alive": p.keepAlive(),
 	}
 	resp, err := p.do(ctx, http.MethodPost, ollamaEmbedPath, payload)
 	if err != nil {

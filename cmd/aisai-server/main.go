@@ -101,6 +101,13 @@ func run(socketPath, cfgPath, workspaceOverride string) error {
 	engine := sast.NewEngine()
 
 	// --- LLM provider -----------------------------------------------------
+	//
+	// The model set is shared by the provider, the detection pipeline and
+	// the chat. It is mutable on purpose: the desktop app's model picker
+	// changes the models through the API, and every consumer reads them
+	// from here on each request.
+	models := llm.NewModels(cfg.ChatModel, cfg.ScanModel, cfg.EmbedModel, cfg.NumCtx, cfg.KeepAlive)
+
 	var provider llm.Provider
 	if !cfg.DisableLLM {
 		if cfg.BYOKBaseURL != "" && cfg.BYOKAPIKey != "" {
@@ -118,9 +125,12 @@ func run(socketPath, cfgPath, workspaceOverride string) error {
 				Model:      cfg.ChatModel,
 				EmbedModel: cfg.EmbedModel,
 				NumCtx:     cfg.NumCtx,
+				KeepAlive:  cfg.KeepAlive,
+				Models:     models,
 				Timeout:    180 * time.Second,
 			})
-			log.Printf("using Ollama at %s (model %s)", strings.Join(cfg.OllamaURLs, ","), cfg.ChatModel)
+			log.Printf("using Ollama at %s (model %s, keep-alive %s)",
+				strings.Join(cfg.OllamaURLs, ","), cfg.ChatModel, cfg.KeepAlive)
 		}
 	} else {
 		log.Printf("LLM features are disabled (DISABLE_LLM)")
@@ -140,14 +150,16 @@ func run(socketPath, cfgPath, workspaceOverride string) error {
 		Config:  cfg,
 		Store:   store,
 		LLM:     provider,
+		Models:  models,
 		Index:   idx,
 		Patches: patch.NewApplier(),
+		PyPI:    pypiClient,
 	})
 
 	// The LLM detector is only built when a provider is available.
 	var detector *scan.Detector
 	if provider != nil {
-		detector = scan.NewDetector(provider, cfg.ScanModel, cfg.NumCtx)
+		detector = scan.NewDetectorWithModels(provider, models, cfg.NumCtx)
 	}
 
 	mgr := audit.NewManager(audit.Deps{
@@ -173,7 +185,7 @@ func run(socketPath, cfgPath, workspaceOverride string) error {
 		return server.NewChatEngine(chat.New(chat.Deps{
 			Index:      idx,
 			LLM:        provider,
-			Model:      cfg.ChatModel,
+			Models:     models,
 			NumCtx:     cfg.NumCtx,
 			Tools:      audit.ToolDefinitions(),
 			ToolRunner: tools,

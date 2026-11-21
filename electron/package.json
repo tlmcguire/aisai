@@ -8,6 +8,8 @@
   "license": "MIT",
   "scripts": {
     "dev": "concurrently -k -n vite,electron -c cyan,magenta \"vite\" \"node scripts/dev.mjs\"",
+    "postinstall": "node scripts/check-native-arch.mjs",
+    "check:arch": "node scripts/check-native-arch.mjs",
     "dev:vite": "vite",
     "build:main": "node scripts/build-main.mjs",
     "build:renderer": "vite build",
@@ -38,14 +40,14 @@
     "@playwright/test": "^1.65.1",
     "@types/node": "^24.3.0",
     "concurrently": "^9.2.0",
-    "electron": "^38.0.0",
+    "electron": "^45.4.1",
     "electron-builder": "^26.0.12",
     "esbuild": "^0.25.0",
     "eslint": "^9.34.0",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.41.0",
     "vite": "^7.1.0",
-    "vitest": "^3.2.4"
+    "vitest": "^5.1.1"
   },
   "build": {
     "appId": "dev.aisai.app",
@@ -130,8 +132,10 @@
     "beforeBuild": ".github/verify-release-env.mjs"
   },
   "allowScripts": {
-    "electron@38.8.6": true,
+    "electron@45.4.1": true,
     "esbuild@0.25.12": true,
-    "esbuild@0.28.2": true
+    "esbuild@0.28.2": true,
+    "fsevents@2.3.3": true,
+    "electron-winstaller@5.4.0": true
   }
 }

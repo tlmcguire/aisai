@@ -48,15 +48,21 @@ body {
   display: flex;
   flex-direction: column;
   flex: 1 1 65%;
-  min-height: 220px;
+  min-height: 150px;
   overflow: hidden;
 }
 
 .files-section {
   flex: 1 1 35%;
-  min-height: 140px;
+  min-height: 110px;
   display: flex;
   flex-direction: column;
+  /*
+   * The section is a column of a header and a body; the body does the
+   * scrolling. Without this the section scrolls as well, and the tree
+   * ends up with two nested scrollbars.
+   */
+  overflow: hidden;
   border-top: 1px solid var(--border);
 }
 
@@ -116,6 +122,7 @@ body {
 input[type='text'],
 input[type='search'],
 input[type='number'],
+input[type='date'],
 select,
 textarea {
   background: var(--bg-inset);
@@ -188,6 +195,17 @@ button.ghost {
   color: var(--fg-muted);
 }
 
+/*
+ * The settings button carries a single glyph, so it needs a larger hit
+ * area than a text button would have.
+ */
+button.ghost.icon {
+  min-width: 28px;
+  min-height: 26px;
+  font-size: var(--text-md);
+  line-height: 1;
+}
+
 button.ghost:hover:not(:disabled) {
   background: var(--bg-hover);
   color: var(--fg);
@@ -196,6 +214,19 @@ button.ghost:hover:not(:disabled) {
 button.tiny {
   font-size: var(--text-xs);
   padding: 2px 6px;
+}
+
+/* A destructive action that is armed and waiting for the second click. */
+button.tiny.is-armed {
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.badge.warn {
+  background: var(--warning-soft);
+  border-color: var(--warning);
+  color: var(--fg);
 }
 
 /* Busy buttons show a spinner and cannot be clicked again. */
@@ -232,6 +263,81 @@ button.tiny {
 /* ------------------------------------------------------------------ */
 /* Badges and chips                                                    */
 /* ------------------------------------------------------------------ */
+
+/* ---------------------------------------------------------------- picker */
+
+.picker-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.picker {
+  position: relative;
+  display: flex;
+}
+
+.picker input {
+  width: 190px;
+}
+
+.picker-version-field select {
+  width: 118px;
+}
+
+.picker-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 40;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  min-width: 240px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 45%);
+}
+
+.picker-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.picker-option.is-active,
+.picker-option:hover {
+  background: var(--bg-selected);
+}
+
+.picker-option-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-option-version {
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.picker-status {
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .badge {
   display: inline-flex;
@@ -534,7 +640,7 @@ button.tiny {
 
 .graph-canvas {
   flex: 1 1 auto;
-  min-height: 120px;
+  min-height: 60px;
   background: var(--bg-base);
 }
 
@@ -1005,8 +1111,79 @@ button.tiny {
 }
 
 .confidence-fill {
+  /*
+   * The fill is a span, so it needs an explicit block display: without it
+   * the width is ignored and the meter renders as an empty box.
+   */
+  display: block;
   height: 100%;
   background: var(--accent);
+}
+
+/* ------------------------------------------------------------------ */
+/* Settings dialog: model picker                                      */
+/* ------------------------------------------------------------------ */
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.model-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--space-2);
+}
+
+.model-picker .field {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+}
+
+.model-picker select,
+.model-picker input {
+  width: 100%;
+  min-width: 0;
+}
+
+.model-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.model-table th,
+.model-table td {
+  text-align: left;
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.model-table th {
+  color: var(--fg-muted);
+  font-weight: 600;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.model-table td {
+  color: var(--fg);
+}
+
+.model-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 /* ------------------------------------------------------------------ */

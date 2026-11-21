@@ -24,9 +24,14 @@ import type {
   HealthResponse,
   IndexStatusResponse,
   JobResponse,
+  ModelSelection,
+  ModelState,
+  ModelsResponse,
   Patch,
   PatchResponse,
+  PackageLookup,
   ProviderInfo,
+  UnloadResponse,
 } from './api/types';
 import { useAuditStore } from './state/audit';
 import { useChatStore } from './state/chat';
@@ -354,6 +359,117 @@ export class AppController {
     }
   }
 
+  /**
+   * Fetches the models installed on the provider, together with the ones
+   * the server is currently using.
+   */
+  async fetchModels(): Promise<ModelState | null> {
+    try {
+      const response = await this.client.request<ModelsResponse>('GET', '/api/models');
+      return {
+        models: response.models ?? [],
+        chatModel: response.chatModel,
+        scanModel: response.scanModel,
+        embedModel: response.embedModel,
+        numCtx: response.numCtx,
+        keepAlive: response.keepAlive,
+        error: response.error,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Applies a model selection.
+   *
+   * The change takes effect on the running server: the provider, the
+   * detection pipeline and the chat all read the model names on every
+   * request. It is written back to the configuration file as well.
+   */
+  async setModels(selection: ModelSelection): Promise<ModelState | null> {
+    try {
+      const response = await this.client.request<ModelsResponse>('POST', '/api/models', selection);
+      return {
+        models: response.models ?? [],
+        chatModel: response.chatModel,
+        scanModel: response.scanModel,
+        embedModel: response.embedModel,
+        numCtx: response.numCtx,
+        keepAlive: response.keepAlive,
+        error: response.error,
+      };
+    } catch (err) {
+      useAuditStore.getState().setError(messageOf(err));
+      return null;
+    }
+  }
+
+  /**
+   * Releases models from the provider's memory.
+   *
+   * Ollama keeps a model resident until no request has used it for the
+   * keep-alive window; this asks for the memory back straight away.
+   */
+  async unloadModels(models?: string[]): Promise<string[] | null> {
+    try {
+      const response = await this.client.request<UnloadResponse>(
+        'POST',
+        '/api/models/unload',
+        models && models.length > 0 ? { models } : {},
+      );
+      return response.unloaded ?? [];
+    } catch (err) {
+      useAuditStore.getState().setError(messageOf(err));
+      return null;
+    }
+  }
+
+  /**
+   * Resolves a package name on the package index.
+   *
+   * The package picker uses this to turn the name the user typed into the
+   * project it refers to, and to fill the version dropdown with the
+   * versions that actually exist.
+   */
+  async lookupPackage(name: string): Promise<PackageLookup | null> {
+    try {
+      const response = await this.client.request<{ package: PackageLookup }>(
+        'GET',
+        `/api/packages?name=${encodeURIComponent(name)}`,
+      );
+      return response.package ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Deletes the downloaded sources of the current audit.
+   *
+   * The findings and the report are kept: only the sandbox of downloaded
+   * code is removed.
+   */
+  async deleteSources(): Promise<{ freed: number; freedText: string } | null> {
+    if (!this.auditId) return null;
+    const auditStore = useAuditStore.getState();
+    auditStore.setBusy('cleanup');
+    try {
+      const response = await this.client.request<{ freed: number; freedText: string }>(
+        'DELETE',
+        `/api/audits/${this.auditId}/workspace`,
+      );
+      await this.reloadAudits();
+      await this.selectAudit(this.auditId);
+      return { freed: response.freed ?? 0, freedText: response.freedText ?? '' };
+    } catch (err) {
+      auditStore.setError(messageOf(err));
+      return null;
+    } finally {
+      auditStore.setBusy(null);
+    }
+  }
+
   async fetchAdvisories(): Promise<Advisory[]> {
     if (!this.auditId) return [];
     try {
@@ -479,15 +595,25 @@ export class AppController {
   }
 }
 
-/** Collect every directory path in a file tree (used to expand it initially). */
+/**
+ * The number of directory levels that are expanded when a tree is first
+ * shown.
+ *
+ * The tree of a big package has hundreds of directories. Expanding all of
+ * them builds thousands of rows for a tree that is mostly empty, so the
+ * deep levels stay folded until they are opened.
+ */
+const MAX_EXPANDED_DEPTH = 4;
+
+/** Collect the directory paths to expand when a tree is first shown. */
 export function collectDirectories(node: FileNode | null): string[] {
   const paths: string[] = [];
-  const walk = (current: FileNode): void => {
+  const walk = (current: FileNode, depth: number): void => {
     if (current.type !== 'dir') return;
-    paths.push(current.path);
-    for (const child of current.children ?? []) walk(child);
+    if (depth < MAX_EXPANDED_DEPTH) paths.push(current.path);
+    for (const child of current.children ?? []) walk(child, depth + 1);
   };
-  if (node) walk(node);
+  if (node) walk(node, 0);
   return paths;
 }
 

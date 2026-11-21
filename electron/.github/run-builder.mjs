@@ -16,10 +16,13 @@
  * target needs is present, and only then starts electron-builder.
  *
  * Usage:
- *   node .github/run-builder.mjs [--mac|--win|--linux] [--release]
+ *   node .github/run-builder.mjs [--mac|--win|--linux] [--arm64|--x64]
+ *                                 [--release] [--unsigned]
  *
- * With --release (or AISAI_RELEASE=1) the release configuration is used and
- * the credentials are mandatory.
+ * With --release (or AISAI_RELEASE=1) the release configuration is used.
+ * A signed release (the default) needs the credentials and fails without
+ * them; an unsigned release (--unsigned, or AISAI_RELEASE_UNSIGNED=1)
+ * publishes an artifact that is not signed and is not notarised.
  */
 
 import { spawn } from 'node:child_process';
@@ -39,6 +42,11 @@ function readPackageJson() {
 /** Reads the release configuration. */
 function readReleaseConfig() {
   return JSON.parse(readFileSync(join(here, 'electron-builder.release.json'), 'utf8'));
+}
+
+/** Reads the unsigned release configuration. */
+function readUnsignedConfig() {
+  return JSON.parse(readFileSync(join(here, 'electron-builder.unsigned.json'), 'utf8'));
 }
 
 /**
@@ -95,6 +103,44 @@ function targetOf(argv) {
   return 'linux';
 }
 
+/**
+ * The architectures the build targets, from the command line.
+ *
+ * It is empty when no architecture was named, in which case the
+ * configuration decides.
+ */
+function archOf(argv) {
+  return argv
+    .filter((arg) => ['--arm64', '--x64', '--ia32'].includes(arg))
+    .map((arg) => arg.slice(2));
+}
+
+/**
+ * Restricts every target of the configuration to the given architectures.
+ *
+ * Passing --arm64 on the command line is not enough on its own: a target
+ * that names its own architectures wins over the command line. Without
+ * this, every runner would build every architecture and the uploads would
+ * overwrite each other.
+ */
+function restrictToArch(config, archs) {
+  if (!archs || archs.length === 0) {
+    return config;
+  }
+  for (const platform of ['mac', 'win', 'linux']) {
+    const section = config[platform];
+    if (!section || !Array.isArray(section.target)) {
+      continue;
+    }
+    for (const target of section.target) {
+      if (target && typeof target === 'object' && Array.isArray(target.arch)) {
+        target.arch = [...archs];
+      }
+    }
+  }
+  return config;
+}
+
 /** Fails loudly when a credential is missing. */
 function requireEnv(target) {
   const missing = [];
@@ -117,13 +163,21 @@ function requireEnv(target) {
   }
 }
 
-/** Runs electron-builder with the given arguments. */
-function runBuilder(args) {
+/**
+ * Runs electron-builder with the given arguments.
+ *
+ * The project directory is passed explicitly. Without it, electron-builder
+ * takes it from the directory of the configuration file, and every relative
+ * path in the configuration (the files to package, the sidecar, the
+ * output directory) would be resolved against the temporary directory the
+ * configuration was written to.
+ */
+function runBuilder(args, env) {
   const binary = resolve(projectDir, 'node_modules', '.bin', 'electron-builder');
-  const child = spawn(binary, args, {
+  const child = spawn(binary, [...args, '--project', projectDir], {
     cwd: projectDir,
     stdio: 'inherit',
-    env: globalThis.process.env,
+    env: { ...globalThis.process.env, ...(env ?? {}) },
   });
   child.on('exit', (code, signal) => {
     if (signal) {
@@ -137,11 +191,16 @@ function runBuilder(args) {
 function main() {
   const argv = globalThis.process.argv.slice(2);
   const release = argv.includes('--release') || globalThis.process.env.AISAI_RELEASE === '1';
+  const unsigned = argv.includes('--unsigned') || globalThis.process.env.AISAI_RELEASE_UNSIGNED === '1';
   const dryRun = argv.includes('--print-config');
   const target = targetOf(argv);
   const pkg = readPackageJson();
 
   const platformArgs = argv.filter((arg) => ['--mac', '--win', '--linux'].includes(arg));
+  // The architecture is passed explicitly so that every build produces
+  // one artifact per architecture, instead of every runner producing all
+  // of them and overwriting each other.
+  const archArgs = argv.filter((arg) => ['--arm64', '--x64', '--ia32'].includes(arg));
 
   if (!release) {
     globalThis.console.log('[run-builder] developer build: signing is not required.');
@@ -149,14 +208,39 @@ function main() {
       globalThis.console.log(JSON.stringify(pkg.build ?? {}, null, 2));
       return;
     }
-    runBuilder([...platformArgs, '--publish', 'never']);
+    runBuilder([...platformArgs, ...archArgs, '--publish', 'never']);
+    return;
+  }
+
+  if (unsigned) {
+    globalThis.console.log(`[run-builder] unsigned release build for ${target}.`);
+    globalThis.console.log('[run-builder] the artifact is not signed and not notarised.');
+
+    const unsignedConfig = restrictToArch(merge(pkg.build ?? {}, readUnsignedConfig()), archOf(argv));
+
+    if (dryRun) {
+      globalThis.console.log(JSON.stringify(unsignedConfig, null, 2));
+      return;
+    }
+
+    const unsignedDir = mkdtempSync(join(tmpdir(), 'aisai-builder-'));
+    const unsignedConfigPath = join(unsignedDir, 'electron-builder.json');
+    writeFileSync(unsignedConfigPath, JSON.stringify(unsignedConfig, null, 2));
+
+    runBuilder(
+      [...platformArgs, ...archArgs, '--config', unsignedConfigPath, '--publish', 'never'],
+      // An unsigned build must not pick up a signing identity from the
+      // keychain: it would sign the artifact with whatever it finds and
+      // fail on a certificate it cannot use.
+      { CSC_IDENTITY_AUTO_DISCOVERY: 'false' },
+    );
     return;
   }
 
   globalThis.console.log(`[run-builder] release build for ${target}.`);
   requireEnv(target);
 
-  const config = merge(pkg.build ?? {}, readReleaseConfig());
+  const config = restrictToArch(merge(pkg.build ?? {}, readReleaseConfig()), archOf(argv));
 
   if (dryRun) {
     globalThis.console.log(JSON.stringify(config, null, 2));
@@ -167,7 +251,7 @@ function main() {
   const configPath = join(dir, 'electron-builder.json');
   writeFileSync(configPath, JSON.stringify(config, null, 2));
 
-  runBuilder([...platformArgs, '--config', configPath, '--publish', 'always']);
+  runBuilder([...platformArgs, ...archArgs, '--config', configPath, '--publish', 'always']);
 }
 
 main();

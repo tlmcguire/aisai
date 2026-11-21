@@ -72,11 +72,15 @@ export function createAstView(controller: AppController, container: HTMLElement)
     render();
   });
 
+  const languageBadge = h('span', { class: 'badge neutral', text: '', hidden: true });
+
   toolbar.append(
     h('span', { class: 'legend-item', text: 'Depth:' }),
     depthSelect,
     expandAll,
     collapseAll,
+    h('span', { class: 'grow' }),
+    languageBadge,
   );
 
   function allNodeIds(): string[] {
@@ -89,6 +93,8 @@ export function createAstView(controller: AppController, container: HTMLElement)
     const ast = state.ast;
 
     toolbar.hidden = !ast;
+    languageBadge.hidden = !ast?.language;
+    languageBadge.textContent = ast?.language ?? '';
     if (!ast) {
       tree.replaceChildren(
         h(

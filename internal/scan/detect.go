@@ -173,9 +173,11 @@ var VerificationSchema = map[string]any{
 // Detector runs detection and verification against an LLM.
 type Detector struct {
 	provider llm.Provider
-	model    string
-	numCtx   int
-	think    bool
+	// model resolves the model name on every request, so the model picker
+	// can switch models while the server is running.
+	model  func() string
+	numCtx int
+	think  bool
 	// FewShot holds optional example pairs used to prime the model.
 	FewShot []Example
 	// VerifyFindings enables the second stage. It should be on except in
@@ -193,8 +195,26 @@ type Example struct {
 	Patched string
 }
 
-// NewDetector creates a detector.
+// NewDetector creates a detector that always uses the given model.
 func NewDetector(provider llm.Provider, model string, numCtx int) *Detector {
+	return newDetector(provider, func() string { return model }, numCtx)
+}
+
+// NewDetectorWithModels creates a detector that resolves its model from the
+// model set on every request.
+//
+// The model set is shared with the rest of the server, so picking a
+// different detection model in the desktop app takes effect on the next
+// chunk without a restart.
+func NewDetectorWithModels(provider llm.Provider, models *llm.Models, numCtx int) *Detector {
+	if models == nil {
+		return newDetector(provider, func() string { return "" }, numCtx)
+	}
+	return newDetector(provider, models.Scan, numCtx)
+}
+
+// newDetector builds a detector around a model resolver.
+func newDetector(provider llm.Provider, model func() string, numCtx int) *Detector {
 	if numCtx <= 0 {
 		numCtx = llm.DefaultNumCtx
 	}
@@ -204,6 +224,14 @@ func NewDetector(provider llm.Provider, model string, numCtx int) *Detector {
 		numCtx:         numCtx,
 		VerifyFindings: true,
 	}
+}
+
+// modelName returns the model the detector uses right now.
+func (d *Detector) modelName() string {
+	if d.model == nil {
+		return ""
+	}
+	return d.model()
 }
 
 // WithFewShot attaches few-shot examples.
@@ -233,7 +261,7 @@ func (d *Detector) Detect(ctx context.Context, chunk model.Chunk) ([]model.Findi
 	}
 
 	req := llm.CompletionRequest{
-		Model:       d.model,
+		Model:       d.modelName(),
 		System:      d.detectSystemPrompt(),
 		User:        d.detectUserPrompt(chunk),
 		Schema:      DetectionSchema,
@@ -285,7 +313,7 @@ func (d *Detector) Verify(ctx context.Context, chunk model.Chunk, f model.Findin
 	}
 
 	req := llm.CompletionRequest{
-		Model:       d.model,
+		Model:       d.modelName(),
 		System:      d.verifySystemPrompt(),
 		User:        d.verifyUserPrompt(chunk, f),
 		Schema:      VerificationSchema,

@@ -59,7 +59,8 @@ included.
 
 ```json
 {"config": {"workspace":"...","providers":[],"ollamaUrl":"http://localhost:11434",
-            "chatModel":"...","embedModel":"...","scanModel":"...","numCtx":8192}}
+            "chatModel":"...","embedModel":"...","scanModel":"...","numCtx":8192,
+            "keepAlive":"3m"}}
 ```
 
 Returns the effective configuration (`model.Config`). Never includes API keys.
@@ -75,6 +76,91 @@ Returns the effective configuration (`model.Config`). Never includes API keys.
 Body: `{"id":"ollama","url":"...","model":"..."}`. Returns
 `{"provider": {"id":"ollama","ok":true,"error":"","models":[...]}}` — a
 `model.ProviderInfo` with `ok` and `error` populated. Never returns the key.
+
+---
+
+## Models
+
+The model endpoints are what the model picker in the desktop app is built
+on. They list the models installed on the provider, change the ones the
+server uses, and release models from memory.
+
+### `GET /api/models`
+
+Returns the installed models and the ones currently selected.
+
+```json
+{"models": [{"name":"qwen3.5:4b","size":3300000000,"sizeText":"3.1GB",
+             "family":"qwen3","parameterSize":"4.0B",
+             "quantizationLevel":"Q4_K_M","modifiedAt":"2026-11-01T10:00:00Z"}],
+ "chatModel":"qwen3.5:4b","scanModel":"qwen3.5:4b","embedModel":"embeddinggemma",
+ "numCtx":8192,"keepAlive":"3m"}
+```
+
+`error` is set when the installed models could not be listed; the selected
+models are still reported, because they remain in use.
+
+### `POST /api/models`
+
+Changes the models the server uses. Every field is optional: an empty name
+leaves that role alone, so a caller can change one model without having to
+read and rewrite the other two.
+
+Body: `{"chatModel":"...","scanModel":"...","embedModel":"...","numCtx":8192,"keepAlive":"3m"}`.
+
+The change takes effect immediately — the provider, the detection pipeline
+and the chat resolve the model names on every request — and it is written
+back to the configuration file, so it survives a restart. The API key is
+never part of that file.
+
+Returns the same shape as `GET /api/models`. When the configuration file
+could not be written, the models are still applied and `error` explains
+what failed.
+
+### `POST /api/models/unload`
+
+Releases models from the provider's memory.
+
+Body: `{"models":["qwen3.5:4b"]}`, optional. Without a body, the models the
+server is currently using are released.
+
+Returns `{"unloaded":["qwen3.5:4b"]}`.
+
+Ollama keeps a model resident until no request has used it for the
+keep-alive window; this asks for the memory back immediately.
+
+---
+
+## Packages
+
+### `GET /api/packages?name=<package name>`
+
+Resolves a package name on the package index.
+
+```json
+{
+  "package": {
+    "name": "flask",
+    "summary": "A simple framework for building complex web applications.",
+    "latest": "3.1.3",
+    "versions": ["3.1.3", "3.1.2", "3.0.3"]
+  }
+}
+```
+
+`versions` holds the newest releases, newest first, with the pre-releases
+last. At most forty versions are reported.
+
+A name that does not exist is **not** an HTTP failure: the lookup is a
+question, not a fetch of a known resource. The answer carries the reason:
+
+```json
+{"package": {"name": "nosuchpackage", "error": "pypi: GET /pypi/nosuchpackage/json: not found"}}
+```
+
+This is what the package picker of the desktop app calls: it turns the name
+the user typed into the project it refers to and fills the version dropdown
+with the versions that actually exist.
 
 ---
 
@@ -132,11 +218,33 @@ Newest first.
 {"ast": { /* model.AST */ }}
 ```
 
+`model.AST` carries the `language` the file was parsed with. AISAI parses
+Python, JavaScript, TypeScript, TSX, Go, Rust, Java, C#, Ruby and C; a file
+in another language has no syntax tree.
+
 ### `GET /api/audits/{id}/chunks?path=<path>`
 
 ```json
 {"chunks": [ /* model.Chunk[] */ ]}
 ```
+
+Every chunk carries the `language` it was chunked from.
+
+### `DELETE /api/audits/{id}/workspace`
+
+Deletes the downloaded sources of the audit.
+
+```json
+{"audit": { /* model.Audit */ }, "freed": 7561490, "freedText": "7.2 MB"}
+```
+
+Only the sandbox of downloaded code is removed. The findings, the graph and
+the report of the audit are kept, so the result of the inspection survives
+the deletion. `model.Audit` reports `sandboxBytes` and `sourcesDeleted`.
+
+The downloaded packages live in `pkgs/` inside the workspace of the audit,
+are never executed, and are stripped of the executable and setuid bits they
+carried in the archive.
 
 ---
 

@@ -38,11 +38,17 @@ import type {
   HealthResponse,
   IndexStatusResponse,
   JobResponse,
+  ModelInfo,
+  ModelSelection,
+  ModelsResponse,
+  PackageLookup,
+  PackageLookupResponse,
   Patch,
   PatchResponse,
   ProviderInfo,
   ProvidersResponse,
   Severity,
+  UnloadResponse,
 } from './types';
 
 /* ------------------------------------------------------------------ */
@@ -57,7 +63,7 @@ const PROVIDERS: ProviderInfo[] = [
     kind: 'ollama',
     url: 'http://localhost:11434',
     ok: true,
-    models: ['gemma3n:e4b'],
+    models: ['qwen3.5:4b', 'qwen2.5-coder:7b', 'embeddinggemma'],
   },
   {
     id: 'openai',
@@ -71,11 +77,76 @@ const CONFIG: Config = {
   workspace: '/Users/tyler/Library/Application Support/AISAI/audits/a1',
   providers: PROVIDERS,
   ollamaUrl: 'http://localhost:11434',
-  chatModel: 'gemma3n:e4b',
+  chatModel: 'qwen3.5:4b',
   embedModel: 'embeddinggemma',
-  scanModel: 'gemma3n:e4b',
+  scanModel: 'qwen3.5:4b',
   numCtx: 8192,
+  keepAlive: '3m',
 };
+
+/** The models the mock pretends are installed on the Ollama server. */
+const INSTALLED_MODELS: ModelInfo[] = [
+  {
+    name: 'qwen3.5:4b',
+    size: 3_300_000_000,
+    sizeText: '3.1GB',
+    family: 'qwen3',
+    parameterSize: '4.0B',
+    quantizationLevel: 'Q4_K_M',
+    modifiedAt: '2026-11-01T10:00:00Z',
+  },
+  {
+    name: 'qwen2.5-coder:7b',
+    size: 4_700_000_000,
+    sizeText: '4.4GB',
+    family: 'qwen2',
+    parameterSize: '7.6B',
+    quantizationLevel: 'Q4_K_M',
+    modifiedAt: '2026-10-14T10:00:00Z',
+  },
+  {
+    name: 'embeddinggemma',
+    size: 300_000_000,
+    sizeText: '287.0MB',
+    family: 'gemma',
+    parameterSize: '300M',
+    quantizationLevel: 'F16',
+    modifiedAt: '2026-09-30T10:00:00Z',
+  },
+];
+
+const PACKAGE_FIXTURES: PackageLookup[] = [
+  {
+    name: 'flask',
+    summary: 'A simple framework for building complex web applications.',
+    latest: '3.1.0',
+    versions: ['3.1.0', '3.0.3', '3.0.2', '3.0.1', '3.0.0', '2.3.3', '2.2.5', '2.0.0'],
+  },
+  {
+    name: 'requests',
+    summary: 'Python HTTP for Humans.',
+    latest: '2.32.3',
+    versions: ['2.32.3', '2.32.2', '2.31.0', '2.30.0'],
+  },
+  {
+    name: 'numpy',
+    summary: 'The fundamental package for scientific computing with Python.',
+    latest: '2.1.3',
+    versions: ['2.1.3', '2.1.2', '2.0.2', '1.26.4'],
+  },
+  {
+    name: 'pandas',
+    summary: 'Powerful data structures for data analysis and time series.',
+    latest: '2.2.3',
+    versions: ['2.2.3', '2.2.2', '2.1.4', '2.0.3'],
+  },
+  {
+    name: 'django',
+    summary: 'A high-level Python web framework that encourages rapid development.',
+    latest: '5.1.4',
+    versions: ['5.1.4', '5.1.3', '5.0.9', '4.2.20'],
+  },
+];
 
 const AUDIT: Audit = {
   id: 'a1',
@@ -91,6 +162,8 @@ const AUDIT: Audit = {
   fileCount: 9,
   chunkCount: 41,
   findingCount: 12,
+  sandboxBytes: 4_812_416,
+  sourcesDeleted: false,
 };
 
 const GRAPH: Graph = {
@@ -817,6 +890,53 @@ export class MockApi {
       return this.ok<T>({ providers: PROVIDERS } satisfies ProvidersResponse);
     }
 
+    if (method === 'GET' && p === '/api/packages') {
+      const name = (q.get('name') ?? '').trim().toLowerCase();
+      const found = PACKAGE_FIXTURES.find((entry) => entry.name.toLowerCase() === name);
+      if (!found) {
+        return this.ok<T>({
+          package: { name, error: `pypi: GET /pypi/${name}/json: not found` },
+        });
+      }
+      return this.ok<T>({ package: found } satisfies PackageLookupResponse);
+    }
+
+    if (method === 'GET' && p === '/api/models') {
+      return this.ok<T>({
+        models: INSTALLED_MODELS,
+        chatModel: CONFIG.chatModel,
+        scanModel: CONFIG.scanModel,
+        embedModel: CONFIG.embedModel,
+        numCtx: CONFIG.numCtx,
+        keepAlive: CONFIG.keepAlive ?? '3m',
+      } satisfies ModelsResponse);
+    }
+
+    if (method === 'POST' && p === '/api/models') {
+      const input = (body ?? {}) as ModelSelection;
+      if (input.chatModel) CONFIG.chatModel = input.chatModel;
+      if (input.scanModel) CONFIG.scanModel = input.scanModel;
+      if (input.embedModel) CONFIG.embedModel = input.embedModel;
+      if (input.numCtx) CONFIG.numCtx = input.numCtx;
+      if (input.keepAlive) CONFIG.keepAlive = input.keepAlive;
+      return this.ok<T>({
+        models: INSTALLED_MODELS,
+        chatModel: CONFIG.chatModel,
+        scanModel: CONFIG.scanModel,
+        embedModel: CONFIG.embedModel,
+        numCtx: CONFIG.numCtx,
+        keepAlive: CONFIG.keepAlive ?? '3m',
+      } satisfies ModelsResponse);
+    }
+
+    if (method === 'POST' && p === '/api/models/unload') {
+      const input = (body ?? {}) as { models?: string[] };
+      const unloaded = input.models?.length
+        ? input.models
+        : [CONFIG.chatModel, CONFIG.scanModel, CONFIG.embedModel];
+      return this.ok<T>({ unloaded } satisfies UnloadResponse);
+    }
+
     if (method === 'POST' && p === '/api/providers/test') {
       const input = (body ?? {}) as { id?: string; url?: string; model?: string };
       return this.ok<T>({
@@ -825,7 +945,7 @@ export class MockApi {
           kind: input.id === 'openai' ? 'openai' : 'ollama',
           url: input.url ?? CONFIG.ollamaUrl,
           ok: true,
-          models: ['gemma3n:e4b'],
+          models: ['qwen3.5:4b', 'qwen2.5-coder:7b', 'embeddinggemma'],
         },
       });
     }
@@ -918,6 +1038,23 @@ export class MockApi {
 
       if (method === 'GET' && tail === 'changes') {
         return this.ok<T>({ changes: this.state.changes } satisfies ChangesResponse);
+      }
+
+      if (method === 'DELETE' && tail === 'workspace') {
+        const audit = this.state.audits.find((a) => a.id === id);
+        if (!audit) {
+          throw new MockApiError(404, 'not_found', `no audit with id ${id}`);
+        }
+        const freed = audit.sandboxBytes;
+        audit.sourcesDeleted = true;
+        audit.sandboxBytes = 0;
+        audit.fileCount = 0;
+        audit.chunkCount = 0;
+        return this.ok<T>({
+          audit,
+          freed,
+          freedText: `${(freed / (1024 * 1024)).toFixed(1)} MB`,
+        });
       }
 
       if (method === 'GET' && tail === 'advisories') {

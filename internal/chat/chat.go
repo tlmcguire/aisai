@@ -43,6 +43,10 @@ type Deps struct {
 	LLM llm.Provider
 	// Model is the chat model to use.
 	Model string
+	// Models holds the models in use. When it is set, the chat model is
+	// resolved from it on every turn, so the model picker can switch models
+	// without a restart. When it is nil, Model is used.
+	Models *llm.Models
 	// NumCtx is the context window requested from the model.
 	NumCtx int
 	// Tools are the tools the model may call.
@@ -351,10 +355,20 @@ func runTools(ctx context.Context, runner ToolRunner, calls []llm.ToolCall) stri
 	return strings.Join(parts, "\n")
 }
 
+// chatModel returns the chat model in use right now.
+func (c *Chat) chatModel() string {
+	if c.deps.Models != nil {
+		if name := c.deps.Models.Chat(); name != "" {
+			return name
+		}
+	}
+	return c.deps.Model
+}
+
 // chatRequest builds the provider request for a turn.
 func (c *Chat) chatRequest(messages []llm.Message) llm.ChatRequest {
 	return llm.ChatRequest{
-		Model:       c.deps.Model,
+		Model:       c.chatModel(),
 		Messages:    messages,
 		NumCtx:      c.deps.NumCtx,
 		Temperature: 0,

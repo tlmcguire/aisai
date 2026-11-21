@@ -119,6 +119,10 @@ jobs:
   #
   # Every leg builds and tests natively: there is no cross-compilation, so
   # cgo always finds a C compiler for the target architecture.
+  #
+  # There is no macOS/amd64 leg: GitHub retired the Intel macOS runners,
+  # and a cross-compiled cgo build is not possible. The release pipeline
+  # still produces the macOS x64 package, from the arm64 runner.
   # ---------------------------------------------------------------------
   build-matrix:
     name: Build (${{ matrix.os }}, ${{ matrix.arch }})
@@ -129,8 +133,6 @@ jobs:
         include:
           - os: macos-latest
             arch: arm64
-          - os: macos-13
-            arch: amd64
           - os: ubuntu-latest
             arch: amd64
           - os: ubuntu-24.04-arm

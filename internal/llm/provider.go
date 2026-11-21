@@ -165,6 +165,14 @@ type Options struct {
 	Timeout time.Duration
 	// NumCtx is the context window sent to the backend.
 	NumCtx int
+	// KeepAlive is how long the backend keeps the model resident after the
+	// last request. An empty value means DefaultKeepAlive.
+	KeepAlive string
+	// Models holds the models in use. When it is set, the provider reads
+	// the chat, scan and embedding model names from it on every request, so
+	// the desktop app can switch models without a restart. When it is nil,
+	// the provider uses Model, EmbedModel and NumCtx.
+	Models *Models
 }
 
 // numCtx returns the effective context window, defaulting to DefaultNumCtx.

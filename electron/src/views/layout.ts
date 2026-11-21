@@ -1,5 +1,6 @@
 import type { AppController } from '../app';
 import { h } from '../lib/dom';
+import { formatBytes } from '../lib/format';
 import { useAuditStore } from '../state/audit';
 import { useUiStore, type MainTab } from '../state/ui';
 import { createAstView } from './astView';
@@ -60,12 +61,20 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const graphBody = h('div', { class: 'pane-body graph-section' });
   graphPane.append(graphHeader, graphBody);
 
-  const filesPane = h('div', { class: 'pane-body files-section' });
+  const filesPane = h('div', { class: 'files-section' });
+  const sourcesBadge = h('span', { class: 'badge neutral', text: '' });
+  const deleteSourcesButton = h(
+    'button',
+    { class: 'tiny', type: 'button', title: 'Delete the downloaded sources of this audit' },
+    'Delete sources',
+  );
   const filesHeader = h(
     'div',
     { class: 'pane-header' },
     h('span', { text: 'Files' }),
+    sourcesBadge,
     h('span', { class: 'grow' }),
+    deleteSourcesButton,
   );
   const filesBody = h('div', { class: 'pane-body files-body' });
   filesPane.append(filesHeader, filesBody);
@@ -141,6 +150,36 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const settings = createSettingsDialog(controller, root);
 
   /* ---------------- wiring ---------------- */
+  /* ---------------- deleting the downloaded sources ---------------- */
+  //
+  // Deleting the sources of an audit is irreversible, so the button asks
+  // twice: the first click arms it, the second one deletes. The arming
+  // lapses after a few seconds so a stray click cannot delete anything
+  // later on.
+  let deleteArmed = false;
+  let deleteTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const disarmDelete = (): void => {
+    deleteArmed = false;
+    if (deleteTimer) clearTimeout(deleteTimer);
+    deleteTimer = null;
+    deleteSourcesButton.textContent = 'Delete sources';
+    deleteSourcesButton.classList.remove('is-armed');
+  };
+
+  deleteSourcesButton.addEventListener('click', () => {
+    if (!deleteArmed) {
+      deleteArmed = true;
+      deleteSourcesButton.textContent = 'Confirm delete';
+      deleteSourcesButton.classList.add('is-armed');
+      if (deleteTimer) clearTimeout(deleteTimer);
+      deleteTimer = setTimeout(disarmDelete, 5000);
+      return;
+    }
+    disarmDelete();
+    void controller.deleteSources();
+  });
+
   const applyWidths = (): void => {
     const ui = useUiStore.getState();
     shell.style.setProperty('--graph-width', `${ui.graphWidth}px`);
@@ -163,6 +202,15 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   });
 
   const unsubscribeAudit = useAuditStore.subscribe((state) => {
+    const audit = state.current;
+    const deleted = audit?.sourcesDeleted ?? false;
+    sourcesBadge.textContent = deleted ? 'sources deleted' : formatBytes(audit?.sandboxBytes ?? 0);
+    sourcesBadge.classList.toggle('badge', true);
+    sourcesBadge.classList.toggle('neutral', !deleted);
+    sourcesBadge.classList.toggle('warn', deleted);
+    deleteSourcesButton.disabled = !audit || deleted;
+    if (deleted) disarmDelete();
+
     const visible = state.progressVisible && state.busy !== null;
     statusStrip.hidden = !visible;
     phaseLabel.textContent = state.phase ? `Phase: ${state.phase}` : '';
@@ -222,6 +270,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     dispose: () => {
       unsubscribeUi();
       unsubscribeAudit();
+      if (deleteTimer) clearTimeout(deleteTimer);
       toolbarView.dispose();
       graphView.dispose();
       fileTree.dispose();

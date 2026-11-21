@@ -19,6 +19,7 @@ const bytesPerToken = 4
 // chunkBuilder accumulates the chunks of one file.
 type chunkBuilder struct {
 	file    *File
+	lang    *Language
 	imports []string
 	chunks  []model.Chunk
 }
@@ -28,10 +29,10 @@ type chunkBuilder struct {
 // Empty files and files that contain nothing but comments produce no chunks.
 // Files below roughly 400 tokens produce exactly one chunk of type
 // model.ChunkFile. Larger files are split into a module chunk (imports and
-// the module docstring), block chunks (contiguous top-level statements) and
-// class/function chunks for every definition, including nested ones.
+// the module documentation), block chunks (contiguous top-level statements)
+// and class/function chunks for every definition, including nested ones.
 func buildChunks(f *File) []model.Chunk {
-	if f == nil {
+	if f == nil || f.lang == nil {
 		return nil
 	}
 	root := f.root
@@ -39,8 +40,8 @@ func buildChunks(f *File) []model.Chunk {
 		return nil
 	}
 
-	b := &chunkBuilder{file: f}
-	b.imports = collectImports(root.Children)
+	b := &chunkBuilder{file: f, lang: f.lang}
+	b.imports = collectImports(root.Children, f.lang)
 
 	if estimateTokens(f.Content) < smallFileTokens {
 		b.chunks = append(b.chunks, b.fileChunk())
@@ -48,9 +49,9 @@ func buildChunks(f *File) []model.Chunk {
 	}
 
 	top := root.Children
-	doc, hasDoc := moduleDocstring(top)
-	moduleID := b.addModuleChunk(top, doc, hasDoc)
-	b.addBlockChunks(top, doc, hasDoc, moduleID)
+	doc := moduleDoc(top, f.lang)
+	moduleID := b.addModuleChunk(top, doc)
+	b.addBlockChunks(top, doc, moduleID)
 	b.addDefinitionChunks(root, nil, moduleID)
 	return b.chunks
 }
@@ -68,11 +69,7 @@ func (b *chunkBuilder) fileChunk() model.Chunk {
 	if n := strings.Count(f.Content, "\n"); n > 0 {
 		end = n + 1
 	}
-	docStmt, hasDoc := moduleDocstring(f.root.Children)
-	docText := ""
-	if hasDoc {
-		docText = docstringText(docStmt)
-	}
+	doc := moduleDoc(f.root.Children, b.lang)
 	return model.Chunk{
 		ID:         chunkID(f.Path, start, "module"),
 		File:       f.Path,
@@ -80,18 +77,18 @@ func (b *chunkBuilder) fileChunk() model.Chunk {
 		EndLine:    end,
 		Type:       model.ChunkFile,
 		SymbolPath: "module",
-		Docstring:  docText,
+		Docstring:  doc.text,
 		Content:    f.Content,
-		Calls:      collectCalls(f.root, Node{}, true),
+		Calls:      collectCalls(f.root, Node{}, b.lang, true),
 		Imports:    b.imports,
-		Language:   LanguagePython,
+		Language:   b.lang.ID,
 	}
 }
 
 // addModuleChunk adds the chunk covering the file's imports and module
-// docstring, and returns its id. It returns an empty id when the file has
+// documentation, and returns its id. It returns an empty id when the file has
 // neither.
-func (b *chunkBuilder) addModuleChunk(top []Node, doc Node, hasDoc bool) string {
+func (b *chunkBuilder) addModuleChunk(top []Node, doc docInfo) string {
 	var start, end int
 	have := false
 	consider := func(n Node) {
@@ -107,11 +104,11 @@ func (b *chunkBuilder) addModuleChunk(top []Node, doc Node, hasDoc bool) string 
 			end = n.EndByte
 		}
 	}
-	if hasDoc {
-		consider(doc)
+	if doc.ok && doc.node.Kind != "" {
+		consider(doc.node)
 	}
 	for _, c := range top {
-		if isImportKind(c.Kind) {
+		if isImportNode(c, b.lang) {
 			consider(c)
 		}
 	}
@@ -120,10 +117,6 @@ func (b *chunkBuilder) addModuleChunk(top []Node, doc Node, hasDoc bool) string 
 	}
 	startLine := lineOf(b.file.Content, start)
 	endLine := lineOf(b.file.Content, end)
-	docText := ""
-	if hasDoc {
-		docText = docstringText(doc)
-	}
 	id := chunkID(b.file.Path, startLine, "module")
 	b.chunks = append(b.chunks, model.Chunk{
 		ID:         id,
@@ -132,17 +125,18 @@ func (b *chunkBuilder) addModuleChunk(top []Node, doc Node, hasDoc bool) string 
 		EndLine:    endLine,
 		Type:       model.ChunkModule,
 		SymbolPath: "module",
-		Docstring:  docText,
+		Docstring:  doc.text,
 		Content:    b.file.Content[start:end],
 		Imports:    b.imports,
-		Language:   LanguagePython,
+		Language:   b.lang.ID,
 	})
 	return id
 }
 
 // addBlockChunks adds one chunk per contiguous run of top-level statements
-// that are not imports, not the module docstring and not part of a definition.
-func (b *chunkBuilder) addBlockChunks(top []Node, doc Node, hasDoc bool, parentID string) {
+// that are not imports, not the module documentation and not part of a
+// definition.
+func (b *chunkBuilder) addBlockChunks(top []Node, doc docInfo, parentID string) {
 	var run []Node
 	flush := func() {
 		if len(run) == 0 {
@@ -159,14 +153,14 @@ func (b *chunkBuilder) addBlockChunks(top []Node, doc Node, hasDoc bool, parentI
 			SymbolPath: symbolPath,
 			Content:    b.file.Content[first.StartByte:last.EndByte],
 			ParentID:   parentID,
-			Calls:      collectCalls(first, Node{}, true),
+			Calls:      collectCalls(first, Node{}, b.lang, true),
 			Imports:    b.imports,
-			Language:   LanguagePython,
+			Language:   b.lang.ID,
 		})
 		run = nil
 	}
 	for _, c := range top {
-		if isImportKind(c.Kind) || isDefinitionKind(c.Kind) || (hasDoc && c.StartByte == doc.StartByte && c.EndByte == doc.EndByte) {
+		if isImportNode(c, b.lang) || b.lang.IsDefinition(c.Kind) || b.lang.IsComment(c.Kind) || (doc.ok && doc.node.Kind != "" && c.StartByte == doc.node.StartByte && c.EndByte == doc.node.EndByte) {
 			flush()
 			continue
 		}
@@ -177,15 +171,16 @@ func (b *chunkBuilder) addBlockChunks(top []Node, doc Node, hasDoc bool, parentI
 
 // definition describes one class or function definition.
 type definition struct {
-	// node is the definition itself (function_definition or class_definition).
+	// node is the definition itself.
 	node Node
-	// span is the node whose source range covers the definition, including
-	// decorators when the definition is decorated.
+	// span is the node whose source range covers the definition.
 	span Node
 	// kind is model.ChunkFunc or model.ChunkClass.
 	kind string
 	// name is the defined name.
 	name string
+	// doc is the documentation of the definition.
+	doc docInfo
 }
 
 // addDefinitionChunks walks a scope body and adds a chunk for every class and
@@ -194,27 +189,34 @@ type definition struct {
 // scopePath is the list of enclosing names, used to build the symbol path;
 // parentID is the id of the chunk that owns the scope.
 func (b *chunkBuilder) addDefinitionChunks(body Node, scopePath []string, parentID string) {
-	for _, def := range definitionsOf(body) {
+	for _, def := range definitionsOf(body, b.lang) {
 		symbolPath := "module"
 		for _, s := range scopePath {
 			symbolPath += "." + s
 		}
 		symbolPath += "." + def.name
 
-		id := chunkID(b.file.Path, def.span.StartLine, symbolPath)
+		startByte := def.span.StartByte
+		startLine := def.span.StartLine
+		if def.doc.ok && def.doc.node.Kind != "" && def.doc.node.StartByte < startByte {
+			startByte = def.doc.node.StartByte
+			startLine = def.doc.node.StartLine
+		}
+
+		id := chunkID(b.file.Path, startLine, symbolPath)
 		b.chunks = append(b.chunks, model.Chunk{
 			ID:         id,
 			File:       b.file.Path,
-			StartLine:  def.span.StartLine,
+			StartLine:  startLine,
 			EndLine:    def.span.EndLine,
 			Type:       def.kind,
 			SymbolPath: symbolPath,
-			Docstring:  docstringOf(def.node),
-			Content:    b.file.Content[def.span.StartByte:def.span.EndByte],
+			Docstring:  def.doc.text,
+			Content:    b.file.Content[startByte:def.span.EndByte],
 			ParentID:   parentID,
-			Calls:      collectCalls(def.span, def.node, false),
+			Calls:      collectCalls(def.span, def.node, b.lang, false),
 			Imports:    b.imports,
-			Language:   LanguagePython,
+			Language:   b.lang.ID,
 		})
 
 		inner, ok := def.node.Child("body")
@@ -230,65 +232,171 @@ func (b *chunkBuilder) addDefinitionChunks(body Node, scopePath []string, parent
 
 // definitionsOf returns the class and function definitions directly contained
 // in a scope body.
-func definitionsOf(body Node) []definition {
+func definitionsOf(body Node, lang *Language) []definition {
 	var out []definition
-	for _, c := range body.Children {
-		switch c.Kind {
-		case "function_definition":
-			out = append(out, definition{node: c, span: c, kind: model.ChunkFunc, name: definitionName(c)})
-		case "class_definition":
-			out = append(out, definition{node: c, span: c, kind: model.ChunkClass, name: definitionName(c)})
-		case "decorated_definition":
-			inner, ok := c.Child("definition")
+	for i, c := range body.Children {
+		switch {
+		case lang.IsFunction(c.Kind):
+			out = append(out, definition{
+				node: c,
+				span: c,
+				kind: model.ChunkFunc,
+				name: definitionName(c),
+				doc:  defDoc(body.Children, i, c, lang),
+			})
+		case lang.IsClass(c.Kind):
+			out = append(out, definition{
+				node: c,
+				span: c,
+				kind: model.ChunkClass,
+				name: definitionName(c),
+				doc:  defDoc(body.Children, i, c, lang),
+			})
+		case lang.IsWrapper(c.Kind):
+			inner, ok := wrapperInner(c)
 			if !ok {
 				continue
 			}
-			for _, d := range definitionsOf(inner) {
-				d.span = c // include the decorators in the chunk range
-				out = append(out, d)
+			switch {
+			case lang.IsFunction(inner.Kind):
+				out = append(out, definition{
+					node: inner,
+					span: c, // include the decorators in the chunk range
+					kind: model.ChunkFunc,
+					name: definitionName(inner),
+					doc:  defDoc(body.Children, i, inner, lang),
+				})
+			case lang.IsClass(inner.Kind):
+				out = append(out, definition{
+					node: inner,
+					span: c,
+					kind: model.ChunkClass,
+					name: definitionName(inner),
+					doc:  defDoc(body.Children, i, inner, lang),
+				})
 			}
 		}
 	}
 	return out
 }
 
-// definitionName returns the name defined by a class or function node.
-func definitionName(n Node) string {
-	if name, ok := n.Child("name"); ok {
-		return name.Text
+// wrapperInner returns the definition a wrapper node holds.
+//
+// A decorated Python definition holds a "definition", and an exported
+// TypeScript declaration holds a "declaration".
+func wrapperInner(n Node) (Node, bool) {
+	for _, field := range []string{"definition", "declaration"} {
+		if inner, ok := n.Child(field); ok {
+			return inner, true
+		}
 	}
-	return ""
+	for _, c := range n.Children {
+		switch c.Kind {
+		case "definition", "declaration", "class", "function":
+			return c, true
+		}
+	}
+	return Node{}, false
 }
 
-// isDefinitionKind reports whether a node kind introduces a new scope.
-func isDefinitionKind(kind string) bool {
-	switch kind {
-	case "function_definition", "class_definition", "decorated_definition":
-		return true
-	}
-	return false
+// docInfo is the documentation of a module or a definition.
+type docInfo struct {
+	// node is the node that spans the documentation, when there is one.
+	node Node
+	// text is the documentation text.
+	text string
+	// ok reports whether there is any documentation.
+	ok bool
 }
 
-// isImportKind reports whether a node kind is an import statement.
-func isImportKind(kind string) bool {
-	switch kind {
-	case "import_statement", "import_from_statement", "future_import_statement":
-		return true
-	}
-	return false
-}
-
-// moduleDocstring returns the module docstring statement, if the first
-// statement of the module is a string literal.
-func moduleDocstring(top []Node) (Node, bool) {
+// moduleDoc returns the documentation of a file.
+//
+// Python documents a module with a docstring, the other languages with a
+// comment block at the top of the file.
+func moduleDoc(top []Node, lang *Language) docInfo {
 	if len(top) == 0 {
-		return Node{}, false
+		return docInfo{}
 	}
-	first := top[0]
-	if first.Kind != "expression_statement" || len(first.Children) != 1 || first.Children[0].Kind != "string" {
-		return Node{}, false
+	if lang.doc == docPython {
+		first := top[0]
+		if first.Kind != "expression_statement" || len(first.Children) != 1 || first.Children[0].Kind != "string" {
+			return docInfo{}
+		}
+		return docInfo{node: first, text: docstringText(first), ok: true}
 	}
-	return first, true
+	var comments []Node
+	for _, c := range top {
+		if !lang.IsComment(c.Kind) {
+			break
+		}
+		comments = append(comments, c)
+	}
+	if len(comments) == 0 {
+		return docInfo{}
+	}
+	return docInfo{
+		node: Node{
+			Kind:      "comment",
+			StartByte: comments[0].StartByte,
+			EndByte:   comments[len(comments)-1].EndByte,
+			StartLine: comments[0].StartLine,
+			EndLine:   comments[len(comments)-1].EndLine,
+		},
+		text: commentText(comments),
+		ok:   true,
+	}
+}
+
+// defDoc returns the documentation of the definition at the given index of a
+// scope body.
+func defDoc(siblings []Node, index int, node Node, lang *Language) docInfo {
+	if lang.doc == docPython {
+		text := docstringOf(node)
+		if text == "" {
+			return docInfo{}
+		}
+		return docInfo{text: text, ok: true}
+	}
+	var comments []Node
+	for i := index - 1; i >= 0; i-- {
+		s := siblings[i]
+		if !lang.IsComment(s.Kind) {
+			break
+		}
+		comments = append([]Node{s}, comments...)
+	}
+	if len(comments) == 0 {
+		return docInfo{}
+	}
+	return docInfo{
+		node: Node{
+			Kind:      "comment",
+			StartByte: comments[0].StartByte,
+			EndByte:   comments[len(comments)-1].EndByte,
+			StartLine: comments[0].StartLine,
+			EndLine:   comments[len(comments)-1].EndLine,
+		},
+		text: commentText(comments),
+		ok:   true,
+	}
+}
+
+// commentText renders a block of comments as plain documentation text.
+func commentText(comments []Node) string {
+	parts := make([]string, 0, len(comments))
+	for _, c := range comments {
+		parts = append(parts, strings.TrimSpace(stripCommentMarkers(c.Text)))
+	}
+	return strings.Join(parts, "\n")
+}
+
+// stripCommentMarkers removes the comment syntax of a line.
+func stripCommentMarkers(text string) string {
+	trimmed := strings.TrimSpace(text)
+	for _, marker := range []string{"//", "/*", "*/", "#", "*"} {
+		trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, marker))
+	}
+	return strings.TrimSpace(trimmed)
 }
 
 // docstringText returns the text of a docstring statement.
@@ -323,12 +431,24 @@ func stringContent(s Node) string {
 	if len(parts) > 0 {
 		return strings.Join(parts, "")
 	}
-	return strings.Trim(s.Text, `"'`)
+	return strings.Trim(s.Text, "\"'")
+}
+
+// isImportNode reports whether a node imports another module.
+//
+// A node only counts as an import when the language can actually name what it
+// imports: Ruby, for example, uses a call node for its imports, and a call
+// that does not require anything is not an import.
+func isImportNode(n Node, lang *Language) bool {
+	if !lang.IsImport(n.Kind) {
+		return false
+	}
+	return len(lang.Imports(n)) > 0
 }
 
 // collectImports returns the module names imported at file level, in source
 // order and without duplicates.
-func collectImports(top []Node) []string {
+func collectImports(top []Node, lang *Language) []string {
 	var out []string
 	seen := map[string]bool{}
 	add := func(name string) {
@@ -339,24 +459,11 @@ func collectImports(top []Node) []string {
 		out = append(out, name)
 	}
 	for _, c := range top {
-		switch c.Kind {
-		case "import_statement":
-			for _, ch := range c.Children {
-				switch ch.Kind {
-				case "dotted_name":
-					add(ch.Text)
-				case "aliased_import":
-					if n, ok := ch.Child("name"); ok {
-						add(n.Text)
-					}
-				}
-			}
-		case "import_from_statement", "future_import_statement":
-			if m, ok := c.Child("module_name"); ok {
-				if m.Kind == "dotted_name" {
-					add(m.Text)
-				}
-			}
+		if !lang.IsImport(c.Kind) {
+			continue
+		}
+		for _, name := range lang.Imports(c) {
+			add(name)
 		}
 	}
 	return out
@@ -367,11 +474,11 @@ func collectImports(top []Node) []string {
 // When own is the zero Node, nested definitions are only descended into when
 // includeNested is set. When own is a real definition, calls inside that
 // definition are collected but nested definitions are not descended into.
-func collectCalls(root Node, own Node, includeNested bool) []string {
+func collectCalls(root Node, own Node, lang *Language, includeNested bool) []string {
 	var out []string
 	var walk func(n Node, isRoot bool)
 	walk = func(n Node, isRoot bool) {
-		if !isRoot && isDefinitionKind(n.Kind) {
+		if !isRoot && lang.IsDefinition(n.Kind) {
 			if own.Kind == "" {
 				if !includeNested {
 					return
@@ -380,9 +487,9 @@ func collectCalls(root Node, own Node, includeNested bool) []string {
 				return
 			}
 		}
-		if n.Kind == "call" {
-			if fn, ok := n.Child("function"); ok {
-				out = append(out, fn.Text)
+		if lang.IsCall(n.Kind) {
+			if callee := calleeOf(n); callee != "" {
+				out = append(out, callee)
 			}
 		}
 		for _, c := range n.Children {
@@ -391,6 +498,33 @@ func collectCalls(root Node, own Node, includeNested bool) []string {
 	}
 	walk(root, true)
 	return out
+}
+
+// calleeOf returns the name of the function a call node invokes.
+//
+// The grammars disagree on where the callee lives: most put it in a
+// "function" field, Ruby uses "method" with an optional "receiver", and Java
+// uses "name" with an optional "object".
+func calleeOf(n Node) string {
+	if fn, ok := n.Child("function"); ok {
+		return fn.Text
+	}
+	if m, ok := n.Child("method"); ok {
+		if recv, ok := n.Child("receiver"); ok && recv.Text != "" {
+			return recv.Text + "." + m.Text
+		}
+		return m.Text
+	}
+	if nm, ok := n.Child("name"); ok {
+		if obj, ok := n.Child("object"); ok && obj.Text != "" {
+			return obj.Text + "." + nm.Text
+		}
+		return nm.Text
+	}
+	if macro, ok := n.Child("macro"); ok {
+		return macro.Text
+	}
+	return ""
 }
 
 // chunkID derives a stable chunk identifier from the file path, the start

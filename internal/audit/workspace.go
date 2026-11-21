@@ -14,6 +14,11 @@ import (
 	"github.com/tlmcguire/aisai/internal/pypi"
 )
 
+// maxParseFileBytes is the largest source file AISAI parses. A file
+// bigger than this is left in the workspace but not analysed: parsing it
+// would cost minutes and would not add anything a reviewer could read.
+const maxParseFileBytes = 2 << 20
+
 // extractTarball extracts a downloaded sdist into dst.
 //
 // Both tarballs and wheels (zip) are supported. Every extraction goes
@@ -107,9 +112,7 @@ func safeUnzip(f *os.File, dst string) error {
 			}
 			continue
 		}
-		if !strings.HasSuffix(strings.ToLower(zf.Name), ".py") &&
-			!strings.HasSuffix(strings.ToLower(zf.Name), ".pyi") &&
-			!isInterestingTextFile(zf.Name) {
+		if !isInterestingTextFile(zf.Name) {
 			continue
 		}
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
@@ -140,16 +143,23 @@ func safeUnzip(f *os.File, dst string) error {
 
 // isInterestingTextFile reports whether a file is worth keeping from an
 // archive. Wheels contain a lot of data that is never scanned.
+//
+// Every source file AISAI can parse is kept, in any of the supported
+// languages, together with the configuration and documentation files that
+// describe the package.
 func isInterestingTextFile(name string) bool {
 	lower := strings.ToLower(name)
 	switch filepath.Ext(lower) {
-	case ".py", ".pyi", ".toml", ".cfg", ".ini", ".txt", ".json", ".yaml", ".yml", ".md", ".rst":
+	case ".toml", ".cfg", ".ini", ".txt", ".json", ".yaml", ".yml", ".md", ".rst":
 		return true
 	}
-	return false
+	return ast.IsSourceFile(lower)
 }
 
-// parseTree parses every Python file under dir into an ast.File.
+// parseTree parses every source file under dir into an ast.File.
+//
+// Every language AISAI can parse is included, not just Python: a package
+// that ships a Go extension or a JavaScript bundle is worth inspecting too.
 //
 // The returned paths are relative to the audit root, so findings stay stable
 // regardless of where the workspace lives on disk. A path relative to the
@@ -163,12 +173,15 @@ func parseTree(dir, root, auditID string) ([]*ast.File, error) {
 		}
 		if info.IsDir() {
 			switch info.Name() {
-			case ".git", "__pycache__", "node_modules", ".tox", ".venv", "venv":
+			case ".git", "__pycache__", "node_modules", ".tox", ".venv", "venv", "target", "dist", "build":
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if !strings.HasSuffix(info.Name(), ".py") {
+		if !ast.IsSourceFile(info.Name()) {
+			return nil
+		}
+		if info.Size() > maxParseFileBytes {
 			return nil
 		}
 		rel := relToRoot(root, path)

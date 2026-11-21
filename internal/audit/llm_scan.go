@@ -199,8 +199,8 @@ func (m *Manager) ChunksForFile(id, relPath string) ([]model.Chunk, error) {
 	if err != nil {
 		return nil, err
 	}
-	f, err := ast.Parse(abs)
-	if err != nil && len(f.Chunks) == 0 {
+	f := m.parsedFile(a, model.RelPath(relPath), abs)
+	if f == nil {
 		return nil, findings.ErrNotFound
 	}
 	return f.Chunks, nil

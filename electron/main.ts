@@ -325,6 +325,8 @@ const ALLOWED_API_PREFIXES = [
   '/api/health',
   '/api/config',
   '/api/providers',
+  '/api/models',
+  '/api/packages',
   '/api/audits',
   '/api/advisories',
   '/api/chat',
@@ -335,8 +337,12 @@ function isAllowedApiPath(apiPath: string): boolean {
   if (!apiPath.startsWith('/api/')) return false;
   // A path traversal in the request would defeat the prefix check.
   if (apiPath.includes('..')) return false;
+  // The query string is not part of the path: "/api/packages?name=flask"
+  // has to be allowed by the "/api/packages" prefix, the same way
+  // "/api/audits/a1/file?path=main.py" is allowed by "/api/audits".
+  const path = apiPath.split('?')[0].split('#')[0];
   return ALLOWED_API_PREFIXES.some(
-    (prefix) => apiPath === prefix || apiPath.startsWith(`${prefix}/`),
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
   );
 }
 

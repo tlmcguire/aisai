@@ -26,6 +26,7 @@ import (
 	"github.com/tlmcguire/aisai/internal/llm"
 	"github.com/tlmcguire/aisai/internal/model"
 	"github.com/tlmcguire/aisai/internal/patch"
+	"github.com/tlmcguire/aisai/internal/pypi"
 	"github.com/tlmcguire/aisai/internal/sbom"
 	"github.com/tlmcguire/aisai/internal/scan"
 	"github.com/tlmcguire/aisai/internal/version"
@@ -38,10 +39,12 @@ type Server struct {
 	manager     *audit.Manager
 	store       *findings.Store
 	llm         llm.Provider
+	models      *llm.Models
 	index       IndexStore
 	chat        ChatEngine
 	chatFactory ChatFactory
 	patches     PatchApplier
+	pypi        *pypi.Client
 	started     time.Time
 }
 
@@ -97,32 +100,53 @@ type PatchApplier interface {
 
 // Options configures a Server.
 type Options struct {
-	Config      *config.Config
-	Manager     *audit.Manager
-	Store       *findings.Store
-	LLM         llm.Provider
+	Config  *config.Config
+	Manager *audit.Manager
+	Store   *findings.Store
+	LLM     llm.Provider
+	// Models holds the models in use. When it is nil, a set is built from
+	// the configuration.
+	Models      *llm.Models
 	Index       IndexStore
 	Chat        ChatEngine
 	ChatFactory ChatFactory
 	Patches     PatchApplier
+	// PyPI resolves package names for the package picker. It is optional:
+	// without it the picker falls back to what the user types.
+	PyPI *pypi.Client
 }
 
 // New creates a server.
 func New(opts Options) *Server {
+	models := opts.Models
+	if models == nil {
+		models = llm.NewModels(
+			opts.Config.ChatModel,
+			opts.Config.ScanModel,
+			opts.Config.EmbedModel,
+			opts.Config.NumCtx,
+			opts.Config.KeepAlive,
+		)
+	}
 	s := &Server{
 		cfg:         opts.Config,
 		hub:         NewHub(),
 		manager:     opts.Manager,
 		store:       opts.Store,
 		llm:         opts.LLM,
+		models:      models,
 		index:       opts.Index,
 		chat:        opts.Chat,
 		chatFactory: opts.ChatFactory,
 		patches:     opts.Patches,
+		pypi:        opts.PyPI,
 		started:     time.Now(),
 	}
 	return s
 }
+
+// Models returns the model set the server is using.
+func (s *Server) Models() *llm.Models { return s.models }
 
 // Hub exposes the event hub so the manager can emit progress.
 func (s *Server) Hub() *Hub { return s.hub }
@@ -145,6 +169,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/providers", s.handleProviders)
 	mux.HandleFunc("POST /api/providers/test", s.handleProviderTest)
 
+	// The model picker: list the installed models, choose them, and
+	// release them from memory.
+	mux.HandleFunc("GET /api/models", s.handleModels)
+	mux.HandleFunc("POST /api/models", s.handleSetModels)
+	mux.HandleFunc("POST /api/models/unload", s.handleUnloadModels)
+
+	mux.HandleFunc("GET /api/packages", s.handlePackageLookup)
+
 	mux.HandleFunc("POST /api/audits", s.handleCreateAudit)
 	mux.HandleFunc("GET /api/audits", s.handleListAudits)
 	mux.HandleFunc("GET /api/audits/{id}", s.handleGetAudit)
@@ -163,6 +195,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/audits/{id}/apply-patch", s.handleApplyPatch)
 	mux.HandleFunc("POST /api/audits/{id}/revert-patch", s.handleRevertPatch)
 	mux.HandleFunc("GET /api/audits/{id}/changes", s.handleChanges)
+	mux.HandleFunc("DELETE /api/audits/{id}/workspace", s.handleDeleteWorkspace)
 	mux.HandleFunc("GET /api/audits/{id}/changes.patch", s.handleChangesPatch)
 
 	mux.HandleFunc("POST /api/audits/{id}/index", s.handleIndex)
@@ -256,10 +289,11 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			"workspace":   redacted.Workspace,
 			"providers":   s.providerInfos(r.Context()),
 			"ollamaUrl":   strings.Join(redacted.OllamaURLs, ","),
-			"chatModel":   redacted.ChatModel,
-			"embedModel":  redacted.EmbedModel,
-			"scanModel":   redacted.ScanModel,
-			"numCtx":      redacted.NumCtx,
+			"chatModel":   s.models.Chat(),
+			"embedModel":  s.models.Embed(),
+			"scanModel":   s.models.Scan(),
+			"numCtx":      s.models.NumCtx(),
+			"keepAlive":   s.models.KeepAlive(),
 			"disableLlm":  redacted.DisableLLM,
 			"byokBaseUrl": redacted.BYOKBaseURL,
 			"byokModel":   redacted.BYOKModel,
@@ -534,7 +568,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		if s.llm == nil {
 			return
 		}
-		err := s.index.Embed(ctx, id, s.llm, s.cfg.EmbedModel, func(done, total int) {
+		err := s.index.Embed(ctx, id, s.llm, s.models.Embed(), func(done, total int) {
 			pct := 0.0
 			if total > 0 {
 				pct = float64(done) / float64(total)
@@ -628,7 +662,7 @@ func (s *Server) handleProposeFix(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fix, err := scan.ProposeFix(r.Context(), s.llm, s.cfg.ChatModel, s.cfg.NumCtx, *f, string(content))
+	fix, err := scan.ProposeFix(r.Context(), s.llm, s.models.Chat(), s.models.NumCtx(), *f, string(content))
 	if err != nil {
 		// The model failed. The prose remediation is still useful, so it is
 		// returned alongside the error rather than swallowed.

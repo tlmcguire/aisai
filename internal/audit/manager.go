@@ -85,6 +85,15 @@ type Audit struct {
 	edges    []model.GraphEdge
 	files    []*ast.File
 
+	// filesByPath caches the parsed files by their workspace-relative path.
+	// Opening the syntax tree of a file must not parse it again.
+	filesByPath map[string]*ast.File
+
+	// sandboxBytes is the size of the downloaded sources of the audit.
+	sandboxBytes int64
+	// sourcesDeleted reports that the downloaded sources were deleted.
+	sourcesDeleted bool
+
 	// pkgByDir maps a package directory name under "pkgs" to its PURL. It is
 	// what lets a finding be attributed to the package it came from, so the
 	// dependency graph can show a finding count per node.
@@ -178,6 +187,10 @@ func (m *Manager) Run(ctx context.Context, id string) error {
 
 	a.mu.Lock()
 	a.files = files
+	a.filesByPath = make(map[string]*ast.File, len(files))
+	for _, f := range files {
+		a.filesByPath[f.Path] = f
+	}
 	a.mu.Unlock()
 
 	a.setStatus(model.AuditIndexing, "indexing", 0.7, "Parsing and indexing")
@@ -239,70 +252,149 @@ func (m *Manager) Run(ctx context.Context, id string) error {
 	return nil
 }
 
+// acquireDownloads is the number of packages that are fetched at the same
+// time.
+//
+// The downloads dominate the time an audit takes: each one is a round trip
+// to the package index, and a package with twenty dependencies would spend
+// most of the audit waiting on the network. Fetching a few at a time turns
+// that waiting into overlapping waiting.
+const acquireDownloads = 4
+
 // acquire downloads and safely extracts the source of every resolved package.
 func (m *Manager) acquire(ctx context.Context, a *Audit, res *deps.Resolution) ([]*ast.File, error) {
 	pkgs := append([]model.Package(nil), res.Packages...)
 	sort.Slice(pkgs, func(i, j int) bool { return pkgs[i].Name < pkgs[j].Name })
 
-	var files []*ast.File
+	type fetched struct {
+		files []*ast.File
+	}
+
+	var (
+		wg        sync.WaitGroup
+		sem       = make(chan struct{}, acquireDownloads)
+		results   = make([]fetched, len(pkgs))
+		mu        sync.Mutex
+		completed int
+	)
+
 	pkgByDir := make(map[string]model.PURL, len(pkgs))
 	for i, p := range pkgs {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		percent := 0.2 + 0.45*float64(i)/float64(max(1, len(pkgs)))
-		m.emit(model.Event{
-			Type:    model.EventAuditProgress,
-			AuditID: a.ID,
-			Phase:   "acquiring",
-			Percent: percent,
-			Message: fmt.Sprintf("Fetching %s %s", p.Name, p.Version),
-		})
-
 		dirName := safeDirName(p.Name, p.Version)
-		dest := filepath.Join(a.Root, "pkgs", dirName)
-		if err := os.MkdirAll(dest, 0o755); err != nil {
-			return nil, err
-		}
 		// Record the directory before the download: even a package whose
 		// source cannot be fetched still belongs in the graph.
 		pkgByDir[dirName] = p.PURL
 
-		tarball, err := m.deps.PyPI.DownloadSdist(ctx, p.Name, p.Version, dest)
-		if err != nil {
-			// A package we cannot fetch is not fatal — the rest of the graph
-			// is still worth scanning. Record and continue.
-			m.emit(model.Event{
-				Type:    model.EventAuditProgress,
-				AuditID: a.ID,
-				Phase:   "acquiring",
-				Percent: percent,
-				Message: fmt.Sprintf("Skipped %s: %v", p.Name, err),
-			})
-			continue
-		}
-		if err := extractTarball(tarball, dest); err != nil {
-			m.emit(model.Event{
-				Type:    model.EventAuditProgress,
-				AuditID: a.ID,
-				Phase:   "acquiring",
-				Percent: percent,
-				Message: fmt.Sprintf("Skipped %s: %v", p.Name, err),
-			})
-			continue
-		}
+		wg.Add(1)
+		go func(i int, p model.Package, dirName string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
 
-		parsed, err := parseTree(dest, a.Root, a.ID)
-		if err == nil {
-			files = append(files, parsed...)
-		}
+			if ctx.Err() != nil {
+				return
+			}
+
+			files, err := m.fetchPackage(ctx, a, p, dirName)
+
+			mu.Lock()
+			completed++
+			done := completed
+			if len(files) > 0 {
+				results[i] = fetched{files: files}
+			}
+			mu.Unlock()
+
+			percent := 0.2 + 0.45*float64(done)/float64(max(1, len(pkgs)))
+			switch {
+			case err != nil && len(files) == 0:
+				// A package we cannot fetch is not fatal — the rest of the
+				// graph is still worth scanning. Record and continue.
+				m.emit(model.Event{
+					Type:    model.EventAuditProgress,
+					AuditID: a.ID,
+					Phase:   "acquiring",
+					Percent: percent,
+					Message: fmt.Sprintf("Skipped %s: %v", p.Name, err),
+				})
+			case err != nil:
+				m.emit(model.Event{
+					Type:    model.EventAuditProgress,
+					AuditID: a.ID,
+					Phase:   "acquiring",
+					Percent: percent,
+					Message: fmt.Sprintf("Fetched %s with warnings: %v", p.Name, err),
+				})
+			default:
+				m.emit(model.Event{
+					Type:    model.EventAuditProgress,
+					AuditID: a.ID,
+					Phase:   "acquiring",
+					Percent: percent,
+					Message: fmt.Sprintf("Fetched %s %s", p.Name, p.Version),
+				})
+			}
+		}(i, p, dirName)
+	}
+	wg.Wait()
+
+	// The scratch space of the downloads is not needed any more.
+	_ = os.RemoveAll(downloadDir(a.Root))
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	var files []*ast.File
+	for _, r := range results {
+		files = append(files, r.files...)
 	}
 
 	a.mu.Lock()
 	a.pkgByDir = pkgByDir
+	a.sandboxBytes = sandboxSize(a.Root)
 	a.mu.Unlock()
 
 	return files, nil
+}
+
+// fetchPackage downloads, extracts and parses the source of one package.
+//
+// The archive is downloaded into a scratch space outside the sandbox and
+// deleted as soon as it has been extracted, so the sandbox only ever holds
+// source files. The extracted files are hardened before they are parsed:
+// nothing that came out of an archive is allowed to be executable.
+func (m *Manager) fetchPackage(ctx context.Context, a *Audit, p model.Package, dirName string) ([]*ast.File, error) {
+	dest := filepath.Join(sandboxDir(a.Root), dirName)
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		return nil, err
+	}
+	scratch := filepath.Join(downloadDir(a.Root), dirName)
+	if err := os.MkdirAll(scratch, 0o700); err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(scratch)
+
+	tarball, err := m.deps.PyPI.DownloadSdist(ctx, p.Name, p.Version, scratch)
+	if err != nil {
+		return nil, err
+	}
+	if err := extractTarball(tarball, dest); err != nil {
+		return nil, err
+	}
+	// A source distribution wraps everything in a directory named after the
+	// project; the file tree is easier to read without it.
+	if err := flattenSingleRoot(dest); err != nil {
+		return nil, err
+	}
+	if err := hardenSandbox(dest); err != nil {
+		return nil, err
+	}
+	parsed, err := parseTree(dest, a.Root, a.ID)
+	if err != nil {
+		return parsed, err
+	}
+	return parsed, nil
 }
 
 // Scan runs the SAST engine over the audit's parsed files and stores the
@@ -511,11 +603,44 @@ func (m *Manager) AST(ctx context.Context, id, relPath string) (*model.AST, erro
 	if err != nil {
 		return nil, err
 	}
-	f, err := ast.Parse(abs)
-	if err != nil || f == nil {
+	rel := model.RelPath(relPath)
+	f := m.parsedFile(a, rel, abs)
+	if f == nil {
 		return nil, findings.ErrNotFound
 	}
-	return &model.AST{Path: model.RelPath(relPath), Nodes: f.Nodes, Edges: f.Edges}, nil
+	return &model.AST{Path: rel, Language: f.Language, Nodes: f.Nodes, Edges: f.Edges}, nil
+}
+
+// parsedFile returns the parsed file of a workspace path.
+//
+// The files parsed during the acquisition are cached, so opening the syntax
+// tree of a file does not parse it a second time. A file that was not part
+// of the acquisition — one that was patched, or one that was added to the
+// workspace — is parsed on demand and cached as well.
+func (m *Manager) parsedFile(a *Audit, rel, abs string) *ast.File {
+	a.mu.RLock()
+	cached, ok := a.filesByPath[rel]
+	a.mu.RUnlock()
+	if ok {
+		return cached
+	}
+	f, err := ast.Parse(abs)
+	if err != nil || f == nil {
+		return nil
+	}
+	f.Path = rel
+	for i := range f.Chunks {
+		f.Chunks[i].AuditID = a.ID
+		f.Chunks[i].File = rel
+		f.Chunks[i].ID = model.FindingID(rel, f.Chunks[i].StartLine, "", f.Chunks[i].SymbolPath)
+	}
+	a.mu.Lock()
+	if a.filesByPath == nil {
+		a.filesByPath = map[string]*ast.File{}
+	}
+	a.filesByPath[rel] = f
+	a.mu.Unlock()
+	return f
 }
 
 // Chunks returns the semantic chunks for one file.
@@ -530,8 +655,9 @@ func (m *Manager) Chunks(ctx context.Context, id, relPath string) ([]model.Chunk
 	if err != nil {
 		return nil, err
 	}
-	f, err := ast.Parse(abs)
-	if err != nil || f == nil {
+	rel := model.RelPath(relPath)
+	f := m.parsedFile(a, rel, abs)
+	if f == nil {
 		return nil, findings.ErrNotFound
 	}
 	return f.Chunks, nil
@@ -571,6 +697,56 @@ func (m *Manager) List() []*model.Audit {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
 	return out
+}
+
+// DeleteSources removes the downloaded sources of an audit.
+//
+// The findings, the graph and the report of the audit are kept: only the
+// sandbox of downloaded code is removed, so the disk space is freed without
+// losing the result of the inspection.
+//
+// It returns the number of bytes that were freed.
+func (m *Manager) DeleteSources(ctx context.Context, id string) (int64, error) {
+	m.mu.RLock()
+	a := m.audits[id]
+	m.mu.RUnlock()
+	if a == nil {
+		return 0, findings.ErrNotFound
+	}
+
+	size := sandboxSize(a.Root)
+	if err := os.RemoveAll(sandboxDir(a.Root)); err != nil {
+		return 0, fmt.Errorf("delete audit sources: %w", err)
+	}
+	// The scratch space of the downloads goes with them.
+	if err := os.RemoveAll(downloadDir(a.Root)); err != nil {
+		return 0, fmt.Errorf("delete audit downloads: %w", err)
+	}
+
+	a.mu.Lock()
+	a.files = nil
+	a.sourcesDeleted = true
+	a.sandboxBytes = 0
+	a.updated = time.Now().UTC()
+	a.mu.Unlock()
+
+	return size, nil
+}
+
+// SandboxSize returns the size of the downloaded sources of an audit.
+func (m *Manager) SandboxSize(id string) (int64, error) {
+	m.mu.RLock()
+	a := m.audits[id]
+	m.mu.RUnlock()
+	if a == nil {
+		return 0, findings.ErrNotFound
+	}
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	if a.sourcesDeleted {
+		return 0, nil
+	}
+	return sandboxSize(a.Root), nil
 }
 
 // WorkspaceRoot returns the workspace directory of an audit.
@@ -630,6 +806,9 @@ func (a *Audit) snapshot() *model.Audit {
 		FileCount:    len(a.files),
 		ChunkCount:   totalChunks(a.files),
 		FindingCount: 0,
+
+		SandboxBytes:   a.sandboxBytes,
+		SourcesDeleted: a.sourcesDeleted,
 	}
 }
 
@@ -692,6 +871,9 @@ func safeDirName(name, version string) string {
 }
 
 func languageFor(path string) string {
+	if lang := ast.LanguageForPath(path); lang != nil {
+		return lang.ID
+	}
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".py":
 		return "python"

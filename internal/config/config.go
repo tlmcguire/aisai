@@ -7,6 +7,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,11 +17,22 @@ import (
 
 // Default locations and values.
 const (
-	DefaultChatModel   = "gemma3n:e4b"
-	DefaultEmbedModel  = "embeddinggemma"
-	DefaultNumCtx      = 8192
+	// DefaultChatModel is the default chat and detection model.
+	//
+	// It is deliberately a small one: the app is expected to run on an
+	// 8GB laptop, where a 9GB model cannot be loaded at all. qwen3.5:4b
+	// is 3.3GB on disk and still has tools, thinking and a 256K context.
+	DefaultChatModel = "qwen3.5:4b"
+	// DefaultEmbedModel is the default embedding model.
+	DefaultEmbedModel = "embeddinggemma"
+	// DefaultNumCtx is the default context window.
+	DefaultNumCtx = 8192
+	// DefaultScanWorkers is the default number of parallel scan workers.
 	DefaultScanWorkers = 4
-	defaultOllamaURL   = "http://localhost:11434"
+	// DefaultKeepAlive is how long Ollama keeps a model in memory after
+	// the last request that used it.
+	DefaultKeepAlive = "3m"
+	defaultOllamaURL = "http://localhost:11434"
 )
 
 // Config is the effective server configuration.
@@ -40,6 +52,16 @@ type Config struct {
 	ScanModel   string `json:"scanModel"`
 	NumCtx      int    `json:"numCtx"`
 	ScanWorkers int    `json:"scanWorkers"`
+
+	// KeepAlive is how long Ollama keeps a model resident in memory after
+	// the last request that used it. The default is three minutes: long
+	// enough to keep a model warm through one scan, short enough to give
+	// the memory back on a machine with 8GB of it.
+	KeepAlive string `json:"keepAlive,omitempty"`
+
+	// path records where the configuration was loaded from, so that a
+	// change made in the app can be written back to the same file.
+	path string
 
 	// BYOK (bring your own key) optional OpenAI-compatible provider.
 	BYOKBaseURL string `json:"byokBaseUrl,omitempty"`
@@ -64,6 +86,7 @@ func Default() *Config {
 		ScanModel:   DefaultChatModel,
 		NumCtx:      DefaultNumCtx,
 		ScanWorkers: DefaultScanWorkers,
+		KeepAlive:   DefaultKeepAlive,
 	}
 }
 
@@ -104,6 +127,7 @@ func Load(path string) (*Config, error) {
 		if err := cfg.loadFile(path); err != nil {
 			return nil, err
 		}
+		cfg.path = path
 	}
 
 	cfg.applyEnv()
@@ -167,6 +191,9 @@ func (c *Config) applyEnv() {
 			c.ScanWorkers = n
 		}
 	}
+	if v := os.Getenv("AISAI_KEEP_ALIVE"); v != "" {
+		c.KeepAlive = v
+	}
 	if v := os.Getenv("DISABLE_LLM"); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {
 			c.DisableLLM = b
@@ -217,6 +244,55 @@ func (c *Config) validate() error {
 	}
 	if c.EmbedModel == "" {
 		c.EmbedModel = DefaultEmbedModel
+	}
+	if c.KeepAlive == "" {
+		c.KeepAlive = DefaultKeepAlive
+	}
+	return nil
+}
+
+// Path returns the file the configuration was loaded from, or "" when it
+// was built from defaults and the environment.
+func (c *Config) Path() string { return c.path }
+
+// Save writes the configuration back to the file it was loaded from.
+//
+// The API key is never written: it is marked "json:-\" on the struct, so
+// it cannot reach the file even when it is set in the environment.
+//
+// The file is written through a temporary file and renamed, so a crash
+// halfway through cannot leave a truncated configuration behind.
+func (c *Config) Save() error {
+	if c.path == "" {
+		return errors.New("config: no configuration file to save to")
+	}
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return fmt.Errorf("config: encode: %w", err)
+	}
+	data = append(data, '\n')
+	dir := filepath.Dir(c.path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("config: create %s: %w", dir, err)
+	}
+	tmp, err := os.CreateTemp(dir, ".config-*.json")
+	if err != nil {
+		return fmt.Errorf("config: create temporary file: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return fmt.Errorf("config: write %s: %w", tmpName, err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("config: close %s: %w", tmpName, err)
+	}
+	if err := os.Chmod(tmpName, 0o600); err != nil {
+		return fmt.Errorf("config: chmod %s: %w", tmpName, err)
+	}
+	if err := os.Rename(tmpName, c.path); err != nil {
+		return fmt.Errorf("config: replace %s: %w", c.path, err)
 	}
 	return nil
 }

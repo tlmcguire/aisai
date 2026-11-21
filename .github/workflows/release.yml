@@ -3,13 +3,13 @@ name: Release
 # The release pipeline.
 #
 # It builds the desktop app for every supported platform, signs and
-# notarises it, writes the SBOM of the build and publishes the artifacts to
-# the GitHub release and to the signed update feed.
+# notarises it when the signing credentials are available, writes the SBOM
+# of the build and publishes the artifacts to the GitHub release.
 #
-# The signing identities do not exist in this repository. The pipeline is
-# configured for them and it FAILS LOUDLY when they are missing, so an
-# unsigned artifact can never be published by accident. See docs/RELEASE.md
-# for the secrets it needs.
+# A release is signed when it is started by hand with the signed option,
+# and unsigned otherwise. The signing identities do not exist in this
+# repository yet, so an unsigned release is what the pipeline can publish
+# today; see docs/RELEASE.md for the secrets that turn it into a signed one.
 on:
   push:
     tags:
@@ -19,6 +19,10 @@ on:
       version:
         description: "the version to release (without the leading v)"
         required: true
+      signed:
+        description: "sign and notarise the artifacts (needs the signing secrets)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -56,6 +60,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             version="${{ github.event.inputs.version }}"
           fi
+          version="${version#v}"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Build the backend with the stamped version
@@ -63,7 +68,7 @@ jobs:
           mkdir -p dist/backend
           for cmd in aisai-server aisai-mcp aisai-bench aisai-sbom; do
             go build \
-              -ldflags "-X github.com/tlmcguire/aisai/internal/version.Version=${version} \
+              -ldflags "-X github.com/tlmcguire/aisai/internal/version.Version=${{ steps.version.outputs.version }} \
                         -X github.com/tlmcguire/aisai/internal/version.Commit=${GITHUB_SHA} \
                         -X github.com/tlmcguire/aisai/internal/version.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
               -o "dist/backend/${cmd}" "./cmd/${cmd}"
@@ -75,7 +80,7 @@ jobs:
           go run ./cmd/aisai-sbom \
             --binary dist/backend/aisai-server \
             --app-version "${{ steps.version.outputs.version }}" \
-            --app-commit "$GITHUB_SHA" \
+            --app-commit "${GITHUB_SHA}" \
             --both --out-dir dist/sbom
 
       - name: Upload the backend and the SBOM
@@ -90,9 +95,15 @@ jobs:
   # ---------------------------------------------------------------------
   # The desktop app, one job per platform.
   #
-  # The jobs fail when the signing credentials are missing: the release
-  # configuration sets forceCodeSigning, so electron-builder refuses to
-  # produce an unsigned artifact.
+  # The architecture is passed to electron-builder explicitly, so each
+  # runner produces only the artifacts it is meant to produce.
+  #
+  # macOS builds both architectures in one job on purpose: electron-builder
+  # writes a single update metadata file (latest-mac.yml) for macOS, and
+  # two jobs building the two architectures would overwrite each other's
+  # copy of it. Linux does not have that problem — its metadata file
+  # carries the architecture in its name — and it has to be split anyway,
+  # because an arm64 AppImage cannot be built on an x64 runner.
   # ---------------------------------------------------------------------
   desktop:
     name: Desktop (${{ matrix.platform }})
@@ -102,26 +113,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-arm64
+          - platform: macos
             os: macos-latest
             target: --mac
-            arch: arm64
-          - platform: macos-x64
-            os: macos-13
-            target: --mac
-            arch: x64
+            archs: --x64 --arm64
           - platform: linux-amd64
             os: ubuntu-latest
             target: --linux
-            arch: x64
+            archs: --x64
           - platform: linux-arm64
             os: ubuntu-24.04-arm
             target: --linux
-            arch: arm64
+            archs: --arm64
           - platform: windows-amd64
             os: windows-latest
             target: --win
-            arch: x64
+            archs: --x64
     defaults:
       run:
         shell: bash
@@ -143,12 +150,12 @@ jobs:
           name: backend
           path: electron/build/sidecar
 
-      # The update feed is where the auto-update reads the signed
-      # artifacts from. It is a secret because it is the address of the
-      # release bucket, and because the pipeline must not publish anything
-      # when it is not configured.
+      # A signed release needs every credential the target needs. An
+      # unsigned release needs none, so it is published as it is.
       - name: Check the release configuration
+        id: signing
         env:
+          SIGNED: ${{ github.event_name == 'workflow_dispatch' && inputs.signed || false }}
           AISAI_UPDATE_FEED_URL: ${{ secrets.AISAI_UPDATE_FEED_URL }}
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
@@ -160,16 +167,18 @@ jobs:
           WINDOWS_PUBLISHER_NAME: ${{ secrets.WINDOWS_PUBLISHER_NAME }}
         run: |
           set -euo pipefail
-          if [ -z "${AISAI_UPDATE_FEED_URL:-}" ]; then
-            echo "::error::the AISAI_UPDATE_FEED_URL secret is not set; a release needs a signed update feed"
-            exit 1
+          if [ "${SIGNED}" != "true" ]; then
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "The artifacts are built without a signature."
+            exit 0
           fi
+          missing=0
           case "${{ matrix.platform }}" in
-            macos-*)
+            macos)
               for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
                 if [ -z "${!name:-}" ]; then
                   echo "::error::the ${name} secret is not set; the macOS build cannot be signed and notarised"
-                  exit 1
+                  missing=1
                 fi
               done
               ;;
@@ -177,16 +186,26 @@ jobs:
               for name in WIN_CSC_LINK WIN_CSC_KEY_PASSWORD WINDOWS_PUBLISHER_NAME; do
                 if [ -z "${!name:-}" ]; then
                   echo "::error::the ${name} secret is not set; the Windows build cannot be signed"
-                  exit 1
+                  missing=1
                 fi
               done
               ;;
           esac
+          if [ -z "${AISAI_UPDATE_FEED_URL:-}" ]; then
+            echo "::error::the AISAI_UPDATE_FEED_URL secret is not set; a signed release needs a signed update feed"
+            missing=1
+          fi
+          if [ "${missing}" -ne 0 ]; then
+            echo "::error::a signed release needs the signing credentials; run the release again without the signed option"
+            exit 1
+          fi
+          echo "signed=true" >> "$GITHUB_OUTPUT"
 
       - name: Build and package the app
         working-directory: electron
         env:
           AISAI_RELEASE: "1"
+          AISAI_RELEASE_UNSIGNED: ${{ steps.signing.outputs.signed == 'false' && '1' || '' }}
           AISAI_BUILD_TARGET: ${{ matrix.platform }}
           AISAI_UPDATE_FEED_URL: ${{ secrets.AISAI_UPDATE_FEED_URL }}
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
@@ -197,14 +216,18 @@ jobs:
           WIN_CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
           WINDOWS_PUBLISHER_NAME: ${{ secrets.WINDOWS_PUBLISHER_NAME }}
+          # An unsigned build must not look for a signing identity: the
+          # runners have none, and electron-builder would otherwise fail
+          # with an unhelpful message.
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ steps.signing.outputs.signed == 'true' && 'true' || 'false' }}
         run: |
           set -euo pipefail
           npm run build
-          node .github/run-builder.mjs ${{ matrix.target }} --release
-
-      - name: Checksums
-        working-directory: electron/release
-        run: sha256sum * > SHA256SUMS.txt || shasum -a 256 * > SHA256SUMS.txt
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            node .github/run-builder.mjs ${{ matrix.target }} ${{ matrix.archs }} --release
+          else
+            node .github/run-builder.mjs ${{ matrix.target }} ${{ matrix.archs }} --release --unsigned
+          fi
 
       - name: Upload the artifacts
         uses: actions/upload-artifact@v4
@@ -240,7 +263,7 @@ jobs:
   # ---------------------------------------------------------------------
   publish:
     name: Publish the release
-    needs: [desktop, sbom]
+    needs: [backend, desktop, sbom]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -258,22 +281,49 @@ jobs:
           name: sbom
           path: sbom
 
+      # The checksums are written once, over every artifact of every
+      # platform. Writing them per platform would give them all the same
+      # file name, and only the last one would survive the merge.
+      - name: Write the checksums
+        run: |
+          set -euo pipefail
+          cd artifacts
+          sha256sum * > SHA256SUMS.txt
+          cd ..
+
       - name: Write the release notes
         run: |
+          set -euo pipefail
           {
-            echo "## AISAI ${{ github.ref_name }}"
+            echo "## AISAI v${{ needs.backend.outputs.version }}"
             echo
-            echo "The SBOM of this build is attached (CycloneDX 1.5 and SPDX 2.3)."
+            echo "The desktop app for Windows, macOS and Linux, with the SBOM of this build attached (CycloneDX 1.5 and SPDX 2.3)."
+            echo
+            echo "| File | Platform |"
+            echo "|---|---|"
+            for file in artifacts/*; do
+              name="$(basename "${file}")"
+              case "${name}" in
+                *.dmg) platform="macOS" ;;
+                *.exe) platform="Windows" ;;
+                *.AppImage|*.deb) platform="Linux" ;;
+                *) continue ;;
+              esac
+              printf '| `%s` | %s |\n' "${name}" "${platform}"
+            done
             echo
             echo "### Checksums"
-            echo '```'
-            cat artifacts/SHA256SUMS.txt 2>/dev/null || true
-            echo '```'
+            echo
+            echo 'The `SHA256SUMS.txt` file holds the checksum of every artifact above.'
           } > release-notes.md
+          cat release-notes.md
 
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ needs.backend.outputs.version }}
+          name: AISAI v${{ needs.backend.outputs.version }}
+          body_path: release-notes.md
           files: |
             artifacts/*
             sbom/*

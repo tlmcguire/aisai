@@ -46,18 +46,18 @@ throughout the new code as **F§n**.
 │    diff view · chat panel                                        │
 │         ▲ preload (contextBridge, no node access)                │
 │  main process                                                    │
-│    spawns the Go sidecar, proxies HTTP + WebSocket                │
+│    spawns the Go sidecar, proxies HTTP + WebSocket               │
 └──────────────────────────────┬───────────────────────────────────┘
                                │ Unix socket (never the network)
 ┌──────────────────────────────▼───────────────────────────────────┐
 │  Go backend  cmd/aisai-server                                    │
 │    internal/audit    lifecycle: resolve → download → index       │
 │    internal/pypi     PyPI client + safe tar extraction (fuzzed)  │
-│    internal/deps     deps.dev resolver                            │
+│    internal/deps     deps.dev resolver                           │
 │    internal/ast      tree-sitter parsing + semantic chunker      │
 │    internal/sast     10 AST rules                                │
 │    internal/scan     LLM detect → verify pipeline                │
-│    internal/index    FTS5 + vectors, RRF fusion                   │
+│    internal/index    FTS5 + vectors, RRF fusion                  │
 │    internal/chat     chat with prompt-injection quarantine       │
 │    internal/findings SQLite store + SARIF export                 │
 │    internal/advisory OSV client, online or offline               │
@@ -72,11 +72,11 @@ a finding is.
 
 ## Requirements
 
-| | |
+| Requirement | Version |
 |---|---|
-| Go | 1.26+ (tree-sitter bindings use cgo, so a C toolchain is required) |
+| Go | 1.26+ (the tree-sitter bindings use cgo, so a C toolchain is required) |
 | Node | 20+ |
-| Ollama | optional, for the LLM features |
+| Ollama | optional; the LLM features need it |
 
 If Go and Node are not on your `PATH`:
 
@@ -130,11 +130,12 @@ overridden by environment variables.
 | `AISAI_CONFIG` | Path to the config file | — |
 | `AISAI_SOCKET` | Unix socket path | temp dir |
 | `AISAI_OLLAMA_URLS` | Comma-separated Ollama URLs, tried in order | `http://localhost:11434` |
-| `AISAI_CHAT_MODEL` | Model for chat and the scan pipeline | `qwen2.5-coder:14b` |
+| `AISAI_CHAT_MODEL` | Model for chat and the scan pipeline | `qwen3.5:4b` |
 | `AISAI_SCAN_MODEL` | Model for detection | falls back to the chat model |
-| `AISAI_EMBED_MODEL` | Model for embeddings | `nomic-embed-text` |
+| `AISAI_EMBED_MODEL` | Model for embeddings | `embeddinggemma` |
 | `AISAI_NUM_CTX` | Context window sent to the model | `8192` |
 | `AISAI_SCAN_WORKERS` | Parallel detection workers | `4` |
+| `AISAI_KEEP_ALIVE` | How long Ollama keeps a model in memory after the last request | `3m` |
 | `DISABLE_LLM` | Turn off all LLM features | `false` |
 | `AISAI_BYOK_BASE_URL` | OpenAI-compatible endpoint (optional) | — |
 | `AISAI_BYOK_MODEL` | Model name for the BYOK endpoint | — |
@@ -149,9 +150,70 @@ still honoured.
 silently truncated at its 2048-token default and the model was reasoning about
 half a file. The new server always sends `num_ctx` explicitly.
 
+**`AISAI_KEEP_ALIVE` matters too.** Ollama keeps a model resident in memory
+until no request has used it for the keep-alive window, and on a laptop with
+8GB of unified memory a resident model is memory the rest of the system does
+not have. The default of three minutes keeps a model warm across the steps of
+one scan and gives the memory back afterwards; `0` unloads it as soon as the
+request is done.
+
 **The BYOK API key never leaves the backend.** It is not passed to the
 renderer, not written to logs, and not included in error strings. The
-config's `Redacted()` helper is used for every config surface.
+config's `Redacted()` helper is used for every config surface. The key is
+also never written to the configuration file: the model picker saves the
+models it changes, and the key is not part of that.
+
+## Models
+
+AISAI uses three models: one for chat, one for the detection pipeline and
+one for embeddings. The **model picker** in the settings dialog lists the
+models installed on the Ollama server, shows how much memory each one
+takes, and lets you choose any of them.
+
+Choosing a model there takes effect immediately — the provider, the
+detection pipeline and the chat all read the model names on every request,
+so the next chunk of the next scan uses the new model. The choice is
+written back to the configuration file, so it survives a restart.
+
+The picker also warns when the selected model is larger than half of the
+memory of the machine, which is the usual reason a model that "should fit"
+turns out to be too slow.
+
+### Releasing the memory
+
+Every request carries a keep-alive window, so Ollama unloads a model three
+minutes after the last request that used it. The **Release memory** button
+in the picker does not wait for that: it asks Ollama to unload the models
+immediately, which is useful before switching to a bigger model or before
+closing the app on a laptop.
+
+### Models that fit on an 8GB M2 MacBook Air
+
+An 8GB MacBook Air has roughly 5.6GB of memory available to applications
+once macOS and the browser have taken their share, and the memory is
+shared between the CPU and the GPU. A model has to fit in that budget
+*plus* the room the app itself needs, so anything above about 4GB is
+already tight.
+
+These are the models that fit and still do a decent job:
+
+| Model | Size | Role | Notes |
+|---|---|---|---|
+| `qwen3.5:4b` | 3.3–4.0GB | chat and scan | The default. Tools, thinking and a 256K context, and it still leaves room for the app. |
+| `qwen3.5:2b` | 2.7–3.1GB | chat | The comfortable choice: about 20 tokens per second on an M2, and it leaves 2GB free. |
+| `qwen2.5-coder:7b` | 4.7GB | scan | The strongest code model that fits, but it needs nearly all of the free memory and leaves little for anything else. |
+| `gemma4:e2b` | 4.6GB | chat | Multimodal (text, image and audio) in a small model. |
+| `gemma4:e4b` | 6.6GB | chat | Runs, but it leaves under 1GB for everything else and the app starts to swap. |
+| `embeddinggemma` | 287MB | embeddings | The default embedder: 300M parameters, and it is small enough to ignore. |
+
+A reasonable setup for an 8GB Air is `qwen3.5:4b` for chat and scan with
+`embeddinggemma` for embeddings. If the machine feels slow, drop the chat
+model to `qwen3.5:2b` and keep the scan model at 4b — the detection
+pipeline is the slow part, so it is worth keeping the stronger model there.
+
+Two models to avoid on this machine: `gemma3n:e4b` (9.8GB) and
+`qwen3.5:9b` (6.6GB) do not fit alongside the app, and `qwen3-coder:30b`
+(19GB) is not a candidate at all.
 
 ## Air-gapped operation
 
@@ -162,6 +224,50 @@ config's `Redacted()` helper is used for every config surface.
 With those set, the app performs no outbound network calls. The dependency
 resolution uses deps.dev and the package downloads use PyPI, so a fully
 offline audit needs a local mirror of both; that is not implemented yet.
+
+## Inspecting a package
+
+### The package picker
+
+The toolbar holds a package field and a version dropdown. The version is
+never typed by hand: it is either **latest** or one of the versions the
+package index actually published, so an audit cannot silently run against a
+release that does not exist.
+
+Typing a name queries the index (`GET /api/packages`) and reports what the
+name refers to — the canonical name, the latest release and the summary of
+the project. The suggestions are the packages that were audited before and a
+short list of the packages people actually install. `Enter` scans the typed
+name, `Arrow Down` walks the suggestions.
+
+### Languages
+
+An audit parses every source file it finds, not only the Python ones. AISAI
+understands **Python, JavaScript, TypeScript, TSX, Go, Rust, Java, C#, Ruby
+and C**. The syntax tree, the semantic chunks and the retrieval index are
+built for all of them, and the code view names the language of the file.
+
+The static rules are still Python-only: a JavaScript or Go file is read,
+chunked and indexed, but it does not produce SAST findings yet.
+
+### The sandbox
+
+The packages that are downloaded for an inspection are kept in a sandbox:
+`pkgs/` inside the workspace of the audit.
+
+- The archives are downloaded into a scratch space outside the sandbox and
+  deleted as soon as they have been extracted. The sandbox only ever holds
+  source files.
+- Nothing is ever executed, and the executable and setuid bits an archive
+  carried are stripped, so the sandbox stays inert.
+- The files are hardened after the extraction, and a file bigger than 2 MB is
+  left in the tree but not parsed.
+
+The sandbox can be deleted when the inspection is over: **Delete sources** in
+the header of the file pane asks twice, then removes the downloaded code
+(`DELETE /api/audits/{id}/workspace`). The findings, the graph and the report
+are kept — only the disk space goes away. The header shows how much the
+sandbox holds.
 
 ## Safety properties
 
@@ -177,6 +283,9 @@ These are the properties the rewrite treats as non-negotiable.
 - **Path traversal has one chokepoint.** Every path that reaches the
   filesystem goes through `audit.ResolvePath`, which resolves symlinks and
   refuses anything outside the audit workspace.
+- **The downloaded packages live in a sandbox.** They are extracted into
+  `pkgs/`, never executed, stripped of the executable and setuid bits they
+  carried, and can be deleted once the inspection is over.
 - **The API is never on the network.** The server listens on a Unix socket.
 - **Untrusted code is treated as data.** Chunks that look like instructions are
   quarantined before they reach the model, and the model is told to treat the
@@ -198,12 +307,17 @@ These are the properties the rewrite treats as non-negotiable.
   transitive dependencies.
 - **No reachability analysis yet.** Findings are reported per file and line
   but are not yet traced from an untrusted entry point.
+- **The static rules are Python-only.** Files in the other supported
+  languages are read, parsed, chunked and indexed, but they do not produce
+  SAST findings yet. The rules are written against the Python grammar.
 - **Fully offline operation is not complete.** The advisory database and the
   model can both be local, but dependency resolution still uses deps.dev and
   package downloads still use PyPI. A local mirror of both is not
   implemented.
-- **No signed releases or auto-updater yet.** The CI pipeline builds and
-  tests; it does not publish a signed artifact.
+- **The published releases are not signed.** The pipeline publishes an
+  artifact for Windows, macOS and Linux on every tag, but the signing
+  identities are not configured in this repository, so the artifacts are
+  unsigned. See [Releases](#releases) below.
 - **OSV is the only advisory source.** No NVD or GitHub Advisory Graph
   enrichment beyond what OSV already carries.
 - **The LLM path has not been measured.** There is no Ollama on the machine
@@ -323,6 +437,38 @@ including the `_scan_time_*_seconds` aliases their timing block needs. The
 notebooks are unmodified. They were **not executed** here — pandas is not
 installed on this machine — so the schema compatibility is verified against
 the column names the notebooks read, not by running them.
+
+## Releases
+
+Every tag that starts with `v` publishes a GitHub release with the desktop
+app for all three platforms:
+
+| Platform | Artifacts |
+|---|---|
+| Windows (x64) | NSIS installer and a zip |
+| macOS (arm64 and x64) | DMG and zip |
+| Linux (x64 and arm64) | AppImage and deb |
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The pipeline builds the Go backend once and hands it to every platform
+build, writes the SBOM of the build alongside the artifacts, and attaches
+the checksums to the release. The artifacts are also downloadable from the
+release page itself.
+
+The release can also be started by hand from the **Actions** tab, which
+asks for the version to release.
+
+**Signing.** The pipeline is configured for code signing and notarisation,
+and it refuses to publish an artifact it cannot sign. Those credentials do
+not exist in this repository yet, so the pipeline currently builds
+*unsigned* artifacts and publishes them; see [`docs/RELEASE.md`](docs/RELEASE.md)
+for the secrets to add. An unsigned macOS build is quarantined by Gatekeeper
+and has to be opened with a right-click, and an unsigned Windows build shows
+a SmartScreen warning.
 
 ## Development
 
