@@ -61,6 +61,7 @@
     "appId": "dev.aisai.app",
     "productName": "AISAI",
     "copyright": "AISAI",
+    "icon": "resources/icon.png",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -82,6 +83,7 @@
     ],
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "mac": {
+      "icon": "resources/icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -105,6 +107,7 @@
       "entitlementsInherit": ".github/entitlements.mac.plist"
     },
     "win": {
+      "icon": "resources/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -121,6 +124,7 @@
       ]
     },
     "linux": {
+      "icon": "resources/icons",
       "target": [
         {
           "target": "AppImage",
