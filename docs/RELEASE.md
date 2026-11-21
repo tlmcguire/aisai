@@ -306,6 +306,34 @@ static leg is the one that is deterministic, so it is the one that gates.
 | Windows | `nsis` and `zip`, `x64` | `WIN_CSC_LINK` + `WIN_CSC_KEY_PASSWORD`; `WINDOWS_PUBLISHER_NAME` is the name the updater verifies against |
 | Linux | `AppImage` and `deb`, `x64` and `arm64` | not signed (the Linux artifacts are not in the signed update feed) |
 
+### The icon
+
+The app has its own icon, and every platform gets the format it needs
+from the files in `electron/resources`:
+
+| File | Used by |
+|---|---|
+| `icon.png` | the general-purpose icon (1024x1024, PNG) |
+| `icon.icns` | macOS (`CFBundleIconFile`) |
+| `icon.ico` | Windows, with the 16, 32, 48, 64, 128 and 256 pixel sizes |
+| `icons/<size>x<size>.png` | Linux, where electron-builder reads the sizes out of the directory name |
+
+The icon is built from the colours of the interface (see
+`electron/src/styles/tokens.css`), so the app and the icon stay
+recognisable as the same thing. The sources live in `electron/out`,
+which is not tracked; the packaged formats are tracked, because the
+release needs them on every runner.
+
+Changing the icon means regenerating the formats, not only the PNG:
+
+```bash
+cd electron
+magick ../out/aisai-icon-transparent.png -resize 1024x1024 -strip PNG32:resources/icon.png
+magick resources/icon.png -define icon:auto-resize=256,128,64,48,32,16 -strip resources/icon.ico
+iconutil -c iconset resources/icon.png
+iconutil -c icns resources/icon.iconset -o resources/icon.icns
+```
+
 ### The sidecar, and where the app looks for it
 
 The Go backend is shipped inside the app as a sidecar. It has to be a
