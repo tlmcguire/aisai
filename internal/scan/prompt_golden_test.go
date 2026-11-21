@@ -12,6 +12,15 @@ import (
 	"github.com/tlmcguire/aisai/internal/model"
 )
 
+// normalizeEOL turns CRLF line endings into LF ones.
+//
+// The goldens are text, and a checkout on Windows rewrites them with CRLF.
+// Comparing them byte for byte would fail there for a reason that has
+// nothing to do with the prompts.
+func normalizeEOL(s string) string {
+	return strings.ReplaceAll(s, "\r\n", "\n")
+}
+
 // This file holds the prompt regression goldens.
 //
 // The prompts are the part of the scanner that is hardest to review and
@@ -197,7 +206,7 @@ func TestPromptGoldens(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read %s: %v (run: go test ./internal/scan -update)", path, err)
 			}
-			if string(want) != got {
+			if normalizeEOL(string(want)) != normalizeEOL(got) {
 				t.Errorf("the prompt changed.\n\nwant:\n%s\n\ngot:\n%s\n\nif the change is intended, regenerate the goldens with:\n\n\tgo test ./internal/scan -update\n",
 					want, got)
 			}

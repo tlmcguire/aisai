@@ -44,17 +44,32 @@ func TestWebSocketStaysOpenAndDeliversEvents(t *testing.T) {
 	// loop. The old code tore the connection down in this window.
 	time.Sleep(300 * time.Millisecond)
 
-	// The connection must still be usable.
-	if err := conn.Write(ctx, websocket.MessageText, []byte(`{"type":"subscribe"}`)); err != nil {
+	// The connection must still be usable. A ping is answered with a pong,
+	// and the answer proves that the server is still reading the
+	// connection.
+	//
+	// The client deliberately does not subscribe to an audit: a client that
+	// subscribes to one audit only receives the events of that audit, and
+	// whether the subscription is registered before the event is broadcast
+	// is a race that the test cannot win.
+	if err := conn.Write(ctx, websocket.MessageText, []byte(`{"type":"ping"}`)); err != nil {
 		t.Fatalf("the connection was closed right after the handshake: %v", err)
+	}
+
+	readCtx, readCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer readCancel()
+	typ, data, err := conn.Read(readCtx)
+	if err != nil {
+		t.Fatalf("the connection was closed right after the handshake: %v", err)
+	}
+	if typ != websocket.MessageText || !strings.Contains(string(data), "pong") {
+		t.Fatalf("the ping was not answered: %q", data)
 	}
 
 	// And an event broadcast afterwards must arrive.
 	s.EmitProgress("audit-1", "scanning", 50, "halfway")
 
-	readCtx, readCancel := context.WithTimeout(ctx, 5*time.Second)
-	defer readCancel()
-	typ, data, err := conn.Read(readCtx)
+	typ, data, err = conn.Read(readCtx)
 	if err != nil {
 		t.Fatalf("the event was not delivered: %v", err)
 	}

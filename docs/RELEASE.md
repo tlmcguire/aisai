@@ -339,6 +339,24 @@ app looks for the sidecar, and it offers both names — `aisai-server` and
 `aisai-server.exe` — at every place, because the platform is not known
 when the list is built.
 
+### What the metadata has to carry
+
+The `deb` target refuses to build without two fields in
+`electron/package.json`:
+
+* **a homepage** — electron-builder writes it into the control file of the
+  package, and without it the build fails with "Please specify project
+  homepage";
+* **an author with an email** — the same file names the maintainer, and
+  without an email the build fails with "author email is missed".
+
+An unsigned build must also *not see* the signing credentials, and an
+empty environment variable is not the same as an absent one:
+electron-builder resolves an empty `CSC_LINK` as a path, relative to the
+project directory, and fails with "<project directory> not a file".
+`run-builder.mjs` therefore removes the credentials from the environment
+of an unsigned build.
+
 ### The names of the artifacts
 
 `artifactName` in the electron-builder configuration is

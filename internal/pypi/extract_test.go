@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -225,17 +226,22 @@ func TestSafeExtractHappyPath(t *testing.T) {
 	if string(content) != "print('hi')\n" {
 		t.Fatalf("unexpected content %q", content)
 	}
-	for _, name := range []string{"flask-2.0.0", "flask-2.0.0/flask", "flask-2.0.0/flask/__init__.py"} {
-		info, err := os.Stat(filepath.Join(dst, filepath.FromSlash(name)))
-		if err != nil {
-			t.Fatalf("stat %q: %v", name, err)
-		}
-		want := os.FileMode(0o755)
-		if !info.IsDir() {
-			want = 0o644
-		}
-		if info.Mode().Perm() != want {
-			t.Fatalf("%q has mode %v, want %v", name, info.Mode().Perm(), want)
+	// The permission bits of an extracted file are POSIX modes. Windows
+	// reports 0666 and 0777 for every file, so the modes of an extraction
+	// cannot be checked there.
+	if runtime.GOOS != "windows" {
+		for _, name := range []string{"flask-2.0.0", "flask-2.0.0/flask", "flask-2.0.0/flask/__init__.py"} {
+			info, err := os.Stat(filepath.Join(dst, filepath.FromSlash(name)))
+			if err != nil {
+				t.Fatalf("stat %q: %v", name, err)
+			}
+			want := os.FileMode(0o755)
+			if !info.IsDir() {
+				want = 0o644
+			}
+			if info.Mode().Perm() != want {
+				t.Fatalf("%q has mode %v, want %v", name, info.Mode().Perm(), want)
+			}
 		}
 	}
 }
@@ -296,6 +302,11 @@ func TestSafeExtractAllowsInnerSymlink(t *testing.T) {
 // TestSafeExtractStripsSetuidBits verifies that privileged modes are not
 // preserved.
 func TestSafeExtractStripsSetuidBits(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// Windows has no setuid bit: the mode of an extracted file is
+		// reported as 0666, whatever the archive says.
+		t.Skip("the setuid bit does not exist on Windows")
+	}
 	dst := filepath.Join(t.TempDir(), "dst")
 	archive := buildArchive(t, true,
 		archiveEntry{name: "bin/tool", content: "#!/bin/sh\n", mode: 0o4755},

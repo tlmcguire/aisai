@@ -164,6 +164,25 @@ function requireEnv(target) {
 }
 
 /**
+ * The environment variables that hold a signing identity.
+ *
+ * An unsigned build must not see any of them. An empty variable is not the
+ * same as an absent one: electron-builder resolves an empty CSC_LINK as a
+ * path, relative to the project directory, and fails with
+ * "<project directory> not a file".
+ */
+const SIGNING_ENV = [
+  'CSC_LINK',
+  'CSC_KEY_PASSWORD',
+  'WIN_CSC_LINK',
+  'WIN_CSC_KEY_PASSWORD',
+  'WINDOWS_PUBLISHER_NAME',
+  'APPLE_ID',
+  'APPLE_APP_SPECIFIC_PASSWORD',
+  'APPLE_TEAM_ID',
+];
+
+/**
  * Runs electron-builder with the given arguments.
  *
  * The project directory is passed explicitly. Without it, electron-builder
@@ -171,13 +190,21 @@ function requireEnv(target) {
  * path in the configuration (the files to package, the sidecar, the
  * output directory) would be resolved against the temporary directory the
  * configuration was written to.
+ *
+ * The builder is started through node, and not through the shim in
+ * node_modules/.bin: that shim is a shell script, and a shell script
+ * cannot be executed on Windows.
  */
-function runBuilder(args, env) {
-  const binary = resolve(projectDir, 'node_modules', '.bin', 'electron-builder');
-  const child = spawn(binary, [...args, '--project', projectDir], {
+function runBuilder(args, env, remove = []) {
+  const cli = resolve(projectDir, 'node_modules', 'electron-builder', 'cli.js');
+  const childEnv = { ...globalThis.process.env, ...(env ?? {}) };
+  for (const name of remove) {
+    delete childEnv[name];
+  }
+  const child = spawn(globalThis.process.execPath, [cli, ...args, '--project', projectDir], {
     cwd: projectDir,
     stdio: 'inherit',
-    env: { ...globalThis.process.env, ...(env ?? {}) },
+    env: childEnv,
   });
   child.on('exit', (code, signal) => {
     if (signal) {
@@ -231,8 +258,11 @@ function main() {
       [...platformArgs, ...archArgs, '--config', unsignedConfigPath, '--publish', 'never'],
       // An unsigned build must not pick up a signing identity from the
       // keychain: it would sign the artifact with whatever it finds and
-      // fail on a certificate it cannot use.
+      // fail on a certificate it cannot use. The credentials are removed
+      // from the environment as well, because an empty one is not the
+      // same as an absent one.
       { CSC_IDENTITY_AUTO_DISCOVERY: 'false' },
+      SIGNING_ENV,
     );
     return;
   }

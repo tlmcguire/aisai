@@ -16,6 +16,15 @@ import (
 	"github.com/tlmcguire/aisai/internal/sast"
 )
 
+// normalizeEOL turns CRLF line endings into LF ones.
+//
+// The golden file is text, and a checkout on Windows rewrites it with CRLF.
+// Comparing it byte for byte would fail there for a reason that has nothing
+// to do with the content.
+func normalizeEOL(s string) string {
+	return strings.ReplaceAll(s, "\r\n", "\n")
+}
+
 // This file holds the golden snapshot of the static engine.
 //
 // The snapshot is what makes a change to internal/sast visible. The engine is
@@ -407,7 +416,7 @@ func TestGoldenSARIF(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read %s: %v (run: go test ./internal/audit -update)", goldenSARIFPath, err)
 	}
-	if string(want) != string(data) {
+	if normalizeEOL(string(want)) != normalizeEOL(string(data)) {
 		t.Errorf("the SARIF document changed.\n\nwant:\n%s\n\ngot:\n%s\n\nif the change is intended, regenerate the snapshot with:\n\n\tgo test ./internal/audit -update\n",
 			want, data)
 	}
