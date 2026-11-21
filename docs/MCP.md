@@ -93,7 +93,7 @@ Both are returned in band, so the model sees the instruction and can recover by 
 
 | Tool | Purpose | Required arguments |
 |---|---|---|
-| `scan_package` | Download and index a package; returns the audit id and makes it current. | `package` |
+| `scan_package` | Download and index a package, or copy and index a local folder; returns the audit id and makes it current. | `package` or `path` |
 | `get_dependency_graph` | The resolved dependency graph with versions, severity and finding counts. | — |
 | `list_files` | The file tree of the audit, with per-file finding counts. | — |
 | `get_source` | The text of one file, plus its findings. Can page with `start_line`/`end_line`. | `path` |
@@ -118,7 +118,9 @@ the current audit.
 Resolves, downloads and indexes a Python package so its source can be audited, and
 returns the audit id.
 
-- `package` (string, **required**) — the PyPI package name, e.g. `"requests"`.
+- `package` (string) — the PyPI package name, e.g. `"requests"`. Required unless `path` is set.
+- `path` (string) — an absolute path to a local project folder. The folder is copied and
+  the copy is audited. Takes precedence over `package`.
 - `version` (string, optional) — the version to audit, e.g. `"2.31.0"`. Defaults to the
   latest release.
 

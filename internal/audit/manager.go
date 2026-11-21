@@ -30,6 +30,7 @@ import (
 	"github.com/tlmcguire/aisai/internal/findings"
 	"github.com/tlmcguire/aisai/internal/index"
 	"github.com/tlmcguire/aisai/internal/llm"
+	"github.com/tlmcguire/aisai/internal/localsrc"
 	"github.com/tlmcguire/aisai/internal/model"
 	"github.com/tlmcguire/aisai/internal/pypi"
 	"github.com/tlmcguire/aisai/internal/sast"
@@ -65,12 +66,26 @@ type Manager struct {
 	audits map[string]*Audit
 }
 
+// The sources an audit can be created from.
+const (
+	// sourcePyPI is an audit of a package published on the package index.
+	sourcePyPI = "pypi"
+	// sourceLocal is an audit of a project folder on the local disk.
+	sourceLocal = "local"
+)
+
 // Audit is one in-flight or completed analysis.
 type Audit struct {
 	ID      string
 	Package string
 	Version string
 	Root    string
+
+	// source says where the code came from: sourcePyPI or sourceLocal.
+	source string
+	// sourceDir is the folder a local audit was copied from. It never leaves
+	// the backend.
+	sourceDir string
 
 	mu       sync.RWMutex
 	status   model.AuditStatus
@@ -94,6 +109,9 @@ type Audit struct {
 	// sourcesDeleted reports that the downloaded sources were deleted.
 	sourcesDeleted bool
 
+	// findingCount is the number of findings the last scan stored.
+	findingCount int
+
 	// pkgByDir maps a package directory name under "pkgs" to its PURL. It is
 	// what lets a finding be attributed to the package it came from, so the
 	// dependency graph can show a finding count per node.
@@ -114,8 +132,32 @@ func NewManager(d Deps) *Manager {
 	return &Manager{deps: d, audits: map[string]*Audit{}}
 }
 
-// Create allocates an audit and its workspace, but does not start work.
+// Create allocates an audit of a published package and its workspace, but
+// does not start work.
 func (m *Manager) Create(ctx context.Context, pkg, version string) (*model.Audit, error) {
+	return m.create(pkg, version, sourcePyPI, "")
+}
+
+// CreateLocal allocates an audit of a project folder on the local disk and its
+// workspace, but does not start work.
+//
+// The folder is validated here so that a bad choice is reported to the caller
+// at once instead of as a failed audit. The files are copied when the audit
+// runs: the audit works on the copy and never touches the original.
+func (m *Manager) CreateLocal(ctx context.Context, dir string) (*model.Audit, error) {
+	abs, err := localsrc.Validate(dir)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s", ErrBadSource, err)
+	}
+	return m.create(localsrc.Name(abs), "", sourceLocal, abs)
+}
+
+// ErrBadSource is returned when the folder chosen for a local audit cannot be
+// inspected.
+var ErrBadSource = errors.New("cannot inspect that folder")
+
+// create allocates an audit and its workspace.
+func (m *Manager) create(pkg, version, source, sourceDir string) (*model.Audit, error) {
 	id, err := newAuditID()
 	if err != nil {
 		return nil, err
@@ -130,9 +172,12 @@ func (m *Manager) Create(ctx context.Context, pkg, version string) (*model.Audit
 		Package: pkg,
 		Version: version,
 		Root:    root,
-		status:  model.AuditPending,
-		created: time.Now().UTC(),
-		updated: time.Now().UTC(),
+		source:  source,
+
+		sourceDir: sourceDir,
+		status:    model.AuditPending,
+		created:   time.Now().UTC(),
+		updated:   time.Now().UTC(),
 	}
 	m.mu.Lock()
 	m.audits[id] = a
@@ -149,6 +194,10 @@ func (m *Manager) Run(ctx context.Context, id string) error {
 	m.mu.RUnlock()
 	if a == nil {
 		return findings.ErrNotFound
+	}
+
+	if a.source == sourceLocal {
+		return m.runLocal(ctx, a)
 	}
 
 	a.setStatus(model.AuditAcquiring, "acquiring", 0.05, "Resolving dependencies")
@@ -185,6 +234,67 @@ func (m *Manager) Run(ctx context.Context, id string) error {
 		return err
 	}
 
+	return m.finishRun(ctx, a, files)
+}
+
+// runLocal copies a project folder into the workspace, parses it and makes the
+// audit ready.
+//
+// A local audit has no dependency graph and no downloads: the graph is a
+// single node for the project itself.
+func (m *Manager) runLocal(ctx context.Context, a *Audit) error {
+	a.setStatus(model.AuditAcquiring, "acquiring", 0.1, "Copying the project")
+
+	dirName := safeDirName(a.Package, "")
+	dest := filepath.Join(sandboxDir(a.Root), dirName)
+	res, err := localsrc.Snapshot(ctx, a.sourceDir, dest, isInterestingTextFile, localsrc.Limits{})
+	if err != nil {
+		a.fail(fmt.Errorf("copy the project: %w", err))
+		return err
+	}
+	if res.Files == 0 {
+		err := errors.New("no source files were found in that folder")
+		a.fail(err)
+		return err
+	}
+	if err := hardenSandbox(dest); err != nil {
+		a.fail(fmt.Errorf("harden the copy: %w", err))
+		return err
+	}
+
+	msg := fmt.Sprintf("Copied %d files", res.Files)
+	if res.Truncated {
+		msg += " (the folder is larger than the limit, so the copy is partial)"
+	}
+	a.setStatus(model.AuditAcquiring, "acquiring", 0.4, msg)
+	m.emit(model.Event{Type: model.EventAuditProgress, AuditID: a.ID, Phase: "acquiring", Percent: 0.4, Message: msg})
+
+	files, err := parseTree(dest, a.Root, a.ID)
+	if err != nil {
+		a.fail(fmt.Errorf("parse the project: %w", err))
+		return err
+	}
+
+	purl := model.PURL("pkg:generic/" + strings.ToLower(dirName))
+	a.mu.Lock()
+	a.packages = []model.Package{{
+		PURL:      purl,
+		Name:      a.Package,
+		Version:   "local",
+		Ecosystem: "local",
+		Direct:    true,
+	}}
+	a.edges = nil
+	a.pkgByDir = map[string]model.PURL{dirName: purl}
+	a.sandboxBytes = sandboxSize(a.Root)
+	a.mu.Unlock()
+
+	return m.finishRun(ctx, a, files)
+}
+
+// finishRun stores the parsed files of an audit, builds the retrieval index
+// and marks the audit ready. Both kinds of audit end here.
+func (m *Manager) finishRun(ctx context.Context, a *Audit, files []*ast.File) error {
 	a.mu.Lock()
 	a.files = files
 	a.filesByPath = make(map[string]*ast.File, len(files))
@@ -227,7 +337,7 @@ func (m *Manager) Run(ctx context.Context, id string) error {
 	// Advisories are fetched in the background: the audit is already usable
 	// and the graph must not appear to show "0 vulnerabilities" while the
 	// lookup is still in flight. The client is told when it lands.
-	if m.deps.Advisory != nil {
+	if m.deps.Advisory != nil && a.source != sourceLocal {
 		go func() {
 			// The audit request may have been cancelled by the time the
 			// graph is drawn; the advisory lookup outlives it.
@@ -457,6 +567,15 @@ func (m *Manager) Scan(ctx context.Context, id string) ([]model.Finding, error) 
 	if _, err := m.deps.Store.Upsert(ctx, id, out); err != nil {
 		return nil, err
 	}
+	// The audit reports how many findings it holds, which includes the ones
+	// that earlier scans stored.
+	total := len(out)
+	if list, err := m.deps.Store.List(ctx, id, findings.Filter{}); err == nil {
+		total = len(list)
+	}
+	a.mu.Lock()
+	a.findingCount = total
+	a.mu.Unlock()
 	if err := m.deps.Store.RecordScan(ctx, id, scanID, "sast", len(out), started, time.Now()); err != nil {
 		m.emit(model.Event{Type: model.EventAuditError, AuditID: id, Error: err.Error()})
 	}
@@ -725,6 +844,7 @@ func (m *Manager) DeleteSources(ctx context.Context, id string) (int64, error) {
 
 	a.mu.Lock()
 	a.files = nil
+	a.filesByPath = nil
 	a.sourcesDeleted = true
 	a.sandboxBytes = 0
 	a.updated = time.Now().UTC()
@@ -805,7 +925,8 @@ func (a *Audit) snapshot() *model.Audit {
 		Root:         a.Root,
 		FileCount:    len(a.files),
 		ChunkCount:   totalChunks(a.files),
-		FindingCount: 0,
+		FindingCount: a.findingCount,
+		Source:       a.source,
 
 		SandboxBytes:   a.sandboxBytes,
 		SourcesDeleted: a.sourcesDeleted,

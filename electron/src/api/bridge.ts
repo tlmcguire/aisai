@@ -58,6 +58,17 @@ export interface AisaiBridge {
   onBackendStatus(cb: (status: BackendStatus) => void): () => void;
   /** Send a client → server WebSocket message (subscribe/unsubscribe/ping). */
   send(message: ClientMessage): void;
+  /**
+   * Open the native folder dialog. Resolves to the folder the user picked, or
+   * `null` when the dialog was cancelled. Only a folder chosen this way (or
+   * dropped on the window) can be audited.
+   */
+  chooseFolder(): Promise<string | null>;
+  /**
+   * Resolve a folder that was dropped on the window. Resolves to the folder's
+   * path, or `null` when the dropped item is not a folder.
+   */
+  folderFromDrop(file: File): Promise<string | null>;
 }
 
 declare global {

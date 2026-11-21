@@ -260,9 +260,12 @@ const (
 
 // Audit is one analysis of one package version.
 type Audit struct {
-	ID           string      `json:"id"`
-	Package      string      `json:"package"`
-	Version      string      `json:"version,omitempty"`
+	ID      string `json:"id"`
+	Package string `json:"package"`
+	Version string `json:"version,omitempty"`
+	// Source says where the code came from: "pypi" for a published package
+	// and "local" for a project folder.
+	Source       string      `json:"source,omitempty"`
 	Status       AuditStatus `json:"status"`
 	Phase        string      `json:"phase,omitempty"`
 	Progress     float64     `json:"progress"`

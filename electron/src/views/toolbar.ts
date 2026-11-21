@@ -35,6 +35,8 @@ export function createToolbar(controller: AppController, container: HTMLElement)
   const picker = createPackagePicker(controller);
 
   const scanButton = button('Scan', 'primary');
+  const folderButton = button('Open folder…');
+  folderButton.title = 'Inspect a project folder on this computer (Ctrl/Cmd+O, or drop a folder on the window)';
   const llmButton = button('Scan LLM');
 
   const providerChip = h('span', { class: 'badge neutral', text: 'checking provider…' });
@@ -62,6 +64,53 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     void controller.runScan('llm');
   });
 
+  folderButton.addEventListener('click', () => {
+    void controller.chooseFolder();
+  });
+
+  // Ctrl/Cmd+O opens the folder dialog from anywhere in the window.
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'o') {
+      event.preventDefault();
+      void controller.chooseFolder();
+    }
+  };
+
+  // Dropping a folder on the window audits it.
+  const hasFiles = (event: DragEvent): boolean => Boolean(event.dataTransfer?.types.includes('Files'));
+  const onDragOver = (event: DragEvent): void => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    document.body.classList.add('drop-target');
+  };
+  const onDragLeave = (event: DragEvent): void => {
+    // relatedTarget is null when the pointer leaves the window.
+    if (!event.relatedTarget) document.body.classList.remove('drop-target');
+  };
+  const onDrop = (event: DragEvent): void => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    document.body.classList.remove('drop-target');
+    const file = event.dataTransfer?.files[0];
+    if (!file) return;
+    void window.aisai
+      .folderFromDrop(file)
+      .then((folder) => {
+        if (folder) {
+          void controller.startFolderAudit(folder);
+        } else {
+          useAuditStore.getState().setError('Drop a project folder, not a file.');
+        }
+      })
+      .catch((err: unknown) => {
+        useAuditStore.getState().setError(err instanceof Error ? err.message : String(err));
+      });
+  };
+  document.addEventListener('keydown', onKeyDown);
+  document.addEventListener('dragover', onDragOver);
+  document.addEventListener('dragleave', onDragLeave);
+  document.addEventListener('drop', onDrop);
+
   settingsButton.addEventListener('click', () => {
     useUiStore.getState().setSettingsOpen(true);
   });
@@ -70,6 +119,7 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     h('div', { class: 'brand', text: 'AISAI' }),
     picker.element,
     scanButton,
+    folderButton,
     llmButton,
     h('div', { class: 'toolbar-spacer' }),
     mockBadge,
@@ -84,6 +134,7 @@ export function createToolbar(controller: AppController, container: HTMLElement)
 
   const unsubscribeAudit = useAuditStore.subscribe((state) => {
     setBusy(scanButton, state.busy === 'audit');
+    folderButton.disabled = state.busy === 'audit';
     setBusy(llmButton, state.busy?.startsWith('scan:') ?? false);
   });
 
@@ -104,6 +155,11 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     dispose: () => {
       unsubscribeAudit();
       unsubscribeBackend();
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('dragover', onDragOver);
+      document.removeEventListener('dragleave', onDragLeave);
+      document.removeEventListener('drop', onDrop);
+      document.body.classList.remove('drop-target');
       picker.dispose();
     },
   };

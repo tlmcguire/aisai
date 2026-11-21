@@ -1416,3 +1416,20 @@ dialog::backdrop {
     display: none;
   }
 }
+
+/* The overlay shown while a folder is dragged over the window. */
+body.drop-target::after {
+  content: 'Drop a project folder to inspect it';
+  position: fixed;
+  inset: 12px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-base) 82%, transparent);
+  color: var(--fg);
+  font-size: 1.1rem;
+  pointer-events: none;
+}

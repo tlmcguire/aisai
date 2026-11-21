@@ -237,6 +237,8 @@ export function createPackagePicker(controller: AppController): PackagePicker {
     const seen = new Set<string>();
     const out: Suggestion[] = [];
     for (const audit of useAuditStore.getState().audits) {
+      // A folder is not a package name: it cannot be looked up on the index.
+      if (audit.source === 'local') continue;
       const key = audit.package.toLowerCase();
       if (!key || seen.has(key)) continue;
       seen.add(key);

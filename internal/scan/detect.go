@@ -262,7 +262,7 @@ func (d *Detector) Detect(ctx context.Context, chunk model.Chunk) ([]model.Findi
 
 	req := llm.CompletionRequest{
 		Model:       d.modelName(),
-		System:      d.detectSystemPrompt(),
+		System:      d.detectSystemPromptFor(chunk.Language),
 		User:        d.detectUserPrompt(chunk),
 		Schema:      DetectionSchema,
 		NumCtx:      d.numCtx,

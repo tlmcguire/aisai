@@ -1123,15 +1123,17 @@ export class MockApi {
   }
 
   private createAudit(body: unknown): Promise<AuditResponse> {
-    const input = (body ?? {}) as { package?: string; version?: string };
-    const pkg = input.package ?? 'flask';
-    const version = input.version ?? '2.0.0';
-    const id = `a-${pkg}-${version}`;
+    const input = (body ?? {}) as { package?: string; version?: string; path?: string };
+    const folder = input.path ? (input.path.split(/[\\/]/).filter(Boolean).pop() ?? input.path) : '';
+    const pkg = folder || (input.package ?? 'flask');
+    const version = folder ? '' : (input.version ?? '2.0.0');
+    const id = folder ? `a-local-${pkg}` : `a-${pkg}-${version}`;
     const audit: Audit = {
       ...AUDIT,
       id,
       package: pkg,
       version,
+      source: folder ? 'local' : 'pypi',
       status: 'pending',
       phase: 'queued',
       progress: 0,
@@ -1141,7 +1143,7 @@ export class MockApi {
     this.state.audits = [audit, ...this.state.audits.filter((a) => a.id !== id)];
 
     const phases: Array<[string, number, string]> = [
-      ['acquiring', 0.15, `Downloading ${pkg}==${version}`],
+      ['acquiring', 0.15, folder ? `Copying ${pkg}` : `Downloading ${pkg}==${version}`],
       ['indexing', 0.45, 'Building retrieval index'],
       ['scanning', 0.75, 'Running static analysis'],
     ];

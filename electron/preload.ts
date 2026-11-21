@@ -6,7 +6,7 @@
  * the filesystem, or any credential.
  */
 
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 import type {
   AisaiBridge,
@@ -77,6 +77,19 @@ const bridge: AisaiBridge = {
   },
   send: (message: ClientMessage) => {
     void ipcRenderer.invoke('aisai:ws:send', message);
+  },
+  chooseFolder: () => ipcRenderer.invoke('aisai:folder:choose') as Promise<string | null>,
+  folderFromDrop: async (file: File): Promise<string | null> => {
+    // getPathForFile only answers for a real file the user dropped, so a
+    // page cannot make one up.
+    let dropped = '';
+    try {
+      dropped = webUtils.getPathForFile(file);
+    } catch {
+      return null;
+    }
+    if (!dropped) return null;
+    return (await ipcRenderer.invoke('aisai:folder:approve', dropped)) as string | null;
   },
 };
 

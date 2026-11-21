@@ -198,6 +198,8 @@ export interface Audit {
   id: string;
   package: string;
   version?: string;
+  /** Where the code came from: a published package or a local folder. */
+  source?: 'pypi' | 'local';
   status: AuditStatus;
   phase?: string;
   progress: number;

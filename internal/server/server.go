@@ -246,6 +246,8 @@ func fail(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "not_found", "not found")
 	case errors.Is(err, audit.ErrNoAdvisorySource):
 		writeError(w, http.StatusServiceUnavailable, "disabled", "advisory lookups are disabled by configuration")
+	case errors.Is(err, audit.ErrBadSource):
+		writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 	case strings.Contains(err.Error(), "escapes the audit workspace"):
 		writeError(w, http.StatusBadRequest, "path_escape", err.Error())
 	default:
@@ -353,16 +355,27 @@ func (s *Server) handleCreateAudit(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Package string `json:"package"`
 		Version string `json:"version"`
+		// Path is a project folder on this computer. When it is set the
+		// audit inspects that folder instead of a published package.
+		Path string `json:"path"`
 	}
 	if !decodeBody(w, r, &req) {
 		return
 	}
-	if strings.TrimSpace(req.Package) == "" {
-		writeError(w, http.StatusBadRequest, "bad_request", "package is required")
+
+	var (
+		a   *model.Audit
+		err error
+	)
+	switch {
+	case strings.TrimSpace(req.Path) != "":
+		a, err = s.manager.CreateLocal(r.Context(), req.Path)
+	case strings.TrimSpace(req.Package) != "":
+		a, err = s.manager.Create(r.Context(), req.Package, req.Version)
+	default:
+		writeError(w, http.StatusBadRequest, "bad_request", "package or path is required")
 		return
 	}
-
-	a, err := s.manager.Create(r.Context(), req.Package, req.Version)
 	if err != nil {
 		fail(w, err)
 		return

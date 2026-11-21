@@ -4,8 +4,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tlmcguire/aisai/internal/audit"
 	"github.com/tlmcguire/aisai/internal/config"
@@ -91,6 +95,67 @@ func TestCreateAuditRequiresPackage(t *testing.T) {
 	e, _ := body["error"].(map[string]any)
 	if e["code"] != "bad_request" {
 		t.Errorf("error code = %v, want bad_request", e["code"])
+	}
+}
+
+func TestCreateAuditRejectsABadFolder(t *testing.T) {
+	_, h := newTestServer(t)
+	for name, path := range map[string]string{
+		"relative": "some/relative/dir",
+		"missing":  filepath.Join(t.TempDir(), "does-not-exist"),
+	} {
+		rec, body := do(t, h, http.MethodPost, "/api/audits", `{"path":`+strconv.Quote(path)+`}`)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: status = %d, want 400", name, rec.Code)
+			continue
+		}
+		e, _ := body["error"].(map[string]any)
+		if e["code"] != "bad_request" {
+			t.Errorf("%s: error code = %v, want bad_request", name, e["code"])
+		}
+	}
+}
+
+func TestCreateAuditFromAFolder(t *testing.T) {
+	_, h := newTestServer(t)
+	project := filepath.Join(t.TempDir(), "demo-app")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, src := range map[string]string{
+		"app.py":  "import subprocess\nsubprocess.run(cmd, shell=True)\n",
+		"main.go": "package main\n\nfunc main() {}\n",
+	} {
+		if err := os.WriteFile(filepath.Join(project, name), []byte(src), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	rec, body := do(t, h, http.MethodPost, "/api/audits", `{"path":`+strconv.Quote(project)+`}`)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202 (%s)", rec.Code, rec.Body.String())
+	}
+	a, _ := body["audit"].(map[string]any)
+	id, _ := a["id"].(string)
+	if a["package"] != "demo-app" || a["source"] != "local" {
+		t.Fatalf("audit = %v, want package demo-app and source local", a)
+	}
+
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		_, got := do(t, h, http.MethodGet, "/api/audits/"+id, "")
+		cur, _ := got["audit"].(map[string]any)
+		status, _ := cur["status"].(string)
+		if status == "ready" {
+			if files, _ := cur["fileCount"].(float64); files != 2 {
+				t.Fatalf("fileCount = %v, want 2", cur["fileCount"])
+			}
+			break
+		}
+		if status == "failed" || time.Now().After(deadline) {
+			t.Fatalf("audit did not become ready: %v", cur)
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 

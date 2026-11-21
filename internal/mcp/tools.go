@@ -168,13 +168,15 @@ func RegisterTools(s *Server, t *Toolset) {
 
 	s.Register(Tool{
 		Name: "scan_package",
-		Description: "Resolve, download and index a Python package so that its source can be audited, and return the audit id. " +
-			"This is the first step of every audit: it never installs the package and never runs its setup code, it only downloads the source distribution into an isolated workspace. " +
+		Description: "Prepare the source of a project for audit and return the audit id. Give either a PyPI package name or the path of a project folder on this computer. " +
+			"This is the first step of every audit: a package is never installed and its setup code never runs, its source distribution is only downloaded into an isolated workspace; a folder is copied into the workspace and the original is never modified. " +
+			"Source files in Python, JavaScript, TypeScript, Go, Rust, Java, C#, Ruby and C are indexed. " +
 			"The returned audit id becomes the current audit, so later tools can be called without repeating it.",
 		InputSchema: ObjectSchema(map[string]any{
 			"package": StringProp("The PyPI package name to audit, e.g. \"requests\"."),
-			"version": StringProp("Optional version to audit, e.g. \"2.31.0\". Defaults to the latest release."),
-		}, "package"),
+			"version": StringProp("Optional version to audit, e.g. \"2.31.0\". Defaults to the latest release. Ignored with path."),
+			"path":    StringProp("Absolute path of a project folder to audit instead of a package, e.g. \"/Users/me/projects/app\"."),
+		}),
 		Handler: t.scanPackage,
 	})
 
@@ -213,10 +215,10 @@ func RegisterTools(s *Server, t *Toolset) {
 
 	s.Register(Tool{
 		Name: "get_ast",
-		Description: "Return the syntax tree of one Python file of the audited package: node types, line numbers and enclosing scopes. " +
+		Description: "Return the syntax tree of one source file of the audited package: node types, line numbers and enclosing scopes. " +
 			"Use this to understand the structure of a file and how functions and calls relate, without pulling the whole source into the context.",
 		InputSchema: ObjectSchema(map[string]any{
-			"path":     StringProp("Workspace-relative path of the Python file."),
+			"path":     StringProp("Workspace-relative path of the source file."),
 			"audit_id": StringProp("The audit to read from. Defaults to the current audit."),
 		}, "path"),
 		Handler: t.getAST,
@@ -334,15 +336,25 @@ func RegisterTools(s *Server, t *Toolset) {
 // current audit.
 func (t *Toolset) scanPackage(ctx context.Context, args map[string]any) (string, error) {
 	pkg := strings.TrimSpace(ArgString(args, "package"))
-	if pkg == "" {
-		return "", errors.New("scan_package requires a package name")
+	folder := strings.TrimSpace(ArgString(args, "path"))
+	if pkg == "" && folder == "" {
+		return "", errors.New("scan_package requires a package name or a folder path")
 	}
 	pkgVersion := strings.TrimSpace(ArgString(args, "version"))
 	if t.manager == nil {
 		return "", errors.New("no audit manager configured")
 	}
 
-	a, err := t.manager.Create(ctx, pkg, pkgVersion)
+	var (
+		a   *model.Audit
+		err error
+	)
+	if folder != "" {
+		a, err = t.manager.CreateLocal(ctx, folder)
+		pkg = folder
+	} else {
+		a, err = t.manager.Create(ctx, pkg, pkgVersion)
+	}
 	if err != nil {
 		return "", fmt.Errorf("create audit: %w", err)
 	}

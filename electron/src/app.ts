@@ -152,13 +152,34 @@ export class AppController {
 
   /** Start a new audit for a package. */
   async startAudit(packageName: string, version: string): Promise<void> {
+    const body: Record<string, string> = { package: packageName };
+    if (version) body.version = version;
+    await this.beginAudit(packageName, body);
+  }
+
+  /** Start a new audit for a project folder the user chose. */
+  async startFolderAudit(folder: string): Promise<void> {
+    const name = folder.split(/[\\/]/).filter(Boolean).pop() ?? folder;
+    await this.beginAudit(name, { path: folder });
+  }
+
+  /** Open the native folder dialog and audit the folder the user picks. */
+  async chooseFolder(): Promise<void> {
+    try {
+      const folder = await window.aisai.chooseFolder();
+      if (folder) await this.startFolderAudit(folder);
+    } catch (err) {
+      useAuditStore.getState().setError(messageOf(err));
+    }
+  }
+
+  /** Create an audit from a request body and follow it. */
+  private async beginAudit(label: string, body: Record<string, string>): Promise<void> {
     const auditStore = useAuditStore.getState();
     auditStore.setError(null);
     auditStore.setBusy('audit');
-    auditStore.setProgress('queued', 0, `Starting the audit of ${packageName}`);
+    auditStore.setProgress('queued', 0, `Starting the audit of ${label}`);
     try {
-      const body: Record<string, string> = { package: packageName };
-      if (version) body.version = version;
       const response = await this.client.request<AuditResponse>('POST', '/api/audits', body);
       auditStore.setCurrent(response.audit);
       this.auditId = response.audit?.id ?? this.auditId;

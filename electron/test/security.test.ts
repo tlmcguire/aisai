@@ -12,7 +12,7 @@
  *   - an IPC path allowlist that only lets the renderer reach the API
  *     prefixes the app needs, and that refuses a path containing "..";
  *   - a preload that exposes exactly one object, `window.aisai`, with the
- *     seven documented members.
+ *     nine documented members.
  *
  * The values live inside `createWindow()` in electron/main.ts and inside the
  * module scope of electron/preload.ts, and the main process imports
@@ -36,8 +36,10 @@ import preloadSource from '../preload.ts?raw';
 
 /** The members of the bridge the threat model documents. */
 const EXPECTED_BRIDGE_MEMBERS = [
+  'chooseFolder',
   'connectEvents',
   'disconnect',
+  'folderFromDrop',
   'getMode',
   'getStatus',
   'http',

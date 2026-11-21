@@ -12,11 +12,12 @@
 import path from 'node:path';
 import { writeFile } from 'node:fs/promises';
 
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, type OpenDialogOptions } from 'electron';
 import { autoUpdater } from 'electron-updater';
 
 import type { BackendStatus, ClientMessage, HttpMethod, HttpResponse } from './src/api/bridge';
 import type { Event } from './src/api/types';
+import { FolderApprovals } from './src/main-process/folders';
 import { backendRequest } from './src/main-process/http';
 import { defaultSocketPath, findSidecar } from './src/main-process/paths';
 import { startSidecar, type SidecarHandle } from './src/main-process/sidecar';
@@ -27,6 +28,9 @@ const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 let mainWindow: BrowserWindow | null = null;
 let sidecar: SidecarHandle | null = null;
 let wsClient: WsClient | null = null;
+
+/** The project folders the user picked. Only these can be audited. */
+const folders = new FolderApprovals();
 
 /** Where the backend is reachable. Never handed to the renderer. */
 let backendAddress: { socketPath?: string; host?: string; port?: number } | null = null;
@@ -364,6 +368,18 @@ function registerIpc(): void {
       } satisfies HttpResponse;
     }
 
+    const refusal = folders.check(method, apiPath, body);
+    if (refusal) {
+      console.error('[aisai]', refusal);
+      return {
+        status: 403,
+        ok: false,
+        body: { error: { code: 'forbidden', message: refusal } },
+        errorCode: 'forbidden',
+        errorMessage: refusal,
+      } satisfies HttpResponse;
+    }
+
     if (!backendAddress) {
       const error: HttpResponse = {
         status: 503,
@@ -422,6 +438,22 @@ function registerIpc(): void {
       } satisfies HttpResponse;
     }
   });
+
+  ipcMain.handle('aisai:folder:choose', async () => {
+    const options: OpenDialogOptions = {
+      title: 'Choose a project folder to inspect',
+      buttonLabel: 'Inspect',
+      properties: ['openDirectory'],
+    };
+    const result =
+      mainWindow && !mainWindow.isDestroyed()
+        ? await dialog.showOpenDialog(mainWindow, options)
+        : await dialog.showOpenDialog(options);
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return folders.approve(result.filePaths[0]);
+  });
+
+  ipcMain.handle('aisai:folder:approve', (_event, folder: unknown) => folders.approve(folder));
 
   ipcMain.handle('aisai:disconnect', () => {
     wsClient?.close();

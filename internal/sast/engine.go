@@ -31,12 +31,22 @@ func (e *Engine) Rules() []Rule {
 
 // Scan evaluates all rules over the given files and returns the findings.
 //
-// The result is deterministic: findings are sorted by file, then by start
-// line, then by rule identifier. Files that are nil are skipped.
+// Python files are checked by the syntax-tree rules, files in every other
+// supported language by the pattern rules. The result is deterministic:
+// findings are sorted by file, then by start line, then by rule identifier.
+// Files that are nil are skipped.
 func (e *Engine) Scan(files []*ast.File) []model.Finding {
 	var findings []model.Finding
 	for _, f := range files {
 		if f == nil {
+			continue
+		}
+		// The Python rules read the Python grammar. A file in another
+		// language goes through the pattern rules instead; running the
+		// Python rules over it would match node kinds that happen to share
+		// a name with Python's, such as Ruby's "call".
+		if lang := f.LanguageDef(); lang != nil && lang.ID != ast.LanguagePython {
+			findings = append(findings, scanPatterns(f)...)
 			continue
 		}
 		sc := newScanner(f)

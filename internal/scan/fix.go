@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/tlmcguire/aisai/internal/ast"
 	"github.com/tlmcguire/aisai/internal/llm"
 	"github.com/tlmcguire/aisai/internal/model"
 )
@@ -58,7 +59,7 @@ func ProposeFix(ctx context.Context, provider llm.Provider, modelName string, nu
 
 	completion, err := provider.Complete(ctx, llm.CompletionRequest{
 		Model:  modelName,
-		System: FixSystemPrompt(),
+		System: FixSystemPromptFor(languageOfFile(f.File)),
 		User:   FixUserPrompt(f, content),
 		Schema: FixSchema,
 		NumCtx: numCtx,
@@ -96,13 +97,34 @@ func ProposeFix(ctx context.Context, provider llm.Provider, modelName string, nu
 	return out, nil
 }
 
-// FixSystemPrompt is the system prompt used for remediation requests.
+// languageOfFile returns the identifier of the language of a file, judged by
+// its extension. It is "python" when the extension is not a known one.
+func languageOfFile(path string) string {
+	if lang := ast.LanguageForPath(path); lang != nil {
+		return lang.ID
+	}
+	return "python"
+}
+
+// FixSystemPrompt is the system prompt used for remediation requests on
+// Python code.
+func FixSystemPrompt() string {
+	return FixSystemPromptFor("python")
+}
+
+// FixSystemPromptFor is the system prompt used for remediation requests on
+// code in the given language.
 //
 // The emphasis on a *minimal* change is deliberate. A fix that rewrites more
 // than it has to is a fix nobody can review, and a rewrite of a security
 // function is a fix that probably breaks it.
-func FixSystemPrompt() string {
-	return "You are a security engineer fixing a vulnerability in a Python package. " +
+func FixSystemPromptFor(language string) string {
+	subject := "a Python package"
+	if !isPythonID(language) {
+		name, _ := promptLanguage(language)
+		subject = "a " + name + " project"
+	}
+	return "You are a security engineer fixing a vulnerability in " + subject + ". " +
 		"Produce a minimal unified diff that removes the vulnerability without changing the public behaviour of the code. " +
 		"The diff must apply to the file exactly as shown: keep the context lines byte-for-byte and use the real line numbers of the file. " +
 		"Return an empty patch if no safe fix is possible; never invent a fix that breaks the code."

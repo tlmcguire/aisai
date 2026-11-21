@@ -247,8 +247,21 @@ understands **Python, JavaScript, TypeScript, TSX, Go, Rust, Java, C#, Ruby
 and C**. The syntax tree, the semantic chunks and the retrieval index are
 built for all of them, and the code view names the language of the file.
 
-The static rules are still Python-only: a JavaScript or Go file is read,
-chunked and indexed, but it does not produce SAST findings yet.
+Python has the full rule set, with taint and scope tracking. The other
+languages get pattern rules for the common sinks: command execution, code
+evaluation, unsafe deserialization, weak hashes and ciphers, SQL built by
+string concatenation, disabled TLS verification, XSS sinks, unsafe C
+functions, format strings and hardcoded secrets. These rules are heuristic
+and do not follow data flow.
+
+### Inspecting a local project
+
+Use **Open folder...** in the toolbar (Ctrl/Cmd+O), or drop a folder on the
+window. The folder is copied into the sandbox and the copy is audited, so the
+original is never changed. Hidden folders, dependency folders (`node_modules`,
+`venv`, `vendor` and similar), symlinks and files over 2 MiB are skipped. Over
+the API, send `POST /api/audits` with `{"path": "/abs/dir"}`. Over MCP, call
+`scan_package` with `path`.
 
 ### The sandbox
 
@@ -307,9 +320,9 @@ These are the properties the rewrite treats as non-negotiable.
   transitive dependencies.
 - **No reachability analysis yet.** Findings are reported per file and line
   but are not yet traced from an untrusted entry point.
-- **The static rules are Python-only.** Files in the other supported
-  languages are read, parsed, chunked and indexed, but they do not produce
-  SAST findings yet. The rules are written against the Python grammar.
+- **Rules outside Python are pattern-based.** Python has taint and scope
+  tracking. The other languages use call and line patterns, so they miss
+  flows across functions and can flag safe code.
 - **Fully offline operation is not complete.** The advisory database and the
   model can both be local, but dependency resolution still uses deps.dev and
   package downloads still use PyPI. A local mirror of both is not

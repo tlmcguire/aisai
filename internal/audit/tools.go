@@ -24,14 +24,14 @@ func ToolDefinitions() []llm.Tool {
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"path": map[string]any{"type": "string", "description": "Workspace-relative path, e.g. src/auth.py"},
+					"path": map[string]any{"type": "string", "description": "Workspace-relative path, e.g. src/auth.py or src/auth.go"},
 				},
 				"required": []string{"path"},
 			},
 		},
 		{
 			Name:        "get_ast",
-			Description: "Return the syntax tree of a Python file: node types, line numbers and enclosing scopes. Use this to understand structure and call relationships.",
+			Description: "Return the syntax tree of a source file: node types, line numbers and enclosing scopes. Use this to understand structure and call relationships.",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

@@ -50,6 +50,12 @@ func (m *Manager) FetchAdvisories(ctx context.Context, id string, refresh bool) 
 	if err != nil {
 		return nil, err
 	}
+	// A local project is not a published package: the advisory source would
+	// look its folder name up as a package name and report the advisories of
+	// an unrelated project.
+	if a.source == sourceLocal {
+		return []model.Advisory{}, nil
+	}
 	if m.deps.Advisory == nil {
 		return nil, ErrNoAdvisorySource
 	}

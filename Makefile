@@ -265,3 +265,16 @@ clean-workspace: ## Remove the local audit workspace.
 
 .PHONY: all
 all: check lint build test-electron ## Everything CI would run.
+
+# Pause or resume the GitHub Actions workflows (needs an authenticated gh).
+.PHONY: ci-pause
+ci-pause: ## Disable all CI workflows to stop using runner minutes
+	gh workflow disable ci.yml
+	gh workflow disable bench-nightly.yml
+	gh workflow disable release.yml
+
+.PHONY: ci-resume
+ci-resume: ## Re-enable the CI workflows
+	gh workflow enable ci.yml
+	gh workflow enable bench-nightly.yml
+	gh workflow enable release.yml
