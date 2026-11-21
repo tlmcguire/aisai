@@ -129,8 +129,10 @@ go run ./cmd/aisai-sbom --both --out-dir ./sbom
   only, and says so on stderr.
 
 The SBOM is built and uploaded as an artifact on every push (the `sbom` job
-in `ci.yml`) and is attached to every release (the `sbom` job in
-`release.yml`).
+in `ci.yml`) and is attached to every release. The release pipeline
+writes one per platform, from the binary that platform ships, and
+publishes them all; the file names carry the platform, because the
+release holds more than one of them.
 
 ---
 
@@ -214,11 +216,30 @@ toolchain is installed and verified per platform:
 Each leg runs `go build ./...`, `go vet ./...` and `go test ./...`, and
 builds the four binaries.
 
-**Not verified locally:** only the macOS/arm64 leg could be run here. The
-Windows and the Linux/arm64 legs have never been executed, and the Windows
-leg in particular is the one most likely to need a fix (the `syscall` and
-`os.Getuid` calls in `cmd/aisai-server` compile on Windows, but that has
-not been checked by a compiler).
+**Not verified locally:** only the macOS/arm64 leg could be run on this
+machine. The other three legs run on the CI runners, where the Windows leg
+is the one that exercises the `syscall` and `os.Getuid` calls in
+`cmd/aisai-server` against a Windows compiler.
+
+### The sidecar of a release build
+
+The release pipeline does not reuse the binaries of the CI matrix. Every
+release job builds the sidecar for its own platform, because the
+tree-sitter grammars are C and the backend is built with cgo: a binary
+built on one platform does not run on another.
+
+| Platform | The sidecar |
+|---|---|
+| macOS | both architectures are built and joined into one universal binary with `lipo`, because the app bundle carries a single sidecar |
+| Linux | built natively on the runner of the same architecture |
+| Windows | built natively with MinGW-w64, and named `aisai-server.exe` |
+
+The macOS job builds the x86_64 slice on the arm64 runner. A cgo build
+cannot be cross-compiled from a Linux runner, but it can be cross-compiled
+between the two macOS architectures: the Go toolchain drives the Xcode
+compiler with the right `-arch` flag. This was checked on this machine,
+and the universal binary that comes out of `lipo` is accepted by the SBOM
+tool.
 
 ---
 
@@ -284,6 +305,57 @@ static leg is the one that is deterministic, so it is the one that gates.
 | macOS | `dmg` and `zip`, `x64` and `arm64` | `CSC_LINK` + `CSC_KEY_PASSWORD`, notarised with `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`; `hardenedRuntime: true` |
 | Windows | `nsis` and `zip`, `x64` | `WIN_CSC_LINK` + `WIN_CSC_KEY_PASSWORD`; `WINDOWS_PUBLISHER_NAME` is the name the updater verifies against |
 | Linux | `AppImage` and `deb`, `x64` and `arm64` | not signed (the Linux artifacts are not in the signed update feed) |
+
+### The sidecar, and where the app looks for it
+
+The Go backend is shipped inside the app as a sidecar. It has to be a
+binary of the platform the app runs on, which is why every release job
+builds its own (see section 5).
+
+The sidecar is copied into the resources of the app, next to the asar
+archive and not inside it:
+
+```json
+"extraResources": [
+  { "from": "build/sidecar", "to": ".", "filter": ["**/*"] }
+]
+```
+
+`"to": "."` matters. With a directory as the destination, electron-builder
+copies the *contents* of `build/sidecar` into a directory named
+`aisai-server`, and the binary ends up at
+`Resources/aisai-server/aisai-server`. The app looks for
+`Resources/aisai-server`, so it never finds it, and the app starts in
+mock mode with no backend.
+
+The binary is also excluded from the asar archive
+(`"!dist/main/aisai-server"` in `files`): `npm run build` copies the
+binary next to the compiled main process, which is convenient while
+developing, but a binary inside an asar cannot be executed, and it would
+double the size of the download.
+
+`electron/src/main-process/sidecar-paths.ts` holds the order in which the
+app looks for the sidecar, and it offers both names — `aisai-server` and
+`aisai-server.exe` — at every place, because the platform is not known
+when the list is built.
+
+### The names of the artifacts
+
+`artifactName` in the electron-builder configuration is
+`${productName}-${version}-${os}-${arch}.${ext}`, so every artifact of
+the release carries its platform and its architecture:
+
+```
+AISAI-0.1.0-mac-x64.dmg       AISAI-0.1.0-linux-x64.AppImage
+AISAI-0.1.0-mac-arm64.dmg     AISAI-0.1.0-linux-arm64.AppImage
+AISAI-0.1.0-mac-x64.zip       AISAI-0.1.0-linux-arm64.deb
+AISAI-0.1.0-win-x64.exe       AISAI-0.1.0-win-x64.zip
+```
+
+The names have to be unique, because the release job merges the artifacts
+of every platform into one directory. The two Linux jobs would also write
+the same update metadata file, so it is renamed to
+`latest-linux-amd64.yml` and `latest-linux-arm64.yml`.
 
 ### Signed and unsigned releases
 
@@ -466,8 +538,10 @@ Updating it is the job of whoever owns that document.
   supports it; the command has to be wired (section 2).
 * **The Electron version and the Go version are not checked against each
   other** by the pipeline (section 2).
-* **The build matrix has only been run on macOS/arm64.** The Windows and
-  Linux/arm64 legs are configured but have never executed (section 5).
+* **The release pipeline has not been run yet.** Everything in it was
+  checked on this machine — the packaging, the universal macOS sidecar, the
+  SBOM of a universal binary — but the pipeline itself has never published
+  a release.
 * **The nightly job does not run the LLM leg** (section 6).
 * **The Makefile was not touched.** The targets that have to be added are
   listed in section 2 and in section 11.

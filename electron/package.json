@@ -59,17 +59,20 @@
     },
     "files": [
       "dist/**/*",
+      "!dist/main/aisai-server",
+      "!dist/main/aisai-server.exe",
       "package.json"
     ],
     "extraResources": [
       {
         "from": "build/sidecar",
-        "to": "aisai-server",
+        "to": ".",
         "filter": [
           "**/*"
         ]
       }
     ],
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "mac": {
       "target": [
         {

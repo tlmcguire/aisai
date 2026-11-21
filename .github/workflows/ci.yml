@@ -120,9 +120,12 @@ jobs:
   # Every leg builds and tests natively: there is no cross-compilation, so
   # cgo always finds a C compiler for the target architecture.
   #
-  # There is no macOS/amd64 leg: GitHub retired the Intel macOS runners,
-  # and a cross-compiled cgo build is not possible. The release pipeline
-  # still produces the macOS x64 package, from the arm64 runner.
+  # There is no macOS/amd64 leg: GitHub retired the Intel macOS runners.
+  # A cgo build cannot be cross-compiled from a Linux runner, but it can be
+  # cross-compiled between the two macOS architectures: the Go toolchain
+  # drives the Xcode compiler with the right -arch flag. The release
+  # pipeline therefore builds the macOS x64 package from the arm64 runner,
+  # and joins the two binaries into one universal one.
   # ---------------------------------------------------------------------
   build-matrix:
     name: Build (${{ matrix.os }}, ${{ matrix.arch }})

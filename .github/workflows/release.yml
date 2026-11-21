@@ -2,9 +2,14 @@ name: Release
 
 # The release pipeline.
 #
-# It builds the desktop app for every supported platform, signs and
-# notarises it when the signing credentials are available, writes the SBOM
-# of the build and publishes the artifacts to the GitHub release.
+# It builds the desktop app for every supported platform and publishes the
+# artifacts to the GitHub release.
+#
+# Every platform builds its own sidecar. The Go backend needs cgo, because
+# the tree-sitter grammars are C, and a binary built on one platform does
+# not run on another. The macOS job builds both architectures and joins
+# them into one universal binary, because the app bundle carries a single
+# sidecar.
 #
 # A release is signed when it is started by hand with the signed option,
 # and unsigned otherwise. The signing identities do not exist in this
@@ -33,13 +38,16 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------
-  # The Go backend is built once and handed to every desktop build.
+  # The Go backend that is published on its own, for the command line and
+  # for the MCP server. The version is read here and handed to every other
+  # job.
   # ---------------------------------------------------------------------
   backend:
-    name: Go backend
+    name: Go backend (Linux)
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      signed: ${{ steps.version.outputs.signed }}
     steps:
       - uses: actions/checkout@v7
 
@@ -57,14 +65,18 @@ jobs:
         id: version
         run: |
           version="${GITHUB_REF_NAME#v}"
+          signed=false
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             version="${{ github.event.inputs.version }}"
+            signed=${{ inputs.signed }}
           fi
           version="${version#v}"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "signed=${signed}" >> "$GITHUB_OUTPUT"
 
-      - name: Build the backend with the stamped version
+      - name: Build the backend
         run: |
+          set -euo pipefail
           mkdir -p dist/backend
           for cmd in aisai-server aisai-mcp aisai-bench aisai-sbom; do
             go build \
@@ -75,21 +87,11 @@ jobs:
           done
           ls -l dist/backend
 
-      - name: Write the SBOM of the release build
-        run: |
-          go run ./cmd/aisai-sbom \
-            --binary dist/backend/aisai-server \
-            --app-version "${{ steps.version.outputs.version }}" \
-            --app-commit "${GITHUB_SHA}" \
-            --both --out-dir dist/sbom
-
-      - name: Upload the backend and the SBOM
+      - name: Upload the backend
         uses: actions/upload-artifact@v7
         with:
-          name: backend
-          path: |
-            dist/backend
-            dist/sbom
+          name: backend-linux-amd64
+          path: dist/backend
           if-no-files-found: error
 
   # ---------------------------------------------------------------------
@@ -102,7 +104,7 @@ jobs:
   # writes a single update metadata file (latest-mac.yml) for macOS, and
   # two jobs building the two architectures would overwrite each other's
   # copy of it. Linux does not have that problem — its metadata file
-  # carries the architecture in its name — and it has to be split anyway,
+  # carries the architecture in the name — and it has to be split anyway,
   # because an arm64 AppImage cannot be built on an x64 runner.
   # ---------------------------------------------------------------------
   desktop:
@@ -117,23 +119,32 @@ jobs:
             os: macos-latest
             target: --mac
             archs: --x64 --arm64
+            sidecar: aisai-server
           - platform: linux-amd64
             os: ubuntu-latest
             target: --linux
             archs: --x64
+            sidecar: aisai-server
           - platform: linux-arm64
             os: ubuntu-24.04-arm
             target: --linux
             archs: --arm64
+            sidecar: aisai-server
           - platform: windows-amd64
             os: windows-latest
             target: --win
             archs: --x64
+            sidecar: aisai-server.exe
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
 
       - uses: actions/setup-node@v7
         with:
@@ -144,11 +155,107 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefix electron
 
-      - name: Download the Go backend
-        uses: actions/download-artifact@v8
-        with:
-          name: backend
-          path: electron/build/sidecar
+      - name: Stamp the build
+        id: stamp
+        run: |
+          set -euo pipefail
+          echo "ldflags=-X github.com/tlmcguire/aisai/internal/version.Version=${{ needs.backend.outputs.version }} -X github.com/tlmcguire/aisai/internal/version.Commit=${GITHUB_SHA} -X github.com/tlmcguire/aisai/internal/version.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      # The tree-sitter grammars are C, so the backend is built with cgo
+      # and needs a C compiler for its own architecture. The runner image
+      # ships one for Linux (gcc) and macOS (the Xcode command line tools);
+      # Windows needs MinGW-w64.
+      - name: Install the C toolchain
+        run: |
+          set -euo pipefail
+          case "${{ matrix.platform }}" in
+            linux-*)
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends build-essential
+              ;;
+            macos)
+              # The Xcode command line tools provide the compiler. They are
+              # preinstalled on the runner image.
+              if ! xcode-select -p >/dev/null 2>&1; then
+                sudo xcode-select --install || true
+              fi
+              ;;
+            windows-*)
+              # MinGW-w64 provides the gcc that cgo drives on Windows. The
+              # install is a no-op when the image already has it, and it
+              # reports that with a status code that is not an error.
+              choco install mingw --yes --no-progress || true
+              echo "C:\\mingw64\\bin" >> "$GITHUB_PATH"
+              echo "CC=gcc" >> "$GITHUB_ENV"
+              ;;
+          esac
+
+      - name: Verify the C toolchain
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.platform }}" = "windows-amd64" ]; then
+            gcc --version
+          elif [ "${{ matrix.platform }}" = "macos" ]; then
+            xcode-select -p
+            cc --version
+          else
+            gcc --version
+          fi
+
+      - name: Build the macOS sidecar
+        if: matrix.platform == 'macos'
+        env:
+          GOOS: darwin
+        run: |
+          set -euo pipefail
+          mkdir -p electron/build/sidecar electron/build/tmp
+          # Both architectures are built and joined into one universal
+          # binary, because the app bundle carries a single sidecar.
+          for arch in amd64 arm64; do
+            CGO_ENABLED=1 GOARCH="$arch" go build \
+              -ldflags "${{ steps.stamp.outputs.ldflags }}" \
+              -o "electron/build/tmp/aisai-server-$arch" ./cmd/aisai-server
+          done
+          lipo -create -output electron/build/sidecar/aisai-server \
+            electron/build/tmp/aisai-server-amd64 \
+            electron/build/tmp/aisai-server-arm64
+          lipo -info electron/build/sidecar/aisai-server
+
+      - name: Build the Linux sidecar
+        if: startsWith(matrix.platform, 'linux-')
+        run: |
+          set -euo pipefail
+          mkdir -p electron/build/sidecar
+          CGO_ENABLED=1 go build \
+            -ldflags "${{ steps.stamp.outputs.ldflags }}" \
+            -o electron/build/sidecar/aisai-server ./cmd/aisai-server
+
+      - name: Build the Windows sidecar
+        if: matrix.platform == 'windows-amd64'
+        run: |
+          set -euo pipefail
+          mkdir -p electron/build/sidecar
+          CGO_ENABLED=1 go build \
+            -ldflags "${{ steps.stamp.outputs.ldflags }}" \
+            -o electron/build/sidecar/aisai-server.exe ./cmd/aisai-server
+
+      - name: Write the SBOM of this build
+        run: |
+          set -euo pipefail
+          mkdir -p electron/sbom
+          go run ./cmd/aisai-sbom \
+            --binary "electron/build/sidecar/${{ matrix.sidecar }}" \
+            --app-version "${{ needs.backend.outputs.version }}" \
+            --app-commit "${GITHUB_SHA}" \
+            --both --out-dir electron/sbom
+          # The names are prefixed with the platform, because the release
+          # holds the SBOM of every platform.
+          cd electron/sbom
+          for file in *.json; do
+            [ -e "$file" ] || continue
+            mv "$file" "${{ matrix.platform }}-$file"
+          done
+          ls -l
 
       # A signed release needs every credential the target needs. An
       # unsigned release needs none, so it is published as it is.
@@ -229,6 +336,19 @@ jobs:
             node .github/run-builder.mjs ${{ matrix.target }} ${{ matrix.archs }} --release --unsigned
           fi
 
+      # The two Linux jobs would write the same update metadata file, and
+      # the merge would keep only one of them. The file names carry the
+      # platform instead.
+      - name: Give the update metadata a unique name
+        if: startsWith(matrix.platform, 'linux-')
+        run: |
+          set -euo pipefail
+          cd electron/release
+          for file in latest-linux*.yml; do
+            [ -e "$file" ] || continue
+            mv "$file" "latest-${{ matrix.platform }}.yml"
+          done
+
       - name: Upload the artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -236,50 +356,42 @@ jobs:
           path: electron/release/
           if-no-files-found: error
 
-  # ---------------------------------------------------------------------
-  # The SBOM is published with the release.
-  # ---------------------------------------------------------------------
-  sbom:
-    name: SBOM
-    needs: backend
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: backend
-          path: artifacts
-
       - name: Upload the SBOM
         uses: actions/upload-artifact@v7
         with:
-          name: sbom
-          path: artifacts/sbom/
+          name: sbom-${{ matrix.platform }}
+          path: electron/sbom/
           if-no-files-found: error
-
   # ---------------------------------------------------------------------
   # The release itself.
   # ---------------------------------------------------------------------
   publish:
     name: Publish the release
-    needs: [backend, desktop, sbom]
+    needs: [backend, desktop]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
-      - name: Download every artifact
+      - name: Download every desktop artifact
         uses: actions/download-artifact@v8
         with:
           path: artifacts
           pattern: desktop-*
           merge-multiple: true
 
-      - name: Download the SBOM
+      # The SBOM of every platform is kept in a directory of its own, so
+      # the files of the platforms do not overwrite each other.
+      - name: Download the SBOM of every platform
         uses: actions/download-artifact@v8
         with:
-          name: sbom
-          path: sbom
+          path: artifacts
+          pattern: sbom-*
+
+      - name: Download the server binaries
+        uses: actions/download-artifact@v8
+        with:
+          name: backend-linux-amd64
+          path: artifacts/server
 
       # The checksums are written once, over every artifact of every
       # platform. Writing them per platform would give them all the same
@@ -288,33 +400,66 @@ jobs:
         run: |
           set -euo pipefail
           cd artifacts
-          sha256sum * > SHA256SUMS.txt
-          cd ..
+          find . -type f ! -name 'SHA256SUMS.txt' | sed 's|^\./||' | sort | while IFS= read -r file; do
+            sha256sum "$file"
+          done > SHA256SUMS.txt
+          cat SHA256SUMS.txt
 
       - name: Write the release notes
+        env:
+          VERSION: ${{ needs.backend.outputs.version }}
+          SIGNED: ${{ needs.backend.outputs.signed }}
         run: |
           set -euo pipefail
           {
-            echo "## AISAI v${{ needs.backend.outputs.version }}"
+            echo "## AISAI v${VERSION}"
             echo
-            echo "The desktop app for Windows, macOS and Linux, with the SBOM of this build attached (CycloneDX 1.5 and SPDX 2.3)."
+            echo "The desktop app for Windows, macOS and Linux."
+            echo
+            if [ "${SIGNED}" = "true" ]; then
+              echo "The artifacts are signed and notarised."
+            else
+              echo "The artifacts are not signed, so macOS and Windows ask before they run them."
+            fi
+            echo
+            echo "### The app"
             echo
             echo "| File | Platform |"
             echo "|---|---|"
             for file in artifacts/*; do
               name="$(basename "${file}")"
               case "${name}" in
-                *.dmg) platform="macOS" ;;
-                *.exe) platform="Windows" ;;
-                *.AppImage|*.deb) platform="Linux" ;;
+                *-mac-*) platform="macOS" ;;
+                *-win-*) platform="Windows" ;;
+                *-linux-*) platform="Linux" ;;
                 *) continue ;;
               esac
               printf '| `%s` | %s |\n' "${name}" "${platform}"
             done
             echo
+            echo "### The server"
+            echo
+            echo "The Go backend for Linux, for the command line and for the MCP server:"
+            echo
+            for file in artifacts/server/*; do
+              name="$(basename "${file}")"
+              printf -- '- `%s`\n' "${name}"
+            done
+            echo
+            echo "### The SBOM"
+            echo
+            echo "The bill of materials of every platform (CycloneDX and SPDX):"
+            echo
+            for dir in artifacts/sbom-*; do
+              for file in "${dir}"/*; do
+                name="$(basename "${file}")"
+                printf -- '- `%s`\n' "${name}"
+              done
+            done
+            echo
             echo "### Checksums"
             echo
-            echo 'The `SHA256SUMS.txt` file holds the checksum of every artifact above.'
+            echo 'The `SHA256SUMS.txt` file holds the checksum of every file above.'
           } > release-notes.md
           cat release-notes.md
 
@@ -326,6 +471,5 @@ jobs:
           body_path: release-notes.md
           files: |
             artifacts/*
-            sbom/*
           fail_on_unmatched_files: true
           generate_release_notes: true
