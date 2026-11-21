@@ -19,6 +19,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PATH="/usr/local/go/bin:$PATH"
 
+# The JSON of the API is read with Python. The interpreter is resolved from
+# the PATH rather than hardcoded: /usr/local/bin/python3 is where the macOS
+# developer tools put it, and it does not exist on the Linux runners, where
+# the interpreter is /usr/bin/python3.
+PYTHON="$(command -v python3 || true)"
+if [[ -z "$PYTHON" ]]; then
+  echo "python3 is required by the smoke test" >&2
+  exit 1
+fi
+
 PKG="${1:-flask}"
 VERSION="${2:-2.0.0}"
 
@@ -72,7 +82,7 @@ api() {
 # jsonq <json> <python expression over `d`> [extra python argv...]
 jsonq() {
   local json="$1" expr="$2"; shift 2
-  printf '%s' "$json" | /usr/local/bin/python3 -c "
+  printf '%s' "$json" | "$PYTHON" -c "
 import sys, json
 d = json.load(sys.stdin)
 v = ($expr)
@@ -82,7 +92,7 @@ print(v if v is not None else '')
 
 # first_py_path <file-tree json> -> the first Python file in the tree
 first_py_path() {
-  printf '%s' "$1" | /usr/local/bin/python3 -c '
+  printf '%s' "$1" | "$PYTHON" -c '
 import sys, json
 d = json.load(sys.stdin)
 def walk(n):
@@ -100,7 +110,7 @@ print(walk(d.get("tree") or {}) or "")
 # make_diff <file-content json> <target path> -> a unified diff that adds one
 # comment line after the first non-blank line of the file.
 make_diff() {
-  printf '%s' "$1" | /usr/local/bin/python3 -c '
+  printf '%s' "$1" | "$PYTHON" -c '
 import sys, json
 d = json.load(sys.stdin)
 target = sys.argv[1]
@@ -246,7 +256,7 @@ if [[ -n "$TARGET" ]]; then
   if [[ -z "$DIFF" ]]; then
     bad "could not build a diff for $TARGET"
   else
-    APPLY="$(api POST "/api/audits/$AID/apply-patch" "$(/usr/local/bin/python3 -c '
+    APPLY="$(api POST "/api/audits/$AID/apply-patch" "$("$PYTHON" -c '
 import json,sys
 print(json.dumps({"path": sys.argv[1], "unified": sys.argv[2]}))
 ' "$TARGET" "$DIFF")")"
@@ -311,7 +321,7 @@ say "Event stream"
 # request and net/http cancels that context as soon as the handler returns.
 # The check below opens a real connection, waits, and then makes sure it is
 # still usable.
-WSSTATE="$(python3 - "$SOCKET" <<'PYEOF'
+WSSTATE="$("$PYTHON" - "$SOCKET" <<'PYEOF'
 import base64, os, socket, sys, time
 
 sock_path = sys.argv[1]

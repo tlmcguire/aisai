@@ -41,9 +41,9 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
           check-latest: true
@@ -84,7 +84,7 @@ jobs:
             --both --out-dir dist/sbom
 
       - name: Upload the backend and the SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend
           path: |
@@ -133,9 +133,9 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -145,7 +145,7 @@ jobs:
         run: npm ci --prefix electron
 
       - name: Download the Go backend
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: backend
           path: electron/build/sidecar
@@ -230,7 +230,7 @@ jobs:
           fi
 
       - name: Upload the artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ matrix.platform }}
           path: electron/release/
@@ -244,15 +244,15 @@ jobs:
     needs: backend
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: backend
           path: artifacts
 
       - name: Upload the SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom
           path: artifacts/sbom/
@@ -266,17 +266,17 @@ jobs:
     needs: [backend, desktop, sbom]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Download every artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           pattern: desktop-*
           merge-multiple: true
 
       - name: Download the SBOM
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: sbom
           path: sbom
