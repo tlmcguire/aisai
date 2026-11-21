@@ -350,11 +350,26 @@ jobs:
           fi
           ls -l latest-*.yml
 
+      # The output directory of electron-builder holds the unpacked
+      # application directories as well. They are build output, they are
+      # large, and they are not something to publish: only the
+      # distributables are collected.
+      - name: Collect the artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p electron/dist
+          cd electron/release
+          find . -maxdepth 1 -type f \
+            \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name '*.AppImage' \
+               -o -name '*.deb' -o -name '*.blockmap' -o -name 'latest*.yml' \) \
+            -exec mv {} ../dist/ \;
+          ls -l ../dist
+
       - name: Upload the artifacts
         uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ matrix.platform }}
-          path: electron/release/
+          path: electron/dist/
           if-no-files-found: error
 
       - name: Upload the SBOM
