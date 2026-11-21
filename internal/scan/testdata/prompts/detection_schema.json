@@ -1,0 +1,98 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "abstained": {
+      "description": "True when the code contains no genuine vulnerability worth reporting.",
+      "type": "boolean"
+    },
+    "findings": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "code_snippet": {
+            "description": "The offending source lines, verbatim.",
+            "type": "string"
+          },
+          "confidence": {
+            "description": "Your confidence that this is a real, exploitable issue. Use a low value if you are unsure.",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "cwe_id": {
+            "description": "The CWE identifier, e.g. CWE-798. Use the most specific CWE that applies.",
+            "type": "string"
+          },
+          "end_line": {
+            "description": "1-based line where the problem ends.",
+            "type": "integer"
+          },
+          "evidence": {
+            "properties": {
+              "flow": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "sink": {
+                "description": "Where untrusted data is used dangerously.",
+                "type": "string"
+              },
+              "source": {
+                "description": "Where untrusted data enters.",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "message": {
+            "description": "One sentence describing the vulnerability.",
+            "type": "string"
+          },
+          "patch_unified": {
+            "description": "A unified diff that fixes the issue. Empty string if you cannot produce a safe patch.",
+            "type": "string"
+          },
+          "remediation": {
+            "description": "How to fix it, in one or two sentences.",
+            "type": "string"
+          },
+          "severity": {
+            "description": "How serious the issue is if exploited.",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ],
+            "type": "string"
+          },
+          "start_line": {
+            "description": "1-based line where the problem starts.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cwe_id",
+          "severity",
+          "confidence",
+          "start_line",
+          "end_line",
+          "code_snippet",
+          "message",
+          "evidence",
+          "remediation",
+          "patch_unified"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "abstained",
+    "findings"
+  ],
+  "type": "object"
+}

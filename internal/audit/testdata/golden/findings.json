@@ -1,0 +1,37 @@
+{
+  "policy": "low",
+  "findings": [
+    {
+      "rule": "subprocess-shell-true",
+      "cwe": "CWE-78",
+      "path": "pkg/cmd_shell.py",
+      "line": 9,
+      "severity": "high",
+      "message": "subprocess call with shell=True allows shell command injection"
+    },
+    {
+      "rule": "weak-hash-md5-sha1",
+      "cwe": "CWE-327",
+      "path": "pkg/crypto_weak.py",
+      "line": 9,
+      "severity": "medium",
+      "message": "weak hash algorithm hashlib.md5 is used where a strong algorithm is required"
+    },
+    {
+      "rule": "pickle-yaml-unsafe-load",
+      "cwe": "CWE-502",
+      "path": "pkg/deserialization.py",
+      "line": 9,
+      "severity": "high",
+      "message": "unsafe YAML load without SafeLoader can construct arbitrary objects"
+    },
+    {
+      "rule": "assert-used-for-validation",
+      "cwe": "CWE-617",
+      "path": "pkg/validation_assert.py",
+      "line": 13,
+      "severity": "low",
+      "message": "assert is used to validate request input and is removed under python -O"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+Analyse the following Python code for security vulnerabilities.
+
+Location: mod.run
+File: pkgs/somepkg-1.0/mod.py (lines 10-14)
+
+```python
+def run(cmd):
+    os.system(cmd)
+    return cmd
+
+```
+
+Report only genuine, exploitable vulnerabilities with a CWE, a severity, a confidence, the exact line numbers within the snippet above, and a patch.

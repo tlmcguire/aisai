@@ -1,0 +1,14 @@
+File: pkgs/somepkg-1.0/mod.py
+CWE: CWE-78
+Severity: high
+Finding: Command injection through os.system
+Offending code:
+os.system(cmd)
+Data flow: request.args -> os.system
+Scanner remediation hint: Use subprocess.run with a list of arguments.
+
+The file starts at line 1; unified diff hunk headers must use these absolute line numbers.
+
+--- file ---
+def run(cmd):
+    os.system(cmd)

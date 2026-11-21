@@ -1,0 +1,30 @@
+{
+  "accuracy": 0.514184,
+  "after": {
+    "accuracy": 0.927789,
+    "correct": 1439,
+    "decided": 1551
+  },
+  "before": {
+    "accuracy": 0.10058,
+    "correct": 156,
+    "decided": 1551
+  },
+  "correct": 1595,
+  "decided": 3102,
+  "delta": {
+    "has_baseline": false
+  },
+  "engine": "bandit",
+  "false_positive_rate": 0.072211,
+  "false_positives": 112,
+  "flagged_after": 112,
+  "flagged_before": 156,
+  "generated_at": "2026-11-21T17:07:18+00:00",
+  "pair_correct": 49,
+  "precision": 0.58209,
+  "recall": 0.10058,
+  "rows": 1551,
+  "samples": 3102,
+  "schema_version": "1"
+}

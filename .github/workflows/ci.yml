@@ -1,0 +1,383 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.26"
+  NODE_VERSION: "22"
+  GOLANGCI_LINT_VERSION: "v2.15.0"
+
+jobs:
+  # ---------------------------------------------------------------------
+  # The Go quality gate: format, vet, race tests, coverage.
+  # ---------------------------------------------------------------------
+  go:
+    name: Go (build, vet, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+
+      # The tree-sitter bindings are cgo, so a C toolchain is required.
+      - name: Install a C toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l cmd internal)
+          if [ -n "$unformatted" ]; then
+            echo "not gofmt-clean:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Test coverage
+        run: |
+          go test -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out | tail -1
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-coverage
+          path: coverage.out
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------
+  # The lint gate.
+  #
+  # golangci-lint is pinned so that a new release cannot turn a green
+  # branch red without a commit. The enabled set and the (enumerated)
+  # suppressions live in .golangci.yml at the repository root.
+  # ---------------------------------------------------------------------
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+
+      # The tree-sitter bindings are cgo, so a C toolchain is required.
+      - name: Install a C toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --timeout=10m
+
+      # gofmt and go vet stay gated separately, so a lint rule that is
+      # switched off cannot take the formatting gate with it.
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l cmd internal)
+          if [ -n "$unformatted" ]; then
+            echo "not gofmt-clean:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+  # ---------------------------------------------------------------------
+  # The cross-platform build matrix.
+  #
+  # Every leg builds and tests natively: there is no cross-compilation, so
+  # cgo always finds a C compiler for the target architecture.
+  # ---------------------------------------------------------------------
+  build-matrix:
+    name: Build (${{ matrix.os }}, ${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            arch: arm64
+          - os: macos-13
+            arch: amd64
+          - os: ubuntu-latest
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+          - os: windows-latest
+            arch: amd64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+
+      # The tree-sitter bindings are cgo, so every leg needs a C compiler
+      # for its own architecture. The GitHub runner images ship one for
+      # Linux (gcc), macOS (the Xcode command line tools) and Windows
+      # (MinGW-w64); the step below makes that explicit and fails loudly if
+      # the toolchain is missing, rather than letting cgo fail later with a
+      # confusing error.
+      - name: Install and verify the C toolchain
+        run: |
+          set -euo pipefail
+          case "${{ runner.os }}" in
+            Linux)
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends build-essential
+              ;;
+            macOS)
+              # The Xcode command line tools provide the compiler. They are
+              # preinstalled on the runner image; `xcode-select --install`
+              # only runs when they are missing.
+              if ! xcode-select -p >/dev/null 2>&1; then
+                sudo xcode-select --install || true
+              fi
+              ;;
+            Windows)
+              # MinGW-w64 provides the gcc that cgo drives on Windows.
+              choco install mingw --yes --no-progress
+              echo "C:\mingw64\bin" >> "$GITHUB_PATH"
+              echo "CC=gcc" >> "$GITHUB_ENV"
+              ;;
+          esac
+
+      - name: Verify the C toolchain
+        run: |
+          set -euo pipefail
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            gcc --version
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            xcode-select -p
+            cc --version
+          else
+            gcc --version
+          fi
+
+      - name: Report the platform
+        run: |
+          go version
+          go env GOOS GOARCH CGO_ENABLED CC
+
+      # cgo is required: the tree-sitter grammar bindings are C.
+      - name: Build
+        env:
+          CGO_ENABLED: "1"
+        run: go build ./...
+
+      - name: Vet
+        env:
+          CGO_ENABLED: "1"
+        run: go vet ./...
+
+      - name: Test
+        env:
+          CGO_ENABLED: "1"
+        run: go test ./...
+
+      - name: Build the binaries
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          mkdir -p bin
+          go build -o bin/aisai-server ./cmd/aisai-server
+          go build -o bin/aisai-mcp ./cmd/aisai-mcp
+          go build -o bin/aisai-bench ./cmd/aisai-bench
+          go build -o bin/aisai-sbom ./cmd/aisai-sbom
+          ls -l bin
+
+  # ---------------------------------------------------------------------
+  # The SBOM of the AISAI build itself.
+  # ---------------------------------------------------------------------
+  sbom:
+    name: SBOM of the AISAI build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+
+      - name: Install a C toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential
+
+      - name: Build the server (the binary whose dependency tree is described)
+        run: go build -o bin/aisai-server ./cmd/aisai-server
+
+      - name: Write the SBOMs
+        run: |
+          go run ./cmd/aisai-sbom --binary bin/aisai-server --both --out-dir sbom
+
+      - name: Upload the SBOMs
+        uses: actions/upload-artifact@v4
+        with:
+          name: aisai-sbom
+          path: sbom/
+          if-no-files-found: error
+
+  go-vuln:
+    name: Go vulnerability audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: govulncheck
+        run: govulncheck ./...
+
+  electron:
+    name: Electron (typecheck, lint, test, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: electron
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: electron/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: npm audit
+        run: npm audit --audit-level=high
+
+  # ---------------------------------------------------------------------
+  # The Playwright end-to-end test.
+  #
+  # It is offline and deterministic: the backend is a stub that serves a
+  # vendored fixture package, so the test never reaches the network.
+  # ---------------------------------------------------------------------
+  electron-e2e:
+    name: Electron end-to-end (Playwright)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: electron
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: electron/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The end-to-end test drives the app's own Electron binary, so no
+      # Playwright browser has to be downloaded.
+      - name: Build the renderer
+        run: npm run build
+
+      - name: Playwright
+        run: npm run test:e2e
+
+      - name: Upload the Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: electron/out/playwright-report/
+          if-no-files-found: ignore
+
+  smoke:
+    name: End-to-end smoke test
+    runs-on: ubuntu-latest
+    # The smoke test audits a real package, so it needs the network.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+
+      - name: Install a C toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential
+
+      - name: Smoke test
+        run: bash scripts/smoke.sh flask 2.0.0
+
+  plan:
+    name: Plan documents are consistent
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that every plan file is referenced by the dashboard
+        run: |
+          missing=0
+          for f in docs/plan/w*.md; do
+            base=$(basename "$f")
+            if ! grep -q "$base" docs/plan/README.md; then
+              echo "docs/plan/README.md does not reference $base"
+              missing=1
+            fi
+          done
+          exit $missing

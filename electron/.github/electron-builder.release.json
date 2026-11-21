@@ -1,0 +1,17 @@
+{
+  "forceCodeSigning": true,
+  "mac": {
+    "notarize": {
+      "appleId": "${env.APPLE_ID}",
+      "appleIdPassword": "${env.APPLE_APP_SPECIFIC_PASSWORD}",
+      "teamId": "${env.APPLE_TEAM_ID}"
+    }
+  },
+  "publish": [
+    {
+      "provider": "generic",
+      "url": "${env.AISAI_UPDATE_FEED_URL}",
+      "channel": "latest"
+    }
+  ]
+}

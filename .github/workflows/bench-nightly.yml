@@ -1,0 +1,88 @@
+name: Nightly benchmark
+
+# The nightly benchmark re-runs the static engine over the committed corpus
+# and compares the result with the committed baseline.
+#
+# The static engine needs no network and no model, so the run is
+# deterministic and reproducible. The LLM leg is not part of this job: it
+# needs a model server, which a GitHub-hosted runner does not have. To run it,
+# add a self-hosted runner with Ollama (see docs/RELEASE.md, "The LLM
+# benchmark leg") and set `runs-on` for the `llm` job to that runner.
+on:
+  schedule:
+    # 03:17 UTC every day. The minute is not a round number on purpose, so
+    # the job does not pile up with every other scheduled workflow on the
+    # platform.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      max-regression:
+        description: "the accuracy drop that fails the job, in percentage points"
+        default: "2"
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.26"
+
+jobs:
+  static:
+    name: Static engine on the committed corpus
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+
+      # The tree-sitter bindings are cgo, so a C toolchain is required.
+      - name: Install a C toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential
+
+      - name: Build the benchmark binary
+        run: go build -o bin/aisai-bench ./cmd/aisai-bench
+
+      # The static engine over the whole corpus. No network, no model, no
+      # randomness: the same commit always produces the same CSV.
+      - name: Run the static benchmark
+        run: |
+          mkdir -p nightly
+          ./bin/aisai-bench \
+            --input bench/data1551redacted.csv \
+            --engine bandit \
+            --out nightly/bench-nightly.csv
+
+      - name: Compute the metrics and compare them with the baseline
+        run: |
+          python3 .github/workflows/bench-metrics.py \
+            nightly/bench-nightly.csv \
+            --out nightly/baseline_metrics.json \
+            --baseline bench/baseline_metrics.json \
+            --max-regression "${{ github.event.inputs.max-regression || '0.02' }}" \
+            --summary nightly/summary.md
+
+      - name: Post the summary to the job
+        if: ${{ !cancelled() }}
+        run: cat nightly/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the run
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-benchmark
+          path: nightly/
+          if-no-files-found: ignore
+
+      # The job is allowed to fail when the accuracy regressed by more than
+      # the threshold; it never fails for any other reason, because a
+      # benchmark that cannot run is not a regression of the product.
+      - name: Report the regression
+        if: failure()
+        run: |
+          echo "The nightly benchmark regressed by more than the threshold." >> "$GITHUB_STEP_SUMMARY"
+          echo "See the summary above for the delta against bench/baseline_metrics.json."

@@ -1,0 +1,29 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    },
+    "reason": {
+      "description": "Why you reached this verdict, referring to specific lines.",
+      "type": "string"
+    },
+    "verdict": {
+      "description": "confirmed: you can show the flaw is real. plausible: it may be real but you cannot prove it here. false_positive: the claim is wrong.",
+      "enum": [
+        "confirmed",
+        "plausible",
+        "false_positive"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "verdict",
+    "reason",
+    "confidence"
+  ],
+  "type": "object"
+}

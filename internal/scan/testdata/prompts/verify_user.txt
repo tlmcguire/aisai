@@ -1,0 +1,19 @@
+A security scanner claims the following vulnerability. Try to disprove it.
+
+Claimed CWE: CWE-78
+Claimed severity: high
+Claimed location: pkgs/somepkg-1.0/mod.py:11-11
+Claimed problem: Command injection through os.system
+Claimed source: request.args
+Claimed sink: os.system
+
+The code it refers to:
+
+```python
+def run(cmd):
+    os.system(cmd)
+    return cmd
+
+```
+
+Give your verdict.

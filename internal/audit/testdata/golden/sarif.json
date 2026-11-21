@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "AISAI",
+          "version": "golden",
+          "informationUri": "https://github.com/tlmcguire/aisai",
+          "rules": [
+            {
+              "id": "subprocess-shell-true",
+              "name": "subprocess-shell-true",
+              "shortDescription": {
+                "text": "subprocess call with shell=True allows shell command injection"
+              },
+              "fullDescription": {
+                "text": "Pass the command as a list of arguments and leave shell=False."
+              },
+              "helpUri": "https://github.com/tlmcguire/aisai",
+              "properties": {
+                "cwe": "CWE-78",
+                "tags": [
+                  "security"
+                ],
+                "tool": "aisai"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "pickle-yaml-unsafe-load",
+              "name": "pickle-yaml-unsafe-load",
+              "shortDescription": {
+                "text": "unsafe YAML load without SafeLoader can construct arbitrary objects"
+              },
+              "fullDescription": {
+                "text": "Use json, or yaml.safe_load / Loader=yaml.SafeLoader."
+              },
+              "helpUri": "https://github.com/tlmcguire/aisai",
+              "properties": {
+                "cwe": "CWE-502",
+                "tags": [
+                  "security"
+                ],
+                "tool": "aisai"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "weak-hash-md5-sha1",
+              "name": "weak-hash-md5-sha1",
+              "shortDescription": {
+                "text": "weak hash algorithm hashlib.md5 is used where a strong algorithm is required"
+              },
+              "fullDescription": {
+                "text": "Use hashlib.sha256 or hashlib.sha512."
+              },
+              "helpUri": "https://github.com/tlmcguire/aisai",
+              "properties": {
+                "cwe": "CWE-327",
+                "tags": [
+                  "security"
+                ],
+                "tool": "aisai"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "assert-used-for-validation",
+              "name": "assert-used-for-validation",
+              "shortDescription": {
+                "text": "assert is used to validate request input and is removed under python -O"
+              },
+              "fullDescription": {
+                "text": "Raise an explicit exception when the input is invalid."
+              },
+              "helpUri": "https://github.com/tlmcguire/aisai",
+              "properties": {
+                "cwe": "CWE-617",
+                "tags": [
+                  "security"
+                ],
+                "tool": "aisai"
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "subprocess-shell-true",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "subprocess call with shell=True allows shell command injection"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "pkg/cmd_shell.py"
+                },
+                "region": {
+                  "startLine": 9,
+                  "endLine": 9
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "aisaiFindingId/v1": "cwe-78-eefdc37dcb49549b"
+          },
+          "properties": {
+            "confidence": 0.95,
+            "cwe": "CWE-78",
+            "reachability": "unknown",
+            "remediation": "Pass the command as a list of arguments and leave shell=False.",
+            "severity": "high",
+            "state": "open",
+            "verified": false
+          }
+        },
+        {
+          "ruleId": "pickle-yaml-unsafe-load",
+          "ruleIndex": 1,
+          "level": "error",
+          "message": {
+            "text": "unsafe YAML load without SafeLoader can construct arbitrary objects"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "pkg/deserialization.py"
+                },
+                "region": {
+                  "startLine": 9,
+                  "endLine": 9
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "aisaiFindingId/v1": "cwe-502-a0ec3d5c5e224d66"
+          },
+          "properties": {
+            "confidence": 0.9,
+            "cwe": "CWE-502",
+            "reachability": "unknown",
+            "remediation": "Use json, or yaml.safe_load / Loader=yaml.SafeLoader.",
+            "severity": "high",
+            "state": "open",
+            "verified": false
+          }
+        },
+        {
+          "ruleId": "weak-hash-md5-sha1",
+          "ruleIndex": 2,
+          "level": "warning",
+          "message": {
+            "text": "weak hash algorithm hashlib.md5 is used where a strong algorithm is required"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "pkg/crypto_weak.py"
+                },
+                "region": {
+                  "startLine": 9,
+                  "endLine": 9
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "aisaiFindingId/v1": "cwe-327-a5a54a31aac77652"
+          },
+          "properties": {
+            "confidence": 0.9,
+            "cwe": "CWE-327",
+            "reachability": "unknown",
+            "remediation": "Use hashlib.sha256 or hashlib.sha512.",
+            "severity": "medium",
+            "state": "open",
+            "verified": false
+          }
+        },
+        {
+          "ruleId": "assert-used-for-validation",
+          "ruleIndex": 3,
+          "level": "note",
+          "message": {
+            "text": "assert is used to validate request input and is removed under python -O"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "pkg/validation_assert.py"
+                },
+                "region": {
+                  "startLine": 13,
+                  "endLine": 13
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "aisaiFindingId/v1": "cwe-617-f6e326281bd2a013"
+          },
+          "properties": {
+            "confidence": 0.7,
+            "cwe": "CWE-617",
+            "reachability": "unknown",
+            "remediation": "Raise an explicit exception when the input is invalid.",
+            "severity": "low",
+            "state": "open",
+            "verified": false
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+/*
+ * AISAI design tokens.
+ *
+ * Every foreground/background pair used by the UI is listed below with its
+ * measured WCAG 2.1 contrast ratio. All pairs meet or exceed WCAG AA (4.5:1
+ * for normal text, 3:1 for large text and UI borders). The legacy Dash app
+ * shipped white-on-white tabs (NOTES_improvements.md §2.2) — this table is the
+ * guard against that regression.
+ *
+ * Measured ratios (foreground on background):
+ *
+ *   --fg            #e6edf3  on --bg-base     #0d1117  = 16.02:1   (AAA)
+ *   --fg            #e6edf3  on --bg-surface  #161b22  = 14.64:1   (AAA)
+ *   --fg            #e6edf3  on --bg-raised   #1c2128  = 13.70:1   (AAA)
+ *   --fg            #e6edf3  on --bg-inset    #010409  = 17.38:1   (AAA)
+ *   --fg-muted      #9198a1  on --bg-base     #0d1117  =  6.50:1   (AA)
+ *   --fg-muted      #9198a1  on --bg-surface  #161b22  =  5.94:1   (AA)
+ *   --fg-muted      #9198a1  on --bg-raised   #1c2128  =  5.56:1   (AA)
+ *   --fg-subtle     #7d8590  on --bg-base     #0d1117  =  5.07:1   (AA)
+ *   --fg-subtle     #7d8590  on --bg-surface  #161b22  =  4.64:1   (AA)
+ *   --fg-subtle     #7d8590  on --bg-inset    #010409  =  5.51:1   (AA)
+ *   --accent        #58a6ff  on --bg-base     #0d1117  =  7.49:1   (AA)
+ *   --accent        #58a6ff  on --bg-surface  #161b22  =  5.01:1   (AA)
+ *   --accent        #58a6ff  on --bg-raised   #1c2128  =  4.66:1   (AA)
+ *   --success       #3fb950  on --bg-base     #0d1117  =  7.45:1   (AA)
+ *   --warning       #d29922  on --bg-base     #0d1117  =  7.50:1   (AA)
+ *   --danger        #f85149  on --bg-base     #0d1117  =  5.65:1   (AA)
+ *   --danger        #f85149  on --bg-surface  #161b22  =  5.24:1   (AA)
+ *
+ * Severity colours (used as text on --bg-surface / --bg-raised and on their
+ * own 18% tinted chips):
+ *
+ *   --sev-critical  #ff7b72  on --bg-base     =  7.51:1   on --bg-surface = 6.86:1
+ *                   #ff7b72  on chip #402c30   =  5.14:1
+ *   --sev-high      #ffa657  on --bg-base     =  9.77:1   on --bg-surface = 8.93:1
+ *                   #ffa657  on chip #40342c   =  6.21:1
+ *   --sev-medium    #d29922  on --bg-base     =  7.50:1   on --bg-surface = 6.85:1
+ *                   #d29922  on chip #383222   =  5.05:1
+ *   --sev-low       #58a6ff  on --bg-base     =  7.49:1   on --bg-surface = 5.01:1
+ *                   #58a6ff  on chip #22344a   =  5.01:1
+ *   --sev-info      #8b949e  on --bg-base     =  6.15:1   on --bg-surface = 5.62:1
+ *                   #8b949e  on chip #2b3138   =  4.27:1  → chip text uses --fg instead
+ *
+ * Diff surfaces (text --fg #e6edf3):
+ *
+ *   --diff-add-bg   #1d3429  → 11.28:1
+ *   --diff-del-bg   #3a2428  → 12.15:1
+ *   --accent-soft   #1d2e44  → 11.64:1
+ *   --warning-soft  #342f22  → 11.28:1
+ *   --danger-soft   #3a2428  → 12.15:1
+ */
+
+:root {
+  /* Surfaces */
+  --bg-base: #0d1117;
+  --bg-surface: #161b22;
+  --bg-raised: #1c2128;
+  --bg-inset: #010409;
+  --bg-hover: #21262d;
+  --bg-selected: #284260;
+
+  /* Borders */
+  --border: #30363d;
+  --border-strong: #484f58;
+
+  /* Text */
+  --fg: #e6edf3;
+  --fg-muted: #9198a1;
+  --fg-subtle: #7d8590;
+  --fg-on-accent: #0d1117;
+
+  /* Accents */
+  --accent: #58a6ff;
+  --accent-soft: #1d2e44;
+  --success: #3fb950;
+  --success-soft: #1d3429;
+  --warning: #d29922;
+  --warning-soft: #342f22;
+  --danger: #f85149;
+  --danger-soft: #3a2428;
+
+  /* Severity */
+  --sev-critical: #ff7b72;
+  --sev-high: #ffa657;
+  --sev-medium: #d29922;
+  --sev-low: #58a6ff;
+  --sev-info: #8b949e;
+
+  --sev-critical-chip: #402c30;
+  --sev-high-chip: #40342c;
+  --sev-medium-chip: #383222;
+  --sev-low-chip: #22344a;
+  --sev-info-chip: #2b3138;
+
+  /* Diff */
+  --diff-add-bg: #1d3429;
+  --diff-add-fg: #7ee2a8;
+  --diff-del-bg: #3a2428;
+  --diff-del-fg: #ffb4ab;
+
+  /* Type scale */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --shadow-panel: 0 8px 24px rgba(1, 4, 9, 0.45);
+
+  /* Pane widths, driven by the drag handles (see src/state/ui.ts). */
+  --graph-width: 300px;
+  --rail-width: 320px;
+  --chat-height: 200px;
+}

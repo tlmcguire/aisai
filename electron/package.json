@@ -1,0 +1,137 @@
+{
+  "name": "aisai-electron",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AISAI Electron frontend (renderer + main/preload) for the Go AISAI backend.",
+  "main": "dist/main/main.js",
+  "author": "AISAI",
+  "license": "MIT",
+  "scripts": {
+    "dev": "concurrently -k -n vite,electron -c cyan,magenta \"vite\" \"node scripts/dev.mjs\"",
+    "dev:vite": "vite",
+    "build:main": "node scripts/build-main.mjs",
+    "build:renderer": "vite build",
+    "build": "npm run build:main && npm run build:renderer",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "npm run build && electron .",
+    "package": "npm run build && node .github/run-builder.mjs",
+    "test:e2e": "playwright test --config playwright.config.ts",
+    "test:e2e:headed": "playwright test --config playwright.config.ts --headed",
+    "dist:mac": "npm run build && node .github/run-builder.mjs --mac",
+    "dist:win": "npm run build && node .github/run-builder.mjs --win",
+    "dist:linux": "npm run build && node .github/run-builder.mjs --linux",
+    "release:verify-env": "node .github/verify-release-env.mjs",
+    "release:mac": "npm run build && node .github/run-builder.mjs --mac --release",
+    "release:win": "npm run build && node .github/run-builder.mjs --win --release",
+    "release:linux": "npm run build && node .github/run-builder.mjs --linux --release"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11",
+    "react": "^19.3.1",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^24.3.0",
+    "concurrently": "^9.2.0",
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.34.0",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.41.0",
+    "vite": "^7.1.0",
+    "vitest": "^3.2.4"
+  },
+  "build": {
+    "appId": "dev.aisai.app",
+    "productName": "AISAI",
+    "copyright": "AISAI",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/sidecar",
+        "to": "aisai-server",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": ".github/entitlements.mac.plist",
+      "entitlementsInherit": ".github/entitlements.mac.plist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "Development"
+    },
+    "forceCodeSigning": false,
+    "beforeBuild": ".github/verify-release-env.mjs"
+  },
+  "allowScripts": {
+    "electron@38.8.6": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true
+  }
+}

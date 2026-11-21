@@ -1,2 +1,41 @@
 .DS_Store
-/packages/.DS_Store
+
+# --- Python legacy ---
+legacy/**/__pycache__/
+legacy/results/
+legacy/packages/
+
+# --- Go ---
+/bin/
+/dist/
+*.test
+*.out
+*.prof
+
+# A `go build ./cmd/aisai-server` in the repository root leaves a binary
+# behind. The Makefile writes to bin/; these are the accidents.
+/aisai-server
+/aisai-mcp
+/aisai-bench
+/aisai-bench-external
+/aisai-sbom
+
+# --- Node / Electron ---
+node_modules/
+electron/dist/
+electron/out/
+electron/release/
+*.tsbuildinfo
+
+# --- Benchmark output ---
+bench/results/
+.aisai-bench-cache/
+
+# --- AISAI runtime data ---
+/workspace/
+/audit-data/
+/.aisai/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+coverage.out

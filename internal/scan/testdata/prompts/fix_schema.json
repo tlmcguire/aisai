@@ -1,0 +1,25 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "confidence": {
+      "description": "How confident you are that the patch fixes the issue without breaking the code.",
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    },
+    "explanation": {
+      "description": "One or two sentences explaining the change and why it is safe.",
+      "type": "string"
+    },
+    "patch_unified": {
+      "description": "A unified diff that fixes the vulnerability, or an empty string if no safe patch is possible.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "patch_unified",
+    "explanation",
+    "confidence"
+  ],
+  "type": "object"
+}
