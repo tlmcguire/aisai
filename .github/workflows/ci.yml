@@ -1,9 +1,9 @@
 name: CI
 
 on:
+  # Milestones only: release tags, or run by hand from the Actions tab.
   push:
-    branches: [main]
-  pull_request:
+    tags: ["v*"]
   workflow_dispatch:
 
 # Cancel superseded runs on the same ref.
