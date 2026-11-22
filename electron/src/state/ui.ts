@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 
 import { t } from '../lib/i18n';
+import { ACCENTS, type AccentId } from '../lib/accents';
+import { applyGround } from '../lib/tint';
 
 export type MainTab = 'code' | 'ast' | 'diff';
 
@@ -79,15 +81,8 @@ export const LAYOUT_PRESETS: readonly LayoutPreset[] = [
 
 export type ThemeChoice = 'dark' | 'light' | 'system';
 
-/** Accent colours the user can pick: the signal colour of the interface. */
-export const ACCENTS = [
-  { id: 'lime', label: () => t('accent.lime'), dark: ['#b4f23c', '#c8ff5a', '#232f16'], light: ['#3f6212', '#2f4c0c', '#d5e6bb'] },
-  { id: 'teal', label: () => t('accent.teal'), dark: ['#5fd3c4', '#8ae9dc', '#17302e'], light: ['#0b5f59', '#094845', '#c4e6e1'] },
-  { id: 'blue', label: () => t('accent.blue'), dark: ['#6cb2ff', '#9acaff', '#16283d'], light: ['#1e40af', '#172f85', '#cdd9f7'] },
-  { id: 'violet', label: () => t('accent.violet'), dark: ['#b79cff', '#d0bcff', '#2a2142'], light: ['#5b21b6', '#46188f', '#dccff5'] },
-  { id: 'orange', label: () => t('accent.orange'), dark: ['#ffa24a', '#ffbb7a', '#38261a'], light: ['#9a3412', '#7a280d', '#f3d4bf'] },
-] as const;
-export type AccentId = (typeof ACCENTS)[number]['id'];
+export { ACCENTS };
+export type { AccentId };
 
 /** Apply the theme and accent to the document. */
 export function applyAppearance(theme: ThemeChoice, accent: AccentId): void {
@@ -100,6 +95,7 @@ export function applyAppearance(theme: ThemeChoice, accent: AccentId): void {
   root.style.setProperty('--accent-strong', strong);
   root.style.setProperty('--accent-soft', soft);
   root.style.setProperty('--fg-on-accent', light ? '#ffffff' : '#0a1112');
+  applyGround(root, pick.ground);
 }
 
 const STORAGE_KEY = 'aisai.ui.v1';

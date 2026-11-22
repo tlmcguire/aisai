@@ -173,7 +173,7 @@ Density is high but legible. Panes sit edge to edge, separated by 1px borders ra
 
 ## Colors
 
-A cool, oxidised palette: the neutrals carry a green undertone, one lime signal marks action, and a patina teal supports it.
+A cool, oxidised palette: the neutrals carry a green undertone, one lime signal marks action, and a patina teal supports it. The accent is the one colour the user picks, and the ground follows it: the surfaces, the borders and the text are re-tinted to its hue, so the app reads as one colour family rather than a green app with a blue button.
 
 ### Primary
 - **Signal Lime** (`signal-lime`): the one action colour. It fills primary buttons (Scan, Ask, Use this server) and draws the focus ring, the selected-tab indicator, the active resizer and the flagged leaf of the logo. **Signal Lime Strong** is its hover state, and **Signal Lime Soft** tints pressed chips and filter toggles.
@@ -188,9 +188,11 @@ A cool, oxidised palette: the neutrals carry a green undertone, one lime signal 
 - **Oxide Inset** (`oxide-inset`): text fields, code blocks and the code view, recessed below the surface.
 - **Oxide Hover / Oxide Selected**: row hover and the selected row, file or Settings section.
 - **Patina Border / Patina Border Strong**: 1px pane dividers and control outlines; the strong variant for chips and the edges of floating windows.
-- **Bone** (`bone`): primary text, 15.18:1 on Oxide Ink.
-- **Lichen** (`lichen`): secondary text, labels and pane headers (6.3:1 or better on every surface).
-- **Moss** (`moss`): tertiary text, line numbers and hints (5.19:1 on Oxide Raised).
+- **Bone** (`bone`): primary text, 15.14:1 on Oxide Ink.
+- **Lichen** (`lichen`): secondary text, labels and pane headers (6.2:1 or better on every surface).
+- **Moss** (`moss`): tertiary text, line numbers and hints (5.1:1 on Oxide Raised).
+
+The neutrals are the ground, and the ground is re-tinted to the hue of the accent: picking the blue accent gives a blue-inked app, not a green one with blue buttons. Lime keeps the house Verdigris ink it was designed on. The severity, syntax and status colours are meanings, not decoration, and they never move.
 
 ### Semantic
 - **Severity**: critical (`sev-critical`), high (`sev-high`), medium (`sev-medium`), low (`sev-low`), info (`sev-info`). Each is used as text, or as a border over its own 16% tint, and never as a large fill.
@@ -202,6 +204,8 @@ A cool, oxidised palette: the neutrals carry a green undertone, one lime signal 
 **The One Signal Rule.** Signal Lime marks only what the user can act on now, or what is selected. If two lime elements compete on one screen, one of them is wrong.
 
 **The No Grey Rule.** Every neutral carries the oxide undertone. A neutral grey (equal red, green and blue) is a regression.
+
+**The Tint Rule.** The ground carries the hue of the accent. Change the accent and the surfaces, the borders and the text change with it; the palette may not keep the colour of the accent it was set to. The tint is applied by `electron/src/lib/tint.ts`, and it may not cost the palette its contrast.
 
 **The Measured Contrast Rule.** Every text pair is at least 4.5:1 and recorded with its measured ratio in `electron/src/styles/tokens.css`. A new pair is not done until its ratio is in that table.
 
