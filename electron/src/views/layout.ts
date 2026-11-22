@@ -15,8 +15,9 @@ import type { AppController } from '../app';
 import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { formatBytes } from '../lib/format';
+import { t, tn } from '../lib/i18n';
 import { useAuditStore } from '../state/audit';
-import { DEFAULT_LAYOUT, PANE_LABELS, useUiStore, type MainTab, type PaneId } from '../state/ui';
+import { DEFAULT_LAYOUT, paneName, useUiStore, type MainTab, type PaneId } from '../state/ui';
 import { createAstView } from './astView';
 import { createChatPanel } from './chatPanel';
 import { createCodeView } from './codeView';
@@ -31,10 +32,10 @@ import { installShortcuts } from './shortcuts';
 import { installTutorials } from './tutorials';
 import { createToolbar } from './toolbar';
 
-const TABS: Array<{ id: MainTab; label: string }> = [
-  { id: 'code', label: 'Code' },
-  { id: 'ast', label: 'AST' },
-  { id: 'diff', label: 'Diff' },
+const TABS: Array<{ id: MainTab; label: () => string }> = [
+  { id: 'code', label: () => t('layout.tabCode') },
+  { id: 'ast', label: () => t('layout.tabAst') },
+  { id: 'diff', label: () => t('layout.tabDiff') },
 ];
 
 export interface Layout {
@@ -81,18 +82,18 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const phaseLabel = h('span', { class: 'progress-phase', text: '' });
   const fill = h('div', { class: 'progress-fill', style: 'width:0%' });
   const track = h('div', { class: 'progress-track', role: 'progressbar' }, fill);
-  const cancelButton = h('button', { class: 'tiny', type: 'button' }, 'Hide');
+  const cancelButton = h('button', { class: 'tiny', type: 'button' }, t('layout.hide'));
   const downloadsToggle = h(
     'button',
     { class: 'tiny ghost downloads-toggle', type: 'button', 'aria-expanded': 'true', hidden: true },
     '',
   );
-  const downloadList = h('ol', { class: 'download-list', 'aria-label': 'Package downloads' });
+  const downloadList = h('ol', { class: 'download-list', 'aria-label': t('layout.packageDownloads') });
   // A failed audit or scan says so, in words, until it is dismissed. A full
   // disk gets a button to the place where space can be freed.
   const errorText = h('span', { class: 'error-banner-text' });
-  const errorAction = h('button', { class: 'tiny', type: 'button', hidden: true }, 'Free up space');
-  const errorDismiss = h('button', { class: 'tiny ghost', type: 'button', 'aria-label': 'Dismiss this message' }, 'Dismiss');
+  const errorAction = h('button', { class: 'tiny', type: 'button', hidden: true }, t('layout.freeUpSpace'));
+  const errorDismiss = h('button', { class: 'tiny ghost', type: 'button', 'aria-label': t('layout.dismissMessage') }, t('layout.dismiss'));
   const errorBanner = h('div', { class: 'error-banner', role: 'alert', hidden: true }, errorText, h('span', { class: 'grow' }), errorAction, errorDismiss);
   errorDismiss.addEventListener('click', () => useAuditStore.getState().setError(null));
   errorAction.addEventListener('click', () => {
@@ -121,10 +122,10 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   // One row per package, reused across events so the list never flashes.
   const downloadRows = new Map<string, HTMLElement>();
   const STATE_LABEL: Record<string, string> = {
-    downloading: 'downloading',
-    done: 'fetched',
-    warning: 'fetched with warnings',
-    failed: 'skipped',
+    downloading: t('layout.stateDownloading'),
+    done: t('layout.stateFetched'),
+    warning: t('layout.stateFetchedWithWarnings'),
+    failed: t('layout.stateSkipped'),
   };
   const renderDownloads = (): void => {
     const audit = useAuditStore.getState();
@@ -132,8 +133,9 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     const running = audit.busy === 'audit' && audit.progressVisible;
     const finished = entries.filter((e) => e.state !== 'downloading').length;
     downloadsToggle.hidden = entries.length === 0;
+    const total = Math.max(audit.downloadTotal, entries.length);
     downloadsToggle.replaceChildren(
-      `${finished}/${Math.max(audit.downloadTotal, entries.length)} packages`,
+      tn('layout.downloadProgress', total, { done: finished }),
       icon(downloadsOpen ? 'chevron-up' : 'chevron-down'),
     );
     downloadPanel.hidden = !running || !downloadsOpen || entries.length === 0;
@@ -162,7 +164,9 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       (row.children[1] as HTMLElement).textContent = entry.package;
       (row.children[2] as HTMLElement).textContent = entry.version;
       (row.children[2] as HTMLElement).textContent = entry.bytes ? `${entry.version} · ${formatBytes(entry.bytes)}` : entry.version;
-      (row.children[3] as HTMLElement).textContent = entry.detail && entry.state !== 'done' ? `${STATE_LABEL[entry.state]}: ${entry.detail}` : STATE_LABEL[entry.state];
+      const stateLabel = STATE_LABEL[entry.state];
+      (row.children[3] as HTMLElement).textContent =
+        entry.detail && entry.state !== 'done' ? t('layout.stateDetail', { state: stateLabel, detail: entry.detail }) : stateLabel;
     }
   };
 
@@ -173,11 +177,11 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   });
 
   /* ---------------- panes ---------------- */
-  const graphPane = h('section', { class: 'pane pane-graph', 'aria-label': 'Dependency graph' });
+  const graphPane = h('section', { class: 'pane pane-graph', 'aria-label': t('layout.dependencyGraph') });
   const graphHeader = h(
     'div',
     { class: 'pane-header' },
-    h('span', { text: 'Dependencies' }),
+    h('span', { text: t('layout.dependencies') }),
     h('span', { class: 'grow' }),
   );
   const graphBody = h('div', { class: 'pane-body graph-section' });
@@ -187,13 +191,13 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const sourcesBadge = h('span', { class: 'badge neutral', text: '' });
   const deleteSourcesButton = h(
     'button',
-    { class: 'tiny', type: 'button', title: 'Delete the downloaded sources of this audit' },
-    'Delete sources',
+    { class: 'tiny', type: 'button', title: t('layout.deleteSourcesTitle') },
+    t('layout.deleteSources'),
   );
   const filesHeader = h(
     'div',
     { class: 'pane-header' },
-    h('span', { text: 'Files' }),
+    h('span', { text: t('layout.files') }),
     sourcesBadge,
     h('span', { class: 'grow' }),
     deleteSourcesButton,
@@ -206,7 +210,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     role: 'separator',
     tabindex: '0',
     'aria-orientation': 'horizontal',
-    'aria-label': 'Resize the dependency graph and the file tree',
+    'aria-label': t('layout.resizeGraphAndFiles'),
   });
   graphPane.append(filesResizer, filesPane);
 
@@ -215,7 +219,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const codePanel = h('div', { class: 'tab-panel', role: 'tabpanel' });
   const astPanel = h('div', { class: 'tab-panel', role: 'tabpanel', hidden: true });
   const diffPanel = h('div', { class: 'tab-panel', role: 'tabpanel', hidden: true });
-  const mainPane = h('section', { class: 'pane pane-main', 'aria-label': 'Code, AST and diff' });
+  const mainPane = h('section', { class: 'pane pane-main', 'aria-label': t('layout.codeAstDiff') });
   mainPane.append(tabBar, codePanel, astPanel, diffPanel);
 
   const tabButtons = TABS.map((tab) =>
@@ -228,7 +232,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
         'aria-selected': String(tab.id === 'code'),
         onclick: () => useUiStore.getState().setActiveTab(tab.id),
       },
-      tab.label,
+      tab.label(),
     ),
   );
   const indicator = h('span', { class: 'tab-indicator', 'aria-hidden': 'true' });
@@ -245,11 +249,11 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   resizeObserver.observe(tabBar);
 
   /* ---------------- findings rail ---------------- */
-  const railPane = h('section', { class: 'pane pane-rail', 'aria-label': 'Findings' });
+  const railPane = h('section', { class: 'pane pane-rail', 'aria-label': t('layout.findings') });
   const railHeader = h(
     'div',
     { class: 'pane-header' },
-    h('span', { text: 'Findings' }),
+    h('span', { text: t('layout.findings') }),
     h('span', { class: 'grow' }),
   );
   const railBody = h('div', { class: 'pane-body rail-body' });
@@ -265,7 +269,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     const grip = h('span', {
       class: 'pane-grip',
       draggable: 'true',
-      title: `Drag to move “${PANE_LABELS[id]}”`,
+      title: t('layout.dragPane', { pane: paneName(id) }),
       'aria-hidden': 'true',
       text: '⋮⋮',
     });
@@ -285,11 +289,11 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
         class: 'ghost tiny pane-move',
         type: 'button',
         title: label,
-        'aria-label': `${label}: ${PANE_LABELS[id]}`,
+        'aria-label': t('layout.movePane', { action: label, pane: paneName(id) }),
         text,
         onclick: () => useUiStore.getState().nudgePane(id, delta),
       });
-    return h('span', { class: 'pane-tools' }, grip, arrow('Move left', '‹', -1), arrow('Move right', '›', 1));
+    return h('span', { class: 'pane-tools' }, grip, arrow(t('layout.moveLeft'), '‹', -1), arrow(t('layout.moveRight'), '›', 1));
   };
   graphHeader.append(paneTools('deps'));
   railHeader.append(paneTools('findings'));
@@ -326,24 +330,24 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   }
 
   /* ---------------- chat ---------------- */
-  const chatPanel = h('section', { class: 'chat-panel', 'aria-label': 'Chat' });
+  const chatPanel = h('section', { class: 'chat-panel', 'aria-label': t('layout.chat') });
 
   const chatResizer = h('div', {
     class: 'resizer resizer-row resizer-chat',
     role: 'separator',
     tabindex: '0',
     'aria-orientation': 'horizontal',
-    'aria-label': 'Resize the chat panel',
+    'aria-label': t('layout.resizeChat'),
   });
 
   // The terminal sits under the panes and above the chat, like an editor's.
-  const terminalPanel = h('section', { class: 'terminal-panel', 'aria-label': 'Terminal', hidden: true });
+  const terminalPanel = h('section', { class: 'terminal-panel', 'aria-label': t('layout.terminal'), hidden: true });
   const terminalResizer = h('div', {
     class: 'resizer resizer-row',
     role: 'separator',
     tabindex: '0',
     'aria-orientation': 'horizontal',
-    'aria-label': 'Resize the terminal',
+    'aria-label': t('layout.resizeTerminal'),
     hidden: true,
   });
   /**
@@ -398,10 +402,11 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     resizer.append(pill);
     /** Points the arrows the way the panel grows: up, or left when docked at the side. */
     const sync = (sideways = false): void => {
+      const label = name === 'chat' ? t('layout.chat') : t('layout.terminal');
       bigger.replaceChildren(icon(sideways ? 'chevron-left' : 'chevron-up'));
       smaller.replaceChildren(icon(sideways ? 'chevron-right' : 'chevron-down'));
-      bigger.title = `Make the ${name} bigger`;
-      smaller.title = `Make the ${name} smaller`;
+      bigger.title = t('layout.makeBigger', { name: label });
+      smaller.title = t('layout.makeSmaller', { name: label });
       pill.classList.toggle('is-sideways', sideways);
     };
     sync();
@@ -479,14 +484,14 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     deleteArmed = false;
     if (deleteTimer) clearTimeout(deleteTimer);
     deleteTimer = null;
-    deleteSourcesButton.textContent = 'Delete sources';
+    deleteSourcesButton.textContent = t('layout.deleteSources');
     deleteSourcesButton.classList.remove('is-armed');
   };
 
   deleteSourcesButton.addEventListener('click', () => {
     if (!deleteArmed) {
       deleteArmed = true;
-      deleteSourcesButton.textContent = 'Confirm delete';
+      deleteSourcesButton.textContent = t('layout.confirmDelete');
       deleteSourcesButton.classList.add('is-armed');
       if (deleteTimer) clearTimeout(deleteTimer);
       deleteTimer = setTimeout(disarmDelete, 5000);
@@ -598,7 +603,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     }
     const audit = state.current;
     const deleted = audit?.sourcesDeleted ?? false;
-    sourcesBadge.textContent = deleted ? 'sources deleted' : formatBytes(audit?.sandboxBytes ?? 0);
+    sourcesBadge.textContent = deleted ? t('layout.sourcesDeleted') : formatBytes(audit?.sandboxBytes ?? 0);
     sourcesBadge.classList.toggle('badge', true);
     sourcesBadge.classList.toggle('neutral', !deleted);
     sourcesBadge.classList.toggle('warn', deleted);
@@ -610,7 +615,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     errorBanner.hidden = !state.error;
     errorText.textContent = state.error ?? '';
     errorAction.hidden = !/disk (space|is full)/i.test(state.error ?? '');
-    phaseLabel.textContent = state.phase ? `Phase: ${state.phase}` : '';
+    phaseLabel.textContent = state.phase ? t('layout.phase', { phase: state.phase }) : '';
     statusText.textContent = state.message ?? '';
     const percent = Math.max(0, Math.min(1, state.percent));
     fill.style.width = `${Math.round(percent * 100)}%`;
@@ -671,7 +676,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       role: 'separator',
       tabindex: '0',
       'aria-orientation': 'vertical',
-      'aria-label': `Resize ${PANE_LABELS[controlled]}`,
+      'aria-label': t('layout.resizePane', { pane: paneName(controlled) }),
     });
     const control = PANE_WIDTH[controlled];
     resizer.addEventListener('pointerdown', (event) => {

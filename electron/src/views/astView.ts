@@ -12,6 +12,7 @@
 import type { AppController } from '../app';
 import type { ASTNode, Finding } from '../api/types';
 import { h } from '../lib/dom';
+import { t, tn } from '../lib/i18n';
 import { icon } from '../lib/icons';
 import { useFindingsStore } from '../state/findings';
 import { useWorkspaceStore } from '../state/workspace';
@@ -95,7 +96,7 @@ export function createAstView(controller: AppController, container: HTMLElement)
   const graphWrap = h('div', { class: 'ast-graph', hidden: true });
   const graphNote = h('div', { class: 'ast-graph-note', role: 'status', hidden: true });
   graphWrap.append(graphNote);
-  const graphCanvas = h('div', { class: 'graph-canvas ast-graph-canvas', role: 'img', 'aria-label': 'Syntax tree graph' });
+  const graphCanvas = h('div', { class: 'graph-canvas ast-graph-canvas', role: 'img', 'aria-label': t('ast.graphLabel') });
   graphWrap.append(graphCanvas);
   container.append(toolbar, body, graphWrap);
 
@@ -128,7 +129,7 @@ export function createAstView(controller: AppController, container: HTMLElement)
   const depthSelect = h(
     'select',
     {
-      'aria-label': 'Maximum AST depth to show',
+      'aria-label': t('ast.maxDepthLabel'),
       onchange: (event: Event) => {
         const value = (event.target as HTMLSelectElement).value;
         depthLimit = value === 'all' ? Number.POSITIVE_INFINITY : Number(value);
@@ -137,13 +138,13 @@ export function createAstView(controller: AppController, container: HTMLElement)
       },
     },
     ...[1, 2, 3, 4, 6, 8].map((depth) =>
-      h('option', { value: String(depth), selected: depth === depthLimit }, `depth ≤ ${depth}`),
+      h('option', { value: String(depth), selected: depth === depthLimit }, t('ast.depthOption', { depth })),
     ),
-    h('option', { value: 'all' }, 'all depths'),
+    h('option', { value: 'all' }, t('ast.allDepths')),
   );
 
-  const expandAll = h('button', { class: 'tiny', type: 'button' }, 'Expand all');
-  const collapseAll = h('button', { class: 'tiny', type: 'button' }, 'Collapse all');
+  const expandAll = h('button', { class: 'tiny', type: 'button' }, t('ast.expandAll'));
+  const collapseAll = h('button', { class: 'tiny', type: 'button' }, t('ast.collapseAll'));
 
   expandAll.addEventListener('click', () => {
     collapsed = new Set();
@@ -156,7 +157,7 @@ export function createAstView(controller: AppController, container: HTMLElement)
     render();
   });
 
-  const modeToggle = h('div', { class: 'segmented', role: 'group', 'aria-label': 'How to show the syntax tree' });
+  const modeToggle = h('div', { class: 'segmented', role: 'group', 'aria-label': t('ast.viewModeLabel') });
   const modeButtons = (['tree', 'graph'] as const).map((id) =>
     h(
       'button',
@@ -166,7 +167,7 @@ export function createAstView(controller: AppController, container: HTMLElement)
         'aria-pressed': String(id === mode),
         onclick: () => setMode(id),
       },
-      id === 'tree' ? 'Tree' : 'Graph',
+      id === 'tree' ? t('ast.treeView') : t('ast.graphView'),
     ),
   );
   modeToggle.append(...modeButtons);
@@ -181,8 +182,8 @@ export function createAstView(controller: AppController, container: HTMLElement)
     if (next === 'graph') renderGraph();
   };
 
-  const exportPngButton = h('button', { class: 'tiny', type: 'button', title: 'Export the syntax tree graph as PNG' }, 'PNG');
-  const exportSvgButton = h('button', { class: 'tiny', type: 'button', title: 'Export the syntax tree graph as SVG' }, 'SVG');
+  const exportPngButton = h('button', { class: 'tiny', type: 'button', title: t('ast.exportPng') }, 'PNG');
+  const exportSvgButton = h('button', { class: 'tiny', type: 'button', title: t('ast.exportSvg') }, 'SVG');
   exportPngButton.hidden = exportSvgButton.hidden = true;
   const baseName = (): string => (useWorkspaceStore.getState().ast?.path ?? 'file').split('/').pop() ?? 'file';
   exportPngButton.addEventListener('click', () => {
@@ -202,7 +203,7 @@ export function createAstView(controller: AppController, container: HTMLElement)
 
   toolbar.append(
     modeToggle,
-    h('span', { class: 'legend-item', text: 'Depth:' }),
+    h('span', { class: 'legend-item', text: t('ast.depth') }),
     depthSelect,
     expandAll,
     collapseAll,
@@ -289,12 +290,8 @@ export function createAstView(controller: AppController, container: HTMLElement)
         h(
           'div',
           { class: 'empty-state' },
-          h('h3', { text: 'No syntax tree loaded' }),
-          h('p', {
-            text:
-              'Open a source file and its syntax tree appears here as a collapsible tree. ' +
-              'Click any node to jump to the matching source line.',
-          }),
+          h('h3', { text: t('ast.noTree') }),
+          h('p', { text: t('ast.noTreeHint') }),
         ),
       );
       return;
@@ -337,7 +334,7 @@ export function createAstView(controller: AppController, container: HTMLElement)
             class: 'twisty',
             type: 'button',
             tabindex: '-1',
-            'aria-label': `${isOpen ? 'Collapse' : 'Expand'} ${node.label}`,
+            'aria-label': isOpen ? t('ast.collapseNode', { label: node.label }) : t('ast.expandNode', { label: node.label }),
             onclick: (event: Event) => {
               event.stopPropagation();
               if (!visible) {
@@ -362,7 +359,7 @@ export function createAstView(controller: AppController, container: HTMLElement)
           'data-id': node.id,
           'aria-level': String(depth),
           'aria-expanded': expandable ? String(isOpen && visible) : undefined,
-          title: hasFinding ? 'A finding is reported on this node' : undefined,
+          title: hasFinding ? t('ast.findingOnNode') : undefined,
           style: `--depth:${depth - 1};--i:${index}`,
           onclick: open,
           ondblclick: () => {
@@ -388,7 +385,8 @@ export function createAstView(controller: AppController, container: HTMLElement)
         // Most inner nodes are labelled with their own type; say it once.
         h('span', { class: 'label', text: node.label === node.type ? '' : node.label }),
         expandable && (!isOpen || !visible)
-          ? h('span', { class: 'kids', title: `${children.length} hidden child node(s)` }, String(children.length), icon('chevron-right'))
+          ? h('span', { class: 'kids', title: t('ast.hiddenChildren', { count: children.length }) },
+              String(children.length), icon('chevron-right'))
           : null,
         h('span', { class: 'lines', text: `${node.startLine}–${node.endLine}` }),
       );
@@ -447,7 +445,7 @@ export function createAstView(controller: AppController, container: HTMLElement)
       return {
         id: node.id,
         label: node.label && node.label !== node.type ? `${node.type}\n${node.label}` : node.type,
-        title: `${node.type} · lines ${node.startLine}–${node.endLine}`,
+        title: t('ast.nodeTooltip', { type: node.type, from: node.startLine, to: node.endLine }),
         shape: 'box',
         widthConstraint: { maximum: 150 },
         // Hover and selection keep the dark fill, so the light label stays
@@ -466,19 +464,19 @@ export function createAstView(controller: AppController, container: HTMLElement)
     lastGraphEdges = edges;
     graphNote.hidden = tooDeep + overCap === 0;
     const parts: string[] = [];
-    if (tooDeep) parts.push(`${tooDeep} node${tooDeep === 1 ? '' : 's'} deeper than the depth limit`);
-    if (overCap) parts.push(`${overCap} more beyond the ${graphNodeCap}-node drawing limit`);
-    const more = h('button', { class: 'tiny', type: 'button' }, `Draw ${Math.min(CAP_STEP, CAP_MAX - graphNodeCap)} more`);
+    if (tooDeep) parts.push(tn('ast.nodesDeeperThanLimit', tooDeep));
+    if (overCap) parts.push(t('ast.beyondDrawingLimit', { count: overCap, cap: graphNodeCap }));
+    const more = h('button', { class: 'tiny', type: 'button' }, t('ast.drawMore', { count: Math.min(CAP_STEP, CAP_MAX - graphNodeCap) }));
     more.addEventListener('click', () => {
       graphNodeCap = Math.min(CAP_MAX, graphNodeCap + CAP_STEP);
       graphAst = null; // force a redraw
       renderGraph();
     });
     graphNote.replaceChildren(
-      `Not drawn: ${parts.join(' and ')}. `,
+      `${t('ast.notDrawn', { parts: parts.join(` ${t('ast.and')} `) })} `,
       ...(overCap && graphNodeCap < CAP_MAX ? [more, ' '] : []),
-      tooDeep ? 'Raise the depth to include the deeper ones. ' : '',
-      overCap && graphNodeCap >= CAP_MAX ? 'The tree view shows every node.' : '',
+      tooDeep ? `${t('ast.raiseDepth')} ` : '',
+      overCap && graphNodeCap >= CAP_MAX ? t('ast.treeShowsEveryNode') : '',
     );
 
     void loadVis()
@@ -505,7 +503,7 @@ export function createAstView(controller: AppController, container: HTMLElement)
       })
       .catch((err: unknown) => {
         graphNote.hidden = false;
-        graphNote.textContent = `The graph could not be drawn: ${err instanceof Error ? err.message : String(err)}`;
+        graphNote.textContent = t('ast.drawFailed', { message: err instanceof Error ? err.message : String(err) });
       });
   };
 

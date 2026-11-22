@@ -13,6 +13,7 @@
  */
 
 import { h } from '../lib/dom';
+import { t, tn } from '../lib/i18n';
 import { icon } from '../lib/icons';
 import { isMac } from '../lib/shortcuts';
 import { useUiStore } from '../state/ui';
@@ -20,16 +21,18 @@ import { useUiStore } from '../state/ui';
 interface Step {
   /** The data-tour value of the control to point at; none for a card in the middle. */
   target?: string;
-  title: string;
-  body: string;
+  /** The heading of the card; a function, so it is looked up when the step is shown. */
+  title: () => string;
+  /** The text of the card; a function, for the same reason. */
+  body: () => string;
   /** Gets the screen ready for the step. */
   before?: () => void;
 }
 
 interface Tour {
   id: string;
-  title: string;
-  summary: string;
+  title: () => string;
+  summary: () => string;
   minutes: number;
   steps: Step[];
 }
@@ -37,103 +40,198 @@ interface Tour {
 const mod = (): string => (isMac() ? '⌘' : 'Ctrl+');
 const closeSettings = (): void => useUiStore.getState().setSettingsOpen(false);
 
-export const TOURS: Tour[] = [
+/**
+ * The tours. They are built when they are shown, so the text is looked up in
+ * the language of the moment.
+ */
+export const TOURS = (): Tour[] => [
   {
     id: 'first-audit',
-    title: 'Audit your first package',
-    summary: 'Pull a package, scan it and read what was found.',
+    title: () => t('tour.firstAuditTitle'),
+    summary: () => t('tour.firstAuditSummary'),
     minutes: 2,
     steps: [
-      { title: 'What AISAI does', body: 'AISAI downloads a package’s source (never running it), maps its dependencies, and looks for security problems with static rules and, if you like, a language model. This tour shows the way through one audit.', before: closeSettings },
-      { target: 'pull', title: '1 · Pick a package and pull it', body: 'Type a name in the package field to its left (flask, lodash, serde…), choose the index (PyPI, npm or crates.io) and press Pull or Enter. You can also paste a GitHub link. Pulling only downloads; nothing is executed.' },
-      { target: 'open-folder', title: 'Or open your own project', body: `Open a folder on this computer instead (${mod()}O, or drop it on the window). AISAI copies it and works on the copy.` },
-      { target: 'graph', title: '2 · The dependency graph', body: 'Every package that came along, sized by importance and coloured by the worst finding. Hover for details; click to select.' },
-      { target: 'why', title: 'Why is this package here?', body: 'Type or paste any name, a requirement line or a package link. It suggests matches and shows the chain of packages that pulled it in.' },
-      { target: 'static-scan', title: '3 · Scan', body: `Static scan runs the rules (fast, ${mod()}⇧S). LLM scan asks the model to review the code as well (slower; needs a model server).` },
-      { target: 'findings', title: '4 · Read the findings', body: 'Each finding has a severity, a rule, the file and line. Filter by severity, CWE or state; click one to jump to the code.' },
-      { target: 'code', title: '5 · The code', body: 'Findings are marked in the margin and on the line. Select code to ask about it, explain it, or have the model change it.' },
-      { title: 'That is an audit', body: 'Next, try “Triage and fix findings” or “Ask the assistant”. Help › Tutorials brings these tours back any time.' },
+      {
+        title: () => t('tour.firstAuditStep1Title'),
+        body: () => t('tour.firstAuditStep1Body'),
+        before: closeSettings,
+      },
+      {
+        target: 'pull',
+        title: () => t('tour.firstAuditStep2Title'),
+        body: () => t('tour.firstAuditStep2Body'),
+      },
+      {
+        target: 'open-folder',
+        title: () => t('tour.firstAuditStep3Title'),
+        body: () => t('tour.firstAuditStep3Body', { mod: mod() }),
+      },
+      {
+        target: 'graph',
+        title: () => t('tour.firstAuditStep4Title'),
+        body: () => t('tour.firstAuditStep4Body'),
+      },
+      {
+        target: 'why',
+        title: () => t('tour.firstAuditStep5Title'),
+        body: () => t('tour.firstAuditStep5Body'),
+      },
+      {
+        target: 'static-scan',
+        title: () => t('tour.firstAuditStep6Title'),
+        body: () => t('tour.firstAuditStep6Body', { mod: mod() }),
+      },
+      {
+        target: 'findings',
+        title: () => t('tour.firstAuditStep7Title'),
+        body: () => t('tour.firstAuditStep7Body'),
+      },
+      {
+        target: 'code',
+        title: () => t('tour.firstAuditStep8Title'),
+        body: () => t('tour.firstAuditStep8Body'),
+      },
+      {
+        title: () => t('tour.firstAuditStep9Title'),
+        body: () => t('tour.firstAuditStep9Body'),
+      },
     ],
   },
   {
     id: 'triage',
-    title: 'Triage and fix findings',
-    summary: 'Confirm or suppress findings, apply fixes, export a report.',
+    title: () => t('tour.triageTitle'),
+    summary: () => t('tour.triageSummary'),
     minutes: 2,
     steps: [
-      { target: 'findings', title: 'Triage', body: 'Open a finding to mark it confirmed, suppressed (optionally until a date) or fixed. Suppressed ones hide unless you show them.', before: closeSettings },
-      { target: 'findings', title: 'Propose a fix', body: '“Propose fix” asks the model for a patch. It opens in the Diff tab, where you can read it before applying anything.' },
-      { target: 'code', title: 'Review in the editor', body: 'An applied fix types itself into the editor and glows briefly. It is one undo step. Save writes it to the copy of the code.' },
-      { target: 'export', title: 'Export a report', body: `PDF for sharing, laid out for paper, or one HTML page in the app’s theme. Also under File › Export Report (${mod()}⇧E).` },
+      {
+        target: 'findings',
+        title: () => t('tour.triageStep1Title'),
+        body: () => t('tour.triageStep1Body'),
+        before: closeSettings,
+      },
+      {
+        target: 'findings',
+        title: () => t('tour.triageStep2Title'),
+        body: () => t('tour.triageStep2Body'),
+      },
+      {
+        target: 'code',
+        title: () => t('tour.triageStep3Title'),
+        body: () => t('tour.triageStep3Body'),
+      },
+      {
+        target: 'export',
+        title: () => t('tour.triageStep4Title'),
+        body: () => t('tour.triageStep4Body', { mod: mod() }),
+      },
     ],
   },
   {
     id: 'assistant',
-    title: 'Ask the assistant',
-    summary: 'Chat about the code, change code inline, approve commands.',
+    title: () => t('tour.assistantTitle'),
+    summary: () => t('tour.assistantSummary'),
     minutes: 2,
     steps: [
-      { target: 'chat', title: 'The chat', body: 'Ask about the package in plain words: “where is user input parsed?”, “is this safe to use with untrusted YAML?”. Answers cite the files and lines they used; click a citation to open it.', before: closeSettings },
-      { target: 'chat-input', title: 'Edit, branch, retry', body: 'Hover a message to edit your question, branch the conversation from an answer, or ask again. Long conversations are summarised automatically so they fit.' },
-      { target: 'code', title: 'Inline chat', body: `Select code and press ${mod()}K (or click Change…) to say how it should change. The proposal comes back as a diff; nothing changes until you Accept.` },
-      { target: 'chat', title: 'Tools and approvals', body: 'The assistant can open files and run read-only commands like grep. Anything else asks you first, with Allow and Deny. Web search is off until you switch it on in Settings, and needs a model that can call tools; the chat says when yours cannot.' },
+      {
+        target: 'chat',
+        title: () => t('tour.assistantStep1Title'),
+        body: () => t('tour.assistantStep1Body'),
+        before: closeSettings,
+      },
+      {
+        target: 'chat-input',
+        title: () => t('tour.assistantStep2Title'),
+        body: () => t('tour.assistantStep2Body'),
+      },
+      {
+        target: 'code',
+        title: () => t('tour.assistantStep3Title'),
+        body: () => t('tour.assistantStep3Body', { mod: mod() }),
+      },
+      {
+        target: 'chat',
+        title: () => t('tour.assistantStep4Title'),
+        body: () => t('tour.assistantStep4Body'),
+      },
     ],
   },
   {
     id: 'debugger',
-    title: 'Debug a local project',
-    summary: 'Breakpoints, stepping and variables for Python code you opened.',
+    title: () => t('tour.debuggerTitle'),
+    summary: () => t('tour.debuggerSummary'),
     minutes: 2,
     steps: [
-      { target: 'open-folder', title: 'Your own code only', body: 'The debugger runs code, so it is offered only for folders you open yourself, never for downloaded packages. Open a Python project to follow along.', before: closeSettings },
-      { target: 'code', title: 'Set breakpoints', body: 'Click a line number (or press F9) in a .py file. A red dot marks the breakpoint; click again to remove it.' },
-      { target: 'file-header', title: 'Start', body: `Press Debug in the file’s header, or F5. The first time, you are asked to confirm that the program will run on your computer. ${mod()}F10 runs to the cursor line.` },
+      {
+        target: 'open-folder',
+        title: () => t('tour.debuggerStep1Title'),
+        body: () => t('tour.debuggerStep1Body'),
+        before: closeSettings,
+      },
+      {
+        target: 'code',
+        title: () => t('tour.debuggerStep2Title'),
+        body: () => t('tour.debuggerStep2Body'),
+      },
+      {
+        target: 'file-header',
+        title: () => t('tour.debuggerStep3Title'),
+        body: () => t('tour.debuggerStep3Body', { mod: mod() }),
+      },
       {
         target: 'terminal',
-        title: 'The Debug panel',
-        body: 'It opens at the bottom, beside the terminal: the controls (continue F5, step over F10, into F11, out ⇧F11, stop ⇧F5), the call stack, your breakpoints, the variables, and a console to evaluate expressions.',
+        title: () => t('tour.debuggerStep4Title'),
+        body: () => t('tour.debuggerStep4Body'),
         before: () => {
           useUiStore.getState().setBottomView('debug');
           useUiStore.getState().setTerminalOpen(true);
         },
       },
-      { target: 'code', title: 'Read values in place', body: 'While paused, the line is highlighted, the values of its variables appear at its end, and hovering a name shows its value.' },
+      {
+        target: 'code',
+        title: () => t('tour.debuggerStep5Title'),
+        body: () => t('tour.debuggerStep5Body'),
+      },
     ],
   },
   {
     id: 'make-it-yours',
-    title: 'Make it yours',
-    summary: 'Themes, editor colours, shortcuts, accessibility and layout.',
+    title: () => t('tour.makeItYoursTitle'),
+    summary: () => t('tour.makeItYoursSummary'),
     minutes: 1,
     steps: [
-      { target: 'settings', title: 'Settings', body: `Everything below lives in Settings (${mod()},).`, before: closeSettings },
       {
-        title: 'Appearance',
-        body: 'Light or dark, an accent colour, and an editor theme (One Dark, Dracula, Solarized, GitHub and more), with its font size and line spacing.',
+        target: 'settings',
+        title: () => t('tour.makeItYoursStep1Title'),
+        body: () => t('tour.makeItYoursStep1Body', { mod: mod() }),
+        before: closeSettings,
+      },
+      {
+        title: () => t('tour.makeItYoursStep2Title'),
+        body: () => t('tour.makeItYoursStep2Body'),
         before: () => {
           useUiStore.getState().setSettingsSection('appearance');
           useUiStore.getState().setSettingsOpen(true);
         },
       },
       {
-        title: 'Keyboard',
-        body: 'Every shortcut, and a way to change it: click its keys and press new ones.',
+        title: () => t('tour.makeItYoursStep3Title'),
+        body: () => t('tour.makeItYoursStep3Body'),
         before: () => {
           useUiStore.getState().setSettingsSection('keyboard');
           useUiStore.getState().setSettingsOpen(true);
         },
       },
       {
-        title: 'Accessibility',
-        body: 'Interface size, higher contrast, colour-blind-friendly severities, strong focus rings, wider text spacing and reduced motion.',
+        title: () => t('tour.makeItYoursStep4Title'),
+        body: () => t('tour.makeItYoursStep4Body'),
         before: () => {
           useUiStore.getState().setSettingsSection('accessibility');
           useUiStore.getState().setSettingsOpen(true);
         },
       },
       {
-        title: 'Layout',
-        body: 'Reorder or hide panes, dock the chat at the side, or pick a preset. Drag the dividers, or use the arrows on the terminal and chat handles.',
+        title: () => t('tour.makeItYoursStep5Title'),
+        body: () => t('tour.makeItYoursStep5Body'),
         before: () => {
           useUiStore.getState().setSettingsSection('layout');
           useUiStore.getState().setSettingsOpen(true);
@@ -170,7 +268,7 @@ export function noTourTakenYet(): boolean {
 
 /** Installs the tutorials: the chooser dialog and the tour overlay. Returns a cleanup. */
 export function installTutorials(root: HTMLElement): () => void {
-  const chooser = h('dialog', { class: 'tutorials-dialog', 'aria-label': 'Tutorials' });
+  const chooser = h('dialog', { class: 'tutorials-dialog', 'aria-label': t('tour.tutorialsAria') });
   root.append(chooser);
 
   const ring = h('div', { class: 'tour-ring', 'aria-hidden': 'true' });
@@ -183,20 +281,31 @@ export function installTutorials(root: HTMLElement): () => void {
 
   const openChooser = (): void => {
     const done = finished();
-    const close = h('button', { class: 'ghost tiny', type: 'button', onclick: () => chooser.close() }, 'Close');
+    const tours = TOURS();
+    const close = h('button', {
+      class: 'ghost tiny',
+      type: 'button',
+      onclick: () => chooser.close(),
+    }, t('tour.close'));
     chooser.replaceChildren(
-      h('div', { class: 'shortcuts-head' }, h('h2', { text: 'Tutorials' }), h('span', { class: 'grow' }), close),
-      h('p', { class: 'muted tutorial-lede', text: 'Short tours that point at the real controls. They only explain: nothing is pulled, scanned or run for you. Esc leaves a tour at any time.' }),
+      h('div', { class: 'shortcuts-head' }, h('h2', { text: t('tour.tutorials') }), h('span', { class: 'grow' }), close),
+      h('p', { class: 'muted tutorial-lede', text: t('tour.lede') }),
       h('ul', { class: 'tutorial-list' },
-        ...TOURS.map((t) =>
+        ...tours.map((item) =>
           h('li', {},
-            h('button', { class: 'tutorial-item', type: 'button', onclick: () => start(t) },
-              h('span', { class: `tutorial-check${done.has(t.id) ? ' is-done' : ''}`, 'aria-label': done.has(t.id) ? 'Finished' : 'Not taken yet' }, done.has(t.id) ? icon('check') : null),
+            h('button', { class: 'tutorial-item', type: 'button', onclick: () => start(item) },
+              h('span', {
+                class: `tutorial-check${done.has(item.id) ? ' is-done' : ''}`,
+                'aria-label': done.has(item.id) ? t('tour.finished') : t('tour.notTaken'),
+              }, done.has(item.id) ? icon('check') : null),
               h('span', { class: 'tutorial-text' },
-                h('strong', { text: t.title }),
-                h('span', { class: 'muted', text: t.summary }),
+                h('strong', { text: item.title() }),
+                h('span', { class: 'muted', text: item.summary() }),
               ),
-              h('span', { class: 'muted tutorial-time', text: `${t.minutes} min · ${t.steps.length} steps` }),
+              h('span', {
+                class: 'muted tutorial-time',
+                text: tn('tour.duration', item.steps.length, { minutes: item.minutes }),
+              }),
             ),
           ),
         ),
@@ -251,15 +360,35 @@ export function installTutorials(root: HTMLElement): () => void {
     const step = tour.steps[index];
     step.before?.();
     const last = index === tour.steps.length - 1;
-    const back = h('button', { class: 'ghost tiny', type: 'button', disabled: index === 0 || undefined, onclick: () => go(-1) }, 'Back');
-    const next = h('button', { class: 'primary tiny', type: 'button', onclick: () => (last ? stop(true) : go(1)) }, last ? 'Done' : 'Next');
-    const leave = h('button', { class: 'ghost tiny icon-button', type: 'button', title: 'Leave the tour (Esc)', 'aria-label': 'Leave the tour', onclick: () => stop(false) }, icon('x'));
-    card.setAttribute('aria-label', `${tour.title}, step ${index + 1} of ${tour.steps.length}`);
+    const title = tour.title();
+    const back = h('button', {
+      class: 'ghost tiny',
+      type: 'button',
+      disabled: index === 0 || undefined,
+      onclick: () => go(-1),
+    }, t('tour.back'));
+    const next = h('button', { class: 'primary tiny', type: 'button', onclick: () => (last ? stop(true) : go(1)) },
+      last ? t('tour.done') : t('tour.next'));
+    const leave = h('button', {
+      class: 'ghost tiny icon-button',
+      type: 'button',
+      title: t('tour.leaveTitle'),
+      'aria-label': t('tour.leaveAria'),
+      onclick: () => stop(false),
+    }, icon('x'));
+    card.setAttribute('aria-label', t('tour.cardAria', { title, step: index + 1, total: tour.steps.length }));
     card.replaceChildren(
-      h('div', { class: 'tour-head' }, h('span', { class: 'tour-progress', text: `${tour.title} · ${index + 1}/${tour.steps.length}` }), h('span', { class: 'grow' }), leave),
-      h('h3', { class: 'tour-title', text: step.title }),
-      h('p', { class: 'tutorial-body', text: step.body }),
-      h('div', { class: 'tour-dots', 'aria-hidden': 'true' }, ...tour.steps.map((_, i) => h('span', { class: `tour-dot${i === index ? ' is-current' : i < index ? ' is-past' : ''}` }))),
+      h('div', { class: 'tour-head' },
+        h('span', {
+          class: 'tour-progress',
+          text: t('tour.progress', { title, step: index + 1, total: tour.steps.length }),
+        }),
+        h('span', { class: 'grow' }),
+        leave),
+      h('h3', { class: 'tour-title', text: step.title() }),
+      h('p', { class: 'tutorial-body', text: step.body() }),
+      h('div', { class: 'tour-dots', 'aria-hidden': 'true' },
+        ...tour.steps.map((_, i) => h('span', { class: `tour-dot${i === index ? ' is-current' : i < index ? ' is-past' : ''}` }))),
       h('div', { class: 'tour-actions' }, back, h('span', { class: 'grow' }), next),
     );
     layer.hidden = false;
@@ -298,9 +427,9 @@ export function installTutorials(root: HTMLElement): () => void {
     }
   };
 
-  const start = (t: Tour): void => {
+  const start = (item: Tour): void => {
     chooser.close();
-    tour = t;
+    tour = item;
     index = 0;
     document.body.classList.add('is-touring');
     window.addEventListener('keydown', onKey, true);

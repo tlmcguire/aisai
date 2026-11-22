@@ -24,21 +24,15 @@
 
 import { create } from 'zustand';
 
-import { de } from '../locales/de';
-import { en } from '../locales/en';
-import { es } from '../locales/es';
-import { fr } from '../locales/fr';
-import { ja } from '../locales/ja';
+import { catalogs as CATALOGS, type Catalog, type MessageKey } from './messages';
 
-/** A key of the English catalog: every key the interface can ask for. */
-export type MessageKey = keyof typeof en;
+export type { Catalog, MessageKey };
 
 /** The keys of plural messages, without their ".one" / ".other" suffix. */
 export type PluralKey = {
   [K in MessageKey]: K extends `${infer Base}.other` ? Base : never;
 }[MessageKey];
 
-export type Catalog = Partial<Record<MessageKey, string>>;
 export type Params = Record<string, string | number>;
 
 /** The languages the interface is available in, with their own names. */
@@ -52,8 +46,6 @@ export const LOCALES = [
 
 export type Locale = (typeof LOCALES)[number]['id'];
 export type LocalePreference = Locale | 'system';
-
-const CATALOGS: Record<Locale, Catalog> = { en, es, fr, de, ja };
 
 /** Picks the first language of a preference list that the app speaks. */
 export function resolveLocale(languages: readonly string[]): Locale {
@@ -169,6 +161,3 @@ export function tn(base: PluralKey, count: number, params?: Params): string {
 export function placeholdersOf(text: string): string[] {
   return Array.from(new Set(Array.from(text.matchAll(/\{(\w+)\}/g), (m) => m[1]))).sort();
 }
-
-/** Every catalog, for tests. */
-export const catalogs = CATALOGS;

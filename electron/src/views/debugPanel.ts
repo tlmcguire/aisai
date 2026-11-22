@@ -11,6 +11,7 @@
 import type { AppController } from '../app';
 import { h } from '../lib/dom';
 import { icon, type IconName } from '../lib/icons';
+import { t, type MessageKey } from '../lib/i18n';
 import { useAuditStore } from '../state/audit';
 import { useDebugStore, type DebugState, type DebugVariable } from '../state/debug';
 import { useWorkspaceStore } from '../state/workspace';
@@ -31,12 +32,12 @@ export function debugTarget(): string | null {
 
 const baseName = (path: string): string => path.split('/').pop() ?? path;
 
-const REASONS: Record<string, string> = {
-  breakpoint: 'on a breakpoint',
-  step: 'after a step',
-  entry: 'on the first line',
-  pause: 'where you paused it',
-  exception: 'on an uncaught exception',
+const REASONS: Record<string, MessageKey> = {
+  breakpoint: 'debug.reason.breakpoint',
+  step: 'debug.reason.step',
+  entry: 'debug.reason.entry',
+  pause: 'debug.reason.pause',
+  exception: 'debug.reason.exception',
 };
 
 /**
@@ -54,24 +55,24 @@ export function createDebugPanel(controller: AppController): DebugPanel {
     button.addEventListener('click', run);
     return button;
   };
-  const startButton = h('button', { class: 'primary tiny debug-start', type: 'button' }, icon('bug'), h('span', { class: 'btn-label', text: 'Debug' }));
-  const continueButton = toolButton('play', 'Continue', 'F5', () => controller.debugCommand('continue'));
-  const pauseButton = toolButton('pause', 'Pause', 'F6', () => controller.debugCommand('pause'));
-  const overButton = toolButton('step-over', 'Step over', 'F10', () => controller.debugCommand('next'));
-  const intoButton = toolButton('step-into', 'Step into', 'F11', () => controller.debugCommand('step'));
-  const outButton = toolButton('step-out', 'Step out', 'Shift+F11', () => controller.debugCommand('out'));
-  const cursorButton = toolButton('step-into', 'Run to the cursor line', 'Mod+F10', () => window.dispatchEvent(new Event('aisai:run-to-cursor')));
+  const startButton = h('button', { class: 'primary tiny debug-start', type: 'button' }, icon('bug'), h('span', { class: 'btn-label', text: t('debug.debug') }));
+  const continueButton = toolButton('play', t('debug.continue'), 'F5', () => controller.debugCommand('continue'));
+  const pauseButton = toolButton('pause', t('debug.pause'), 'F6', () => controller.debugCommand('pause'));
+  const overButton = toolButton('step-over', t('debug.stepOver'), 'F10', () => controller.debugCommand('next'));
+  const intoButton = toolButton('step-into', t('debug.stepInto'), 'F11', () => controller.debugCommand('step'));
+  const outButton = toolButton('step-out', t('debug.stepOut'), 'Shift+F11', () => controller.debugCommand('out'));
+  const cursorButton = toolButton('step-into', t('debug.runToCursor'), 'Mod+F10', () => window.dispatchEvent(new Event('aisai:run-to-cursor')));
   cursorButton.classList.add('debug-run-to-cursor');
-  const restartButton = toolButton('restart', 'Restart', 'Mod+Shift+F5', () => void controller.restartDebug());
-  const stopButton = toolButton('stop', 'Stop', 'Shift+F5', () => void controller.stopDebug());
-  const clearBreakpoints = h('button', { class: 'ghost tiny', type: 'button', title: 'Remove every breakpoint' }, 'Clear breakpoints');
+  const restartButton = toolButton('restart', t('debug.restart'), 'Mod+Shift+F5', () => void controller.restartDebug());
+  const stopButton = toolButton('stop', t('debug.stop'), 'Shift+F5', () => void controller.stopDebug());
+  const clearBreakpoints = h('button', { class: 'ghost tiny', type: 'button', title: t('debug.removeAllBreakpoints') }, t('debug.clearBreakpoints'));
   clearBreakpoints.addEventListener('click', () => useDebugStore.getState().clearBreakpoints());
 
   const bar = h(
     'div',
     { class: 'debug-bar' },
     startButton,
-    h('span', { class: 'debug-tools', role: 'toolbar', 'aria-label': 'Debugger controls' }, continueButton, pauseButton, overButton, intoButton, outButton, cursorButton, restartButton, stopButton),
+    h('span', { class: 'debug-tools', role: 'toolbar', 'aria-label': t('debug.controls') }, continueButton, pauseButton, overButton, intoButton, outButton, cursorButton, restartButton, stopButton),
     status,
     h('span', { class: 'grow' }),
     clearBreakpoints,
@@ -81,12 +82,12 @@ export function createDebugPanel(controller: AppController): DebugPanel {
   const stackList = h('ol', { class: 'debug-stack' });
   const breakpointList = h('ul', { class: 'debug-breakpoints' });
   const variables = h('div', { class: 'debug-vars' });
-  const output = h('div', { class: 'debug-output', role: 'log', 'aria-label': 'Program output' });
+  const output = h('div', { class: 'debug-output', role: 'log', 'aria-label': t('debug.programOutput') });
   const input = h('input', {
     class: 'debug-eval',
     type: 'text',
-    placeholder: 'Evaluate in the selected frame, e.g. len(items)',
-    'aria-label': 'Expression to evaluate',
+    placeholder: t('debug.evalPlaceholder'),
+    'aria-label': t('debug.evalLabel'),
     spellcheck: 'false',
   });
   const history: string[] = [];
@@ -110,18 +111,18 @@ export function createDebugPanel(controller: AppController): DebugPanel {
       input.value = history[historyAt] ?? '';
     }
   });
-  const clearConsole = h('button', { class: 'ghost tiny', type: 'button', title: 'Clear the console' }, 'Clear');
+  const clearConsole = h('button', { class: 'ghost tiny', type: 'button', title: t('debug.clearConsole') }, t('debug.clear'));
   clearConsole.addEventListener('click', () => useDebugStore.getState().clearConsole());
 
   const body = h(
     'div',
     { class: 'debug-body' },
-    h('section', { class: 'debug-section' }, h('h3', { text: 'Call stack' }), stackList, h('h3', { class: 'debug-subhead', text: 'Breakpoints' }), breakpointList),
-    h('section', { class: 'debug-section' }, h('h3', { text: 'Variables' }), variables),
+    h('section', { class: 'debug-section' }, h('h3', { text: t('debug.callStack') }), stackList, h('h3', { class: 'debug-subhead', text: t('debug.breakpoints') }), breakpointList),
+    h('section', { class: 'debug-section' }, h('h3', { text: t('debug.variables') }), variables),
     h(
       'section',
       { class: 'debug-section debug-console' },
-      h('div', { class: 'debug-section-head' }, h('h3', { text: 'Console' }), h('span', { class: 'grow' }), clearConsole),
+      h('div', { class: 'debug-section-head' }, h('h3', { text: t('debug.console') }), h('span', { class: 'grow' }), clearConsole),
       output,
       h('div', { class: 'debug-eval-row' }, h('span', { class: 'debug-prompt', text: '›', 'aria-hidden': 'true' }), input),
     ),
@@ -158,8 +159,8 @@ export function createDebugPanel(controller: AppController): DebugPanel {
   const showConsent = (): void => {
     const program = debugTarget();
     if (!program) return;
-    const run = h('button', { class: 'primary tiny', type: 'button' }, `Run ${baseName(program)}`);
-    const cancel = h('button', { class: 'tiny', type: 'button' }, 'Cancel');
+    const run = h('button', { class: 'primary tiny', type: 'button' }, t('debug.runFile', { file: baseName(program) }));
+    const cancel = h('button', { class: 'tiny', type: 'button' }, t('debug.cancel'));
     run.addEventListener('click', () => {
       useDebugStore.getState().consent();
       start();
@@ -171,11 +172,7 @@ export function createDebugPanel(controller: AppController): DebugPanel {
     notice.hidden = false;
     notice.className = 'debug-notice is-consent';
     notice.replaceChildren(
-      h('p', {},
-        h('strong', { text: 'This runs the project’s code on your computer. ' }),
-        `${program} runs with Python, with your permissions, in the copy of the folder AISAI made. `,
-        'Run only code you trust.',
-      ),
+      h('p', {}, t('debug.consentIntro', { program })),
       h('div', { class: 'debug-notice-actions' }, cancel, run),
     );
     run.focus();
@@ -191,7 +188,7 @@ export function createDebugPanel(controller: AppController): DebugPanel {
             ),
           )),
         )
-      : h('p', { class: 'muted debug-empty', text: 'None' });
+      : h('p', { class: 'muted debug-empty', text: t('debug.noVariables') });
 
   let renderedConsole: DebugState['console'] | null = null;
 
@@ -218,12 +215,12 @@ export function createDebugPanel(controller: AppController): DebugPanel {
     startButton.hidden = active;
     startButton.disabled = !local || !program || state.status === 'starting';
     const label = startButton.querySelector('.btn-label');
-    if (label) label.textContent = program ? `${active ? 'Restart' : 'Debug'} ${baseName(program)}` : 'Debug';
+    if (label) label.textContent = program ? t(active ? 'debug.restartLabel' : 'debug.startLabel', { file: baseName(program) }) : t('debug.debug');
     startButton.title = !local
-      ? 'The debugger runs code, so it is only offered for folders you open yourself'
+      ? t('debug.localOnlyTitle')
       : program
-        ? `Run ${program} under the debugger (F5)`
-        : 'Open a Python file to debug it';
+        ? t('debug.runUnderTitle', { program })
+        : t('debug.openPythonTitle');
     continueButton.disabled = state.status !== 'paused';
     pauseButton.disabled = state.status !== 'running';
     overButton.disabled = state.status !== 'paused';
@@ -237,23 +234,27 @@ export function createDebugPanel(controller: AppController): DebugPanel {
     status.className = `debug-status is-${state.status}`;
     status.textContent =
       state.status === 'paused' && frame
-        ? `Paused ${REASONS[state.reason] ?? ''} · ${baseName(frame.file)}:${frame.line}`
+        ? t('debug.statusPaused', {
+            reason: t(REASONS[state.reason] ?? 'debug.reason.pause'),
+            file: baseName(frame.file),
+            line: frame.line,
+          })
         : state.status === 'running'
-          ? `Running ${state.program ? baseName(state.program) : ''}`
+          ? t('debug.statusRunning', { program: state.program ? baseName(state.program) : '' })
           : state.status === 'starting'
-            ? 'Starting…'
+            ? t('debug.statusStarting')
             : state.status === 'exited'
-              ? `Exited with code ${state.exitCode ?? 0}`
+              ? t('debug.statusExited', { code: state.exitCode ?? 0 })
               : '';
 
     // The notice says why nothing can run, or what went wrong.
     if (!notice.classList.contains('is-consent') || active) {
       let text = '';
-      if (!audit) text = 'Open a project folder to debug it.';
-      else if (audit.source !== 'local') text = `The debugger runs code, so it is only offered for folders you open yourself. ${audit.package} was downloaded, and AISAI never runs downloaded code.`;
-      else if (audit.sourcesDeleted) text = 'The copy of this project was deleted. Open the folder again to debug it.';
-      else if (state.error) text = `The debugger could not start: ${state.error}`;
-      else if (!program) text = 'Open a Python file, set breakpoints by clicking left of the line numbers (or F9), then press Debug.';
+      if (!audit) text = t('debug.noticeNoProject');
+      else if (audit.source !== 'local') text = t('debug.noticeDownloaded', { package: audit.package });
+      else if (audit.sourcesDeleted) text = t('debug.noticeCopyDeleted');
+      else if (state.error) text = t('debug.noticeStartFailed', { error: state.error });
+      else if (!program) text = t('debug.noticeHowToStart');
       notice.className = `debug-notice${state.error ? ' is-error' : ''}`;
       if (state.status === 'exited' && !text) notice.hidden = true;
       notice.hidden = !text;
@@ -272,7 +273,7 @@ export function createDebugPanel(controller: AppController): DebugPanel {
               h('button', {
                 class: `debug-frame${index === state.frame ? ' is-current' : ''}${f.external ? ' is-external' : ''}`,
                 type: 'button',
-                title: f.external ? `${f.file}:${f.line} (outside the project)` : `${f.file}:${f.line}`,
+                title: f.external ? t('debug.frameOutside', { file: f.file, line: f.line }) : `${f.file}:${f.line}`,
                 'aria-current': index === state.frame ? 'true' : undefined,
                 onclick: () => controller.debugSelectFrame(index),
               },
@@ -281,7 +282,7 @@ export function createDebugPanel(controller: AppController): DebugPanel {
               ),
             ),
           )
-        : [h('li', { class: 'muted debug-empty', text: state.status === 'running' ? 'Running. Pause to see the stack.' : 'Not paused' })]),
+        : [h('li', { class: 'muted debug-empty', text: state.status === 'running' ? t('debug.stackRunning') : t('debug.notPaused') })]),
     );
 
     // Every breakpoint, to jump to or remove; the hint says how to add one.
@@ -291,31 +292,31 @@ export function createDebugPanel(controller: AppController): DebugPanel {
         ? entries.map(({ file, line }) =>
             h('li', { class: 'debug-breakpoint' },
               h('span', { class: 'debug-bp-dot', 'aria-hidden': 'true' }),
-              h('button', { class: 'debug-bp-go', type: 'button', title: `Go to ${file}:${line}`, onclick: () => void controller.openFile(file, line) }, `${baseName(file)}:${line}`),
+              h('button', { class: 'debug-bp-go', type: 'button', title: t('debug.goToBreakpoint', { file, line }), onclick: () => void controller.openFile(file, line) }, `${baseName(file)}:${line}`),
               h('button', {
                 class: 'ghost tiny icon-button',
                 type: 'button',
-                title: 'Remove this breakpoint',
-                'aria-label': `Remove the breakpoint at ${baseName(file)} line ${line}`,
+                title: t('debug.removeBreakpoint'),
+                'aria-label': t('debug.removeBreakpointAt', { file: baseName(file), line }),
                 onclick: () => useDebugStore.getState().toggleBreakpoint(file, line),
               }, icon('x')),
             ),
           )
-        : [h('li', { class: 'muted debug-empty', text: 'None yet. Click a line number in a Python file (or press F9) to add one.' })]),
+        : [h('li', { class: 'muted debug-empty', text: t('debug.noBreakpointsYet') })]),
     );
     cursorButton.disabled = !local || !program || state.status === 'running' || state.status === 'starting';
-    cursorButton.title = state.status === 'paused' ? 'Continue to the cursor line (Mod+F10)' : 'Run until the cursor line (Mod+F10)';
+    cursorButton.title = state.status === 'paused' ? t('debug.continueToCursor') : t('debug.runUntilCursor');
 
     variables.replaceChildren(
       ...(state.status === 'paused'
         ? [
-            h('h4', { text: 'Locals' }),
+            h('h4', { text: t('debug.locals') }),
             variableRows(state.locals),
             ...(state.globals.length
-              ? [h('details', { class: 'debug-globals' }, h('summary', { text: `Globals (${state.globals.length})` }), variableRows(state.globals))]
+              ? [h('details', { class: 'debug-globals' }, h('summary', { text: t('debug.globals', { n: state.globals.length }) }), variableRows(state.globals))]
               : []),
           ]
-        : [h('p', { class: 'muted debug-empty', text: 'Variables show while the program is paused.' })]),
+        : [h('p', { class: 'muted debug-empty', text: t('debug.variablesHint') })]),
     );
 
     renderConsole(state);

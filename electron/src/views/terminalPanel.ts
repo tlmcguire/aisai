@@ -15,6 +15,7 @@ import '@xterm/xterm/css/xterm.css';
 import type { AppController } from '../app';
 import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
+import { t } from '../lib/i18n';
 import { terminalBus, useTerminalStore } from '../state/terminal';
 import { DEFAULT_LAYOUT, useUiStore, type BottomView } from '../state/ui';
 import { useDebugStore } from '../state/debug';
@@ -51,14 +52,14 @@ export function createTerminalPanel(controller: AppController, container: HTMLEl
   const tabs = h('div', { class: 'terminal-tabs', role: 'tablist' });
   const newButton = h(
     'button',
-    { class: 'ghost tiny icon-button', type: 'button', title: 'New terminal', 'aria-label': 'New terminal' },
+    { class: 'ghost tiny icon-button', type: 'button', title: t('terminal.newTerminal'), 'aria-label': t('terminal.newTerminal') },
     icon('plus'),
   );
   const growButton = h('button', { class: 'ghost tiny icon-button', type: 'button' }, icon('arrow-up'));
   const syncGrow = (): void => {
     const big = useUiStore.getState().terminalHeight >= 440;
     growButton.replaceChildren(icon(big ? 'arrow-down' : 'arrow-up'));
-    const label = big ? 'Shrink the terminal' : 'Enlarge the terminal';
+    const label = big ? t('terminal.shrinkTerminal') : t('terminal.enlargeTerminal');
     growButton.title = label;
     growButton.setAttribute('aria-label', label);
   };
@@ -70,7 +71,7 @@ export function createTerminalPanel(controller: AppController, container: HTMLEl
   syncGrow();
   const hideButton = h(
     'button',
-    { class: 'ghost tiny icon-button', type: 'button', title: 'Hide the terminal (Ctrl+`)', 'aria-label': 'Hide the terminal' },
+    { class: 'ghost tiny icon-button', type: 'button', title: t('terminal.hideTerminalTitle'), 'aria-label': t('terminal.hideTerminal') },
     icon('chevron-down'),
   );
   // The panel shows the shells or the debugger.
@@ -79,14 +80,14 @@ export function createTerminalPanel(controller: AppController, container: HTMLEl
     button.addEventListener('click', () => useUiStore.getState().setBottomView(view));
     return button;
   };
-  const terminalView = viewButton('terminal', 'Terminal');
-  const debugView = viewButton('debug', 'Debug');
+  const terminalView = viewButton('terminal', t('terminal.terminalView'));
+  const debugView = viewButton('debug', t('terminal.debugView'));
   const debugDot = h('span', { class: 'bottom-view-dot', hidden: true, 'aria-hidden': 'true' });
   debugView.append(debugDot);
   const header = h(
     'div',
     { class: 'terminal-header' },
-    h('span', { class: 'bottom-views', role: 'tablist', 'aria-label': 'Bottom panel' }, terminalView, debugView),
+    h('span', { class: 'bottom-views', role: 'tablist', 'aria-label': t('terminal.bottomPanel') }, terminalView, debugView),
     tabs,
     newButton,
     h('span', { class: 'grow' }),
@@ -172,7 +173,7 @@ export function createTerminalPanel(controller: AppController, container: HTMLEl
     const open = useUiStore.getState().terminalOpen;
 
     notice.hidden = !state.error || useUiStore.getState().bottomView === 'debug';
-    notice.textContent = state.error ? `The terminal could not start: ${state.error}` : '';
+    notice.textContent = state.error ? t('terminal.couldNotStart', { error: state.error }) : '';
 
     for (const session of state.sessions) attach(session.id);
     for (const id of Array.from(live.keys())) {
@@ -194,15 +195,15 @@ export function createTerminalPanel(controller: AppController, container: HTMLEl
               title: session.cwd,
               onclick: () => useTerminalStore.getState().select(session.id),
             },
-            session.exited !== undefined ? `${session.title} (exited ${session.exited})` : session.title,
+            session.exited !== undefined ? t('terminal.exited', { title: session.title, code: session.exited }) : session.title,
           ),
           h(
             'button',
             {
               class: 'ghost tiny icon-button',
               type: 'button',
-              title: 'Close this terminal',
-              'aria-label': `Close ${session.title}`,
+              title: t('terminal.closeTerminal'),
+              'aria-label': t('terminal.closeTerminalNamed', { title: session.title }),
               onclick: () => void controller.closeTerminal(session.id),
             },
             icon('x'),

@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+import { t } from '../lib/i18n';
+
 export type MainTab = 'code' | 'ast' | 'diff';
 
 /** The three columns of the workspace. The chat panel is docked separately. */
@@ -7,17 +9,23 @@ export type PaneId = 'deps' | 'main' | 'findings';
 export type ChatDock = 'bottom' | 'right';
 
 export const PANE_IDS: readonly PaneId[] = ['deps', 'main', 'findings'];
-export const PANE_LABELS: Record<PaneId, string> = {
-  deps: 'Dependencies & files',
-  main: 'Code, AST & diff',
-  findings: 'Findings',
-};
+
+/**
+ * The name of a pane, in the language of the interface.
+ *
+ * The name is used inside longer sentences — a drag handle, a "show this
+ * pane" box — so it has to be the name as the interface writes it.
+ */
+export const paneName = (id: PaneId): string =>
+  id === 'deps' ? t('layout.paneDependenciesFiles') : id === 'main' ? t('layout.paneCodeAstDiff') : t('layout.findings');
 
 /** A named arrangement of the panes, offered in Settings → Layout. */
 export interface LayoutPreset {
   id: string;
-  label: string;
-  description: string;
+  /** The name of the preset, in the language of the interface. */
+  label: () => string;
+  /** What the preset is for, in the language of the interface. */
+  description: () => string;
   order: PaneId[];
   hidden: PaneId[];
   chatDock: ChatDock;
@@ -26,40 +34,40 @@ export interface LayoutPreset {
 export const LAYOUT_PRESETS: readonly LayoutPreset[] = [
   {
     id: 'classic',
-    label: 'Classic',
-    description: 'Dependencies on the left, code in the middle, findings on the right, chat below.',
+    label: () => t('preset.classic'),
+    description: () => t('preset.classicDescription'),
     order: ['deps', 'main', 'findings'],
     hidden: [],
     chatDock: 'bottom',
   },
   {
     id: 'triage',
-    label: 'Triage',
-    description: 'Findings first, then the code, so a finding is one click from its source.',
+    label: () => t('preset.triage'),
+    description: () => t('preset.triageDescription'),
     order: ['findings', 'main', 'deps'],
     hidden: [],
     chatDock: 'bottom',
   },
   {
     id: 'reader',
-    label: 'Reader',
-    description: 'Code with the chat beside it, for reading a package and asking about it.',
+    label: () => t('preset.reader'),
+    description: () => t('preset.readerDescription'),
     order: ['main', 'findings', 'deps'],
     hidden: ['deps'],
     chatDock: 'right',
   },
   {
     id: 'focus',
-    label: 'Focus',
-    description: 'Only the code and the findings. Everything else is a click away in Settings.',
+    label: () => t('preset.focus'),
+    description: () => t('preset.focusDescription'),
     order: ['main', 'findings', 'deps'],
     hidden: ['deps'],
     chatDock: 'bottom',
   },
   {
     id: 'map',
-    label: 'Supply-chain map',
-    description: 'A wide dependency graph on the left, findings on the right, chat docked beside them.',
+    label: () => t('preset.map'),
+    description: () => t('preset.mapDescription'),
     order: ['deps', 'findings', 'main'],
     hidden: [],
     chatDock: 'right',
@@ -70,11 +78,11 @@ export type ThemeChoice = 'dark' | 'light' | 'system';
 
 /** Accent colours the user can pick: the signal colour of the interface. */
 export const ACCENTS = [
-  { id: 'lime', label: 'Lime', dark: ['#b4f23c', '#c8ff5a', '#232f16'], light: ['#3f6212', '#2f4c0c', '#d5e6bb'] },
-  { id: 'teal', label: 'Teal', dark: ['#5fd3c4', '#8ae9dc', '#17302e'], light: ['#0b5f59', '#094845', '#c4e6e1'] },
-  { id: 'blue', label: 'Blue', dark: ['#6cb2ff', '#9acaff', '#16283d'], light: ['#1e40af', '#172f85', '#cdd9f7'] },
-  { id: 'violet', label: 'Violet', dark: ['#b79cff', '#d0bcff', '#2a2142'], light: ['#5b21b6', '#46188f', '#dccff5'] },
-  { id: 'orange', label: 'Orange', dark: ['#ffa24a', '#ffbb7a', '#38261a'], light: ['#9a3412', '#7a280d', '#f3d4bf'] },
+  { id: 'lime', label: () => t('accent.lime'), dark: ['#b4f23c', '#c8ff5a', '#232f16'], light: ['#3f6212', '#2f4c0c', '#d5e6bb'] },
+  { id: 'teal', label: () => t('accent.teal'), dark: ['#5fd3c4', '#8ae9dc', '#17302e'], light: ['#0b5f59', '#094845', '#c4e6e1'] },
+  { id: 'blue', label: () => t('accent.blue'), dark: ['#6cb2ff', '#9acaff', '#16283d'], light: ['#1e40af', '#172f85', '#cdd9f7'] },
+  { id: 'violet', label: () => t('accent.violet'), dark: ['#b79cff', '#d0bcff', '#2a2142'], light: ['#5b21b6', '#46188f', '#dccff5'] },
+  { id: 'orange', label: () => t('accent.orange'), dark: ['#ffa24a', '#ffbb7a', '#38261a'], light: ['#9a3412', '#7a280d', '#f3d4bf'] },
 ] as const;
 export type AccentId = (typeof ACCENTS)[number]['id'];
 

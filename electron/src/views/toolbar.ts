@@ -12,6 +12,7 @@ import type { UpdateStatus } from '../api/bridge';
 import type { ProviderInfo } from '../api/types';
 import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
+import { t, tn } from '../lib/i18n';
 import { brandMark } from '../lib/logo';
 import { isMac } from '../lib/shortcuts';
 import { useAuditStore } from '../state/audit';
@@ -50,7 +51,7 @@ export function createToolbar(controller: AppController, container: HTMLElement)
   const brand = h('div', { class: 'brand' }, brandMark(), h('span', { class: 'brand-name', text: 'aisai' }));
 
   // The project being inspected, always visible: name, version and where it came from.
-  const projectLabel = h('span', { class: 'project-label', text: 'Inspecting' });
+  const projectLabel = h('span', { class: 'project-label', text: t('toolbar.inspecting') });
   const projectName = h('strong', { class: 'project-name', text: '' });
   const projectMeta = h('span', { class: 'project-meta', text: '' });
   const projectChip = h('div', { class: 'project-chip', hidden: true, role: 'status', 'aria-live': 'polite' }, projectLabel, projectName, projectMeta);
@@ -58,26 +59,26 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     if (projectChip.classList.contains('is-deleted')) document.getElementById('package-input')?.focus();
   });
 
-  const scanButton = button('Pull', 'primary');
-  scanButton.title = 'Download a package, or clone a repository, into this audit. It does not scan.';
+  const scanButton = button(t('toolbar.pull'), 'primary');
+  scanButton.title = t('toolbar.pullTitle');
   // data-tour marks the controls the tutorials point at (views/tutorials.ts).
   scanButton.dataset.tour = 'pull';
-  const folderButton = button('Open folder…');
+  const folderButton = button(t('toolbar.openFolder'));
   folderButton.dataset.tour = 'open-folder';
-  folderButton.title = `Inspect a project folder on this computer (${isMac() ? '⌘O' : 'Ctrl+O'}, or drop a folder on the window)`;
-  const staticButton = button('Static scan');
-  staticButton.title = 'Run the static rules over the pulled code';
+  folderButton.title = t('toolbar.openFolderTitle', { shortcut: isMac() ? '⌘O' : 'Ctrl+O' });
+  const staticButton = button(t('toolbar.staticScan'));
+  staticButton.title = t('toolbar.staticScanTitle');
   staticButton.dataset.tour = 'static-scan';
   staticButton.setAttribute('aria-keyshortcuts', isMac() ? 'Meta+Shift+S' : 'Control+Shift+S');
-  const llmButton = button('LLM scan');
-  llmButton.title = 'Ask the model to review the pulled code';
+  const llmButton = button(t('toolbar.llmScan'));
+  llmButton.title = t('toolbar.llmScanTitle');
   llmButton.dataset.tour = 'llm-scan';
 
-  const providerChip = h('span', { class: 'provider-chips' }, h('span', { class: 'badge neutral', text: 'checking provider…' }));
-  const mockBadge = h('span', { class: 'badge mock', text: 'MOCK DATA', hidden: true });
+  const providerChip = h('span', { class: 'provider-chips' }, h('span', { class: 'badge neutral', text: t('toolbar.checkingProvider') }));
+  const mockBadge = h('span', { class: 'badge mock', text: t('toolbar.mockData'), hidden: true });
   const terminalButton = h(
     'button',
-    { class: 'ghost icon', type: 'button', title: 'Terminal (Ctrl+`)', 'aria-label': 'Terminal', 'aria-pressed': 'false' },
+    { class: 'ghost icon', type: 'button', title: t('toolbar.terminalTitle'), 'aria-label': t('toolbar.terminal'), 'aria-pressed': 'false' },
     icon('terminal'),
   );
   terminalButton.addEventListener('click', () => {
@@ -86,7 +87,7 @@ export function createToolbar(controller: AppController, container: HTMLElement)
   });
   const settingsButton = h(
     'button',
-    { class: 'ghost icon', type: 'button', title: `Settings (${isMac() ? '⌘,' : 'Ctrl+,'})`, 'aria-label': 'Settings' },
+    { class: 'ghost icon', type: 'button', title: t('toolbar.settingsTitle', { shortcut: isMac() ? '⌘,' : 'Ctrl+,' }), 'aria-label': t('toolbar.settings') },
     icon('gear'),
   );
   settingsButton.dataset.tour = 'settings';
@@ -102,16 +103,16 @@ export function createToolbar(controller: AppController, container: HTMLElement)
   const unsubscribeUpdate = window.aisai.onUpdateStatus((status) => {
     updateState = status;
     const label: Partial<Record<UpdateStatus['state'], string>> = {
-      downloading: `Downloading update ${status.version ?? ''} ${status.percent ?? 0}%`,
-      ready: `Restart to update to ${status.version ?? 'the new version'}`,
-      manual: `Update ${status.version ?? ''} available: download`,
+      downloading: t('toolbar.updateDownloading', { version: status.version ?? '', percent: status.percent ?? 0 }),
+      ready: t('toolbar.updateReady', { version: status.version ?? t('toolbar.theNewVersion') }),
+      manual: t('toolbar.updateManual', { version: status.version ?? '' }),
     };
     const text = label[status.state];
     updateButton.hidden = !text;
     updateButton.textContent = text ?? '';
     updateButton.disabled = status.state === 'downloading';
     updateButton.classList.toggle('primary', status.state === 'ready');
-    updateButton.title = status.message ?? 'AISAI updates itself in the background';
+    updateButton.title = status.message ?? t('toolbar.updateBackgroundTitle');
   });
 
   picker.onScan((packageName, version, ecosystem) => {
@@ -171,7 +172,7 @@ export function createToolbar(controller: AppController, container: HTMLElement)
         if (folder) {
           void controller.startFolderAudit(folder);
         } else {
-          useAuditStore.getState().setError('Drop a project folder, not a file.');
+          useAuditStore.getState().setError(t('toolbar.dropFolderNotFile'));
         }
       })
       .catch((err: unknown) => {
@@ -205,17 +206,17 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     if (!audit) return;
     const from =
       audit.source === 'local'
-        ? 'folder'
+        ? t('toolbar.sourceFolder')
         : audit.source === 'git' || audit.source === 'repo'
-          ? 'repository'
+          ? t('toolbar.sourceRepository')
           : ({ npm: 'npm', cargo: 'crates.io', pypi: 'PyPI' } as Record<string, string>)[audit.ecosystem ?? ''] ?? 'PyPI';
     // Deleted sources leave nothing to inspect: say so and point to the way back.
     projectChip.classList.toggle('is-deleted', Boolean(audit.sourcesDeleted));
-    projectLabel.textContent = audit.sourcesDeleted ? 'Sources deleted' : 'Inspecting';
+    projectLabel.textContent = audit.sourcesDeleted ? t('toolbar.sourcesDeleted') : t('toolbar.inspecting');
     if (audit.sourcesDeleted) {
       projectName.textContent = audit.package;
-      projectMeta.textContent = 'pull again to start';
-      projectChip.title = `The downloaded sources of ${audit.package} were deleted. Pull a package or open a folder to start again.`;
+      projectMeta.textContent = t('toolbar.pullAgainToStart');
+      projectChip.title = t('toolbar.sourcesDeletedTitle', { package: audit.package });
       return;
     }
     projectName.textContent = audit.package;
@@ -223,11 +224,18 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     projectMeta.textContent = [
       audit.version && audit.version !== 'local' ? `v${audit.version}` : '',
       from,
-      audit.truncated ? 'partial copy' : '',
-      nested ? `${nested} nested repo${nested === 1 ? '' : 's'} skipped` : '',
-    ].filter(Boolean).join(' · ');
+      audit.truncated ? t('toolbar.partialCopy') : '',
+      nested ? tn('toolbar.nestedReposSkipped', nested) : '',
+    ].filter(Boolean).join(t('toolbar.dotSeparator'));
     projectChip.classList.toggle('is-partial', Boolean(audit.truncated) || nested > 0);
-    projectChip.title = `${audit.package}${audit.version ? ` ${audit.version}` : ''} (${from})${audit.fileCount ? ` · ${audit.fileCount} files` : ''}${audit.truncated ? ' · The folder is larger than the copy limit (20,000 files or 256 MB), so only part of it is audited.' : ''}${nested ? ` · Skipped nested repositories (worktrees, submodules or copies, audited separately if you open them): ${audit.skippedRepos?.join(', ')}` : ''}`;
+    const title = audit.version
+      ? t('toolbar.projectTitleWithVersion', { package: audit.package, version: audit.version, source: from })
+      : t('toolbar.projectTitle', { package: audit.package, source: from });
+    const parts = [title];
+    if (audit.fileCount) parts.push(tn('toolbar.projectFiles', audit.fileCount));
+    if (audit.truncated) parts.push(t('toolbar.projectTruncated'));
+    if (nested) parts.push(t('toolbar.projectNested', { repos: audit.skippedRepos?.join(', ') ?? '' }));
+    projectChip.title = parts.join(t('toolbar.dotSeparator'));
   };
 
   const unsubscribeAudit = useAuditStore.subscribe((state) => {
@@ -241,9 +249,9 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     setBusy(llmButton, state.busy === 'scan:llm');
     staticButton.disabled = !ready || state.busy !== null;
     llmButton.disabled = !ready || state.busy !== null;
-    const why = ready ? '' : 'Pull a package or open a folder first';
-    staticButton.title = why || 'Run the static rules over the pulled code';
-    llmButton.title = why || 'Ask the model to review the pulled code';
+    const why = ready ? '' : t('toolbar.pullFirst');
+    staticButton.title = why || t('toolbar.staticScanTitle');
+    llmButton.title = why || t('toolbar.llmScanTitle');
   });
 
   showProject(useAuditStore.getState().current);
@@ -286,17 +294,17 @@ export function createToolbar(controller: AppController, container: HTMLElement)
 
 function providerChips(providers: ProviderInfo[]): Node[] {
   if (!providers.length) {
-    return [h('span', { class: 'badge provider-badge is-bad', role: 'button', tabindex: '0', title: 'Choose a model server', onclick: () => {
+    return [h('span', { class: 'badge provider-badge is-bad', role: 'button', tabindex: '0', title: t('toolbar.chooseModelServer'), onclick: () => {
       useUiStore.getState().setSettingsSection('server');
       useUiStore.getState().setSettingsOpen(true);
-    } }, h('span', { class: 'status-dot', 'aria-hidden': 'true' }), 'No model server')];
+    } }, h('span', { class: 'status-dot', 'aria-hidden': 'true' }), t('toolbar.noModelServer'))];
   }
   return providers.map((provider) =>
     h(
       'span',
       {
         class: `badge provider-badge ${provider.ok ? 'is-ok' : 'is-bad'}`,
-        title: (provider.error ?? `${provider.id} (${provider.kind})`) + ' · click to configure',
+        title: `${provider.error ?? `${provider.id} (${provider.kind})`}${t('toolbar.dotSeparator')}${t('toolbar.clickToConfigure')}`,
         role: 'button',
         tabindex: '0',
         onclick: () => {
@@ -305,7 +313,7 @@ function providerChips(providers: ProviderInfo[]): Node[] {
         },
       },
       h('span', { class: 'status-dot', 'aria-hidden': 'true' }),
-      `${providerLabel(provider.kind)}${provider.ok ? '' : ' offline'}`,
+      provider.ok ? providerLabel(provider.kind) : t('toolbar.providerOffline', { provider: providerLabel(provider.kind) }),
     ),
   );
 }

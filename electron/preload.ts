@@ -95,6 +95,9 @@ const bridge: AisaiBridge = {
     ipcRenderer.invoke('aisai:export-pdf', html, name) as Promise<{ saved: boolean; path?: string; bytes?: number }>,
   showInFolder: (file: string) => ipcRenderer.invoke('aisai:show-in-folder', file) as Promise<void>,
   setMenuShortcuts: (shortcuts: Record<string, string>) => ipcRenderer.invoke('aisai:menu-shortcuts', shortcuts) as Promise<void>,
+  setLocale: (locale: string) => {
+    ipcRenderer.send('aisai:locale', locale);
+  },
   getMode: () => currentStatus.mode,
   getStatus: () => currentStatus,
   http: (method: HttpMethod, path: string, body?: unknown): Promise<HttpResponse> =>

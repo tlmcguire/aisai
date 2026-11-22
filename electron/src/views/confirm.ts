@@ -10,6 +10,7 @@
  */
 
 import { h } from '../lib/dom';
+import { t } from '../lib/i18n';
 
 export interface ConfirmOptions {
   /** The button that says yes, e.g. "Save anyway". */
@@ -35,7 +36,7 @@ export function confirmDialog(message: string, options: ConfirmOptions): Promise
       resolve(answer);
     };
 
-    const cancel = h('button', { type: 'button', class: 'tiny' }, options.cancelLabel ?? 'Cancel');
+    const cancel = h('button', { type: 'button', class: 'tiny' }, options.cancelLabel ?? t('confirm.cancel'));
     const confirm = h('button', { type: 'button', class: options.danger ? 'danger tiny' : 'primary tiny' }, options.confirmLabel);
     cancel.addEventListener('click', () => finish(false));
     confirm.addEventListener('click', () => finish(true));
@@ -46,7 +47,7 @@ export function confirmDialog(message: string, options: ConfirmOptions): Promise
     });
 
     dialog.append(
-      h('h2', { id: 'confirm-title', class: 'confirm-title', text: options.title ?? 'Are you sure?' }),
+      h('h2', { id: 'confirm-title', class: 'confirm-title', text: options.title ?? t('confirm.title') }),
       h('p', { id: 'confirm-message', class: 'confirm-message', text: message }),
       h('div', { class: 'confirm-actions' }, cancel, confirm),
     );

@@ -54,6 +54,7 @@ const EXPECTED_BRIDGE_MEMBERS = [
   'openReleasePage',
   'providerKeyStatus',
   'send',
+  'setLocale',
   'setMenuShortcuts',
   'showInFolder',
 ];

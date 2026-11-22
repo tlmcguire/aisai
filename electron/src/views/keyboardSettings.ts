@@ -10,29 +10,35 @@
 
 import type { AppController } from '../app';
 import { h } from '../lib/dom';
+import { t, type MessageKey } from '../lib/i18n';
 import { isPlainTypingKey, keysFor, normalizeSpec, specFromEvent, useKeybindingStore } from '../lib/keybindings';
 import { displayKeys, isMac, type Shortcut } from '../lib/shortcuts';
 import { confirmDialog } from './confirm';
 import { appShortcuts, keyCaps } from './shortcuts';
 
-/** Combinations the system or the native menus keep for themselves. */
-const RESERVED: Record<string, string> = {
-  'Mod+Q': 'quits the app',
-  'Mod+W': 'closes the window',
-  'Mod+H': isMac() ? 'hides the app' : '',
-  'Mod+M': 'minimises the window',
-  'Mod+X': 'cuts',
-  'Mod+C': 'copies',
-  'Mod+V': 'pastes',
-  'Mod+A': 'selects all',
+/**
+ * Combinations the system or the native menus keep for themselves.
+ *
+ * The value is the message key that says what the combination is for, so
+ * the reason can be written in the user's language.
+ */
+const RESERVED: Record<string, MessageKey> = {
+  'Mod+Q': 'settings.keysReservedQuitsApp',
+  'Mod+W': 'settings.keysReservedClosesWindow',
+  'Mod+H': 'settings.keysReservedHidesApp',
+  'Mod+M': 'settings.keysReservedMinimisesWindow',
+  'Mod+X': 'settings.keysReservedCuts',
+  'Mod+C': 'settings.keysReservedCopies',
+  'Mod+V': 'settings.keysReservedPastes',
+  'Mod+A': 'settings.keysReservedSelectsAll',
 };
 
 export function renderKeyboardSettings(controller: AppController): HTMLElement {
   const definitions = appShortcuts(controller, () => undefined);
-  const filter = h('input', { type: 'search', class: 'keys-filter', placeholder: 'Filter shortcuts, e.g. step or save', 'aria-label': 'Filter shortcuts' });
+  const filter = h('input', { type: 'search', class: 'keys-filter', placeholder: t('settings.keysFilterPlaceholder'), 'aria-label': t('settings.keysFilterAria') });
   const message = h('p', { class: 'keys-message', role: 'status', 'aria-live': 'polite' });
   const list = h('div', { class: 'keys-list' });
-  const resetAll = h('button', { class: 'tiny', type: 'button' }, 'Reset all to defaults');
+  const resetAll = h('button', { class: 'tiny', type: 'button' }, t('settings.keysResetAll'));
 
   let recording: { id: string; button: HTMLButtonElement } | null = null;
 
@@ -57,14 +63,14 @@ export function renderKeyboardSettings(controller: AppController): HTMLElement {
     const shortcut = definitions.find((s) => s.id === id);
     if (!shortcut) return;
     if (event.key === 'Escape' && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
-      message.textContent = 'Not changed.';
+      message.textContent = t('settings.keysNotChanged');
       stopRecording();
       render();
       return;
     }
     if ((event.key === 'Backspace' || event.key === 'Delete') && !event.metaKey && !event.ctrlKey && !event.altKey) {
       useKeybindingStore.getState().set(id, '');
-      message.textContent = `“${shortcut.label}” has no shortcut now.`;
+      message.textContent = t('settings.keysShortcutRemoved', { name: shortcut.label });
       stopRecording();
       render();
       return;
@@ -72,21 +78,24 @@ export function renderKeyboardSettings(controller: AppController): HTMLElement {
     const spec = specFromEvent(event);
     if (!spec) return; // only modifiers so far
     const reserved = RESERVED[spec];
-    if (reserved) {
-      message.textContent = `That combination ${reserved}, so it cannot be used. Press other keys, or Esc to cancel.`;
+    // The system keeps Mod+H on macOS only; elsewhere it is free.
+    if (reserved && !(spec === 'Mod+H' && !isMac())) {
+      message.textContent = t('settings.keysCombinationReserved', { reason: t(reserved) });
       return;
     }
     if (isPlainTypingKey(spec)) {
-      message.textContent = `A key without ${isMac() ? '⌘, ⌃ or ⌥' : 'Ctrl or Alt'} would type instead. Add a modifier, or use a function key.`;
+      message.textContent = isMac() ? t('settings.keysTypingWarningMac') : t('settings.keysTypingWarningOther');
       return;
     }
     const taken = conflict(spec, id);
     if (taken) {
-      message.textContent = `Already used by “${taken.label}”${taken.fixed ? ', which cannot be changed' : '; change that one first'}. Press other keys, or Esc to cancel.`;
+      message.textContent = taken.fixed
+        ? t('settings.keysTakenFixed', { name: taken.label })
+        : t('settings.keysTaken', { name: taken.label });
       return;
     }
     useKeybindingStore.getState().set(id, spec);
-    message.textContent = `“${shortcut.label}” is now ${displayKeys(spec).join(isMac() ? '' : '+')}.`;
+    message.textContent = t('settings.keysNow', { name: shortcut.label, keys: displayKeys(spec).join(isMac() ? '' : '+') });
     stopRecording();
     render();
   };
@@ -96,8 +105,8 @@ export function renderKeyboardSettings(controller: AppController): HTMLElement {
     recording = { id, button };
     document.body.classList.add('is-recording-keys');
     button.classList.add('is-recording');
-    button.replaceChildren(h('span', { text: 'Press keys…' }));
-    message.textContent = 'Press the new combination. Esc cancels, Backspace removes the shortcut.';
+    button.replaceChildren(h('span', { text: t('settings.keysPressKeys') }));
+    message.textContent = t('settings.keysPressNew');
     window.addEventListener('keydown', onRecordKey, true);
   };
 
@@ -121,36 +130,40 @@ export function renderKeyboardSettings(controller: AppController): HTMLElement {
                   class: `keys-button${s.fixed ? ' is-fixed' : ''}${changed ? ' is-changed' : ''}`,
                   type: 'button',
                   disabled: s.fixed || undefined,
-                  title: s.fixed ? 'A system shortcut; it cannot be changed' : 'Click, then press the new keys',
-                  'aria-label': `${s.label}: ${current(s) || 'not set'}. ${s.fixed ? 'Cannot be changed.' : 'Press to change.'}`,
+                  title: s.fixed ? t('settings.keysFixedTitle') : t('settings.keysChangeTitle'),
+                  'aria-label': t('settings.keysAriaLabel', {
+                    name: s.label,
+                    keys: current(s) || t('settings.keysNotSet'),
+                    state: s.fixed ? t('settings.keysCannotBeChanged') : t('settings.keysPressToChange'),
+                  }),
                 }, ...keyCaps(current(s)));
                 if (!s.fixed) keysButton.addEventListener('click', () => startRecording(s.id, keysButton));
                 const reset = changed
                   ? h('button', {
                       class: 'ghost tiny',
                       type: 'button',
-                      title: `Back to ${s.keys || 'no shortcut'}`,
+                      title: t('settings.keysBackTo', { keys: s.keys || t('settings.keysNoShortcut') }),
                       onclick: () => {
                         useKeybindingStore.getState().reset(s.id);
-                        message.textContent = `“${s.label}” is back to its default.`;
+                        message.textContent = t('settings.keysRestored', { name: s.label });
                         render();
                       },
-                    }, 'Reset')
+                    }, t('settings.keysReset'))
                   : h('span');
                 return h('div', { class: 'keys-row' }, h('span', { class: 'keys-label', text: s.label }), keysButton, reset);
               }),
             ),
           )
-        : [h('p', { class: 'muted', text: 'No shortcut matches.' })]),
+        : [h('p', { class: 'muted', text: t('settings.keysNoMatches') })]),
     );
   };
 
   filter.addEventListener('input', render);
   resetAll.addEventListener('click', async () => {
-    const ok = await confirmDialog('Every shortcut goes back to its default keys. Your custom ones are removed.', { confirmLabel: 'Reset all', danger: true });
+    const ok = await confirmDialog(t('settings.keysResetAllConfirm'), { confirmLabel: t('settings.keysResetAllLabel'), danger: true });
     if (!ok) return;
     useKeybindingStore.getState().resetAll();
-    message.textContent = 'Every shortcut is back to its default.';
+    message.textContent = t('settings.keysAllReset');
     render();
   });
   render();
@@ -158,8 +171,8 @@ export function renderKeyboardSettings(controller: AppController): HTMLElement {
   const section = h(
     'section',
     { class: 'pref-section' },
-    h('h2', { class: 'pref-title', text: 'Keyboard' }),
-    h('p', { class: 'pref-lede', text: 'Click a shortcut’s keys, then press the combination you want. Esc cancels; Backspace removes the shortcut. Changes apply at once, are shown in the menus, and are remembered on this computer.' }),
+    h('h2', { class: 'pref-title', text: t('settings.keyboardTitle') }),
+    h('p', { class: 'pref-lede', text: t('settings.keyboardLede') }),
     h('div', { class: 'keys-toolbar' }, filter, resetAll),
     message,
     list,

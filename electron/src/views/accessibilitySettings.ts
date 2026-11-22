@@ -4,6 +4,7 @@
  */
 
 import { h } from '../lib/dom';
+import { t } from '../lib/i18n';
 import { DEFAULT_PREFS, EDITOR_THEMES, MATCH_APP, usePrefsStore, type Prefs } from '../state/prefs';
 import { useUiStore } from '../state/ui';
 
@@ -19,9 +20,9 @@ function toggle(id: string, label: string, hint: string, key: keyof Prefs): HTML
 export function renderEditorAppearance(): HTMLElement {
   const prefs = usePrefsStore.getState();
   const themeSelect = h('select', { id: 'pref-editor-theme' },
-    h('option', { value: MATCH_APP, text: 'Match the app (light or dark)' }),
-    h('optgroup', { label: 'Dark' }, ...EDITOR_THEMES.filter((t) => t.dark).map((t) => h('option', { value: t.id, text: t.label }))),
-    h('optgroup', { label: 'Light' }, ...EDITOR_THEMES.filter((t) => !t.dark).map((t) => h('option', { value: t.id, text: t.label }))),
+    h('option', { value: MATCH_APP, text: t('settings.editorThemeMatchApp') }),
+    h('optgroup', { label: t('settings.themeGroupDark') }, ...EDITOR_THEMES.filter((t) => t.dark).map((t) => h('option', { value: t.id, text: t.label }))),
+    h('optgroup', { label: t('settings.themeGroupLight') }, ...EDITOR_THEMES.filter((t) => !t.dark).map((t) => h('option', { value: t.id, text: t.label }))),
   );
   themeSelect.value = prefs.editorTheme;
   themeSelect.addEventListener('change', () => usePrefsStore.getState().setPref('editorTheme', themeSelect.value));
@@ -34,29 +35,29 @@ export function renderEditorAppearance(): HTMLElement {
   );
 
   const size = h('input', { type: 'range', id: 'pref-editor-size', min: '10', max: '24', step: '1', value: String(prefs.editorFontSize) });
-  const sizeValue = h('output', { for: 'pref-editor-size', text: `${prefs.editorFontSize}px` });
+  const sizeValue = h('output', { for: 'pref-editor-size', text: t('settings.pixels', { value: prefs.editorFontSize }) });
   size.addEventListener('input', () => {
-    sizeValue.textContent = `${size.value}px`;
+    sizeValue.textContent = t('settings.pixels', { value: size.value });
     usePrefsStore.getState().setPref('editorFontSize', Number(size.value));
   });
 
   const spacing = h('select', { id: 'pref-editor-spacing' },
-    h('option', { value: 'compact', text: 'Compact' }),
-    h('option', { value: 'normal', text: 'Normal' }),
-    h('option', { value: 'relaxed', text: 'Relaxed' }),
+    h('option', { value: 'compact', text: t('settings.lineSpacingCompact') }),
+    h('option', { value: 'normal', text: t('settings.lineSpacingNormal') }),
+    h('option', { value: 'relaxed', text: t('settings.lineSpacingRelaxed') }),
   );
   spacing.value = prefs.editorLineSpacing;
   spacing.addEventListener('change', () => usePrefsStore.getState().setPref('editorLineSpacing', spacing.value as Prefs['editorLineSpacing']));
 
   return h('div', { class: 'pref-group' },
-    h('h3', { class: 'pref-subtitle', text: 'Editor' }),
+    h('h3', { class: 'pref-subtitle', text: t('settings.editorGroup') }),
     h('div', { class: 'pref-form' },
-      h('label', { for: 'pref-editor-theme', text: 'Editor theme' }), themeSelect,
-      h('label', { for: 'pref-editor-size', text: 'Font size' }), h('span', { class: 'pref-range' }, size, sizeValue),
-      h('label', { for: 'pref-editor-spacing', text: 'Line spacing' }), spacing,
+      h('label', { for: 'pref-editor-theme', text: t('settings.editorThemeLabel') }), themeSelect,
+      h('label', { for: 'pref-editor-size', text: t('settings.editorFontSize') }), h('span', { class: 'pref-range' }, size, sizeValue),
+      h('label', { for: 'pref-editor-spacing', text: t('settings.editorLineSpacing') }), spacing,
     ),
     preview,
-    toggle('pref-minimap', 'Show the minimap', 'A see-through outline of the whole file over the right edge of the editor; findings show in their colour. Click or drag it to scroll.', 'minimap'),
+    toggle('pref-minimap', t('settings.showMinimap'), t('settings.showMinimapHint'), 'minimap'),
   );
 }
 
@@ -66,20 +67,20 @@ export function renderAccessibility(rerender: () => void): HTMLElement {
   const ui = useUiStore.getState();
 
   const motion = h('select', { id: 'pref-motion' },
-    h('option', { value: 'system', text: 'Follow the system setting' }),
-    h('option', { value: 'reduce', text: 'Always reduce motion' }),
+    h('option', { value: 'system', text: t('settings.motionFollowSystem') }),
+    h('option', { value: 'reduce', text: t('settings.motionAlwaysReduce') }),
   );
   motion.value = prefs.motion === 'reduce' ? 'reduce' : 'system';
   motion.addEventListener('change', () => usePrefsStore.getState().setPref('motion', motion.value as Prefs['motion']));
 
   const scale = h('input', { type: 'range', id: 'pref-ui-scale', min: '0.85', max: '1.3', step: '0.05', value: String(ui.uiScale) });
-  const scaleValue = h('output', { for: 'pref-ui-scale', text: `${Math.round(ui.uiScale * 100)}%` });
+  const scaleValue = h('output', { for: 'pref-ui-scale', text: t('settings.percent', { value: Math.round(ui.uiScale * 100) }) });
   scale.addEventListener('input', () => {
-    scaleValue.textContent = `${Math.round(Number(scale.value) * 100)}%`;
+    scaleValue.textContent = t('settings.percent', { value: Math.round(Number(scale.value) * 100) });
     useUiStore.getState().setUiScale(Number(scale.value));
   });
 
-  const reset = h('button', { class: 'tiny', type: 'button' }, 'Reset accessibility settings');
+  const reset = h('button', { class: 'tiny', type: 'button' }, t('settings.resetAccessibility'));
   reset.addEventListener('click', () => {
     usePrefsStore.getState().resetAccessibility();
     useUiStore.getState().setUiScale(1);
@@ -89,24 +90,24 @@ export function renderAccessibility(rerender: () => void): HTMLElement {
   return h(
     'section',
     { class: 'pref-section' },
-    h('h2', { class: 'pref-title', text: 'Accessibility' }),
-    h('p', { class: 'pref-lede', text: 'Make the app easier to see, read and use. Each change applies at once and is remembered on this computer. Every control can also be reached with the keyboard; shortcuts can be changed under Keyboard.' }),
-    h('h3', { class: 'pref-subtitle', text: 'Seeing' }),
+    h('h2', { class: 'pref-title', text: t('settings.accessibilityTitle') }),
+    h('p', { class: 'pref-lede', text: t('settings.accessibilityLede') }),
+    h('h3', { class: 'pref-subtitle', text: t('settings.seeing') }),
     h('div', { class: 'pref-form' },
-      h('label', { for: 'pref-ui-scale', text: 'Interface size' }), h('span', { class: 'pref-range' }, scale, scaleValue),
+      h('label', { for: 'pref-ui-scale', text: t('settings.interfaceSize') }), h('span', { class: 'pref-range' }, scale, scaleValue),
     ),
-    toggle('pref-contrast', 'Higher contrast', 'Brighter text, darker backgrounds and visible borders. With “Match the app”, the editor switches to its high-contrast theme too.', 'highContrast'),
-    toggle('pref-colourblind', 'Colour-blind-friendly severity colours', 'Critical, high, medium, low and info stay distinct with red–green colour blindness. Severities are always written out as well.', 'colourBlindSeverity'),
-    toggle('pref-focus', 'Always show a strong focus ring', 'A thick outline around whatever has focus, also after a click, so you never lose your place.', 'strongFocus'),
-    toggle('pref-links', 'Underline links', 'Links and link-like buttons are underlined, not only coloured.', 'underlineLinks'),
-    h('h3', { class: 'pref-subtitle', text: 'Reading' }),
-    toggle('pref-spacing', 'Wider spacing in text', 'More room between letters, words and lines in chat answers, findings and descriptions. Some readers with dyslexia find this easier.', 'readableSpacing'),
-    h('p', { class: 'pref-hint', text: `The code’s font size and line spacing are under Appearance › Editor (now ${prefs.editorFontSize}px).` }),
-    h('h3', { class: 'pref-subtitle', text: 'Motion' }),
-    h('div', { class: 'pref-form' }, h('label', { for: 'pref-motion', text: 'Animations' }), motion),
-    h('p', { class: 'pref-hint', text: 'Reducing motion stops sliding panels, the typewriter reveal of AI edits and the graph’s settling animation.' }),
-    toggle('pref-blink', 'Blinking cursor', 'Turn off for a steady caret in the editor and the terminal.', 'cursorBlink'),
+    toggle('pref-contrast', t('settings.higherContrast'), t('settings.higherContrastHint'), 'highContrast'),
+    toggle('pref-colourblind', t('settings.colourBlindSeverity'), t('settings.colourBlindSeverityHint'), 'colourBlindSeverity'),
+    toggle('pref-focus', t('settings.strongFocus'), t('settings.strongFocusHint'), 'strongFocus'),
+    toggle('pref-links', t('settings.underlineLinks'), t('settings.underlineLinksHint'), 'underlineLinks'),
+    h('h3', { class: 'pref-subtitle', text: t('settings.reading') }),
+    toggle('pref-spacing', t('settings.readableSpacing'), t('settings.readableSpacingHint'), 'readableSpacing'),
+    h('p', { class: 'pref-hint', text: t('settings.editorSizeUnderAppearance', { value: prefs.editorFontSize }) }),
+    h('h3', { class: 'pref-subtitle', text: t('settings.motion') }),
+    h('div', { class: 'pref-form' }, h('label', { for: 'pref-motion', text: t('settings.animations') }), motion),
+    h('p', { class: 'pref-hint', text: t('settings.reduceMotionHint') }),
+    toggle('pref-blink', t('settings.blinkingCursor'), t('settings.blinkingCursorHint'), 'cursorBlink'),
     h('div', { class: 'pref-actions' }, reset),
-    h('p', { class: 'pref-hint muted', text: `Defaults: interface 100%, editor ${DEFAULT_PREFS.editorFontSize}px, motion follows the system.` }),
+    h('p', { class: 'pref-hint muted', text: t('settings.accessibilityDefaults', { value: DEFAULT_PREFS.editorFontSize }) }),
   );
 }

@@ -82,6 +82,8 @@ export interface AisaiBridge {
   onMenuCommand(cb: (command: MenuCommand) => void): () => void;
   /** Shows the user's key bindings in the application menu (accelerators by shortcut id). */
   setMenuShortcuts(shortcuts: Record<string, string>): Promise<void>;
+  /** Tells the application menu which language to draw itself in. */
+  setLocale(locale: string): void;
   /** Open a web page in the system browser. Only http and https addresses. */
   openExternal(url: string): Promise<void>;
   /** Renders the HTML report as a PDF and saves it where the user picks. */

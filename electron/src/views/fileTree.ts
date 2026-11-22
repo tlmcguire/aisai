@@ -1,6 +1,7 @@
 import type { AppController } from '../app';
 import type { FileNode, Finding } from '../api/types';
 import { h } from '../lib/dom';
+import { t, tn } from '../lib/i18n';
 import { severityClass } from '../lib/severity';
 import { maxSeverity } from '../api/types';
 import { useFindingsStore } from '../state/findings';
@@ -94,19 +95,19 @@ export function createFileTree(controller: AppController, container: HTMLElement
   const filter = h('input', {
     type: 'search',
     class: 'tree-filter',
-    placeholder: 'Filter files',
-    'aria-label': 'Filter files by name or path',
+    placeholder: t('files.filterPlaceholder'),
+    'aria-label': t('files.filterLabel'),
     spellcheck: 'false',
   });
   const onlyFindings = h(
     'button',
-    { class: 'tiny ghost', type: 'button', 'aria-pressed': 'false', title: 'Show only files with findings' },
-    'With findings',
+    { class: 'tiny ghost', type: 'button', 'aria-pressed': 'false', title: t('files.onlyFindingsTitle') },
+    t('files.withFindings'),
   );
-  const expandAll = h('button', { class: 'tiny ghost', type: 'button', title: 'Expand every folder' }, 'Expand');
-  const collapseAll = h('button', { class: 'tiny ghost', type: 'button', title: 'Collapse every folder' }, 'Collapse');
+  const expandAll = h('button', { class: 'tiny ghost', type: 'button', title: t('files.expandAllTitle') }, t('files.expand'));
+  const collapseAll = h('button', { class: 'tiny ghost', type: 'button', title: t('files.collapseAllTitle') }, t('files.collapse'));
   const controls = h('div', { class: 'tree-controls' }, filter, onlyFindings, expandAll, collapseAll);
-  const tree = h('div', { class: 'tree', role: 'tree', 'aria-label': 'Files' });
+  const tree = h('div', { class: 'tree', role: 'tree', 'aria-label': t('files.treeLabel') });
   const body = h('div', { class: 'pane-body tree-scroll' }, tree);
   container.append(controls, body);
 
@@ -150,7 +151,7 @@ export function createFileTree(controller: AppController, container: HTMLElement
     const count = node.findingCount ?? 0;
     const ext = extOf(node.name);
     const selected = !isDir && node.path === selectedPath();
-    const tag = isDir ? null : h('span', { class: `file-tag${SCANNED.has(ext) ? '' : ' is-plain'}`, text: EXT_TAG[ext] ?? (ext.slice(0, 4) || '·') });
+    const tag = isDir ? null : h('span', { class: `file-tag${SCANNED.has(ext) ? '' : ' is-plain'}`, text: EXT_TAG[ext] ?? (ext.slice(0, 4) || t('files.noExtensionTag')) });
 
     return h(
       'div',
@@ -163,7 +164,7 @@ export function createFileTree(controller: AppController, container: HTMLElement
         'aria-level': String(depth + 1),
         'aria-selected': selected ? 'true' : undefined,
         'aria-expanded': isDir ? String(isOpen) : undefined,
-        'aria-label': `${node.name}${count ? `, ${count} findings` : ''}`,
+        'aria-label': count ? tn('files.findingsInFile', count, { name: node.name }) : node.name,
         title: node.path,
         style: `--depth:${depth}`,
         onclick: () => (isDir ? toggle(node.path) : open(node)),
@@ -175,7 +176,7 @@ export function createFileTree(controller: AppController, container: HTMLElement
         ? h('span', {
             class: `count ${severityClass(node.maxSeverity ?? 'info')}`,
             text: String(count),
-            title: `${count} finding(s), worst: ${node.maxSeverity ?? 'info'}`,
+            title: tn('files.countTitle', count, { worst: node.maxSeverity ?? 'info' }),
           })
         : null,
     );
@@ -190,8 +191,8 @@ export function createFileTree(controller: AppController, container: HTMLElement
         h(
           'div',
           { class: 'empty-state' },
-          h('h3', { text: 'No files yet' }),
-          h('p', { text: 'Pull a package or repository, or open a folder. Its files appear here, with the findings counted per folder.' }),
+          h('h3', { text: t('files.emptyTitle') }),
+          h('p', { text: t('files.emptyDescription') }),
         ),
       );
       return;
@@ -216,7 +217,7 @@ export function createFileTree(controller: AppController, container: HTMLElement
 
     if (!shown) {
       fragment.append(
-        h('div', { class: 'tree-empty' }, filtering ? 'No file matches. Clear the filter to see every file.' : 'This audit has no files.'),
+        h('div', { class: 'tree-empty' }, filtering ? t('files.noMatch') : t('files.noFilesInAudit')),
       );
     }
 

@@ -12,6 +12,7 @@
 import type { AppController } from '../app';
 import type { CodeSelection, Finding } from '../api/types';
 import { h } from '../lib/dom';
+import { t, tn } from '../lib/i18n';
 import { useAuditStore } from '../state/audit';
 import { useFindingsStore } from '../state/findings';
 import { brandMark } from '../lib/logo';
@@ -40,8 +41,26 @@ interface PendingEdit {
   replacement: string;
 }
 
+/**
+ * A sentence whose {placeholders} become key caps, so a shortcut keeps its
+ * own style inside a translated sentence.
+ */
+function keySentence(template: string, keys: Record<string, string>): DocumentFragment {
+  const fragment = document.createDocumentFragment();
+  const pattern = /\{(\w+)\}/g;
+  let at = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(template)) !== null) {
+    fragment.append(document.createTextNode(template.slice(at, match.index)));
+    fragment.append(h('kbd', { text: keys[match[1]] ?? match[1] }));
+    at = match.index + match[0].length;
+  }
+  fragment.append(document.createTextNode(template.slice(at)));
+  return fragment;
+}
+
 export function createCodeView(controller: AppController, container: HTMLElement): CodeView {
-  const header = h('div', { class: 'file-header' }, h('span', { text: 'No file open' }));
+  const header = h('div', { class: 'file-header' }, h('span', { text: t('code.noFileOpen') }));
   const editPanel = h('div', { class: 'edit-panel', hidden: true });
   const editorHost = h('div', { class: 'code-editor', hidden: true });
   const placeholder = h('div', { class: 'code-lines' });
@@ -58,13 +77,13 @@ export function createCodeView(controller: AppController, container: HTMLElement
   /** The first screen: two ways in, and the audits already on disk. */
   const welcome = (deleted: { package: string } | null = null): HTMLElement => {
     const scanPackage = h('button', { class: 'welcome-action primary-action', type: 'button' },
-      h('span', { class: 'welcome-action-title', text: 'Audit a package' }),
-      h('span', { class: 'welcome-action-text', text: 'From PyPI, npm or crates.io, or paste a package or repository link: pull the source and its dependencies, then run a static or LLM scan.' }),
+      h('span', { class: 'welcome-action-title', text: t('code.auditPackage') }),
+      h('span', { class: 'welcome-action-text', text: t('code.auditPackageText') }),
     );
     scanPackage.addEventListener('click', () => document.getElementById('package-input')?.focus());
     const openFolder = h('button', { class: 'welcome-action', type: 'button' },
-      h('span', { class: 'welcome-action-title', text: 'Open a local project' }),
-      h('span', { class: 'welcome-action-text', text: 'Scan a folder on this computer. Any of 14 languages. Or drop it on the window.' }),
+      h('span', { class: 'welcome-action-title', text: t('code.openProject') }),
+      h('span', { class: 'welcome-action-text', text: t('code.openProjectText') }),
     );
     openFolder.addEventListener('click', () => void controller.chooseFolder());
     const recent = useAuditStore.getState().audits.slice(0, 6);
@@ -72,29 +91,31 @@ export function createCodeView(controller: AppController, container: HTMLElement
       'div',
       { class: 'welcome' },
       h('div', { class: 'welcome-mark' }, brandMark()),
-      h('h1', { class: 'welcome-title', text: deleted ? `The sources of ${deleted.package} were deleted` : 'What should we look at?' }),
+      h('h1', { class: 'welcome-title', text: deleted ? t('code.sourcesDeleted', { package: deleted.package }) : t('code.welcomeTitle') }),
       deleted
-        ? h('p', { class: 'welcome-lede', text: 'Its findings and report are kept, but there is no code left to read or scan. Pull it again, or start with something else.' })
+        ? h('p', { class: 'welcome-lede', text: t('code.sourcesDeletedText') })
         : null,
       h('div', { class: 'welcome-actions' }, scanPackage, openFolder),
       h('button', { class: 'welcome-tour', type: 'button', onclick: () => window.dispatchEvent(new Event('aisai:tutorials')) },
         icon('play'),
-        noTourTakenYet() ? 'New here? Take a two-minute tour' : 'Tutorials',
+        noTourTakenYet() ? t('code.tourNew') : t('code.tutorials'),
       ),
       h('p', { class: 'welcome-keys' },
-        h('kbd', { text: navigator.userAgent.includes('Mac') ? '⌘O' : 'Ctrl+O' }), ' opens a folder · ',
-        h('kbd', { text: 'Enter' }), ' in the package field starts a pull',
+        keySentence(t('code.keysHint'), {
+          open: navigator.userAgent.includes('Mac') ? '⌘O' : 'Ctrl+O',
+          pull: 'Enter',
+        }),
       ),
       recent.length
         ? h('div', { class: 'welcome-recent' },
-            h('h2', { text: 'Recent audits' }),
+            h('h2', { text: t('code.recentAudits') }),
             h('ul', {}, ...recent.map((audit) =>
               h('li', {},
                 h('button', { class: 'welcome-recent-item', type: 'button', onclick: () => void controller.selectAudit(audit.id) },
                   h('span', { class: 'source-name', text: audit.package }),
                   audit.version ? h('span', { class: 'source-version', text: audit.version }) : null,
                   h('span', { class: 'grow' }),
-                  h('span', { class: 'muted', text: `${audit.findingCount ?? 0} findings` }),
+                  h('span', { class: 'muted', text: tn('code.findings', audit.findingCount ?? 0) }),
                 ),
               ),
             )),
@@ -111,10 +132,10 @@ export function createCodeView(controller: AppController, container: HTMLElement
     const path = editor.path();
     const text = editor.text();
     if (diskChanged) {
-      const ok = await confirmDialog('The file changed on disk since you started editing (a fix was applied). Saving overwrites that change.', {
-        confirmLabel: 'Overwrite',
+      const ok = await confirmDialog(t('code.fileChangedOnDisk'), {
+        confirmLabel: t('code.overwrite'),
         danger: true,
-        title: 'Overwrite the change on disk?',
+        title: t('code.overwriteTitle'),
       });
       if (!ok) return;
     }
@@ -152,19 +173,21 @@ export function createCodeView(controller: AppController, container: HTMLElement
   };
 
   const lineRange = (sel: { startLine: number; endLine: number }): string =>
-    sel.startLine === sel.endLine ? `line ${sel.startLine}` : `lines ${sel.startLine}–${sel.endLine}`;
+    sel.startLine === sel.endLine
+      ? t('code.line', { line: sel.startLine })
+      : t('code.lines', { start: sel.startLine, end: sel.endLine });
 
   const showResult = (pending: PendingEdit, sel: { startLine: number; endLine: number }, instruction: string): void => {
     const diff = diffLines(pending.original, pending.replacement);
     const { added, removed } = diffCounts(diff);
-    const accept = h('button', { class: 'primary tiny', type: 'button', title: `Put the change in the editor (${isMac() ? '⌘↵' : 'Ctrl+Enter'})` }, 'Accept');
-    const reject = h('button', { class: 'tiny', type: 'button', title: 'Throw the proposal away (Esc)' }, 'Discard');
-    const retry = h('button', { class: 'ghost tiny', type: 'button', title: 'Ask again with the same instruction' }, 'Try again');
+    const accept = h('button', { class: 'primary tiny', type: 'button', title: t('code.acceptHint', { shortcut: isMac() ? '⌘↵' : 'Ctrl+Enter' }) }, t('code.accept'));
+    const reject = h('button', { class: 'tiny', type: 'button', title: t('code.discardHint') }, t('code.discard'));
+    const retry = h('button', { class: 'ghost tiny', type: 'button', title: t('code.tryAgainHint') }, t('code.tryAgain'));
     const refine = h('input', {
       type: 'text',
       class: 'inline-refine',
-      placeholder: 'Ask for a further change to this proposal… e.g. “keep the old name”',
-      'aria-label': 'A further change to the proposal',
+      placeholder: t('code.refinePlaceholder'),
+      'aria-label': t('code.refineLabel'),
     });
     const doAccept = (): void => {
       editor.replace(pending.from, pending.to, pending.replacement);
@@ -198,33 +221,33 @@ export function createCodeView(controller: AppController, container: HTMLElement
     editPanel.hidden = false;
     editPanel.replaceChildren(
       h('div', { class: 'edit-panel-head' },
-        h('strong', { text: 'Proposed change' }),
-        h('span', { class: 'muted inline-meta', text: `${lineRange(sel)} · “${instruction}”` }),
-        h('span', { class: 'diff-count' }, h('span', { class: 'is-add', text: `+${added}` }), ' ', h('span', { class: 'is-remove', text: `−${removed}` })),
+        h('strong', { text: t('code.proposedChange') }),
+        h('span', { class: 'muted inline-meta', text: t('code.proposalMeta', { range: lineRange(sel), instruction }) }),
+        h('span', { class: 'diff-count' }, h('span', { class: 'is-add', text: t('code.added', { n: added }) }), ' ', h('span', { class: 'is-remove', text: t('code.removed', { n: removed }) })),
         h('span', { class: 'grow' }),
         retry, reject, accept,
       ),
-      h('div', { class: 'inline-diff', role: 'region', 'aria-label': 'The proposed change, line by line' },
+      h('div', { class: 'inline-diff', role: 'region', 'aria-label': t('code.diffRegionLabel') },
         ...diff.map((line) =>
           h('div', { class: `inline-diff-line is-${line.kind}` },
             h('span', { class: 'inline-diff-mark', 'aria-hidden': 'true', text: line.kind === 'add' ? '+' : line.kind === 'remove' ? '−' : ' ' }),
-            h('span', { class: 'sr-only', text: line.kind === 'add' ? 'added: ' : line.kind === 'remove' ? 'removed: ' : '' }),
+            h('span', { class: 'sr-only', text: line.kind === 'add' ? t('code.lineAdded') : line.kind === 'remove' ? t('code.lineRemoved') : null }),
             h('code', { text: line.text || ' ' }),
           ),
         ),
       ),
       refine,
-      h('p', { class: 'muted edit-note', text: `Accept puts the change in the editor; Save keeps it, and undo takes it back. ${isMac() ? '⌘↵' : 'Ctrl+Enter'} accepts, Esc discards.` }),
+      h('p', { class: 'muted edit-note', text: t('code.editNote', { shortcut: isMac() ? '⌘↵' : 'Ctrl+Enter' }) }),
     );
     accept.focus();
   };
 
   const showError = (message: string): void => {
     editPanel.hidden = false;
-    const close = h('button', { class: 'tiny', type: 'button' }, 'Close');
+    const close = h('button', { class: 'tiny', type: 'button' }, t('code.close'));
     close.addEventListener('click', closePanel);
     editPanel.replaceChildren(
-      h('div', { class: 'edit-panel-head' }, h('strong', { text: 'The model could not help' }), h('span', { class: 'grow' }), close),
+      h('div', { class: 'edit-panel-head' }, h('strong', { text: t('code.modelCouldNotHelp') }), h('span', { class: 'grow' }), close),
       h('p', { class: 'edit-note', text: message }),
     );
   };
@@ -246,7 +269,7 @@ export function createCodeView(controller: AppController, container: HTMLElement
     if (!sel) return;
     const file = useWorkspaceStore.getState().file;
     const token = ++editToken;
-    const cancel = h('button', { class: 'ghost tiny', type: 'button' }, 'Cancel');
+    const cancel = h('button', { class: 'ghost tiny', type: 'button' }, t('code.cancel'));
     cancel.addEventListener('click', () => {
       closePanel();
       editor.focus();
@@ -263,8 +286,8 @@ export function createCodeView(controller: AppController, container: HTMLElement
     editPanel.replaceChildren(
       h('div', { class: 'edit-panel-head', role: 'status' },
         h('span', { class: 'spinner', 'aria-hidden': 'true' }),
-        h('span', { class: 'shimmer', text: `Asking ${model || 'the model'} to change ${lineRange(sel)}…` }),
-        h('span', { class: 'muted inline-meta', text: `“${instruction}”` }),
+        h('span', { class: 'shimmer', text: t('code.askingModel', { model: model || t('code.theModel'), range: lineRange(sel) }) }),
+        h('span', { class: 'muted inline-meta', text: t('code.instructionMeta', { instruction }) }),
         h('span', { class: 'grow' }),
         cancel,
       ),
@@ -284,7 +307,7 @@ export function createCodeView(controller: AppController, container: HTMLElement
       });
       if (token !== editToken) return; // cancelled, or superseded
       if (replacement === sel.text) {
-        showError('The model suggested no change to this code. Try saying more precisely what should change.');
+        showError(t('code.noChangeSuggested'));
         return;
       }
       showResult({ from: sel.from, to: sel.to, original: sel.text, replacement }, sel, instruction);
@@ -295,13 +318,13 @@ export function createCodeView(controller: AppController, container: HTMLElement
   };
 
   /** Ideas for the instruction box; a click fills it in. */
-  const SUGGESTIONS = [
-    'Fix the security weakness',
-    'Validate the input',
-    'Handle errors properly',
-    'Simplify this',
-    'Add type hints',
-    'Add comments explaining it',
+  const suggestions = (): string[] => [
+    t('code.suggestionFixSecurity'),
+    t('code.suggestionValidateInput'),
+    t('code.suggestionHandleErrors'),
+    t('code.suggestionSimplify'),
+    t('code.suggestionTypeHints'),
+    t('code.suggestionAddComments'),
   ];
 
   const askForChange = (): void => {
@@ -316,11 +339,11 @@ export function createCodeView(controller: AppController, container: HTMLElement
     const input = h('textarea', {
       class: 'inline-instruction',
       rows: '1',
-      placeholder: 'What should change? e.g. “use a constant-time comparison”',
-      'aria-label': 'What to change',
+      placeholder: t('code.changePlaceholder'),
+      'aria-label': t('code.changeLabel'),
     });
-    const go = h('button', { class: 'primary tiny', type: 'button' }, 'Change');
-    const cancel = h('button', { class: 'ghost tiny', type: 'button' }, 'Cancel');
+    const go = h('button', { class: 'primary tiny', type: 'button' }, t('code.changeAction'));
+    const cancel = h('button', { class: 'ghost tiny', type: 'button' }, t('code.cancel'));
     let historyAt = instructionHistory.length;
     const grow = (): void => {
       input.style.height = 'auto';
@@ -361,7 +384,7 @@ export function createCodeView(controller: AppController, container: HTMLElement
         grow();
       }
     });
-    const chips = SUGGESTIONS.map((text) =>
+    const chips = suggestions().map((text) =>
       h('button', {
         class: 'chip inline-suggestion',
         type: 'button',
@@ -376,13 +399,13 @@ export function createCodeView(controller: AppController, container: HTMLElement
     editPanel.onkeydown = null;
     editPanel.replaceChildren(
       h('div', { class: 'edit-panel-head' },
-        h('strong', { text: 'Change the code' }),
-        h('span', { class: 'muted inline-meta', text: `${lineRange(target)} of ${editor.path().split('/').pop() ?? 'this file'}` }),
+        h('strong', { text: t('code.changeTitle') }),
+        h('span', { class: 'muted inline-meta', text: t('code.ofFile', { range: lineRange(target), file: editor.path().split('/').pop() ?? t('code.thisFile') }) }),
         h('span', { class: 'grow' }),
       ),
       h('div', { class: 'inline-input-row' }, input, go, cancel),
       h('div', { class: 'inline-suggestions' }, ...chips),
-      h('p', { class: 'muted edit-note', text: '↵ sends · ⇧↵ new line · ↑ earlier instructions · Esc cancels' }),
+      h('p', { class: 'muted edit-note', text: t('code.keysNote') }),
     );
     input.focus();
   };
@@ -394,10 +417,10 @@ export function createCodeView(controller: AppController, container: HTMLElement
     },
     explain: (selection: CodeSelection): void => {
       useChatStore.getState().setSelection(selection);
-      window.dispatchEvent(new CustomEvent('aisai:focus-chat', { detail: { ask: 'Explain what this code does, step by step, and point out anything risky.' } }));
+      window.dispatchEvent(new CustomEvent('aisai:focus-chat', { detail: { ask: t('code.explainPrompt') } }));
     },
     fix: (): void => {
-      void runEdit('Fix the bug or security weakness in this code. Change as little as possible.');
+      void runEdit(t('code.fixPrompt'));
     },
     change: (): void => askForChange(),
   };
@@ -469,26 +492,26 @@ export function createCodeView(controller: AppController, container: HTMLElement
     if (!headerFile) return;
     const model = useChatStore.getState().model;
     const completionOn = useUiStore.getState().completionEnabled;
-    const saveButton = h('button', { class: 'primary tiny', type: 'button', title: 'Save (Ctrl/Cmd+S)' }, 'Save');
-    const discardButton = h('button', { class: 'tiny', type: 'button', title: 'Throw away the unsaved changes' }, 'Discard');
+    const saveButton = h('button', { class: 'primary tiny', type: 'button', title: t('code.saveHint') }, t('code.save'));
+    const discardButton = h('button', { class: 'tiny', type: 'button', title: t('code.discardChangesHint') }, t('code.discard'));
     saveButton.addEventListener('click', () => void save());
     discardButton.addEventListener('click', discard);
     header.replaceChildren(
       h('span', { text: headerFile.path }),
-      h('span', { class: 'badge neutral', text: headerFile.language || 'text' }),
+      h('span', { class: 'badge neutral', text: headerFile.language || t('code.plainText') }),
       h('span', {
         class: `badge ${headerFile.findings ? 'bad' : 'ok'}`,
-        text: headerFile.findings ? `${headerFile.findings} finding(s)` : 'no findings',
+        text: headerFile.findings ? tn('code.findings', headerFile.findings) : t('code.noFindings'),
       }),
-      ...(dirty ? [h('span', { class: 'badge warn', text: 'unsaved' })] : []),
+      ...(dirty ? [h('span', { class: 'badge warn', text: t('code.unsaved') })] : []),
       ...(diskChanged
         ? [
             h('span', {
               class: 'badge bad',
-              text: 'changed on disk',
-              title: 'The file was changed (a fix was applied) while you had unsaved edits. Saving now would overwrite that change.',
+              text: t('code.changedOnDisk'),
+              title: t('code.changedOnDiskHint'),
             }),
-            h('button', { class: 'tiny', type: 'button', title: 'Load the file as it is on disk and drop your edits', onclick: () => discard() }, 'Reload'),
+            h('button', { class: 'tiny', type: 'button', title: t('code.reloadHint'), onclick: () => discard() }, t('code.reload')),
           ]
         : []),
       h('span', { class: 'grow' }),
@@ -500,12 +523,12 @@ export function createCodeView(controller: AppController, container: HTMLElement
         role: 'switch',
         'aria-checked': String(completionOn && model.available),
         disabled: !model.available || undefined,
-        text: completionOn && model.available ? 'completion on' : 'completion off',
+        text: completionOn && model.available ? t('code.completionOn') : t('code.completionOff'),
         title: !model.available
-          ? `${model.reason} Inline completion needs a model.`
+          ? t('code.completionNeedsModel', { reason: model.reason })
           : completionOn
-            ? `Inline completion by ${model.name}. Tab accepts, Esc dismisses. Click to turn off (${isMac() ? '⌘⌥K' : 'Ctrl+Alt+K'}).`
-            : `Inline completion is off. Click to turn on (${isMac() ? '⌘⌥K' : 'Ctrl+Alt+K'}).`,
+            ? t('code.completionOnHint', { model: model.name, shortcut: isMac() ? '⌘⌥K' : 'Ctrl+Alt+K' })
+            : t('code.completionOffHint', { shortcut: isMac() ? '⌘⌥K' : 'Ctrl+Alt+K' }),
         onclick: () => useUiStore.getState().setCompletionEnabled(!useUiStore.getState().completionEnabled),
       }),
       ...(dirty ? [discardButton, saveButton] : []),
@@ -518,7 +541,7 @@ export function createCodeView(controller: AppController, container: HTMLElement
     if (!path) return;
     // Unsaved edits are not on disk yet, and a scan reads the disk.
     if (editor.isDirty()) {
-      useAuditStore.getState().setError('Save the file first: a scan reads the saved file.');
+      useAuditStore.getState().setError(t('code.saveFirst'));
       return;
     }
     void controller.runScan(engine, path);
@@ -537,16 +560,16 @@ export function createCodeView(controller: AppController, container: HTMLElement
       class: 'tiny scan-file-button',
       type: 'button',
       disabled: !ready || undefined,
-      title: ready ? `Run the static rules over this file only (${isMac() ? '⌘⌥S' : 'Ctrl+Alt+S'})` : 'Wait for the current job to finish',
+      title: ready ? t('code.scanFileHint', { shortcut: isMac() ? '⌘⌥S' : 'Ctrl+Alt+S' }) : t('code.scanFileBusy'),
       onclick: () => scanFile('sast'),
-    }, 'Scan file');
+    }, t('code.scanFile'));
     const llmBtn = h('button', {
       class: 'tiny scan-file-button',
       type: 'button',
       disabled: !ready || !model.available || undefined,
-      title: !model.available ? `${model.reason} The model review needs a model.` : `Ask ${model.name} to review this file only`,
+      title: !model.available ? t('code.modelReviewNeedsModel', { reason: model.reason }) : t('code.modelReviewHint', { model: model.name }),
       onclick: () => scanFile('llm'),
-    }, 'LLM review');
+    }, t('code.llmReview'));
     return [staticBtn, llmBtn];
   };
 
@@ -561,14 +584,16 @@ export function createCodeView(controller: AppController, container: HTMLElement
         class: `tiny debug-file-button${running ? ' is-on' : ''}`,
         type: 'button',
         title: running
-          ? 'The debugger is running: show it'
-          : `Run this file under the debugger (F5)${count ? ` · ${count} breakpoint${count === 1 ? '' : 's'}` : ' · click a line number to set a breakpoint'}`,
+          ? t('code.debugRunningHint')
+          : count
+            ? t('code.debugRunHint', { breakpoints: tn('code.breakpoints', count) })
+            : t('code.debugRunHintNoBreakpoints'),
         onclick: () => {
           useUiStore.getState().setBottomView('debug');
           useUiStore.getState().setTerminalOpen(true);
           if (!running) window.dispatchEvent(new Event('aisai:debug-start'));
         },
-      }, icon('bug'), running ? (debug.status === 'paused' ? 'paused' : 'debugging') : 'Debug'),
+      }, icon('bug'), running ? (debug.status === 'paused' ? t('code.paused') : t('code.debugging')) : t('code.debug')),
     ];
   };
 
@@ -624,7 +649,7 @@ export function createCodeView(controller: AppController, container: HTMLElement
       headerFile = null;
       editorHost.hidden = true;
       placeholder.hidden = false;
-      header.replaceChildren(h('span', { text: 'Start' }));
+      header.replaceChildren(h('span', { text: t('code.start') }));
       placeholder.replaceChildren(welcome(deletedAudit));
       return;
     }
@@ -636,18 +661,13 @@ export function createCodeView(controller: AppController, container: HTMLElement
       headerFile = null;
       editorHost.hidden = true;
       placeholder.hidden = false;
-      header.replaceChildren(h('span', { text: 'No file open' }));
+      header.replaceChildren(h('span', { text: t('code.noFileOpen') }));
       placeholder.replaceChildren(
         h(
           'div',
           { class: 'empty-state' },
-          h('h3', { text: 'Pick a file to read the code' }),
-          h('p', {
-            text:
-              'Choose a file in the tree on the left, or click a finding in the rail to jump ' +
-              'straight to the offending line. Findings are highlighted in the gutter and inline. ' +
-              'You can edit the file here: select code to ask about it, fix it or change it.',
-          }),
+          h('h3', { text: t('code.emptyTitle') }),
+          h('p', { text: t('code.emptyText') }),
         ),
       );
       return;

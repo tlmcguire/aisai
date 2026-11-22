@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import type { CodeSelection } from '../api/types';
+import { t } from '../lib/i18n';
 
 /** One tool the model ran while answering. */
 export interface ToolStep {
@@ -76,7 +77,10 @@ export const NO_CHAT_MODEL: ChatModelInfo = {
   name: '',
   provider: '',
   available: false,
-  reason: 'Checking for a model…',
+  // A getter, so the text follows the language the interface is in.
+  get reason(): string {
+    return t('chat.checkingModel');
+  },
 };
 
 const STORAGE_PREFIX = 'aisai.chat.v2:';
@@ -233,7 +237,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const now = Date.now();
     const thread: ChatThread = {
       id: nextId('thread'),
-      title: 'New chat',
+      title: t('chat.newChat'),
       autoTitle: true,
       archived: false,
       createdAt: now,

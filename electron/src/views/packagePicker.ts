@@ -1,6 +1,7 @@
 import type { AppController } from '../app';
 import type { Ecosystem, LinkInfo } from '../api/types';
 import { h } from '../lib/dom';
+import { t } from '../lib/i18n';
 import { useAuditStore } from '../state/audit';
 
 /**
@@ -28,10 +29,10 @@ const POPULAR_PACKAGES: Record<Ecosystem, string[]> = {
 };
 
 /** The package managers a scan can start from. */
-export const ECOSYSTEMS: Array<{ id: Ecosystem; label: string; example: string }> = [
-  { id: 'pypi', label: 'PyPI (pip)', example: 'flask' },
-  { id: 'npm', label: 'npm', example: 'express' },
-  { id: 'cargo', label: 'crates.io (cargo)', example: 'serde' },
+export const ECOSYSTEMS = (): Array<{ id: Ecosystem; label: string; example: string }> => [
+  { id: 'pypi', label: t('picker.sourcePypi'), example: 'flask' },
+  { id: 'npm', label: t('picker.sourceNpm'), example: 'express' },
+  { id: 'cargo', label: t('picker.sourceCargo'), example: 'serde' },
 ];
 
 /** How long to wait before asking the index about the typed name. */
@@ -82,15 +83,16 @@ export interface PackagePicker {
  * of auditing the wrong release.
  */
 export function createPackagePicker(controller: AppController): PackagePicker {
+  const ecosystems = ECOSYSTEMS();
   const input = h('input', {
     type: 'text',
     id: 'package-input',
-    placeholder: 'flask, or paste a link',
+    placeholder: t('picker.placeholder'),
     role: 'combobox',
     'aria-expanded': 'false',
     'aria-autocomplete': 'list',
     'aria-controls': 'package-suggestions',
-    'aria-label': 'Package name',
+    'aria-label': t('picker.packageNameAria'),
     autocomplete: 'off',
     spellcheck: 'false',
   });
@@ -99,7 +101,7 @@ export function createPackagePicker(controller: AppController): PackagePicker {
     id: 'package-suggestions',
     class: 'picker-list',
     role: 'listbox',
-    'aria-label': 'Package suggestions',
+    'aria-label': t('picker.suggestionsAria'),
     hidden: true,
   });
 
@@ -107,14 +109,14 @@ export function createPackagePicker(controller: AppController): PackagePicker {
 
   const versionSelect = h(
     'select',
-    { id: 'version-input', 'aria-label': 'Package version' },
-    h('option', { value: '', text: 'latest' }),
+    { id: 'version-input', 'aria-label': t('picker.versionAria') },
+    h('option', { value: '', text: t('picker.latest') }),
   );
 
   const ecosystemSelect = h(
     'select',
-    { id: 'ecosystem-input', 'aria-label': 'Package manager' },
-    ...ECOSYSTEMS.map((eco) => h('option', { value: eco.id, text: eco.label })),
+    { id: 'ecosystem-input', 'aria-label': t('picker.managerAria') },
+    ...ecosystems.map((eco) => h('option', { value: eco.id, text: eco.label })),
   );
 
   const element = document.createDocumentFragment();
@@ -122,7 +124,7 @@ export function createPackagePicker(controller: AppController): PackagePicker {
     h(
       'div',
       { class: 'field picker-ecosystem-field' },
-      h('label', { for: 'ecosystem-input', text: 'Source' }),
+      h('label', { for: 'ecosystem-input', text: t('picker.source') }),
       ecosystemSelect,
     ),
     h(
@@ -131,7 +133,7 @@ export function createPackagePicker(controller: AppController): PackagePicker {
       h(
         'div',
         { class: 'field' },
-        h('label', { for: 'package-input', text: 'Package or link' }),
+        h('label', { for: 'package-input', text: t('picker.packageOrLink') }),
         // The status sits inside the field, at its right edge, so the
         // toolbar never changes height while the name is looked up.
         h('div', { class: 'picker' }, input, status, list),
@@ -140,7 +142,7 @@ export function createPackagePicker(controller: AppController): PackagePicker {
     h(
       'div',
       { class: 'field picker-version-field' },
-      h('label', { for: 'version-input', text: 'Version' }),
+      h('label', { for: 'version-input', text: t('picker.version') }),
       versionSelect,
     ),
   );
@@ -226,7 +228,7 @@ export function createPackagePicker(controller: AppController): PackagePicker {
 
   const populateVersions = (versions: string[]): void => {
     versionSelect.replaceChildren(
-      h('option', { value: '', text: 'latest' }),
+      h('option', { value: '', text: t('picker.latest') }),
       ...versions.map((version) => h('option', { value: version, text: version })),
     );
   };
@@ -241,16 +243,19 @@ export function createPackagePicker(controller: AppController): PackagePicker {
     const lookup = await controller.lookupPackage(name, currentEcosystem());
     if (token !== lookupToken) return; // a newer lookup won
     if (!lookup) {
-      setStatus('', 'the package registry is unreachable');
+      setStatus('', t('picker.registryUnreachable'));
       return;
     }
     if (lookup.error) {
-      setStatus(`${lookup.name} was not found`, lookup.error);
+      setStatus(t('picker.notFound', { name: lookup.name }), lookup.error);
       populateVersions([]);
       return;
     }
     const title = lookup.summary ?? '';
-    setStatus(lookup.latest ? `${lookup.name} ${lookup.latest}` : lookup.name, title);
+    const found = lookup.latest
+      ? t('picker.foundWithVersion', { name: lookup.name, version: lookup.latest })
+      : t('picker.found', { name: lookup.name });
+    setStatus(found, title);
     populateVersions(lookup.versions ?? []);
   };
 
@@ -267,15 +272,15 @@ export function createPackagePicker(controller: AppController): PackagePicker {
   /** A pasted link fills in the fields: a package page sets the source, name and version. */
   const resolveLink = async (text: string): Promise<void> => {
     const token = ++linkToken;
-    setStatus('Reading the link…');
+    setStatus(t('picker.readingLink'));
     const result = await controller.resolveLink(text.trim());
     if (token !== linkToken) return;
     if (!result.link) {
       repo = null;
       ecosystemSelect.disabled = false;
       versionSelect.disabled = false;
-      setStatus('', result.error ?? 'that link is not a package page or a repository');
-      status.textContent = 'Not a package or repository link';
+      setStatus('', result.error ?? t('picker.notAPackageLink'));
+      status.textContent = t('picker.notALink');
       return;
     }
     const link = result.link;
@@ -284,7 +289,11 @@ export function createPackagePicker(controller: AppController): PackagePicker {
       ecosystemSelect.disabled = true;
       versionSelect.disabled = true;
       populateVersions([]);
-      setStatus(`Repository ${link.display ?? link.name}${link.ref ? ` @ ${link.ref}` : ''}`, link.repoUrl ?? '');
+      const name = link.display ?? link.name ?? '';
+      const label = link.ref
+        ? t('picker.repositoryWithRef', { name, ref: link.ref })
+        : t('picker.repository', { name });
+      setStatus(label, link.repoUrl ?? '');
       return;
     }
     repo = null;
@@ -357,7 +366,7 @@ export function createPackagePicker(controller: AppController): PackagePicker {
   // Now it says what is missing and nudges the field.
   const promptForName = (): void => {
     input.focus();
-    setStatus('Type a package name or paste a link, then Pull');
+    setStatus(t('picker.promptName'));
     input.classList.remove('is-invalid');
     void input.offsetWidth;
     input.classList.add('is-invalid');
@@ -432,7 +441,7 @@ export function createPackagePicker(controller: AppController): PackagePicker {
   });
 
   const syncEcosystem = (): void => {
-    const eco = ECOSYSTEMS.find((candidate) => candidate.id === currentEcosystem()) ?? ECOSYSTEMS[0];
+    const eco = ecosystems.find((candidate) => candidate.id === currentEcosystem()) ?? ecosystems[0];
     input.placeholder = eco.example;
     populateVersions([]);
     setStatus('');
@@ -444,7 +453,13 @@ export function createPackagePicker(controller: AppController): PackagePicker {
   versionSelect.addEventListener('change', () => {
     const value = versionSelect.value;
     const name = input.value.trim();
-    setStatus(value ? `${name} ${value}` : name ? `${name} (latest)` : '');
+    setStatus(
+      value
+        ? t('picker.foundWithVersion', { name, version: value })
+        : name
+          ? t('picker.foundLatest', { name })
+          : '',
+    );
   });
 
   return {

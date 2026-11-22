@@ -60,6 +60,7 @@ import { tags } from '@lezer/highlight';
 
 import type { CodeSelection, Finding, Severity } from '../api/types';
 import { h } from '../lib/dom';
+import { t } from '../lib/i18n';
 import { icon, type IconName } from '../lib/icons';
 import { keysFor, toCodeMirror, useKeybindingStore } from '../lib/keybindings';
 import { isMac } from '../lib/shortcuts';
@@ -251,7 +252,7 @@ const findingDecorations = StateField.define<DecorationSet>({
     const ranges: Range<Decoration>[] = [];
     for (const [line] of lines) {
       if (line < 1 || line > tr.state.doc.lines) continue;
-      ranges.push(Decoration.line({ class: 'cm-finding-line', attributes: { title: 'A finding is reported on this line' } }).range(tr.state.doc.line(line).from));
+      ranges.push(Decoration.line({ class: 'cm-finding-line', attributes: { title: t('editor.findingOnLine') } }).range(tr.state.doc.line(line).from));
     }
     return Decoration.set(ranges, true);
   },
@@ -288,7 +289,7 @@ const findingGutter = gutter({
 
 class BreakpointMarker extends GutterMarker {
   override toDOM(): HTMLElement {
-    return h('span', { class: 'cm-breakpoint', 'aria-label': 'Breakpoint' });
+    return h('span', { class: 'cm-breakpoint', 'aria-label': t('editor.breakpoint') });
   }
 }
 const breakpointMarker = new BreakpointMarker();
@@ -349,7 +350,7 @@ const setPausedEffect = StateEffect.define<number | null>();
 
 class PausedMarker extends GutterMarker {
   override toDOM(): HTMLElement {
-    return h('span', { class: 'cm-paused-arrow', 'aria-label': 'Paused here' });
+    return h('span', { class: 'cm-paused-arrow', 'aria-label': t('editor.pausedHere') });
   }
 }
 const pausedMarker = new PausedMarker();
@@ -391,7 +392,7 @@ class InlineValuesWidget extends WidgetType {
     return other.text === this.text;
   }
   override toDOM(): HTMLElement {
-    return h('span', { class: 'cm-inline-values', text: this.text, 'aria-label': `Values: ${this.text}` });
+    return h('span', { class: 'cm-inline-values', text: this.text, 'aria-label': t('editor.inlineValues', { values: this.text }) });
   }
 }
 
@@ -476,12 +477,12 @@ function selectionTooltip(actions: () => SelectionActions, describe: (view: Edit
             h('button', { class: 'tiny selection-action', type: 'button', title, onmousedown: (e: Event) => e.preventDefault(), onclick: onClick }, icon(name), label);
           const dom = h(
             'div',
-            { class: 'selection-toolbar', role: 'toolbar', 'aria-label': 'Selection actions' },
-            button('pencil', 'Change…', `Say how this code should change (${isMac() ? '⌘K' : 'Ctrl+K'})`, pick((a) => a.change)),
-            button('tool', 'Fix', 'Ask the model to fix a bug or weakness here', pick((a) => a.fix)),
+            { class: 'selection-toolbar', role: 'toolbar', 'aria-label': t('editor.selectionActions') },
+            button('pencil', t('editor.change'), t('editor.changeHint', { shortcut: isMac() ? '⌘K' : 'Ctrl+K' }), pick((a) => a.change)),
+            button('tool', t('editor.fix'), t('editor.fixHint'), pick((a) => a.fix)),
             h('span', { class: 'selection-sep', 'aria-hidden': 'true' }),
-            button('info', 'Explain', 'Ask the chat to explain this code', pick((a) => a.explain)),
-            button('chat', 'Ask…', 'Put this code in the chat and ask your own question', pick((a) => a.ask)),
+            button('info', t('editor.explain'), t('editor.explainHint'), pick((a) => a.explain)),
+            button('chat', t('editor.ask'), t('editor.askHint'), pick((a) => a.ask)),
           );
           return { dom };
         },

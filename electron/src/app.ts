@@ -39,6 +39,7 @@ import type {
   ProviderRequest,
   UnloadResponse,
 } from './api/types';
+import { t } from './lib/i18n';
 import { useAuditStore } from './state/audit';
 import { useChatStore } from './state/chat';
 import { terminalBus, useTerminalStore } from './state/terminal';
@@ -210,7 +211,7 @@ export class AppController {
     auditStore.setError(null);
     auditStore.clearDownloads();
     auditStore.setBusy('audit');
-    auditStore.setProgress('queued', 0, `Starting the audit of ${label}`);
+    auditStore.setProgress('queued', 0, t('app.auditStarting', { label }));
     try {
       const response = await this.client.request<AuditResponse>('POST', '/api/audits', body);
       auditStore.setCurrent(response.audit);
@@ -254,13 +255,13 @@ export class AppController {
           if (!audit || now.busy !== 'audit' || this.auditId !== id) return;
           if (audit.status === 'ready') {
             window.clearInterval(timer);
-            now.setProgress('complete', 1, 'Audit complete');
+            now.setProgress('complete', 1, t('app.auditComplete'));
             now.setProgressVisible(false);
             now.setBusy(null);
             void this.selectAudit(id);
           } else if (audit.status === 'failed') {
             window.clearInterval(timer);
-            now.setError(audit.error || 'The audit failed.');
+            now.setError(audit.error || t('app.auditFailed'));
             now.setProgressVisible(false);
             now.setBusy(null);
           }
@@ -282,8 +283,9 @@ export class AppController {
     const auditStore = useAuditStore.getState();
     auditStore.setError(null);
     auditStore.setBusy(`scan:${engine}`);
-    const where = path ? ` of ${path.split('/').pop()}` : '';
-    auditStore.setProgress(`${engine} scan${where}`, 0, path ? `Scanning ${path}` : 'Starting the scan');
+    const file = path ? path.split('/').pop() ?? '' : '';
+    const phase = path ? t('app.scanPhaseOfFile', { engine, file }) : t('app.scanPhase', { engine });
+    auditStore.setProgress(phase, 0, path ? t('app.scanningFile', { path }) : t('app.scanStarting'));
     try {
       const response = await this.client.request<JobResponse>(
         'POST',
@@ -310,7 +312,7 @@ export class AppController {
     this.scanJob = null;
     const store = useAuditStore.getState();
     if (error) store.setError(error);
-    store.setProgress('complete', 1, error ? 'The scan failed' : 'Scan complete');
+    store.setProgress('complete', 1, error ? t('app.scanFailed') : t('app.scanComplete'));
     store.setProgressVisible(false);
     store.setBusy(null);
     void Promise.all([this.loadFindings(), this.loadFiles(), this.loadGraph()]);
@@ -326,7 +328,7 @@ export class AppController {
         .request<{ job: { state: string; error?: string } }>('GET', `/api/audits/${auditId}/jobs/${jobId}`)
         .then((response) => {
           if (response.job.state === 'done') this.finishScan(jobId);
-          else if (response.job.state === 'failed') this.finishScan(jobId, response.job.error ?? 'The scan failed.');
+          else if (response.job.state === 'failed') this.finishScan(jobId, response.job.error ?? t('app.scanFailedError'));
         })
         .catch(() => {
           /* the next tick tries again */
@@ -365,7 +367,7 @@ export class AppController {
         `/api/audits/${this.auditId}/file`,
         { path, content },
       );
-      if (response.error) auditStore.setError(`Saved, but the re-scan failed: ${response.error}`);
+      if (response.error) auditStore.setError(t('app.savedButRescanFailed', { error: response.error }));
       await Promise.all([this.loadFindings(), this.loadFiles(), this.loadAst(path)]);
       // The open copy becomes what was saved, with the findings of the
       // re-scan: Discard then goes back to the saved text, not the old one.
@@ -410,7 +412,7 @@ export class AppController {
     startLine: number;
     endLine: number;
   }): Promise<string> {
-    if (!this.auditId) throw new Error('Open an audit first.');
+    if (!this.auditId) throw new Error(t('app.openAuditFirst'));
     const response = await this.client.request<{ replacement: string }>(
       'POST',
       `/api/audits/${this.auditId}/edit-selection`,
@@ -514,7 +516,7 @@ export class AppController {
    * from the same report by the main process and saved where the user picks.
    */
   async exportReport(format: 'html' | 'pdf' = 'html'): Promise<{ saved: boolean; path?: string; error?: string }> {
-    if (!this.auditId) return { saved: false, error: 'Open an audit first.' };
+    if (!this.auditId) return { saved: false, error: t('app.openAuditFirst') };
     const name = useAuditStore.getState().current?.package ?? this.auditId;
     try {
       const html = await this.client.requestText('GET', `/api/audits/${this.auditId}/export?format=html`);
@@ -571,9 +573,9 @@ export class AppController {
     const usable = list.filter((provider) => provider.ok);
     const provider = usable[0];
     let reason = '';
-    if (!list.length) reason = 'No model server is configured.';
-    else if (!usable.length) reason = 'The model server is not reachable.';
-    else if (!name) reason = 'No chat model is selected.';
+    if (!list.length) reason = t('app.noModelServerConfigured');
+    else if (!usable.length) reason = t('app.modelServerUnreachable');
+    else if (!name) reason = t('app.noChatModelSelected');
     // Whether the model can use tools decides if web search and file reading work.
     let tools: 'yes' | 'no' | 'unknown' = 'unknown';
     if (!reason) {
@@ -650,7 +652,7 @@ export class AppController {
     useUiStore.getState().setBottomView('debug');
     useUiStore.getState().setTerminalOpen(true);
     debug.starting(program);
-    debug.print({ kind: 'info', text: `Starting ${program}…` });
+    debug.print({ kind: 'info', text: t('app.debugStarting', { program }) });
     try {
       const response = await this.client.request<{ id: string; python: string; version?: string; program: string }>('POST', '/api/debug', {
         auditId: this.auditId,
@@ -661,8 +663,11 @@ export class AppController {
       const now = useDebugStore.getState();
       // The program may already have ended (its exit event came first).
       if (now.status === 'exited' && now.sessionId === response.id) return;
-      now.started(response.id, response.version ? `Python ${response.version}` : response.python);
-      now.print({ kind: 'info', text: `Running with ${response.python}${response.version ? ` (Python ${response.version})` : ''}` });
+      now.started(response.id, response.version ? t('app.pythonVersion', { version: response.version }) : response.python);
+      const running = response.version
+        ? t('app.debugRunningWithVersion', { python: response.python, version: response.version })
+        : t('app.debugRunning', { python: response.python });
+      now.print({ kind: 'info', text: running });
     } catch (err) {
       useDebugStore.getState().failed(messageOf(err));
     }
@@ -739,7 +744,7 @@ export class AppController {
     if (!text) return;
     debug.print({ kind: 'input', text });
     if (debug.status !== 'paused') {
-      debug.print({ kind: 'error', text: 'Pause the program to evaluate an expression.' });
+      debug.print({ kind: 'error', text: t('app.pauseToEvaluate') });
       return;
     }
     this.debugSeq += 1;
@@ -781,7 +786,7 @@ export class AppController {
       this.runToCursorRestore = null;
       const code = typeof data.code === 'number' ? data.code : 0;
       debug.exited(code);
-      useDebugStore.getState().print({ kind: 'info', text: `The program exited with code ${code}.` });
+      useDebugStore.getState().print({ kind: 'info', text: t('app.programExited', { code }) });
       return;
     }
     switch (data.event) {
@@ -803,7 +808,10 @@ export class AppController {
           globals: data.globals as DebugVariable[] | undefined,
         });
         if (data.reason === 'exception' && data.description) {
-          useDebugStore.getState().print({ kind: 'error', text: `Stopped on an uncaught exception: ${String(data.description)}` });
+          useDebugStore.getState().print({
+            kind: 'error',
+            text: t('app.stoppedOnException', { description: String(data.description) }),
+          });
         }
         // The first frame in the project's own code is the one to show.
         const shown = frames.findIndex((f) => !f.external);
@@ -860,7 +868,7 @@ export class AppController {
       });
       const used = terminals.sessions.length + 1;
       const folder = response.cwd.split(/[\\/]/).filter(Boolean).pop() ?? 'shell';
-      terminals.add({ id: response.id, title: `${folder} (${used})`, cwd: response.cwd });
+      terminals.add({ id: response.id, title: t('app.terminalTitle', { folder, n: used }), cwd: response.cwd });
       return response.id;
     } catch (err) {
       terminals.setError(messageOf(err));
@@ -1241,7 +1249,7 @@ export class AppController {
       }
       if (Date.now() - started > 15 * 60 * 1000) {
         stop();
-        useAdvisoryStore.getState().setError('The lookup took too long. Check your connection and try again.');
+        useAdvisoryStore.getState().setError(t('app.advisoryLookupTimeout'));
         return;
       }
       void this.client
@@ -1336,7 +1344,7 @@ export class AppController {
         break;
       }
       case 'audit.done': {
-        auditStore.setProgress('complete', 1, 'Audit complete');
+        auditStore.setProgress('complete', 1, t('app.auditComplete'));
         auditStore.setProgressVisible(false);
         auditStore.setBusy(null);
         if (event.auditId && event.auditId !== this.auditId) {
@@ -1356,7 +1364,7 @@ export class AppController {
         break;
       }
       case 'audit.error': {
-        auditStore.setError(event.error ?? 'The audit failed.');
+        auditStore.setError(event.error ?? t('app.auditFailed'));
         auditStore.setProgressVisible(false);
         auditStore.setBusy(null);
         break;
@@ -1366,7 +1374,7 @@ export class AppController {
         break;
       }
       case 'scan.error': {
-        if (event.jobId) this.finishScan(event.jobId, event.error ?? 'The scan failed.');
+        if (event.jobId) this.finishScan(event.jobId, event.error ?? t('app.scanFailedError'));
         break;
       }
       case 'scan.progress': {
@@ -1420,20 +1428,25 @@ export class AppController {
         else if (step.kind === 'compacting') chat.setCompacting(event.jobId, true);
         else if (step.kind === 'notice' && step.output) chat.addNotice(event.jobId, step.output);
         else if (step.kind === 'compacted') {
-          chat.setCompacting(event.jobId, false, step.error ? `The conversation could not be summarised (${step.error}); older turns were left out.` : `Conversation compacted: ${step.output ?? 'earlier messages summarised'}.`);
+          const compacted = step.error
+            ? t('app.conversationNotSummarised', { error: step.error })
+            : step.output
+              ? t('app.conversationCompacted', { summary: step.output })
+              : t('app.conversationCompactedFallback');
+          chat.setCompacting(event.jobId, false, compacted);
         } else if (step.kind === 'approval' && step.id) {
-          chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? 'tool', args: step.args ?? {}, status: 'waiting', summary: step.summary, approval: 'pending' });
+          chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? t('app.toolName'), args: step.args ?? {}, status: 'waiting', summary: step.summary, approval: 'pending' });
         } else if (step.kind === 'approval_timeout' && step.id) {
-          chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? 'tool', args: {}, status: 'error', approval: 'expired' });
+          chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? t('app.toolName'), args: {}, status: 'error', approval: 'expired' });
         } else if (step.kind === 'approval_result' && step.id) {
-          chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? 'tool', args: {}, status: step.approved ? 'running' : 'error', approval: step.approved ? 'approved' : 'denied' });
+          chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? t('app.toolName'), args: {}, status: step.approved ? 'running' : 'error', approval: step.approved ? 'approved' : 'denied' });
         }
         else if (step.kind === 'tool' && step.id) {
-          chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? 'tool', args: step.args ?? {}, status: 'running' });
+          chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? t('app.toolName'), args: step.args ?? {}, status: 'running' });
         } else if (step.kind === 'tool_result' && step.id) {
           chat.upsertStep(event.jobId, {
             id: step.id,
-            name: step.name ?? 'tool',
+            name: step.name ?? t('app.toolName'),
             args: {},
             status: step.error ? 'error' : 'done',
             output: step.output,
@@ -1461,7 +1474,7 @@ export class AppController {
       }
       case 'chat.error': {
         if (event.jobId) {
-          chat.failAssistant(event.jobId, event.error ?? 'The chat request failed.');
+          chat.failAssistant(event.jobId, event.error ?? t('app.chatRequestFailed'));
         }
         break;
       }

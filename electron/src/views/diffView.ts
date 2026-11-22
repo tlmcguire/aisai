@@ -8,6 +8,7 @@ import type { AppController } from '../app';
 import type { Finding } from '../api/types';
 import { diffStats, parseUnifiedDiff, toSideBySide, type DiffHunk } from '../lib/diff';
 import { h, type Child } from '../lib/dom';
+import { t } from '../lib/i18n';
 import { severityClass, severityLabel } from '../lib/severity';
 import { useAuditStore } from '../state/audit';
 import { useFindingsStore } from '../state/findings';
@@ -28,12 +29,12 @@ export function createDiffView(controller: AppController, container: HTMLElement
 
   let mode: DiffMode = 'split';
 
-  const splitButton = h('button', { class: 'tiny', type: 'button' }, 'Side-by-side');
-  const unifiedButton = h('button', { class: 'tiny', type: 'button' }, 'Unified');
-  const applyButton = h('button', { class: 'primary', type: 'button' }, 'Apply');
-  const rejectButton = h('button', { class: 'tiny', type: 'button' }, 'Reject');
-  const copyButton = h('button', { class: 'tiny', type: 'button' }, 'Copy');
-  const saveButton = h('button', { class: 'tiny', type: 'button' }, 'Save .patch');
+  const splitButton = h('button', { class: 'tiny', type: 'button' }, t('diff.sideBySide'));
+  const unifiedButton = h('button', { class: 'tiny', type: 'button' }, t('diff.unified'));
+  const applyButton = h('button', { class: 'primary', type: 'button' }, t('diff.apply'));
+  const rejectButton = h('button', { class: 'tiny', type: 'button' }, t('diff.reject'));
+  const copyButton = h('button', { class: 'tiny', type: 'button' }, t('diff.copy'));
+  const saveButton = h('button', { class: 'tiny', type: 'button' }, t('diff.savePatch'));
   const summary = h('span', { class: 'legend-item', text: '' });
 
   splitButton.addEventListener('click', () => {
@@ -58,14 +59,14 @@ export function createDiffView(controller: AppController, container: HTMLElement
     void controller.applyPatch(path).then((result) => {
       setBusy(applyButton, false);
       if (result?.applied) {
-        summary.textContent = `Applied. ${result.rescan.resolved.length} finding(s) resolved, ${result.rescan.unchanged} unchanged.`;
+        summary.textContent = t('diff.applied', { resolved: result.rescan.resolved.length, unchanged: result.rescan.unchanged });
       }
     });
   });
 
   rejectButton.addEventListener('click', () => {
     useWorkspaceStore.getState().setPatch(null);
-    summary.textContent = 'Patch rejected.';
+    summary.textContent = t('diff.rejected');
     render();
   });
 
@@ -75,10 +76,10 @@ export function createDiffView(controller: AppController, container: HTMLElement
     void navigator.clipboard
       ?.writeText(patch.unified)
       .then(() => {
-        summary.textContent = 'Diff copied to the clipboard.';
+        summary.textContent = t('diff.copied');
       })
       .catch(() => {
-        summary.textContent = 'Could not copy the diff — select it manually.';
+        summary.textContent = t('diff.copyFailed');
       });
   });
 
@@ -99,7 +100,7 @@ export function createDiffView(controller: AppController, container: HTMLElement
   toolbar.append(splitButton, unifiedButton, h('span', { class: 'grow' }), summary, copyButton, saveButton, rejectButton, applyButton);
 
   function hunkHeader(hunk: DiffHunk, finding: Finding | undefined): HTMLElement {
-    const children: Child[] = [h('span', { class: 'finding-id', text: hunk.header || 'patch' })];
+    const children: Child[] = [h('span', { class: 'finding-id', text: hunk.header || t('diff.patch') })];
     if (finding) {
       children.push(
         h('span', { class: 'badge neutral', text: finding.id }),
@@ -107,12 +108,12 @@ export function createDiffView(controller: AppController, container: HTMLElement
         finding.cwe ? h('span', { class: 'badge neutral', text: finding.cwe }) : null,
         h('span', {
           class: 'legend-item',
-          text: `confidence ${(finding.confidence * 100).toFixed(0)}%`,
+          text: t('diff.confidence', { value: (finding.confidence * 100).toFixed(0) }),
         }),
         h('span', { class: 'legend-item', text: finding.tool }),
       );
     } else {
-      children.push(h('span', { class: 'legend-item', text: 'no matching finding' }));
+      children.push(h('span', { class: 'legend-item', text: t('diff.noMatchingFinding') }));
     }
     return h('div', { class: 'hunk-header' }, ...children);
   }
@@ -128,16 +129,12 @@ export function createDiffView(controller: AppController, container: HTMLElement
         h(
           'div',
           { class: 'empty-state' },
-          h('h3', { text: 'No proposed fix yet' }),
-          h('p', {
-            text:
-              'Pick a finding in the rail and choose “Propose fix”. The model proposes a patch and ' +
-              'it is shown here as a unified diff you can review, copy or apply.',
-          }),
+          h('h3', { text: t('diff.noFix') }),
+          h('p', { text: t('diff.noFixHint') }),
           h('ol', {},
-            h('li', { text: 'Select a finding in the findings rail.' }),
-            h('li', { text: 'Press “Propose fix”.' }),
-            h('li', { text: 'Review the red/green diff, then Apply or Reject.' }),
+            h('li', { text: t('diff.stepSelect') }),
+            h('li', { text: t('diff.stepPropose') }),
+            h('li', { text: t('diff.stepReview') }),
           ),
         ),
       );
@@ -151,12 +148,12 @@ export function createDiffView(controller: AppController, container: HTMLElement
     const fragment = document.createDocumentFragment();
     fragment.append(
       h('div', { class: 'hunk-header' },
-        h('span', { class: 'finding-id', text: patch.summary || 'Proposed fix' }),
+        h('span', { class: 'finding-id', text: patch.summary || t('diff.proposedFix') }),
         h('span', { class: 'badge ok', text: `+${stats.added}` }),
         h('span', { class: 'badge bad', text: `-${stats.removed}` }),
         patch.valid
-          ? h('span', { class: 'badge ok', text: 'valid patch' })
-          : h('span', { class: 'badge bad', text: `invalid: ${patch.error}` }),
+          ? h('span', { class: 'badge ok', text: t('diff.validPatch') })
+          : h('span', { class: 'badge bad', text: t('diff.invalidPatch', { error: patch.error }) }),
       ),
     );
 

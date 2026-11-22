@@ -17,6 +17,7 @@ import { autoUpdater, type UpdateInfo } from 'electron-updater';
 import { spawn } from 'node:child_process';
 
 import type { BackendStatus, ClientMessage, HttpMethod, HttpResponse, MenuCommand, UpdateStatus } from './src/api/bridge';
+import { message } from './src/lib/messages';
 import type { Event } from './src/api/types';
 import { FolderApprovals } from './src/main-process/folders';
 import {
@@ -640,6 +641,14 @@ function registerIpc(): void {
  * window sends them (the user can rebind keys in Settings); until it does,
  * these defaults are shown.
  */
+/**
+ * The language the application menu is drawn in.
+ *
+ * The renderer tells the main process which language the interface is in, so
+ * the menu and the window are in the same language.
+ */
+let menuLocale = 'en';
+
 let menuShortcuts: Record<string, string> = {
   'app.settings': 'CmdOrCtrl+,',
   'app.shortcuts': 'CmdOrCtrl+Shift+/',
@@ -660,6 +669,8 @@ let menuShortcuts: Record<string, string> = {
  * fields rely on them. See https://www.electronjs.org/docs/latest/api/menu-item
  */
 function buildMenu(): void {
+  // The menu follows the language of the interface.
+  const t = (key: Parameters<typeof message>[0]): string => message(key, menuLocale);
   const send = (command: MenuCommand): void => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('aisai:menu', command);
   };
@@ -669,18 +680,18 @@ function buildMenu(): void {
   };
   const mac = process.platform === 'darwin';
   const help: Electron.MenuItemConstructorOptions[] = [
-    { label: 'Tutorials', click: () => send('tutorials') },
-    { label: 'Keyboard Shortcuts', ...keys('app.shortcuts'), click: () => send('shortcuts') },
-    ...(mac ? [] : [{ type: 'separator' as const }, { label: 'About aisai', click: () => send('about') }]),
+    { label: t('menu.tutorials'), click: () => send('tutorials') },
+    { label: t('menu.keyboardShortcuts'), ...keys('app.shortcuts'), click: () => send('shortcuts') },
+    ...(mac ? [] : [{ type: 'separator' as const }, { label: t('menu.about'), click: () => send('about') }]),
   ];
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(mac
       ? [{
           label: 'aisai',
           submenu: [
-            { label: 'About aisai', click: () => send('about') },
+            { label: t('menu.about'), click: () => send('about') },
             { type: 'separator' as const },
-            { label: 'Settings…', ...keys('app.settings'), click: () => send('settings') },
+            { label: t('menu.settings'), ...keys('app.settings'), click: () => send('settings') },
             { type: 'separator' as const },
             { role: 'services' as const },
             { type: 'separator' as const },
@@ -693,23 +704,23 @@ function buildMenu(): void {
         }]
       : []),
     {
-      label: 'File',
+      label: t('menu.file'),
       submenu: [
-        { label: 'Open Folder…', ...keys('file.open-folder'), click: () => send('open-folder') },
+        { label: t('menu.openFolder'), ...keys('file.open-folder'), click: () => send('open-folder') },
         { type: 'separator' },
-        { label: 'Save', ...keys('file.save'), click: () => send('save') },
+        { label: t('menu.save'), ...keys('file.save'), click: () => send('save') },
         { type: 'separator' },
-        { label: 'Export Report as PDF…', ...keys('file.export-pdf'), click: () => send('export-pdf') },
-        { label: 'Export Report as HTML', click: () => send('export-html') },
+        { label: t('menu.exportPdf'), ...keys('file.export-pdf'), click: () => send('export-pdf') },
+        { label: t('menu.exportHtml'), click: () => send('export-html') },
         { type: 'separator' },
-        ...(mac ? [{ role: 'close' as const }] : [{ label: 'Settings…', ...keys('app.settings'), click: () => send('settings') }, { role: 'quit' as const }]),
+        ...(mac ? [{ role: 'close' as const }] : [{ label: t('menu.settings'), ...keys('app.settings'), click: () => send('settings') }, { role: 'quit' as const }]),
       ],
     },
     {
-      label: 'Edit',
+      label: t('menu.edit'),
       submenu: [
-        { label: 'Undo', ...keys('edit.undo'), click: () => send('undo') },
-        { label: 'Redo', ...keys('edit.redo'), click: () => send('redo') },
+        { label: t('menu.undo'), ...keys('edit.undo'), click: () => send('undo') },
+        { label: t('menu.redo'), ...keys('edit.redo'), click: () => send('redo') },
         { type: 'separator' },
         { role: 'cut' },
         { role: 'copy' },
@@ -878,6 +889,11 @@ function configureAutoUpdate(): void {
       if (typeof accelerator === 'string' && accelerator.length <= 40 && /^[A-Za-z0-9+,./`;'[\]=-]*$/.test(accelerator)) next[id] = accelerator;
     }
     menuShortcuts = { ...menuShortcuts, ...next };
+    buildMenu();
+  });
+  ipcMain.on('aisai:locale', (_event, locale: unknown) => {
+    if (typeof locale !== 'string' || locale === menuLocale) return;
+    menuLocale = locale;
     buildMenu();
   });
   ipcMain.handle('aisai:update:page', () => shell.openExternal(updateStatus.url ?? RELEASES_URL));

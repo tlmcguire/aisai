@@ -14,6 +14,7 @@
 import type { AppController } from '../app';
 import type { ChatMessage, ChatThread, ToolStep } from '../state/chat';
 import { h } from '../lib/dom';
+import { t, tn } from '../lib/i18n';
 import { icon, type IconName } from '../lib/icons';
 import { useChatStore } from '../state/chat';
 import { DEFAULT_LAYOUT, useUiStore } from '../state/ui';
@@ -38,7 +39,7 @@ function linkify(text: string): Node[] {
       /* shown as written */
     }
     out.push(
-      h('button', { class: 'citation web-citation', type: 'button', title: `Open ${url} in your browser`, onclick: () => void window.aisai.openExternal(url) }, icon('globe'), host),
+      h('button', { class: 'citation web-citation', type: 'button', title: t('chat.openLinkInBrowser', { url }), onclick: () => void window.aisai.openExternal(url) }, icon('globe'), host),
     );
     last = m.index + m[0].length;
   }
@@ -52,37 +53,70 @@ export function stepLabel(step: ToolStep): string {
   const s = (k: string): string => (typeof a[k] === 'string' ? (a[k] as string) : '');
   switch (step.name) {
     case 'get_file':
-      return `Read ${s('path')}`;
+      return t('chat.stepReadFile', { path: s('path') });
     case 'get_ast':
-      return `Read the syntax tree of ${s('path')}`;
+      return t('chat.stepReadAst', { path: s('path') });
     case 'search_symbols':
-      return `Searched symbols for “${s('query')}”`;
+      return t('chat.stepSearchSymbols', { query: s('query') });
     case 'list_findings':
-      return 'Listed the findings';
+      return t('chat.stepListFindings');
     case 'get_finding':
-      return `Opened finding ${s('id')}`;
+      return t('chat.stepOpenFinding', { id: s('id') });
     case 'run_command':
-      return `Ran ${s('command')}`;
+      return t('chat.stepRunCommand', { command: s('command') });
     case 'web_search':
-      return `Searched the web for “${s('query')}”`;
+      return t('chat.stepWebSearch', { query: s('query') });
     case 'fetch_url':
-      return `Read ${s('url')}`;
+      return t('chat.stepFetchUrl', { url: s('url') });
     default:
       return step.name;
   }
 }
 
+/** The same words in the present tense, for a tool step that is still running. */
+function stepRunningLabel(step: ToolStep): string {
+  const a = step.args ?? {};
+  const s = (k: string): string => (typeof a[k] === 'string' ? (a[k] as string) : '');
+  switch (step.name) {
+    case 'get_file':
+      return t('chat.runningReadFile', { path: s('path') });
+    case 'get_ast':
+      return t('chat.runningReadAst', { path: s('path') });
+    case 'search_symbols':
+      return t('chat.runningSearchSymbols', { query: s('query') });
+    case 'list_findings':
+      return t('chat.runningListFindings');
+    case 'get_finding':
+      return t('chat.runningOpenFinding', { id: s('id') });
+    case 'run_command':
+      return t('chat.runningRunCommand', { command: s('command') });
+    case 'web_search':
+      return t('chat.runningWebSearch', { query: s('query') });
+    case 'fetch_url':
+      return t('chat.runningFetchUrl', { url: s('url') });
+    default:
+      return t('chat.runningTool', { tool: step.name });
+  }
+}
+
 /** What the status line says while the model has not written anything yet. */
-const IDLE_VERBS = ['Thinking', 'Reading the code', 'Searching the index', 'Working it out'];
+function idleVerbs(): string[] {
+  return [
+    t('chat.statusThinking'),
+    t('chat.idleReadingCode'),
+    t('chat.idleSearchingIndex'),
+    t('chat.idleWorkingItOut'),
+  ];
+}
 
 /** An error from the model server, in words a person can act on. */
 function friendlyChatError(error: string): string {
-  if (/context|too long|maximum.*tokens|num_ctx/i.test(error)) return 'The conversation is too long for the model. Start a new chat, or raise the context window in Settings › Models.';
-  if (/connection refused|ECONNREFUSED|no such host|dial tcp/i.test(error)) return 'The model server is not reachable. Is it running? Check Settings › Model server.';
-  if (/401|403|api key|unauthori[sz]ed/i.test(error)) return 'The model server refused the API key. Check it in Settings › Model server.';
-  if (/429|rate limit/i.test(error)) return 'The model server is rate limiting requests. Wait a moment and try again.';
-  if (/timeout|deadline exceeded/i.test(error)) return 'The model took too long to answer.';
-  if (/not found|unknown model|pull/i.test(error)) return `The model is not installed on the server (${error}).`;
+  if (/context|too long|maximum.*tokens|num_ctx/i.test(error)) return t('chat.errorContextTooLong');
+  if (/connection refused|ECONNREFUSED|no such host|dial tcp/i.test(error)) return t('chat.errorServerUnreachable');
+  if (/401|403|api key|unauthori[sz]ed/i.test(error)) return t('chat.errorApiKeyRefused');
+  if (/429|rate limit/i.test(error)) return t('chat.errorRateLimited');
+  if (/timeout|deadline exceeded/i.test(error)) return t('chat.errorTimeout');
+  if (/not found|unknown model|pull/i.test(error)) return t('chat.errorModelNotInstalled', { error });
   return error;
 }
 
@@ -119,7 +153,7 @@ function renderContent(controller: AppController, message: ChatMessage): HTMLEle
         {
           class: 'citation',
           type: 'button',
-          title: `Open ${file} at line ${line}`,
+          title: t('chat.openFileAtLine', { file, line }),
           onclick: () => {
             void controller.openFile(file, line);
           },
@@ -138,23 +172,24 @@ function renderContent(controller: AppController, message: ChatMessage): HTMLEle
 
 /** The text of the shimmering status line, for a turn that is still going. */
 function statusText(message: ChatMessage): string {
-  if (message.compacting) return 'Compacting the conversation';
-  if (message.steps?.some((step) => step.status === 'waiting')) return 'Waiting for your approval';
+  if (message.compacting) return t('chat.statusCompacting');
+  if (message.steps?.some((step) => step.status === 'waiting')) return t('chat.statusWaitingApproval');
   const running = message.steps?.find((step) => step.status === 'running');
-  if (running) return stepLabel(running).replace(/^Read /, 'Reading ').replace(/^Ran /, 'Running ').replace(/^Searched /, 'Searching ').replace(/^Listed /, 'Listing ').replace(/^Opened /, 'Opening ');
-  if (message.content) return 'Writing the answer';
-  if (message.thinking) return 'Thinking';
+  if (running) return stepRunningLabel(running);
+  if (message.content) return t('chat.statusWriting');
+  if (message.thinking) return t('chat.statusThinking');
   const seconds = message.startedAt ? Math.floor((Date.now() - message.startedAt) / 1000) : 0;
-  return IDLE_VERBS[Math.floor(seconds / 4) % IDLE_VERBS.length];
+  const verbs = idleVerbs();
+  return verbs[Math.floor(seconds / 4) % verbs.length];
 }
 
 function relativeTime(then: number): string {
   const minutes = Math.round((Date.now() - then) / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 1) return t('chat.justNow');
+  if (minutes < 60) return tn('chat.minutesAgo', minutes);
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
-  return `${Math.round(hours / 24)} d ago`;
+  if (hours < 24) return tn('chat.hoursAgo', hours);
+  return tn('chat.daysAgo', Math.round(hours / 24));
 }
 
 export interface ChatPanel {
@@ -178,7 +213,7 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
   const threadButton = h('button', { class: 'tiny thread-button', type: 'button', 'aria-haspopup': 'true', 'aria-expanded': 'false' });
   const newButton = h(
     'button',
-    { class: 'ghost tiny icon-button', type: 'button', title: 'New chat', 'aria-label': 'New chat' },
+    { class: 'ghost tiny icon-button', type: 'button', title: t('chat.newChat'), 'aria-label': t('chat.newChat') },
     icon('plus'),
   );
   const threadMenu = h('div', { class: 'thread-menu', role: 'menu', hidden: true });
@@ -191,7 +226,7 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
   const header = h(
     'div',
     { class: 'chat-header' },
-    h('span', { text: 'Chat' }),
+    h('span', { text: t('chat.title') }),
     threadWrap,
     newButton,
     modelChip,
@@ -206,10 +241,10 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
   const selectionChip = h('div', { class: 'selection-chip', hidden: true });
   const input = h('input', {
     type: 'text',
-    placeholder: 'Ask about this package… e.g. how does it authenticate?',
-    'aria-label': 'Chat question',
+    placeholder: t('chat.inputPlaceholder'),
+    'aria-label': t('chat.inputLabel'),
   });
-  const askButton = h('button', { class: 'primary', type: 'button' }, h('span', { class: 'btn-label', text: 'Ask' }));
+  const askButton = h('button', { class: 'primary', type: 'button' }, h('span', { class: 'btn-label', text: t('chat.ask') }));
   const footer = h('div', { class: 'chat-footer' }, selectionChip, h('div', { class: 'chat-input-row' }, input, askButton));
 
   container.dataset.tour = 'chat';
@@ -221,8 +256,8 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
     container.classList.toggle('collapsed', !open);
     toggle.replaceChildren(icon(open ? 'chevron-down' : 'chevron-up'));
     toggle.setAttribute('aria-expanded', String(open));
-    toggle.setAttribute('aria-label', open ? 'Collapse the chat panel' : 'Expand the chat panel');
-    toggle.title = open ? 'Collapse the chat panel' : 'Expand the chat panel';
+    toggle.setAttribute('aria-label', open ? t('chat.collapsePanel') : t('chat.expandPanel'));
+    toggle.title = open ? t('chat.collapsePanel') : t('chat.expandPanel');
     footer.hidden = !open;
     messages.hidden = !open;
   };
@@ -233,7 +268,7 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
     const right = ui.chatDock === 'right';
     const big = right ? ui.chatWidth >= 560 : ui.chatHeight >= 440;
     growButton.replaceChildren(icon(big ? 'arrow-down' : 'arrow-up'));
-    const label = big ? 'Shrink the chat panel' : 'Enlarge the chat panel';
+    const label = big ? t('chat.shrinkPanel') : t('chat.enlargePanel');
     growButton.title = label;
     growButton.setAttribute('aria-label', label);
   };
@@ -311,7 +346,7 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
           onClick();
         },
       },
-      armed ? 'Delete?' : icon(name),
+      armed ? t('chat.confirmDelete') : icon(name),
     );
 
   const renderMenu = (): void => {
@@ -322,7 +357,7 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
       const title =
         renamingId === thread.id
           ? (() => {
-              const field = h('input', { class: 'thread-rename', type: 'text', value: thread.title, 'aria-label': 'Chat name' });
+              const field = h('input', { class: 'thread-rename', type: 'text', value: thread.title, 'aria-label': t('chat.threadNameLabel') });
               const finish = (save: boolean): void => {
                 if (save) useChatStore.getState().renameThread(thread.id, field.value);
                 renamingId = null;
@@ -358,17 +393,17 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
         'div',
         { class: `thread-row${thread.id === state.activeId ? ' is-active' : ''}${thread.archived ? ' is-archived' : ''}` },
         title,
-        rowButton('pencil', 'Rename', () => {
+        rowButton('pencil', t('chat.rename'), () => {
           renamingId = thread.id;
           renderMenu();
         }),
-        rowButton(thread.archived ? 'restore' : 'archive', thread.archived ? 'Restore' : 'Archive', () => {
+        rowButton(thread.archived ? 'restore' : 'archive', thread.archived ? t('chat.restore') : t('chat.archive'), () => {
           useChatStore.getState().archiveThread(thread.id, !thread.archived);
           renderMenu();
         }),
         rowButton(
           'trash',
-          'Delete',
+          t('chat.delete'),
           () => {
             // Deleting a conversation cannot be undone, so it asks twice.
             if (armedDelete !== thread.id) {
@@ -401,11 +436,11 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
                 renderMenu();
               },
             },
-            showArchived ? 'Hide archived' : `Show archived (${archivedCount})`,
+            showArchived ? t('chat.hideArchived') : t('chat.showArchived', { count: archivedCount }),
           )
         : null;
     threadMenu.replaceChildren(
-      ...(rows.length ? rows : [h('p', { class: 'thread-empty muted', text: 'No chats yet. Ask a question to start one.' })]),
+      ...(rows.length ? rows : [h('p', { class: 'thread-empty muted', text: t('chat.noChats') })]),
       ...(archivedToggle ? [archivedToggle] : []),
     );
   };
@@ -426,26 +461,26 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
 
   const stepIcon = (step: ToolStep): Node =>
     step.status === 'running'
-      ? h('span', { class: 'spinner', 'aria-label': 'running' })
+      ? h('span', { class: 'spinner', 'aria-label': t('chat.stepRunning') })
       : step.status === 'waiting'
-        ? h('span', { class: 'approval-dot', 'aria-label': 'waiting for approval' })
+        ? h('span', { class: 'approval-dot', 'aria-label': t('chat.stepWaitingApproval') })
         : icon(step.status === 'error' ? 'x' : 'check');
 
   /** A tool call that waits for the user: what it will do, and Allow / Deny. */
   const buildApproval = (step: ToolStep): HTMLElement => {
-    const allow = h('button', { class: 'primary tiny', type: 'button' }, 'Allow');
-    const deny = h('button', { class: 'tiny', type: 'button' }, 'Deny');
+    const allow = h('button', { class: 'primary tiny', type: 'button' }, t('chat.allow'));
+    const deny = h('button', { class: 'tiny', type: 'button' }, t('chat.deny'));
     allow.addEventListener('click', () => void controller.answerApproval(step.id, true));
     deny.addEventListener('click', () => void controller.answerApproval(step.id, false));
     return h(
       'div',
-      { class: 'chat-approval', role: 'group', 'aria-label': 'Approval needed' },
-      h('div', { class: 'approval-title' }, icon(step.name === 'web_search' || step.name === 'fetch_url' ? 'globe' : 'terminal'), h('strong', { text: 'Allow this?' })),
+      { class: 'chat-approval', role: 'group', 'aria-label': t('chat.approvalNeeded') },
+      h('div', { class: 'approval-title' }, icon(step.name === 'web_search' || step.name === 'fetch_url' ? 'globe' : 'terminal'), h('strong', { text: t('chat.allowThis') })),
       h('p', { class: 'approval-summary', text: step.summary ?? stepLabel(step) }),
       step.name === 'run_command' && typeof step.args.command === 'string'
         ? h('pre', { class: 'approval-command', text: step.args.command })
         : null,
-      h('div', { class: 'approval-actions' }, allow, deny, h('span', { class: 'muted approval-note', text: 'No answer within 2 minutes counts as Deny.' })),
+      h('div', { class: 'approval-actions' }, allow, deny, h('span', { class: 'muted approval-note', text: t('chat.approvalTimeoutNote') })),
     );
   };
 
@@ -459,11 +494,11 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
           stepIcon(step),
           h('span', { class: 'tool-name', text: stepLabel(step) }),
           ...(step.approval === 'expired'
-            ? [h('span', { class: 'badge is-bad', text: 'not run', title: 'Nobody answered within 2 minutes, so the command was not run.' }), h('span', { class: 'muted', text: 'no answer in 2 minutes' })]
+            ? [h('span', { class: 'badge is-bad', text: t('chat.approvalExpiredBadge'), title: t('chat.approvalExpiredTitle') }), h('span', { class: 'muted', text: t('chat.approvalExpiredText') })]
             : step.approval === 'denied'
-            ? [h('span', { class: 'badge is-bad', text: 'denied' })]
+            ? [h('span', { class: 'badge is-bad', text: t('chat.approvalDenied') })]
             : step.approval === 'approved'
-              ? [h('span', { class: 'badge neutral', text: 'allowed' })]
+              ? [h('span', { class: 'badge neutral', text: t('chat.approvalAllowed') })]
               : []),
         ],
         h(
@@ -483,7 +518,7 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
     return block(
       `${message.id}:thinking`,
       [
-        live ? h('span', { class: 'shimmer', text: 'Thinking…' }) : h('span', { class: 'muted', text: message.thoughtFor ? `Thought for ${message.thoughtFor}s` : 'Thoughts' }),
+        live ? h('span', { class: 'shimmer', text: t('chat.statusThinking') }) : h('span', { class: 'muted', text: message.thoughtFor ? t('chat.thoughtFor', { seconds: message.thoughtFor }) : t('chat.thoughts') }),
       ],
       h('div', { class: 'thinking-body', text: message.thinking }),
       'chat-thinking',
@@ -496,7 +531,7 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
       ? h(
           'div',
           { class: 'chat-status', role: 'status' },
-          h('span', { class: 'shimmer status-text', text: `${statusText(message)}…` }),
+          h('span', { class: 'shimmer status-text', text: statusText(message) }),
           h('span', { class: 'status-elapsed muted' }),
         )
       : null;
@@ -505,24 +540,24 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
     const actions: HTMLElement[] = [];
     if (!waiting && !busy) {
       if (message.role === 'user') {
-        actions.push(actionButton('pencil', 'Edit and ask again', () => {
+        actions.push(actionButton('pencil', t('chat.editAndAskAgain'), () => {
           editingId = message.id;
           render(true);
         }));
       } else {
-        actions.push(actionButton('branch', 'Branch: continue from here in a new chat', () => {
+        actions.push(actionButton('branch', t('chat.branchHint'), () => {
           useChatStore.getState().forkFrom(message.id);
         }));
-        actions.push(actionButton('restore', 'Ask again', () => void controller.retry(message.id)));
+        actions.push(actionButton('restore', t('chat.askAgain'), () => void controller.retry(message.id)));
       }
     }
     return h(
       'div',
       { class: `chat-message ${message.role}${waiting ? ' is-pending' : ''}${message.error ? ' is-failed' : ''}`, 'data-id': message.id, 'data-started': String(message.startedAt ?? '') },
-      h('div', { class: 'role' }, h('span', { text: message.role }), actions.length ? h('span', { class: 'message-actions' }, ...actions) : null),
+      h('div', { class: 'role' }, h('span', { text: message.role === 'user' ? t('chat.roleUser') : t('chat.roleAssistant') }), actions.length ? h('span', { class: 'message-actions' }, ...actions) : null),
       message.notice ? h('div', { class: 'chat-notice', role: 'note' }, icon('globe'), h('span', { text: message.notice })) : null,
       message.compacted || message.compacting
-        ? h('div', { class: 'chat-compacted muted' }, message.compacting ? h('span', { class: 'spinner', 'aria-hidden': 'true' }) : icon('archive'), message.compacting ? 'Compacting the conversation…' : message.compacted ?? '')
+        ? h('div', { class: 'chat-compacted muted' }, message.compacting ? h('span', { class: 'spinner', 'aria-hidden': 'true' }) : icon('archive'), message.compacting ? t('chat.compactingConversation') : message.compacted ?? '')
         : null,
       message.role === 'assistant' ? buildThinking(message) : null,
       ...(message.role === 'assistant' ? buildSteps(message) : []),
@@ -531,14 +566,14 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
         ? h(
             'div',
             { class: 'chat-error', role: 'alert' },
-            h('strong', { text: 'The assistant could not answer.' }),
-            h('span', { text: ` ${friendlyChatError(message.error)}` }),
-            h('button', { class: 'tiny', type: 'button', onclick: () => void controller.retry(message.id) }, 'Try again'),
+            h('strong', { text: t('chat.errorTitle') }),
+            h('span', {}, ' ', t('chat.errorReason', { reason: friendlyChatError(message.error) })),
+            h('button', { class: 'tiny', type: 'button', onclick: () => void controller.retry(message.id) }, t('chat.tryAgain')),
           )
         : null,
       status,
       message.chunksUsed && message.chunksUsed.length
-        ? h('div', { class: 'chunks-used', text: `chunks used: ${message.chunksUsed.join(', ')}` })
+        ? h('div', { class: 'chunks-used', text: t('chat.chunksUsed', { chunks: message.chunksUsed.join(', ') }) })
         : null,
     );
   };
@@ -550,10 +585,10 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
     h('button', { class: 'ghost tiny icon-button', type: 'button', title: label, 'aria-label': label, onclick: onClick }, icon(name));
 
   const buildEditor = (message: ChatMessage): HTMLElement => {
-    const field = h('textarea', { class: 'chat-edit', rows: '3', 'aria-label': 'Edit the question' }) as HTMLTextAreaElement;
+    const field = h('textarea', { class: 'chat-edit', rows: '3', 'aria-label': t('chat.editQuestionLabel') }) as HTMLTextAreaElement;
     field.value = message.content.replace(/\n\[[^\]]+:\d+-\d+\]$/, '');
-    const send = h('button', { class: 'primary tiny', type: 'button' }, 'Ask again');
-    const cancel = h('button', { class: 'tiny', type: 'button' }, 'Cancel');
+    const send = h('button', { class: 'primary tiny', type: 'button' }, t('chat.askAgain'));
+    const cancel = h('button', { class: 'tiny', type: 'button' }, t('chat.cancel'));
     const done = (): void => {
       editingId = null;
       render(true);
@@ -575,7 +610,7 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
     return h(
       'div',
       { class: 'chat-message user is-editing', 'data-id': message.id },
-      h('div', { class: 'role', text: 'edit · the answers after this question are replaced' }),
+      h('div', { class: 'role', text: t('chat.editRoleHint') }),
       field,
       h('div', { class: 'approval-actions' }, send, cancel),
     );
@@ -585,15 +620,11 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
     h(
       'div',
       { class: 'empty-state' },
-      h('h3', { text: 'Ask about this audit' }),
-      h('p', {
-        text:
-          'The assistant answers questions about the scanned workspace and cites the exact ' +
-          'file and line it used. Click a citation to jump to it. Select code in the editor to ask about just that.',
-      }),
+      h('h3', { text: t('chat.emptyTitle') }),
+      h('p', { text: t('chat.emptyDescription') }),
       h('ul', {},
-        h('li', { text: '“Where is the hard-coded secret used?”' }),
-        h('li', { text: '“Which findings are reachable from a request handler?”' }),
+        h('li', { text: t('chat.emptyExampleSecret') }),
+        h('li', { text: t('chat.emptyExampleFindings') }),
       ),
     );
 
@@ -601,10 +632,8 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
     h(
       'div',
       { class: 'empty-state chat-limited' },
-      h('h3', { text: 'Chat is limited: no model' }),
-      h('p', {
-        text: `${reason} Questions are disabled until a model is available; scanning, the graph, the AST and the static rules still work.`,
-      }),
+      h('h3', { text: t('chat.limitedTitle') }),
+      h('p', { text: t('chat.limitedDescription', { reason }) }),
       h(
         'button',
         {
@@ -615,7 +644,7 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
             useUiStore.getState().setSettingsOpen(true);
           },
         },
-        'Choose a model',
+        t('chat.chooseModel'),
       ),
     );
 
@@ -636,39 +665,43 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
     const nearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 48;
     const model = state.model;
 
-    modelChip.textContent = model.available ? `${model.name} · ${providerLabel(model.provider)}` : 'no model';
+    modelChip.textContent = model.available
+      ? t('chat.modelChip', { model: model.name, provider: providerLabel(model.provider) })
+      : t('chat.noModel');
     modelChip.classList.toggle('is-bad', !model.available);
     modelChip.classList.toggle('neutral', model.available);
     modelChip.title = model.available
-      ? `Answering with ${model.name}${model.tools === 'no' ? ' · this model cannot call tools' : model.tools === 'yes' ? ' · can call tools' : ''}`
+      ? model.tools === 'no'
+        ? t('chat.modelTooltipNoTools', { model: model.name })
+        : model.tools === 'yes'
+          ? t('chat.modelTooltipWithTools', { model: model.name })
+          : t('chat.modelTooltip', { model: model.name })
       : model.reason;
     const noWeb = model.available && model.tools === 'no';
     webBadge.hidden = !noWeb;
     webBadge.classList.toggle('is-warn', noWeb && Boolean(model.webSearch));
     const webText = webBadge.querySelector('.web-badge-text');
-    if (webText) webText.textContent = model.webSearch ? 'no web search' : 'no tools';
+    if (webText) webText.textContent = model.webSearch ? t('chat.noWebSearch') : t('chat.noTools');
     webBadge.title = model.webSearch
-      ? `Web search is on, but ${model.name} cannot call tools, so it cannot search the web (or open files and run commands). Click to choose a model with tool support, such as qwen3 or llama3.1.`
-      : `${model.name} cannot call tools: it answers from the retrieved code only, and could not search the web even if that were switched on. Click to choose another model.`;
+      ? t('chat.webBadgeTitleSearchOn', { model: model.name })
+      : t('chat.webBadgeTitleNoTools', { model: model.name });
     webBadge.setAttribute('role', 'button');
     webBadge.tabIndex = 0;
     input.disabled = !model.available;
-    input.placeholder = model.available
-      ? 'Ask about this package… e.g. how does it authenticate?'
-      : 'Chat is unavailable: no model';
+    input.placeholder = model.available ? t('chat.inputPlaceholder') : t('chat.unavailableNoModel');
 
     // The ask button turns into Stop while a turn is running.
     askButton.disabled = !model.available && !state.busy;
     askButton.classList.toggle('is-stop', state.busy);
     const label = askButton.querySelector('.btn-label');
-    if (label) label.textContent = state.busy ? 'Stop' : 'Ask';
+    if (label) label.textContent = state.busy ? t('chat.stop') : t('chat.ask');
 
     const thread = state.threads.find((t) => t.id === state.activeId);
     threadButton.replaceChildren(
-      h('span', { class: 'thread-current', text: thread?.title ?? 'New chat' }),
+      h('span', { class: 'thread-current', text: thread?.title ?? t('chat.newChat') }),
       icon('chevron-down'),
     );
-    threadButton.title = 'Switch chat';
+    threadButton.title = t('chat.switchChat');
     if (!threadMenu.hidden && renamingId === null) renderMenu();
 
     if (state.activeId !== lastThread) {
@@ -731,23 +764,23 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
         h('button', {
           class: 'citation',
           type: 'button',
-          title: 'Show the selection',
+          title: t('chat.showSelection'),
           text: `${sel.file}:${sel.startLine}${sel.endLine > sel.startLine ? `-${sel.endLine}` : ''}`,
           onclick: () => void controller.openFile(sel.file, sel.startLine),
         }),
-        h('span', { class: 'muted', text: 'The next question is about this code' }),
+        h('span', { class: 'muted', text: t('chat.selectionHint') }),
         h('button', {
           class: 'ghost tiny icon-button',
           type: 'button',
-          title: 'Ask without the selection',
-          'aria-label': 'Remove the selection',
+          title: t('chat.askWithoutSelection'),
+          'aria-label': t('chat.removeSelection'),
           onclick: () => useChatStore.getState().setSelection(null),
         }, icon('x')),
       );
     }
 
     const last = state.messages[state.messages.length - 1];
-    const used = last?.chunksUsed && last.chunksUsed.length ? `chunks: ${last.chunksUsed.join(', ')}` : '';
+    const used = last?.chunksUsed && last.chunksUsed.length ? t('chat.chunks', { chunks: last.chunksUsed.join(', ') }) : '';
     if (chunksUsed.textContent !== used) chunksUsed.textContent = used;
   };
 
@@ -759,9 +792,9 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
       const message = state.messages.find((m) => m.id === el.dataset.id);
       if (!message) continue;
       const text = el.querySelector('.status-text');
-      if (text) text.textContent = `${statusText(message)}…`;
+      if (text) text.textContent = statusText(message);
       const elapsed = el.querySelector('.status-elapsed');
-      if (elapsed && started) elapsed.textContent = `${Math.floor((Date.now() - started) / 1000)}s`;
+      if (elapsed && started) elapsed.textContent = t('chat.elapsedSeconds', { seconds: Math.floor((Date.now() - started) / 1000) });
     }
   }, 1000);
 
