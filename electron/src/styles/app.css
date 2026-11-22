@@ -2213,7 +2213,7 @@ dialog.prefs.is-translating::before {
 }
 .pref-nav-badge {
   margin-left: auto;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   padding: 1px 6px;
   border-radius: var(--radius-pill);
   background: var(--bg-surface);
@@ -2240,7 +2240,10 @@ dialog.prefs.is-translating::before {
   align-items: center;
   font-size: 0.85rem;
 }
-.pref-search-input {
+/* Scoped under .pref-search, because the shared input[type='search'] rule
+   sets the padding of every search field and would put the text under the
+   icon. A type and an attribute selector beat a single class. */
+.pref-search .pref-search-input {
   width: 100%;
   height: 1.85rem;
   padding: 0 1.6rem 0 1.85rem;
@@ -2248,11 +2251,11 @@ dialog.prefs.is-translating::before {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   color: var(--fg);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   outline: none;
   transition: border-color 120ms;
 }
-.pref-search-input:focus {
+.pref-search .pref-search-input:focus {
   border-color: var(--accent);
 }
 .pref-search-clear {
@@ -2307,7 +2310,7 @@ dialog.prefs.is-translating::before {
   gap: var(--space-2);
 }
 .pref-search-section-badge {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   padding: 1px 7px;
   border-radius: var(--radius-pill);
   background: var(--bg-raised);
@@ -2320,13 +2323,13 @@ dialog.prefs.is-translating::before {
   color: var(--fg);
 }
 .pref-search-item-hint {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--fg-muted);
   margin: 0;
   line-height: 1.4;
 }
 .pref-search-item-action {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--accent);
   margin-top: 2px;
 }
@@ -2339,7 +2342,7 @@ dialog.prefs.is-translating::before {
   background: var(--bg-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--fg-muted);
 }
 .pref-search-banner-btn {
@@ -2348,7 +2351,7 @@ dialog.prefs.is-translating::before {
   color: var(--accent);
   cursor: pointer;
   padding: 2px 6px;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   text-decoration: underline;
 }
 .pref-search-banner-btn:hover {
