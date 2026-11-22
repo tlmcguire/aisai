@@ -351,7 +351,7 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
           h('h3', { text: 'No findings yet' }),
           h('p', {
             text:
-              'Run an audit from the toolbar, then press “Scan” to analyse the downloaded ' +
+              'Pull a package from the toolbar, then run a Static scan or an LLM scan to analyse the downloaded ' +
               'workspace. Findings appear here with severity, confidence, CWE and triage actions.',
           }),
         ),

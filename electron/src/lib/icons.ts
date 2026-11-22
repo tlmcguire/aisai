@@ -17,6 +17,15 @@ const PATHS = {
   'chevron-right': ['M6 4 L10 8 L6 12'],
   'arrow-up': ['M8 13 V3', 'M4 7 L8 3 L12 7'],
   'arrow-down': ['M8 3 V13', 'M4 9 L8 13 L12 9'],
+  plus: ['M8 3 V13', 'M3 8 H13'],
+  check: ['M3 8.5 L6.5 12 L13 4.5'],
+  x: ['M4 4 L12 12', 'M12 4 L4 12'],
+  archive: ['M2.5 3.5 H13.5 V6 H2.5 Z', 'M3.5 6 V12.5 H12.5 V6', 'M6.5 9 H9.5'],
+  restore: ['M3.5 8 A4.5 4.5 0 1 0 5 4.7', 'M3 2.8 V5.5 H5.7'],
+  trash: ['M3 4.5 H13', 'M6 4.5 V3 H10 V4.5', 'M4.5 4.5 L5 13 H11 L11.5 4.5', 'M7 7 V11', 'M9 7 V11'],
+  pencil: ['M3 13 L3.5 10.5 L11 3 L13 5 L5.5 12.5 Z', 'M9.5 4.5 L11.5 6.5'],
+  terminal: ['M2.5 3.5 H13.5 V12.5 H2.5 Z', 'M5 6.5 L7 8 L5 9.5', 'M8.5 10 H11'],
+  tool: ['M9.5 2.5 A3 3 0 0 0 7 6.5 L2.5 11 L5 13.5 L9.5 9 A3 3 0 0 0 13.5 6.5 L11.5 8 L9 7 L8.5 4.5 Z'],
 } as const;
 
 export type IconName = keyof typeof PATHS;

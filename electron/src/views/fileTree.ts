@@ -1,7 +1,9 @@
 import type { AppController } from '../app';
-import type { FileNode } from '../api/types';
+import type { FileNode, Finding } from '../api/types';
 import { h } from '../lib/dom';
 import { severityClass } from '../lib/severity';
+import { maxSeverity } from '../api/types';
+import { useFindingsStore } from '../state/findings';
 import { useWorkspaceStore } from '../state/workspace';
 
 /**
@@ -44,6 +46,43 @@ function sorted(children: FileNode[] | undefined): FileNode[] {
     if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
     return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
   });
+}
+
+/**
+ * The tree with its finding counts brought up to date from the findings store.
+ *
+ * The tree is fetched when an audit is ready, so a scan that runs afterwards
+ * (the LLM scan, a rescan after a fix) would leave its counts at zero. The
+ * findings store always holds the current findings, so the counts are rebuilt
+ * from it; the larger of the two numbers wins, which keeps the server's count
+ * when the store holds only part of a long list.
+ */
+function withLiveCounts(root: FileNode, findings: Finding[]): FileNode {
+  const live = new Map<string, { count: number; worst: Finding['severity'] }>();
+  for (const finding of findings) {
+    const entry = live.get(finding.file);
+    live.set(finding.file, {
+      count: (entry?.count ?? 0) + 1,
+      worst: entry ? maxSeverity(entry.worst, finding.severity) : finding.severity,
+    });
+  }
+  const walk = (node: FileNode): FileNode => {
+    if (node.type !== 'dir') {
+      const found = live.get(node.path);
+      if (!found) return node;
+      const count = Math.max(found.count, node.findingCount ?? 0);
+      const worst = node.maxSeverity ? maxSeverity(node.maxSeverity, found.worst) : found.worst;
+      return { ...node, findingCount: count, maxSeverity: worst };
+    }
+    const children = (node.children ?? []).map(walk);
+    const count = children.reduce((sum, child) => sum + (child.findingCount ?? 0), 0);
+    let worst: Finding['severity'] | undefined;
+    for (const child of children) {
+      if (child.findingCount && child.maxSeverity) worst = worst ? maxSeverity(worst, child.maxSeverity) : child.maxSeverity;
+    }
+    return { ...node, children, findingCount: count, maxSeverity: worst ?? node.maxSeverity };
+  };
+  return walk(root);
 }
 
 export interface FileTreeView {
@@ -152,7 +191,7 @@ export function createFileTree(controller: AppController, container: HTMLElement
           'div',
           { class: 'empty-state' },
           h('h3', { text: 'No files yet' }),
-          h('p', { text: 'Scan a package or open a folder. Its files appear here, with the findings counted per folder.' }),
+          h('p', { text: 'Pull a package or repository, or open a folder. Its files appear here, with the findings counted per folder.' }),
         ),
       );
       return;
@@ -172,7 +211,8 @@ export function createFileTree(controller: AppController, container: HTMLElement
       shown += 1;
       if (isOpen) for (const child of sorted(node.children)) walk(child, depth + 1);
     };
-    for (const child of sorted(state.tree.children)) walk(child, 0);
+    const liveRoot = withLiveCounts(state.tree, useFindingsStore.getState().findings);
+    for (const child of sorted(liveRoot.children)) walk(child, 0);
 
     if (!shown) {
       fragment.append(
@@ -324,6 +364,10 @@ export function createFileTree(controller: AppController, container: HTMLElement
     }
   });
 
+  const unsubscribeFindings = useFindingsStore.subscribe((state, previous) => {
+    if (state.findings !== previous.findings) render();
+  });
+
   render();
 
   return {
@@ -331,6 +375,7 @@ export function createFileTree(controller: AppController, container: HTMLElement
     dispose: () => {
       window.clearTimeout(filterTimer);
       unsubscribe();
+      unsubscribeFindings();
     },
   };
 }

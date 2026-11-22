@@ -416,12 +416,20 @@ button.tiny.is-armed {
 }
 
 .picker-status {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 55%;
   color: var(--fg-muted);
   font-size: var(--text-xs);
-  max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  pointer-events: none;
+}
+.picker-status:empty {
+  display: none;
 }
 
 .badge {
@@ -1540,14 +1548,33 @@ button.tiny.is-armed {
 .chat-footer {
   flex: 0 0 auto;
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  flex-direction: column;
+  gap: var(--space-1);
   padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--border);
 }
 
-.chat-footer input {
+.chat-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.chat-input-row input {
   flex: 1 1 auto;
+}
+
+.chat-input-row button.is-stop {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border-strong, var(--border));
+}
+
+.selection-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
 }
 
 .chunks-used {
@@ -2726,4 +2753,568 @@ button.ghost.icon:hover .icon-gear {
 .chat-limited h3,
 .chat-limited p {
   margin: 0;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Chat: shimmering status, thinking, tool calls, threads              */
+/* ------------------------------------------------------------------ */
+
+/* The status of a turn that has not finished: text with a light sweeping
+   across it, so a wait reads as progress and not as a frozen bubble. */
+.shimmer {
+  background: linear-gradient(
+    100deg,
+    var(--fg-muted) 0%,
+    var(--fg-muted) 38%,
+    var(--fg) 50%,
+    var(--fg-muted) 62%,
+    var(--fg-muted) 100%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: shimmer-sweep 2.2s linear infinite;
+}
+@keyframes shimmer-sweep {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer {
+    animation: none;
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    color: var(--fg-muted);
+  }
+}
+
+.chat-status {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+}
+
+.chat-thinking,
+.chat-tool {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  margin: 2px 0;
+  font-size: var(--text-sm);
+}
+.chat-thinking > summary,
+.chat-tool > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 3px var(--space-2);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.chat-thinking > summary::-webkit-details-marker,
+.chat-tool > summary::-webkit-details-marker {
+  display: none;
+}
+.chat-thinking > summary::before,
+.chat-tool > summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 5px solid var(--fg-muted);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.chat-thinking[open] > summary::before,
+.chat-tool[open] > summary::before {
+  transform: rotate(90deg);
+}
+.chat-tool .icon {
+  width: 12px;
+  height: 12px;
+}
+.chat-tool.is-done .icon {
+  color: var(--accent);
+}
+.chat-tool.is-error .icon {
+  color: var(--sev-high, #e5484d);
+}
+.tool-name {
+  font-family: var(--font-mono);
+}
+.tool-arg {
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.thinking-body,
+.tool-body {
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  max-height: 14rem;
+  overflow: auto;
+  color: var(--fg-muted);
+}
+.thinking-body {
+  white-space: pre-wrap;
+}
+.tool-body pre {
+  margin: 0 0 var(--space-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.tool-body .tool-error {
+  color: var(--sev-high, #e5484d);
+}
+
+.thread-wrap {
+  position: relative;
+}
+.thread-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 16rem;
+}
+.thread-current {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.thread-button .icon {
+  width: 10px;
+  height: 10px;
+  flex: none;
+}
+.thread-menu {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  bottom: calc(100% + 4px);
+  min-width: 20rem;
+  max-height: 16rem;
+  overflow: auto;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  padding: var(--space-1);
+  font-weight: 400;
+}
+/* The menu opens upward from the bottom dock, downward from a right dock. */
+.workspace.dock-right .thread-menu {
+  bottom: auto;
+  top: calc(100% + 4px);
+}
+.thread-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: var(--radius-sm, 4px);
+}
+.thread-row:hover,
+.thread-row.is-active {
+  background: var(--bg-surface);
+}
+.thread-row.is-archived .thread-name {
+  opacity: 0.6;
+}
+.thread-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  background: none;
+  border: none;
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+  cursor: pointer;
+  color: var(--fg);
+}
+.thread-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.thread-time {
+  flex: none;
+  font-size: var(--text-xs);
+}
+.thread-rename {
+  flex: 1 1 auto;
+  margin: 2px var(--space-2);
+}
+.thread-row .icon-button {
+  opacity: 0;
+}
+.thread-row:hover .icon-button,
+.thread-row:focus-within .icon-button,
+.thread-row .icon-button.is-armed {
+  opacity: 1;
+}
+.thread-row .icon-button.is-armed {
+  color: var(--sev-high, #e5484d);
+}
+.thread-empty {
+  padding: var(--space-2);
+  margin: 0;
+}
+.thread-archived-toggle {
+  width: 100%;
+  margin-top: var(--space-1);
+}
+
+/* ------------------------------------------------------------------ */
+/* Editor, selection toolbar, edit panel                               */
+/* ------------------------------------------------------------------ */
+
+.code-editor {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.code-editor[hidden] {
+  display: none;
+}
+.code-editor > .cm-editor {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.selection-toolbar {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  margin-top: 6px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: var(--radius-md);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.edit-panel {
+  flex: 0 0 auto;
+  max-height: 45%;
+  overflow: auto;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+}
+.edit-panel[hidden] {
+  display: none;
+}
+.edit-panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.edit-panel-head input {
+  flex: 1 1 auto;
+}
+.edit-diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.edit-diff pre {
+  margin: 0;
+  padding: var(--space-2);
+  overflow: auto;
+  max-height: 14rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  border-radius: var(--radius-md);
+}
+.edit-before {
+  background: color-mix(in srgb, var(--sev-high, #e5484d) 14%, transparent);
+}
+.edit-after {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.edit-note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+}
+
+/* ------------------------------------------------------------------ */
+/* Terminal                                                            */
+/* ------------------------------------------------------------------ */
+
+.stack {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.terminal-panel {
+  flex: 0 0 auto;
+  height: var(--terminal-height);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+}
+.terminal-panel[hidden],
+.stack > .resizer[hidden] {
+  display: none;
+}
+.terminal-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  font-size: var(--text-sm);
+}
+.terminal-title {
+  font-weight: 650;
+}
+.terminal-tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+}
+.terminal-tab {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-sm, 4px);
+}
+.terminal-tab.is-active {
+  background: var(--bg-raised);
+}
+.terminal-tab.is-exited {
+  opacity: 0.6;
+}
+.terminal-tab-name {
+  background: none;
+  border: none;
+  color: var(--fg);
+  padding: 2px var(--space-2);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.terminal-screens {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--space-1) var(--space-2);
+  position: relative;
+}
+.terminal-screen {
+  position: absolute;
+  inset: var(--space-1) var(--space-2);
+}
+.terminal-screen[hidden] {
+  display: none;
+}
+.terminal-notice {
+  padding: var(--space-2) var(--space-3);
+  color: var(--sev-high, #e5484d);
+  font-size: var(--text-sm);
+}
+.toolbar .icon.is-on {
+  color: var(--accent);
+}
+
+/* ------------------------------------------------------------------ */
+/* Icon buttons and focus rings                                        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Every icon-only button is the same square, with its glyph centred and no
+ * padding of its own. Before, each one took its size from its padding and its
+ * glyph, so neighbours differed by a few pixels and their hover and focus
+ * outlines sat off-centre and overlapped.
+ */
+button.ghost.icon,
+button.icon-button {
+  box-sizing: border-box;
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  line-height: 1;
+}
+button.icon-button.tiny {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+/* An armed delete button holds a word, not a glyph. */
+button.icon-button.is-armed {
+  width: auto;
+  padding: 0 var(--space-2);
+}
+.toolbar button.ghost.icon {
+  height: 1.75rem;
+}
+
+/*
+ * One focus ring for every button: 2px, close to the edge so it hugs the
+ * outline of the control, and drawn the same on a square icon button as on a
+ * text one. A ring pushed out by 2px looked detached and ran into the next
+ * control in a tight row.
+ */
+button:focus-visible,
+[role='button']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: var(--radius-md);
+}
+/* Hover never draws an outline, and never moves or resizes the control. */
+button:hover:not(:disabled),
+[role='button']:hover {
+  outline: none;
+}
+button:focus-visible:hover:not(:disabled) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.toolbar button.is-on {
+  background: var(--bg-hover);
+}
+
+/*
+ * The toolbar stays on one row. The package field gives up width first, then
+ * the labels disappear (the narrow-window rule), then the provider chips
+ * shorten; wrapping put the settings buttons on a second line.
+ */
+.toolbar {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.toolbar > * {
+  flex: 0 0 auto;
+}
+.toolbar > .picker-field {
+  flex: 1 1 8rem;
+  min-width: 6rem;
+  max-width: 16rem;
+}
+.toolbar .picker-field .field,
+.toolbar .picker-field .picker {
+  width: 100%;
+}
+.toolbar .picker input {
+  width: 100%;
+  min-width: 0;
+}
+.toolbar > .toolbar-spacer {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.toolbar .provider-chips {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.toolbar .provider-badge {
+  white-space: nowrap;
+}
+/* Below this width the field labels go, as they do on a phone-sized window. */
+@media (max-width: 1500px) {
+  .toolbar .field label {
+    display: none;
+  }
+}
+@media (max-width: 1240px) {
+  .toolbar .provider-chips .provider-badge:not(:first-child) {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Keyboard shortcuts sheet                                            */
+/* ------------------------------------------------------------------ */
+
+.shortcuts-dialog {
+  width: min(44rem, 92vw);
+  max-height: 80vh;
+  overflow: auto;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-raised);
+  color: var(--fg);
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: var(--radius-lg, 10px);
+}
+.shortcuts-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+.shortcuts-head {
+  display: flex;
+  align-items: center;
+}
+.shortcuts-head h2 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+.shortcuts-group h3 {
+  margin: var(--space-3) 0 var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.shortcuts-group dl {
+  display: grid;
+  grid-template-columns: 9rem 1fr;
+  gap: 6px var(--space-3);
+  margin: 0;
+}
+.shortcuts-group dt {
+  display: flex;
+  gap: 3px;
+}
+.shortcuts-group dd {
+  margin: 0;
+  align-self: center;
+}
+.shortcuts-group kbd {
+  min-width: 1.4rem;
+  padding: 1px 6px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  border: 1px solid var(--border-strong, var(--border));
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg-surface);
+}
+
+/* A narrow chat header keeps one row: the thread name and model chip
+   shorten, and the chunk list (also shown under each answer) goes. */
+.chat-header {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.chat-header > * {
+  flex: 0 0 auto;
+}
+.chat-header > .thread-wrap,
+.chat-header > .chat-model {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.chat-header .thread-button {
+  max-width: 100%;
+}
+.workspace.dock-right .chat-header > .chunks-used {
+  display: none;
 }

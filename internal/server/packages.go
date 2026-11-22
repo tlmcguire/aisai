@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/tlmcguire/aisai/internal/link"
 	"github.com/tlmcguire/aisai/internal/model"
 	"github.com/tlmcguire/aisai/internal/pypi"
 	"github.com/tlmcguire/aisai/internal/registry"
@@ -49,6 +50,17 @@ func (s *Server) handleEcosystems(w http.ResponseWriter, _ *http.Request) {
 		out = append(out, entry{ID: registry.PyPI, Label: "PyPI"})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ecosystems": out})
+}
+
+// handleLink says what a pasted link refers to, so the picker can fill in its
+// fields before anything is downloaded.
+func (s *Server) handleLink(w http.ResponseWriter, r *http.Request) {
+	l, err := link.Parse(r.URL.Query().Get("url"))
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"link": l})
 }
 
 // packageLookup resolves a package name and lists its versions.

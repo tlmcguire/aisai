@@ -79,6 +79,9 @@ type ChatRequest struct {
 // channel.
 type StreamChunk struct {
 	Delta string
+	// Think carries reasoning text from a model that shows its thinking. It
+	// is kept apart from Delta so it never ends up in the answer.
+	Think string
 	Done  bool
 }
 
@@ -136,7 +139,9 @@ type ToolCall struct {
 // ToolEvent is one event of a tool-aware stream. Exactly one of Delta and
 // ToolCall is meaningful at a time.
 type ToolEvent struct {
-	Delta    string
+	Delta string
+	// Think carries reasoning text, as in StreamChunk.
+	Think    string
 	ToolCall *ToolCall
 	Done     bool
 }

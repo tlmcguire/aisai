@@ -12,6 +12,8 @@ import { createFileTree } from './fileTree';
 import { createFindingsRail } from './findingsRail';
 import { createGraphView } from './graphView';
 import { createSettingsDialog } from './settingsDialog';
+import { createTerminalPanel } from './terminalPanel';
+import { installShortcuts } from './shortcuts';
 import { createToolbar } from './toolbar';
 
 const TABS: Array<{ id: MainTab; label: string }> = [
@@ -279,7 +281,18 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     'aria-label': 'Resize the chat panel',
   });
 
-  const workspace = h('div', { class: 'workspace' }, shell, chatResizer, chatPanel);
+  // The terminal sits under the panes and above the chat, like an editor's.
+  const terminalPanel = h('section', { class: 'terminal-panel', 'aria-label': 'Terminal', hidden: true });
+  const terminalResizer = h('div', {
+    class: 'resizer resizer-row',
+    role: 'separator',
+    tabindex: '0',
+    'aria-orientation': 'horizontal',
+    'aria-label': 'Resize the terminal',
+    hidden: true,
+  });
+  const stack = h('div', { class: 'stack' }, shell, terminalResizer, terminalPanel);
+  const workspace = h('div', { class: 'workspace' }, stack, chatResizer, chatPanel);
   root.append(toolbar, statusStrip, downloadPanel, workspace);
 
   /* ---------------- views ---------------- */
@@ -290,6 +303,8 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const diffView = createDiffView(controller, diffPanel);
   const findingsRail = createFindingsRail(controller, railBody);
   const chat = createChatPanel(controller, chatPanel);
+  const terminal = createTerminalPanel(controller, terminalPanel);
+  const removeShortcuts = installShortcuts(controller, root);
   const settings = createSettingsDialog(controller, root);
 
   /* ---------------- wiring ---------------- */
@@ -327,6 +342,9 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     const ui = useUiStore.getState();
     root.style.setProperty('--chat-height', `${ui.chatHeight / 16}rem`);
     root.style.setProperty('--chat-width', `${ui.chatWidth / 16}rem`);
+    root.style.setProperty('--terminal-height', `${ui.terminalHeight / 16}rem`);
+    terminalPanel.hidden = !ui.terminalOpen;
+    terminalResizer.hidden = !ui.terminalOpen;
     graphPane.style.setProperty('--files-share', String(ui.filesShare));
     document.documentElement.style.setProperty('--ui-scale', String(ui.uiScale));
     // Stored in reference pixels, applied in rem so the panes scale with the UI.
@@ -369,6 +387,8 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       state.railWidth !== previous.railWidth ||
       state.chatHeight !== previous.chatHeight ||
       state.chatWidth !== previous.chatWidth ||
+      state.terminalHeight !== previous.terminalHeight ||
+      state.terminalOpen !== previous.terminalOpen ||
       state.filesShare !== previous.filesShare ||
       state.uiScale !== previous.uiScale ||
       state.chatOpen !== previous.chatOpen
@@ -539,6 +559,13 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   });
 
   attachRowResizer(
+    terminalResizer,
+    (clientY) => useUiStore.getState().setTerminalHeight((stack.getBoundingClientRect().bottom - clientY) / uiScale()),
+    (delta) => useUiStore.getState().setTerminalHeight(useUiStore.getState().terminalHeight - delta * 16),
+  );
+  terminalResizer.addEventListener('dblclick', () => useUiStore.getState().setTerminalHeight(DEFAULT_LAYOUT.terminalHeight));
+
+  attachRowResizer(
     filesResizer,
     (clientY) => {
       const rect = graphPane.getBoundingClientRect();
@@ -570,6 +597,8 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       diffView.dispose();
       findingsRail.dispose();
       chat.dispose();
+      terminal.dispose();
+      removeShortcuts();
       settings.dispose();
     },
   };

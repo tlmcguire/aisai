@@ -1,5 +1,5 @@
 import type { AppController } from '../app';
-import type { Ecosystem } from '../api/types';
+import type { Ecosystem, LinkInfo } from '../api/types';
 import { h } from '../lib/dom';
 import { useAuditStore } from '../state/audit';
 
@@ -57,6 +57,10 @@ export interface PackagePicker {
   packageName(): string;
   /** The package manager the name belongs to. */
   ecosystem(): Ecosystem;
+  /** The pasted repository link, when the field holds one; null for a package. */
+  repoUrl(): string | null;
+  /** Registers the handler called when a pasted link is to be pulled. */
+  onPullLink(handler: (url: string) => void): void;
   /** The version to audit; an empty string means the latest release. */
   version(): string;
   /** Registers the handler called when the user asks to scan. */
@@ -81,7 +85,7 @@ export function createPackagePicker(controller: AppController): PackagePicker {
   const input = h('input', {
     type: 'text',
     id: 'package-input',
-    placeholder: 'flask',
+    placeholder: 'flask, or paste a link',
     role: 'combobox',
     'aria-expanded': 'false',
     'aria-autocomplete': 'list',
@@ -127,10 +131,11 @@ export function createPackagePicker(controller: AppController): PackagePicker {
       h(
         'div',
         { class: 'field' },
-        h('label', { for: 'package-input', text: 'Package' }),
-        h('div', { class: 'picker' }, input, list),
+        h('label', { for: 'package-input', text: 'Package or link' }),
+        // The status sits inside the field, at its right edge, so the
+        // toolbar never changes height while the name is looked up.
+        h('div', { class: 'picker' }, input, status, list),
       ),
-      status,
     ),
     h(
       'div',
@@ -140,6 +145,10 @@ export function createPackagePicker(controller: AppController): PackagePicker {
     ),
   );
 
+  let linkHandler: ((url: string) => void) | null = null;
+  /** Set while the field holds a repository link. */
+  let repo: LinkInfo | null = null;
+  let linkToken = 0;
   let scanHandler: ((packageName: string, version: string, ecosystem: Ecosystem) => void) | null = null;
   const currentEcosystem = (): Ecosystem => ecosystemSelect.value as Ecosystem;
   let suggestions: Suggestion[] = [];
@@ -157,6 +166,13 @@ export function createPackagePicker(controller: AppController): PackagePicker {
     status.textContent = text;
     status.title = title;
     status.classList.toggle('is-error', !text && Boolean(title));
+    // The status cannot take the pointer (it sits over the input), so its
+    // detail moves to the input's own tooltip.
+    input.title = title || text;
+    // Keep the typed text clear of the status.
+    requestAnimationFrame(() => {
+      input.style.paddingRight = status.textContent ? `${status.offsetWidth + 14}px` : '';
+    });
   };
 
   const renderSuggestions = (items: Suggestion[]): void => {
@@ -246,6 +262,46 @@ export function createPackagePicker(controller: AppController): PackagePicker {
     }, LOOKUP_DELAY_MS);
   };
 
+  const looksLikeLink = (text: string): boolean => /^(https?:\/\/|git@|pkg:)/i.test(text.trim());
+
+  /** A pasted link fills in the fields: a package page sets the source, name and version. */
+  const resolveLink = async (text: string): Promise<void> => {
+    const token = ++linkToken;
+    setStatus('Reading the link…');
+    const result = await controller.resolveLink(text.trim());
+    if (token !== linkToken) return;
+    if (!result.link) {
+      repo = null;
+      ecosystemSelect.disabled = false;
+      versionSelect.disabled = false;
+      setStatus('', result.error ?? 'that link is not a package page or a repository');
+      status.textContent = 'Not a package or repository link';
+      return;
+    }
+    const link = result.link;
+    if (link.kind === 'repo') {
+      repo = link;
+      ecosystemSelect.disabled = true;
+      versionSelect.disabled = true;
+      populateVersions([]);
+      setStatus(`Repository ${link.display ?? link.name}${link.ref ? ` @ ${link.ref}` : ''}`, link.repoUrl ?? '');
+      return;
+    }
+    repo = null;
+    ecosystemSelect.disabled = false;
+    versionSelect.disabled = false;
+    if (link.ecosystem) ecosystemSelect.value = link.ecosystem;
+    input.value = link.name ?? '';
+    await resolve(input.value.trim());
+    if (token !== linkToken) return;
+    if (link.version) {
+      if (!Array.from(versionSelect.options).some((o) => o.value === link.version)) {
+        versionSelect.append(h('option', { value: link.version, text: link.version }));
+      }
+      versionSelect.value = link.version;
+    }
+  };
+
   const choose = (item: Suggestion): void => {
     input.value = item.name;
     closeList();
@@ -301,7 +357,7 @@ export function createPackagePicker(controller: AppController): PackagePicker {
   // Now it says what is missing and nudges the field.
   const promptForName = (): void => {
     input.focus();
-    setStatus('Type a package name, then Scan');
+    setStatus('Type a package name or paste a link, then Pull');
     input.classList.remove('is-invalid');
     void input.offsetWidth;
     input.classList.add('is-invalid');
@@ -316,10 +372,25 @@ export function createPackagePicker(controller: AppController): PackagePicker {
       return;
     }
     closeList();
+    if (repo) {
+      linkHandler?.(name);
+      return;
+    }
     scanHandler?.(name, versionSelect.value, currentEcosystem());
   };
 
   input.addEventListener('input', () => {
+    if (looksLikeLink(input.value)) {
+      closeList();
+      if (lookupTimer) clearTimeout(lookupTimer);
+      lookupTimer = setTimeout(() => void resolveLink(input.value), LOOKUP_DELAY_MS);
+      return;
+    }
+    if (repo) {
+      repo = null;
+      ecosystemSelect.disabled = false;
+      versionSelect.disabled = false;
+    }
     updateSuggestions();
     scheduleResolve();
   });
@@ -380,6 +451,10 @@ export function createPackagePicker(controller: AppController): PackagePicker {
     element,
     packageName: () => input.value.trim(),
     ecosystem: currentEcosystem,
+    repoUrl: () => (repo ? input.value.trim() : null),
+    onPullLink: (handler) => {
+      linkHandler = handler;
+    },
     version: () => versionSelect.value,
     onScan: (handler) => {
       scanHandler = handler;

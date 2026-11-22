@@ -1,5 +1,7 @@
 # AISAI
 
+**AISAI: <ins>A</ins>utomated <ins>I</ins>dentification of <ins>S</ins>oftware Supply Chain Vulner<ins>a</ins>b<ins>i</ins>lity.**
+
 AISAI finds software supply chain vulnerabilities in packages from **PyPI,
 npm and crates.io**, and in local project folders. Give it a package name and
 version; it resolves the dependency tree, downloads every source archive
@@ -31,7 +33,7 @@ the chat below, which names the model that answers.
 | ![The syntax tree drawn as a graph, with the nodes that carry findings in red](docs/screenshots/ast-graph.png) | ![Settings, Layout: five ready-made arrangements of the panes](docs/screenshots/layout-presets.png) |
 | **AST graph.** The syntax tree of the open file as a node-link diagram; nodes with a finding are red, a click jumps to the line. | **Layout presets.** Move panes by their grip, or pick an arrangement in Settings. |
 | ![The Reader layout: code, findings and the chat docked on the right](docs/screenshots/reader-layout.png) | ![The package picker with npm selected and a suggestion shown](docs/screenshots/package-manager-picker.png) |
-| **Reader layout.** The dependency column is hidden and the chat is docked on the right. | **Package managers.** Choose PyPI, npm or crates.io, then the package and version. |
+| **Reader layout.** The dependency column is hidden and the chat is docked on the right. | **Package managers.** Choose PyPI, npm or crates.io, type a name or paste a link, then Pull. |
 
 ### How an audit runs
 
@@ -268,6 +270,29 @@ the project. The suggestions are the packages that were audited before and a
 short list of the packages people actually install. `Enter` scans the typed
 name, `Arrow Down` walks the suggestions.
 
+### Pull, then scan
+
+The toolbar separates fetching from analysis:
+
+- **Pull** downloads a package (and its dependencies) or clones a repository into
+  the audit. It does not scan. The package field also takes **pasted links**: a
+  pypi.org, npmjs.com or crates.io page, a `pkg:` URL, or an `https` repository
+  link (GitHub, GitLab, Codeberg and the like, including `/tree/<branch>` and
+  release-tag links). A package link fills in the source, name and version; a
+  repository link shows `owner/repo` and is cloned.
+- **Static scan** runs the rule engine over what was pulled.
+- **LLM scan** asks the model to review it. Both scan buttons are disabled until
+  something has been pulled.
+
+A repository is cloned with `git`, which must be installed. The clone is
+deliberately narrow: HTTPS only, hosts that are IP addresses or have no dot are
+refused, one shallow branch, no hooks, no submodules, none of your git
+configuration or credentials, a 3-minute and 768 MB ceiling, and the files are
+copied into the sandbox without `.git`, symlinks, dependency folders or large
+files. Nothing from it is executed. Over the API, send `POST /api/audits` with
+`{"url": "https://github.com/owner/repo"}`; `scan_package` over MCP takes a
+`url` argument too.
+
 ### Package managers
 
 | Source | Index | Dependency graph | Advisories |
@@ -292,13 +317,87 @@ use its **‹ ›** buttons. Drag an edge to resize it (double-click resets it).
 Focus, Supply-chain map), lets you hide the dependency and findings columns,
 and docks the chat below or on the right. The arrangement is remembered.
 
+### Editing, completion and selection actions
+
+The code pane is an editor. Edit a file and save it (**Ctrl/Cmd+S**): the
+backend backs the file up, records the edit as a diff, and re-scans the file, so
+the findings follow your text and **Changes**, the exported patch series and
+**Revert** all see it. The original download is never touched, only the audit's
+copy.
+
+![Selecting code and asking the model to fix it shows the proposed change before anything is applied](docs/screenshots/edit-fix.png)
+
+- **Inline completion.** With a model available, ghost text appears after you
+  pause typing at the end of a line. **Tab** accepts it, **Esc** dismisses it. A
+  small badge in the file header says whether completion is on.
+- **Select code** and a toolbar appears: **Ask in chat** attaches the selection
+  to your next question, **Fix** asks the model to fix the weakness, and
+  **Change…** takes an instruction ("use a constant-time comparison"). Fix and
+  Change show the old and new code side by side; nothing reaches the editor until
+  you press **Accept**, and undo takes it back.
+- A finding's **Propose fix** opens the **Diff** tab with a patch for it, checked
+  to apply before you can **Apply** it; the file is then re-scanned and the
+  result shows which findings the patch resolved.
+
+  ![A proposed patch for a hard-coded secret in the Diff tab](docs/screenshots/proposed-fix.png)
+
+- Code under audit is untrusted. Every prompt tells the model the file is data,
+  and a selection that contains instruction-like text is withheld from the chat
+  rather than sent.
+
 ### Chat
+
+![The chat shows the model's thinking, the tools it ran and the answer, in a named thread](docs/screenshots/chat-threads.png)
+
+Chat is organised in **threads** per audit: the first answer names the thread,
+and from the thread menu you can rename, archive, restore or delete (deleting
+asks twice). A turn that is still running shows a shimmering status ("Thinking…",
+"Running search_code…"), a model that shows its reasoning gets a collapsible
+**Thinking** block, and every tool call is listed with its arguments and result.
+The thread so far is sent back to the model, so follow-up questions work.
 
 The chat header names the model that answers (for example `qwen3.5:4b · Ollama`).
 When no model is usable — no server configured, the server unreachable, or no
 chat model selected — chat is explicitly limited: the input is disabled, the
 header says *no model*, and the panel explains why and links to the model
 settings. Scanning, the graph, the AST and the static rules keep working.
+
+### Keyboard shortcuts
+
+**⌘⇧/** (Ctrl+Shift+/ on Windows and Linux) shows them all; they are also under
+**Settings → Layout → Keyboard shortcuts**. ⌘ is Ctrl outside macOS.
+
+| Keys | Action |
+|---|---|
+| ⌘, | Settings |
+| ⌘O | Open a project folder |
+| ⌘L | Go to the package field (outside the editor) |
+| ⌘⇧S / ⌘⇧L | Static scan / LLM scan |
+| ⌘1 / ⌘2 / ⌘3 | Code / AST / Diff tab |
+| ⌘B / ⌘⌥B | Show or hide the dependencies / findings pane |
+| ⌘J | Go to the chat |
+| ⌘⇧N | New chat |
+| Ctrl+` | Show or hide the terminal |
+| ⌘S | Save the file (editor) |
+| Tab / Esc | Accept / dismiss the completion (editor) |
+
+A shortcut never takes a key the editor or the field you are typing in already
+uses.
+
+![The keyboard shortcuts sheet](docs/screenshots/shortcuts.png)
+
+### The terminal
+
+Press **Ctrl+`** (or the terminal button in the toolbar) for a shell at the
+bottom of the window, like an editor's. It opens in the audit's folder, can have
+several tabs, and is a real login shell running as you, so treat it like any
+terminal: nothing in it runs by itself, but a command you type runs for real.
+Keep the audited code out of your shell's reach unless you mean to run it.
+AISAI's own settings (`AISAI_*`, `BYOK_*`) are removed from its environment, and
+`AISAI_DISABLE_TERMINAL=1` switches the feature off. The terminal works on macOS
+and Linux; on Windows it is not available yet.
+
+![The terminal panel under the code](docs/screenshots/terminal.png)
 
 ### The syntax tree
 
@@ -476,8 +575,8 @@ the workspace itself.
 `bench/data1551redacted.csv` holds 1,551 paired vulnerable/fixed snippets.
 The Go harness runs the same `internal/sast` and `internal/scan` code the app
 uses and writes a CSV in the exact schema the existing notebooks
-(`bench/notebooks/*.ipynb`) already read — the notebooks are unmodified and
-still work.
+(`bench/notebooks/*.ipynb`) read. The notebooks have not been re-run against
+the current harness.
 
 ```bash
 make bench          # full run
@@ -490,55 +589,61 @@ make bench-external # RealVuln and OWASP BenchmarkPython
 
 ### Where the numbers stand
 
-On the full 1,551-pair corpus the static rule engine scores **1595/3102
-correct (51.4%)** — against a **50.0%** null baseline, because the corpus is
-balanced between vulnerable and patched code. That is an honest and rather
-unflattering number, and it is the point of running the benchmark: the AST
-rules on their own barely beat chance on this corpus.
+AISAI does not publish accuracy numbers of its own. A trustworthy detection
+benchmark needs a large labelled corpus, long runs of every tool and model, and
+independent replication, and this project has not had the hardware or the
+review for that. The harness above is there so you can measure it yourself on
+your own machine; until someone does and publishes the result, the honest
+position is what the peer-reviewed and preprint literature says about the
+approaches AISAI combines.
 
-The full metric set says the same thing more precisely:
+**Rule-based static analysis on Python (AISAI's static engine, Bandit,
+Semgrep, CodeQL).** The most direct comparison found is a 2026 preprint,
+[PyFlow: An Inter-procedural Static Analysis Framework for Python](https://arxiv.org/abs/2608.07026)
+(Gu, Yan and Yao, arXiv:2608.07026), which runs Bandit, Semgrep and CodeQL on
+108 real CVEs from 62 open-source Python projects and on 240 synthetic
+programs. As read from the paper's tables, on the real-world set:
 
-| metric | static engine | null baseline |
-|---|---|---|
-| accuracy | 51.4% | 50.0% |
-| precision | 58.2% | — |
-| recall | **10.1%** | — |
-| F1 / F2 / F3 | 17.2% / 12.1% / 11.0% | — |
-| false-positive rate on the patched corpus | 7.2% | — |
-
-The engine finds 156 of 1,551 vulnerabilities and wrongly flags 112 of 1,551
-already-patched snippets. **The TF-IDF + naive Bayes baseline scores 51.3% on
-a held-out split** — 1.3 points above chance, and no better than the shipped
-rule engine. The 74% that ACM 10.1145/3733800.3763267 reports for TF-IDF was
-measured on CVE *description text*, not on source code; on source code the
-signal is far weaker. That is the honest finding, and it is reported rather
-than hidden.
-
-Against the external corpora, with the same static engine:
-
-| corpus | precision | recall | F1 |
+| tool | precision | recall | F1 |
 |---|---|---|---|
-| RealVuln v3.1.1 (1,899 vulns, 283 FP traps) | 49.0% | 7.7% | 13.4% |
-| OWASP BenchmarkPython (1,230 cases) | 24.2% | 8.8% | 13.0% |
+| Bandit | 60.0% | 27.8% | 38.0% |
+| Semgrep | 65.7% | 40.7% | 50.3% |
+| CodeQL | 72.3% | 31.8% | 44.2% |
 
-The rules are tuned for the CWE classes they cover, and this corpus is
-dominated by Django web patterns (CSRF, XSS, improper input validation) that
-the ten rules do not target. A useful next step is not more rules but
-measuring which CWE families the engine actually wins on — the per-CWE
-breakdown of the metrics output does exactly that.
+The pattern is the point: general-purpose static tools miss most real
+vulnerabilities (recall under 41% here) even when most of what they report is
+right. AISAI's rule engine is the same kind of tool, so expect the same
+ceiling, and treat a clean static scan as the absence of *known patterns*, not
+of vulnerabilities. This is a preprint; check the figures against the paper
+before relying on them.
 
-**The LLM path is unmeasured.** This machine has no Ollama, so there is no
-LLM accuracy number at all and none is claimed. The detection pipeline is
-covered by unit tests with a fake provider (verified finding → `vulnerable`,
-abstention → `safe`, dropped candidate → `safe`, detection or verification
-error → `unknown`), and the error path was exercised against an unreachable
-Ollama.
+**LLMs reviewing code.** Two peer-reviewed studies bound what the optional LLM
+scan can be trusted for:
 
-The harness writes the exact CSV schema the existing notebooks already read,
-including the `_scan_time_*_seconds` aliases their timing block needs. The
-notebooks are unmodified. They were **not executed** here — pandas is not
-installed on this machine — so the schema compatibility is verified against
-the column names the notebooks read, not by running them.
+- Ding et al., [Vulnerability Detection with Code Language Models: How Far Are We?](https://arxiv.org/abs/2403.18624)
+  (ICSE 2025), built the PrimeVul dataset and found that a state-of-the-art 7B
+  model scoring 68.26% F1 on the older BigVul benchmark scored only 3.09% F1 on
+  PrimeVul. Larger models such as GPT-3.5 and GPT-4 did not close the gap, with
+  results "akin to random guessing in the most stringent settings".
+- Ullah et al., [LLMs Cannot Reliably Identify and Reason About Security Vulnerabilities (Yet?)](https://arxiv.org/abs/2312.12575)
+  (IEEE S&P 2024), tested eight LLMs on 228 code scenarios and reported
+  non-deterministic answers, incorrect and unfaithful reasoning, poor results on
+  real-world code, and non-robustness: renaming functions or variables, or
+  adding library calls, produced wrong answers in 26% of cases for PaLM2 and 17%
+  for GPT-4.
+
+This is why the LLM scan is a *second opinion*, not a verdict. Every LLM
+finding goes through a separate verification step that tries to disprove it,
+carries a confidence score, is clearly labelled with its tool, and is never
+counted as proof. The line numbers it reports are re-anchored to the quoted
+code, because models count lines badly. Use the findings as leads to read, and
+confirm them in the code.
+
+**What AISAI itself has verified.** Unit tests cover the rule engine, the
+detection and verification pipeline (with a fake model), path-safe archive
+extraction (including fuzzing), and the registry and resolver clients (against
+stub servers). Those show the code does what it says. They are not accuracy
+measurements, and nothing here claims one.
 
 ## Releases
 

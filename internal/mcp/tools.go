@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/tlmcguire/aisai/internal/gitsrc"
+	"github.com/tlmcguire/aisai/internal/link"
 	"os"
 	"sort"
 	"strconv"
@@ -174,6 +176,7 @@ func RegisterTools(s *Server, t *Toolset) {
 			"The returned audit id becomes the current audit, so later tools can be called without repeating it.",
 		InputSchema: ObjectSchema(map[string]any{
 			"package":   StringProp("The package name to audit, e.g. \"requests\" (PyPI), \"express\" (npm) or \"serde\" (cargo)."),
+			"url":       StringProp("A link instead of package/ecosystem: a pypi.org, npmjs.com or crates.io page, a pkg: URL, or an https repository link to clone."),
 			"ecosystem": StringProp("The package index of the package: \"pypi\" (default), \"npm\" or \"cargo\". Ignored with path."),
 			"version":   StringProp("Optional version to audit, e.g. \"2.31.0\". Defaults to the latest release. Ignored with path."),
 			"path":      StringProp("Absolute path of a project folder to audit instead of a package, e.g. \"/Users/me/projects/app\"."),
@@ -340,8 +343,9 @@ func RegisterTools(s *Server, t *Toolset) {
 func (t *Toolset) scanPackage(ctx context.Context, args map[string]any) (string, error) {
 	pkg := strings.TrimSpace(ArgString(args, "package"))
 	folder := strings.TrimSpace(ArgString(args, "path"))
-	if pkg == "" && folder == "" {
-		return "", errors.New("scan_package requires a package name or a folder path")
+	pasted := strings.TrimSpace(ArgString(args, "url"))
+	if pkg == "" && folder == "" && pasted == "" {
+		return "", errors.New("scan_package requires a package name, a link or a folder path")
 	}
 	pkgVersion := strings.TrimSpace(ArgString(args, "version"))
 	if t.manager == nil {
@@ -355,6 +359,22 @@ func (t *Toolset) scanPackage(ctx context.Context, args map[string]any) (string,
 	if folder != "" {
 		a, err = t.manager.CreateLocal(ctx, folder)
 		pkg = folder
+	} else if pasted != "" {
+		var l *link.Link
+		if l, err = link.Parse(pasted); err != nil {
+			return "", err
+		}
+		pkg = pasted
+		if l.Kind == link.KindRepo {
+			repo, perr := gitsrc.ParseRepo(l.RepoURL)
+			if perr != nil {
+				return "", perr
+			}
+			repo.Ref = l.Ref
+			a, err = t.manager.CreateRepo(ctx, repo)
+		} else {
+			a, err = t.manager.CreateFor(ctx, l.Ecosystem, l.Name, l.Version)
+		}
 	} else {
 		a, err = t.manager.CreateFor(ctx, ArgString(args, "ecosystem"), pkg, pkgVersion)
 	}

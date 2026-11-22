@@ -73,6 +73,15 @@ async function runSmoke(win: BrowserWindow, smokePath: string): Promise<void> {
   try {
     await wait(2500);
     await shoot('1-shell');
+    // The focus ring of the toolbar's icon buttons, side by side.
+    await win.webContents.executeJavaScript(`
+      (async () => {
+        document.querySelector('button[aria-label="Terminal"]')?.focus({ focusVisible: true });
+        await new Promise((r) => setTimeout(r, 300));
+      })()
+    `);
+    await shoot('1b-focus-ring');
+    await win.webContents.executeJavaScript(`document.activeElement?.blur()`);
 
     const codeReport = (await win.webContents.executeJavaScript(`
       (async () => {
@@ -84,14 +93,45 @@ async function runSmoke(win: BrowserWindow, smokePath: string): Promise<void> {
         await sleep(700);
         return [
           'clicked=' + !!file,
-          'lines=' + document.querySelectorAll('.code-line').length,
-          'marked=' + document.querySelectorAll('.code-line.has-finding').length,
+          'lines=' + document.querySelectorAll('.cm-line').length,
+          'marked=' + document.querySelectorAll('.cm-finding-line').length,
           'header=' + (document.querySelector('.file-header')?.textContent || '').trim(),
         ].join(' ');
       })()
     `)) as string;
     console.log(`[smoke] code pane: ${codeReport}`);
     await shoot('2-code');
+
+    // Select a few lines, so the selection toolbar shows.
+    const selReport = (await win.webContents.executeJavaScript(`
+      (async () => {
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        document.querySelector('.code-editor').dispatchEvent(
+          new CustomEvent('aisai:select-lines', { detail: { startLine: 25, endLine: 27 } }),
+        );
+        await sleep(500);
+        return 'toolbar=' + !!document.querySelector('.selection-toolbar');
+      })()
+    `)) as string;
+    console.log(`[smoke] selection: ${selReport}`);
+    await shoot('2b-selection');
+    await win.webContents.executeJavaScript(`
+      (async () => {
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        const fix = Array.from(document.querySelectorAll('.selection-toolbar button')).find((b) => b.textContent.trim() === 'Fix');
+        if (fix) fix.click();
+        await sleep(900);
+      })()
+    `);
+    await shoot('2c-fix');
+    await win.webContents.executeJavaScript(`
+      (async () => {
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        const discard = Array.from(document.querySelectorAll('.edit-panel button')).find((b) => b.textContent.trim() === 'Discard');
+        if (discard) discard.click();
+        await sleep(200);
+      })()
+    `);
 
     const astReport = (await win.webContents.executeJavaScript(`
       (async () => {
@@ -138,7 +178,7 @@ async function runSmoke(win: BrowserWindow, smokePath: string): Promise<void> {
     `)) as string;
     console.log(`[smoke] apply patch: ${applyReport}`);
 
-    const chatReport = (await win.webContents.executeJavaScript(`
+    const chatPending = (await win.webContents.executeJavaScript(`
       (async () => {
         const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         const input = document.querySelector('.chat-footer input');
@@ -148,7 +188,16 @@ async function runSmoke(win: BrowserWindow, smokePath: string): Promise<void> {
         const ask = Array.from(document.querySelectorAll('.chat-footer button'))
           .find((b) => b.textContent.trim() === 'Ask');
         if (ask) ask.click();
-        await sleep(2500);
+        await sleep(1100);
+        return 'pending=' + !!document.querySelector('.chat-message.is-pending .shimmer');
+      })()
+    `)) as string;
+    console.log(`[smoke] chat pending: ${chatPending}`);
+    await shoot('5a-chat-pending');
+    const chatReport = (await win.webContents.executeJavaScript(`
+      (async () => {
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        await sleep(2600);
         return 'messages=' + document.querySelectorAll('.chat-message').length
           + ' citations=' + document.querySelectorAll('.citation').length;
       })()
@@ -162,6 +211,18 @@ async function runSmoke(win: BrowserWindow, smokePath: string): Promise<void> {
         const byText = (sel, text) => Array.from(document.querySelectorAll(sel)).find((el) => (el.textContent || '').trim().startsWith(text));
         ${script}
       })()`)) as string;
+
+    // The terminal panel.
+    await win.webContents.executeJavaScript(`
+      (async () => {
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        document.querySelector('button[aria-label="Terminal"]')?.click();
+        await sleep(1200);
+        document.querySelector('.terminal-screen:not([hidden]) textarea')?.focus();
+      })()
+    `);
+    await shoot('5b-terminal');
+    await win.webContents.executeJavaScript(`document.querySelector('button[aria-label="Hide the terminal"]')?.click()`);
 
     // The syntax tree as a graph.
     await click(`
@@ -181,7 +242,7 @@ async function runSmoke(win: BrowserWindow, smokePath: string): Promise<void> {
     // The Reader preset: code with the chat docked on the right.
     await click(`
       byText('.preset-card', 'Reader')?.click(); await sleep(300);
-      document.querySelector('dialog')?.close(); await sleep(600); return 'ok';`);
+      document.querySelector('dialog.prefs')?.close(); await sleep(600); return 'ok';`);
     await shoot('8-reader');
 
     // The package picker with another package manager.
@@ -193,6 +254,13 @@ async function runSmoke(win: BrowserWindow, smokePath: string): Promise<void> {
       if (input) { input.focus(); input.value = 'expr'; input.dispatchEvent(new Event('input', { bubbles: true })); }
       await sleep(900); return 'ok';`);
     await shoot('9-npm');
+    await win.webContents.executeJavaScript(`
+      (async () => {
+        window.dispatchEvent(new Event('aisai:show-shortcuts'));
+        await new Promise((r) => setTimeout(r, 400));
+      })()
+    `);
+    await shoot('10-shortcuts');
   } catch (err) {
     console.error('[smoke] failed', err);
   } finally {
@@ -385,6 +453,9 @@ const ALLOWED_API_PREFIXES = [
   '/api/audits',
   '/api/advisories',
   '/api/chat',
+  // The integrated terminal. Every path here can start or drive a shell, so
+  // this prefix is the one most worth keeping out of any wildcard.
+  '/api/terminals',
 ] as const;
 
 /** Reports whether an API path is one the renderer may call. */

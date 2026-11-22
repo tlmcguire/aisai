@@ -50,10 +50,15 @@ export type EventType =
   | 'audit.done'
   | 'audit.error'
   | 'scan.progress'
+  | 'scan.done'
+  | 'scan.error'
   | 'finding.created'
   | 'chat.token'
+  | 'chat.step'
   | 'chat.done'
-  | 'chat.error';
+  | 'chat.error'
+  | 'terminal.data'
+  | 'terminal.exit';
 
 /** Mirrors model.PURL — canonical form `pkg:pypi/<name>@<version>`. */
 export type PURL = string;
@@ -599,4 +604,37 @@ export function packageURL(name: string, version: string, ecosystem = 'pypi'): P
 /** Mirrors model.MaxSeverity(). */
 export function maxSeverity(a: Severity, b: Severity): Severity {
   return SEVERITY_RANK[b] > SEVERITY_RANK[a] ? b : a;
+}
+
+/** The response of PUT /api/audits/{id}/file. */
+export interface SaveFileResponse {
+  saved: boolean;
+  /** False when the text was identical to what was on disk. */
+  changed: boolean;
+  error?: string;
+}
+
+/** Code the user selected in the editor, for the chat and the edit requests. */
+export interface CodeSelection {
+  file: string;
+  startLine: number;
+  endLine: number;
+  text: string;
+}
+
+/** The response of POST /api/terminals. */
+export interface TerminalOpenResponse {
+  id: string;
+  cwd: string;
+}
+
+/** What a pasted link refers to (GET /api/packages/link). */
+export interface LinkInfo {
+  kind: 'package' | 'repo';
+  ecosystem?: Ecosystem;
+  name?: string;
+  version?: string;
+  repoUrl?: string;
+  display?: string;
+  ref?: string;
 }

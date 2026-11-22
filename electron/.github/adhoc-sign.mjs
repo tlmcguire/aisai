@@ -19,5 +19,5 @@ export default async function adhocSign(context) {
   const app = path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
   execFileSync('codesign', ['--force', '--deep', '--sign', '-', app], { stdio: 'inherit' });
   execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'inherit' });
-  console.log(`[adhoc-sign] ${app} carries a valid ad-hoc signature.`);
+  globalThis.console.log(`[adhoc-sign] ${app} carries a valid ad-hoc signature.`);
 }

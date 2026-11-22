@@ -79,6 +79,7 @@ interface PersistedUi {
   hiddenPanes: PaneId[];
   chatDock: ChatDock;
   chatWidth: number;
+  terminalHeight: number;
 }
 
 /** The pane sizes a fresh install starts with, in reference pixels. */
@@ -87,6 +88,7 @@ export const DEFAULT_LAYOUT = {
   railWidth: 340,
   chatHeight: 220,
   chatWidth: 380,
+  terminalHeight: 260,
   filesShare: 0.42,
   uiScale: 1,
 } as const;
@@ -134,6 +136,11 @@ export interface UiState {
   hiddenPanes: PaneId[];
   chatDock: ChatDock;
   chatWidth: number;
+  /** The terminal panel is never open at launch: a shell starts only on request. */
+  terminalOpen: boolean;
+  terminalHeight: number;
+  setTerminalOpen: (open: boolean) => void;
+  setTerminalHeight: (height: number) => void;
   /** The id of the preset last applied, or '' once the layout was changed by hand. */
   layoutPreset: string;
   movePane: (id: PaneId, toIndex: number) => void;
@@ -169,6 +176,10 @@ export const useUiStore = create<UiState>((set) => ({
   hiddenPanes: (persisted.hiddenPanes ?? []).filter((id) => id !== 'main' && PANE_IDS.includes(id)),
   chatDock: persisted.chatDock === 'right' ? 'right' : 'bottom',
   chatWidth: persisted.chatWidth ?? DEFAULT_LAYOUT.chatWidth,
+  terminalOpen: false,
+  terminalHeight: persisted.terminalHeight ?? DEFAULT_LAYOUT.terminalHeight,
+  setTerminalOpen: (terminalOpen) => set({ terminalOpen }),
+  setTerminalHeight: (height) => set({ terminalHeight: Math.max(120, Math.min(720, height)) }),
   layoutPreset: persisted.paneOrder ? '' : 'classic',
   movePane: (id, toIndex) =>
     set((state) => {
@@ -234,6 +245,7 @@ useUiStore.subscribe((state) => {
     hiddenPanes: state.hiddenPanes,
     chatDock: state.chatDock,
     chatWidth: state.chatWidth,
+    terminalHeight: state.terminalHeight,
   };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));

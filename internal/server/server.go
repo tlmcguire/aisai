@@ -17,12 +17,15 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/tlmcguire/aisai/internal/audit"
 	"github.com/tlmcguire/aisai/internal/config"
 	"github.com/tlmcguire/aisai/internal/findings"
+	"github.com/tlmcguire/aisai/internal/gitsrc"
 	"github.com/tlmcguire/aisai/internal/index"
+	"github.com/tlmcguire/aisai/internal/link"
 	"github.com/tlmcguire/aisai/internal/llm"
 	"github.com/tlmcguire/aisai/internal/model"
 	"github.com/tlmcguire/aisai/internal/patch"
@@ -30,24 +33,28 @@ import (
 	"github.com/tlmcguire/aisai/internal/registry"
 	"github.com/tlmcguire/aisai/internal/sbom"
 	"github.com/tlmcguire/aisai/internal/scan"
+	"github.com/tlmcguire/aisai/internal/terminal"
 	"github.com/tlmcguire/aisai/internal/version"
 )
 
 // Server wires the HTTP routes to the audit manager and the stores.
 type Server struct {
-	cfg         *config.Config
-	hub         *Hub
-	manager     *audit.Manager
-	store       *findings.Store
-	llm         llm.Provider
-	models      *llm.Models
-	index       IndexStore
-	chat        ChatEngine
-	chatFactory ChatFactory
-	patches     PatchApplier
-	pypi        *pypi.Client
-	registries  *registry.Set
-	started     time.Time
+	cfg           *config.Config
+	hub           *Hub
+	manager       *audit.Manager
+	store         *findings.Store
+	llm           llm.Provider
+	models        *llm.Models
+	index         IndexStore
+	chat          ChatEngine
+	chatFactory   ChatFactory
+	patches       PatchApplier
+	pypi          *pypi.Client
+	registries    *registry.Set
+	terminals     *terminal.Manager
+	jobs          sync.Map // job id -> jobStatus
+	terminalsOnce sync.Once
+	started       time.Time
 }
 
 // IndexStore is the subset of the index API the server needs.
@@ -73,6 +80,29 @@ type ChatRequest struct {
 	AuditID  string
 	Question string
 	History  []llm.Message
+	// Selection is code the user selected and is asking about.
+	Selection *ChatSelection
+	// OnStep, when set, receives the model's thinking and tool calls.
+	OnStep func(ChatStep)
+}
+
+// ChatStep is one thing the model did besides writing the answer.
+type ChatStep struct {
+	Kind   string         `json:"kind"` // thinking | tool | tool_result
+	Think  string         `json:"think,omitempty"`
+	ID     string         `json:"id,omitempty"`
+	Name   string         `json:"name,omitempty"`
+	Args   map[string]any `json:"args,omitempty"`
+	Output string         `json:"output,omitempty"`
+	Error  string         `json:"error,omitempty"`
+}
+
+// ChatSelection is a piece of code selected in the editor.
+type ChatSelection struct {
+	File      string `json:"file"`
+	StartLine int    `json:"startLine"`
+	EndLine   int    `json:"endLine"`
+	Text      string `json:"text"`
 }
 
 // ChatResult is the outcome of a chat turn.
@@ -183,6 +213,7 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/packages", s.handlePackageLookup)
 	mux.HandleFunc("GET /api/ecosystems", s.handleEcosystems)
+	mux.HandleFunc("GET /api/packages/link", s.handleLink)
 
 	mux.HandleFunc("POST /api/audits", s.handleCreateAudit)
 	mux.HandleFunc("GET /api/audits", s.handleListAudits)
@@ -197,7 +228,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/audits/{id}/findings/{fid}", s.handleGetFinding)
 	mux.HandleFunc("POST /api/audits/{id}/findings/{fid}/state", s.handleSetFindingState)
 	mux.HandleFunc("POST /api/audits/{id}/scan", s.handleScan)
+	mux.HandleFunc("GET /api/audits/{id}/jobs/{job}", s.handleJob)
 
+	mux.HandleFunc("PUT /api/audits/{id}/file", s.handleSaveFile)
+	mux.HandleFunc("POST /api/audits/{id}/complete", s.handleComplete)
+	mux.HandleFunc("POST /api/audits/{id}/edit-selection", s.handleEditSelection)
 	mux.HandleFunc("POST /api/audits/{id}/propose-fix", s.handleProposeFix)
 	mux.HandleFunc("POST /api/audits/{id}/apply-patch", s.handleApplyPatch)
 	mux.HandleFunc("POST /api/audits/{id}/revert-patch", s.handleRevertPatch)
@@ -212,7 +247,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/audits/{id}/advisories", s.handleListAdvisories)
 	mux.HandleFunc("GET /api/advisories/status", s.handleAdvisoryStatus)
 
+	mux.HandleFunc("POST /api/terminals", s.handleOpenTerminal)
+	mux.HandleFunc("POST /api/terminals/{id}/input", s.handleTerminalInput)
+	mux.HandleFunc("POST /api/terminals/{id}/resize", s.handleTerminalResize)
+	mux.HandleFunc("DELETE /api/terminals/{id}", s.handleCloseTerminal)
+	mux.HandleFunc("DELETE /api/terminals", s.handleCloseAllTerminals)
+
 	mux.HandleFunc("POST /api/chat", s.handleChat)
+	mux.HandleFunc("POST /api/chat/title", s.handleChatTitle)
 
 	mux.HandleFunc("GET /api/audits/{id}/export", s.handleExport)
 
@@ -471,6 +513,9 @@ func (s *Server) handleCreateAudit(w http.ResponseWriter, r *http.Request) {
 		// Path is a project folder on this computer. When it is set the
 		// audit inspects that folder instead of a published package.
 		Path string `json:"path"`
+		// URL is a pasted link: a page of a package index, a package URL or a
+		// repository to clone.
+		URL string `json:"url"`
 	}
 	if !decodeBody(w, r, &req) {
 		return
@@ -483,6 +528,23 @@ func (s *Server) handleCreateAudit(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case strings.TrimSpace(req.Path) != "":
 		a, err = s.manager.CreateLocal(r.Context(), req.Path)
+	case strings.TrimSpace(req.URL) != "":
+		var l *link.Link
+		if l, err = link.Parse(req.URL); err != nil {
+			writeError(w, http.StatusBadRequest, "bad_request", err.Error())
+			return
+		}
+		if l.Kind == link.KindRepo {
+			repo, perr := gitsrc.ParseRepo(l.RepoURL)
+			if perr != nil {
+				writeError(w, http.StatusBadRequest, "bad_request", perr.Error())
+				return
+			}
+			repo.Ref = l.Ref
+			a, err = s.manager.CreateRepo(r.Context(), repo)
+		} else {
+			a, err = s.manager.CreateFor(r.Context(), l.Ecosystem, l.Name, l.Version)
+		}
 	case strings.TrimSpace(req.Package) != "":
 		a, err = s.manager.CreateFor(r.Context(), req.Ecosystem, req.Package, req.Version)
 	default:
@@ -664,18 +726,28 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 	jobID := fmt.Sprintf("job-%d", time.Now().UnixNano())
 	writeJSON(w, http.StatusAccepted, map[string]any{"jobId": jobID})
 
+	s.jobs.Store(jobID, jobStatus{State: "running"})
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
 		defer cancel()
-		var err error
+		var (
+			err  error
+			list []model.Finding
+		)
 		if engine == "llm" {
-			_, err = s.manager.ScanLLM(ctx, id, req.Path)
+			list, err = s.manager.ScanLLM(ctx, id, req.Path)
 		} else {
-			_, err = s.manager.Scan(ctx, id)
+			list, err = s.manager.Scan(ctx, id)
 		}
+		// The end of a scan is announced and remembered, so the app can stop
+		// waiting even if it missed the event.
 		if err != nil {
-			s.hub.Broadcast(model.Event{Type: model.EventAuditError, AuditID: id, Error: err.Error()})
+			s.jobs.Store(jobID, jobStatus{State: "failed", Error: err.Error()})
+			s.hub.Broadcast(model.Event{Type: model.EventScanError, AuditID: id, JobID: jobID, Error: err.Error()})
+			return
 		}
+		s.jobs.Store(jobID, jobStatus{State: "done", Findings: len(list)})
+		s.hub.Broadcast(model.Event{Type: model.EventScanDone, AuditID: id, JobID: jobID, Data: map[string]any{"findings": len(list), "engine": engine}})
 	}()
 }
 
@@ -958,6 +1030,8 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		AuditID  string        `json:"auditId"`
 		Question string        `json:"question"`
 		History  []llm.Message `json:"history"`
+		// Selection is code selected in the editor; the question is about it.
+		Selection *ChatSelection `json:"selection"`
 	}
 	if !decodeBody(w, r, &req) {
 		return
@@ -986,9 +1060,13 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 		defer cancel()
 		res, err := engine.Ask(ctx, ChatRequest{
-			AuditID:  req.AuditID,
-			Question: req.Question,
-			History:  req.History,
+			AuditID:   req.AuditID,
+			Question:  req.Question,
+			History:   req.History,
+			Selection: req.Selection,
+			OnStep: func(st ChatStep) {
+				s.hub.Broadcast(model.Event{Type: model.EventChatStep, JobID: jobID, Data: st})
+			},
 		}, func(token string) {
 			s.hub.Broadcast(model.Event{Type: model.EventChatToken, JobID: jobID, Data: map[string]any{"delta": token}})
 		})

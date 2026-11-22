@@ -432,22 +432,7 @@ func parseDetection(raw map[string]any, chunk model.Chunk) ([]model.Finding, err
 			endLine = startLine
 		}
 
-		// Keep the model's line numbers but clamp them into the chunk: a
-		// hallucinated line number must not point outside the file.
-		if startLine > 0 && chunk.EndLine > 0 {
-			if startLine < chunk.StartLine {
-				startLine = chunk.StartLine
-			}
-			if startLine > chunk.EndLine {
-				startLine = chunk.EndLine
-			}
-			if endLine > chunk.EndLine {
-				endLine = chunk.EndLine
-			}
-			if endLine < startLine {
-				endLine = startLine
-			}
-		}
+		startLine, endLine = anchorLines(chunk, startLine, endLine, snippet)
 
 		evidence := model.Evidence{}
 		if ev, ok := obj["evidence"].(map[string]any); ok {
@@ -500,3 +485,94 @@ func intFrom(v any) int {
 
 // Timeout returns a sensible per-request timeout for a scan step.
 func Timeout() time.Duration { return 180 * time.Second }
+
+// anchorLines turns the line numbers a model reported into real file lines.
+//
+// Models get line numbers wrong in two ways: they count from the top of the
+// snippet instead of the file, and they drift by a few lines. The quoted code
+// is the reliable anchor, so it is searched for in the chunk first; a number
+// that already points at that code is kept. Without a usable quote, a number
+// that fits inside the chunk is taken as a snippet-relative one when it lies
+// before the chunk, and everything is clamped into the chunk so that a
+// hallucinated line never points outside it.
+func anchorLines(chunk model.Chunk, start, end int, snippet string) (int, int) {
+	if chunk.EndLine <= 0 {
+		return start, end
+	}
+	lines := strings.Split(chunk.Content, "\n")
+	lineAt := func(abs int) string {
+		i := abs - chunk.StartLine
+		if i < 0 || i >= len(lines) {
+			return ""
+		}
+		return strings.TrimSpace(lines[i])
+	}
+
+	quote := ""
+	quoteLines := 0
+	for _, l := range strings.Split(snippet, "\n") {
+		if t := strings.TrimSpace(l); t != "" {
+			if quote == "" {
+				quote = t
+			}
+			quoteLines++
+		}
+	}
+	if quote != "" {
+		if start > 0 && strings.Contains(lineAt(start), quote) {
+			// The reported line already shows the quoted code.
+		} else {
+			found, best := -1, -1
+			for i, l := range lines {
+				if !strings.Contains(strings.TrimSpace(l), quote) {
+					continue
+				}
+				// Several matches: take the one closest to the reported line.
+				dist := abs(chunk.StartLine + i - start)
+				if found < 0 || dist < best {
+					found, best = i, dist
+				}
+			}
+			if found >= 0 {
+				span := end - start
+				if span < 0 || span > quoteLines+2 {
+					span = quoteLines - 1
+				}
+				start = chunk.StartLine + found
+				end = start + span
+			}
+		}
+	}
+
+	if start > 0 && start < chunk.StartLine && start <= len(lines) {
+		// Counted from the top of the snippet.
+		shift := chunk.StartLine - 1
+		start += shift
+		if end > 0 && end < chunk.StartLine {
+			end += shift
+		}
+	}
+	if start <= 0 {
+		return start, end
+	}
+	if start < chunk.StartLine {
+		start = chunk.StartLine
+	}
+	if start > chunk.EndLine {
+		start = chunk.EndLine
+	}
+	if end > chunk.EndLine {
+		end = chunk.EndLine
+	}
+	if end < start {
+		end = start
+	}
+	return start, end
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
