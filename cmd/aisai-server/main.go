@@ -276,18 +276,19 @@ func run(socketPath, cfgPath, workspaceOverride string) error {
 //
 // A Unix domain socket is preferred: it keeps the API off the network
 // entirely. If the platform does not support one, or the path is unusable,
-// the server falls back to a loopback TCP port.
+// the server falls back to a loopback TCP port, which is always free.
+//
+// The socket path is shared by every copy of AISAI on the machine, so it can
+// be taken already. When it is, the server takes a socket of its own instead
+// of the one that is in use: the copy that owns it is still serving, and
+// taking its path would leave it unable to answer.
 func listen(cfg *config.Config) (string, net.Listener, error) {
 	if runtime.GOOS != "windows" {
 		path := cfg.SocketPath
 		if path == "" {
 			path = filepath.Join(os.TempDir(), fmt.Sprintf("aisai-%d.sock", os.Getuid()))
 		}
-		// Remove a stale socket left by a previous crashed run.
-		if info, err := os.Stat(path); err == nil && info.Mode()&os.ModeSocket != 0 {
-			_ = os.Remove(path)
-		}
-		l, err := net.Listen("unix", path)
+		l, err := listenUnix(path)
 		if err == nil {
 			// The socket is the API's only entry point, so it must not be
 			// reachable by other users on the machine. The default umask
@@ -297,7 +298,17 @@ func listen(cfg *config.Config) (string, net.Listener, error) {
 			}
 			return path, l, nil
 		}
-		log.Printf("unix socket unavailable (%v), falling back to loopback TCP", err)
+		log.Printf("the socket %s is not available (%v), taking one of our own", path, err)
+		own := filepath.Join(filepath.Dir(path), fmt.Sprintf("aisai-%d-%d.sock", os.Getuid(), os.Getpid()))
+		l, ownErr := listenUnix(own)
+		if ownErr == nil {
+			if err := os.Chmod(own, 0o600); err != nil {
+				log.Printf("could not restrict the socket permissions: %v", err)
+			}
+			log.Printf("listening on %s", own)
+			return own, l, nil
+		}
+		log.Printf("could not use %s either (%v), falling back to loopback TCP", own, ownErr)
 	}
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
@@ -305,6 +316,31 @@ func listen(cfg *config.Config) (string, net.Listener, error) {
 		return "", nil, fmt.Errorf("listen: %w", err)
 	}
 	return l.Addr().String(), l, nil
+}
+
+// listenUnix listens on a Unix socket.
+//
+// A socket left behind by a crashed run is removed and taken over, because
+// nobody answers on it. A socket that another copy of AISAI is listening on
+// is left alone: that one is still serving.
+func listenUnix(path string) (net.Listener, error) {
+	l, err := net.Listen("unix", path)
+	if err == nil {
+		return l, nil
+	}
+	if !errors.Is(err, syscall.EADDRINUSE) {
+		return nil, err
+	}
+	// The path is taken: is anyone answering on it?
+	if conn, dialErr := net.DialTimeout("unix", path, 250*time.Millisecond); dialErr == nil {
+		conn.Close()
+		return nil, err
+	}
+	// Nobody answers, so the socket is a leftover: remove it and try again.
+	if rmErr := os.Remove(path); rmErr != nil {
+		return nil, err
+	}
+	return net.Listen("unix", path)
 }
 
 // emitListening prints the single JSON line the Electron main process reads.
