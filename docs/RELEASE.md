@@ -34,7 +34,7 @@ github.com/tlmcguire/aisai/internal/version.Date
 The exact string the Makefile has to pass:
 
 ```make
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.6.0-dev)
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.6.1-dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -44,7 +44,7 @@ LDFLAGS ?= -X github.com/tlmcguire/aisai/internal/version.Version=$(VERSION) \
 ```
 
 The current Makefile passes an empty `LDFLAGS`, so a plain `make build`
-produces `0.6.0-dev`. **The Makefile is not part of this change**; the three
+produces `0.6.1-dev`. **The Makefile is not part of this change**; the three
 targets above have to be wired by whoever owns it.
 
 ### What happens without `-ldflags`
@@ -56,7 +56,7 @@ information the Go toolchain embeds in every binary
 * `Version` — the version of the module the binary was built from, when it
   is a real version (`go install example.com/mod@v1.2.3`). A binary built
   from a checkout reports `(devel)`, which is *not* a version, so the
-  placeholder `0.6.0-dev` survives.
+  placeholder `0.6.1-dev` survives.
 * `Commit` — the `vcs.revision` build setting, with a `-dirty` suffix when
   `vcs.modified` is `true`.
 * `Date` — the `vcs.time` build setting.
@@ -83,7 +83,7 @@ Electron main process reads, but a user has no `--version` flag.
 
 ### Keeping the Go version and the Electron version in sync
 
-`electron/package.json` has `"version": "0.6.0"` and the Go build has its
+`electron/package.json` has `"version": "0.6.1"` and the Go build has its
 own version. They must agree in a release. Two ways, pick one:
 
 * **Tag driven (recommended).** The release is made from a git tag
@@ -399,10 +399,10 @@ of an unsigned build.
 the release carries its platform and its architecture:
 
 ```
-AISAI-0.6.0-mac-x64.dmg       AISAI-0.6.0-linux-x64.AppImage
-AISAI-0.6.0-mac-arm64.dmg     AISAI-0.6.0-linux-arm64.AppImage
-AISAI-0.6.0-mac-x64.zip       AISAI-0.6.0-linux-arm64.deb
-AISAI-0.6.0-win-x64.exe       AISAI-0.6.0-win-x64.zip
+AISAI-0.6.1-mac-x64.dmg       AISAI-0.6.1-linux-x64.AppImage
+AISAI-0.6.1-mac-arm64.dmg     AISAI-0.6.1-linux-arm64.AppImage
+AISAI-0.6.1-mac-x64.zip       AISAI-0.6.1-linux-arm64.deb
+AISAI-0.6.1-win-x64.exe       AISAI-0.6.1-win-x64.zip
 ```
 
 The names have to be unique, because the release job merges the artifacts
@@ -613,7 +613,7 @@ These are the targets the Makefile needs; they were **not** added here,
 because the Makefile is owned by another workstream.
 
 ```make
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.6.0-dev)
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.6.1-dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
