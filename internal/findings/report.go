@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/tlmcguire/aisai/internal/model"
@@ -17,12 +18,30 @@ type ReportOptions struct {
 	AuditID     string
 	ToolVersion string
 	Generated   time.Time
+	// Advisories are the known vulnerabilities of the dependencies, with the
+	// chain of packages that pulls each one in. AdvisoriesChecked is how many
+	// packages were looked up; with Fetched false-looking zero values the
+	// section is left out, because "not checked" is not "none found".
+	Advisories        []model.Advisory
+	AdvisoriesChecked int
 }
 
 type reportSeverity struct {
 	Name  string
 	Count int
 	Pct   int
+}
+
+// reportAdvisory is one vulnerable dependency, ready to print.
+type reportAdvisory struct {
+	Severity   string
+	ID         string
+	URL        string
+	Package    string
+	Summary    string
+	Via        string
+	Transitive bool
+	Fixed      string
 }
 
 type reportView struct {
@@ -33,6 +52,10 @@ type reportView struct {
 	Open       int
 	Severities []reportSeverity
 	Findings   []model.Finding
+	// Vulns is the dependencies' known vulnerabilities, worst first.
+	Vulns         []reportAdvisory
+	ShowVulns     bool
+	TransitiveCnt int
 }
 
 var severityOrder = []model.Severity{"critical", "high", "medium", "low", "info"}
@@ -83,6 +106,35 @@ func WriteHTMLReport(list []model.Finding, opts ReportOptions) ([]byte, error) {
 	}
 	if view.Title == "" {
 		view.Title = "Audit " + opts.AuditID
+	}
+	if opts.AdvisoriesChecked > 0 || len(opts.Advisories) > 0 {
+		view.ShowVulns = true
+		advs := append([]model.Advisory(nil), opts.Advisories...)
+		sort.SliceStable(advs, func(i, j int) bool {
+			if a, b := severityRank(advs[i].Severity), severityRank(advs[j].Severity); a != b {
+				return a < b
+			}
+			return advs[i].ID < advs[j].ID
+		})
+		for _, a := range advs {
+			ra := reportAdvisory{
+				Severity: string(a.Severity), ID: a.ID, Package: packageText(string(a.Package)),
+				Summary: a.Summary, Transitive: len(a.Via) > 1,
+			}
+			if strings.HasPrefix(a.URL, "https://") || strings.HasPrefix(a.URL, "http://") {
+				ra.URL = a.URL
+			}
+			if len(a.Via) > 0 {
+				ra.Via = strings.Join(a.Via, " → ")
+			}
+			if len(a.FixedIn) > 0 {
+				ra.Fixed = strings.Join(a.FixedIn, ", ")
+			}
+			if ra.Transitive {
+				view.TransitiveCnt++
+			}
+			view.Vulns = append(view.Vulns, ra)
+		}
 	}
 	for _, s := range severityOrder {
 		pct := 0
@@ -138,7 +190,29 @@ pre{background:var(--inset);border:1px solid var(--border);border-radius:.4rem;p
 .note{margin:.5rem 0 0;color:var(--muted)}.note strong{color:var(--fg)}
 h2{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:2.5rem 0 1rem}
 footer{margin-top:3rem;color:var(--muted);font-size:.75rem;border-top:1px solid var(--border);padding-top:1rem}
-@media print{body{background:#fff;color:#111}:root{--surface:#fff;--raised:#f4f7f6;--inset:#f0f3f2;--border:#d3dedb;--fg:#111;--muted:#555}}
+/* On paper (and in the PDF export): a light page, severity colours dark enough
+   to read in print, code that wraps instead of scrolling, and no finding cut
+   in two by a page break. */
+@page{margin:16mm 14mm 18mm}
+@media print{
+:root{--bg:#fff;--surface:#fff;--raised:#f5f8f7;--inset:#f3f6f5;--border:#d0dbd8;--border2:#b7c6c2;
+--fg:#121a1b;--muted:#566663;--accent:#4d7c0f;--critical:#b42318;--high:#b54708;--medium:#8a6a00;--low:#0e7466;--info:#5b6b68}
+html,body{background:#fff;color:var(--fg)}
+*{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-size:10.5pt;line-height:1.5}
+main{max-width:none;padding:0}
+h1{font-size:20pt;margin-top:.3rem}
+.summary{grid-template-columns:repeat(7,1fr);gap:.4rem;margin:1.2rem 0 .8rem}
+.card{padding:.5rem .6rem}
+.card b{font-size:14pt}
+.card span{font-size:6.5pt;letter-spacing:.03em;white-space:nowrap}
+.bar{margin-bottom:1.5rem}
+h2{margin:1.5rem 0 .8rem;break-after:avoid}
+.finding{break-inside:avoid;page-break-inside:avoid;padding:.7rem .9rem;margin-bottom:.7rem}
+.finding h3{break-after:avoid}
+pre{white-space:pre-wrap;word-break:break-word;overflow:visible;font-size:8.5pt;break-inside:avoid}
+footer{margin-top:1.5rem}
+}
 </style>
 </head>
 <body>
@@ -153,6 +227,23 @@ footer{margin-top:3rem;color:var(--muted);font-size:.75rem;border-top:1px solid 
 {{range .Severities}}<div class="card sev s-{{.Name}}"><b>{{.Count}}</b><span>{{.Name}}</span></div>{{end}}
 </div>
 <div class="bar" role="img" aria-label="Findings by severity">{{range .Severities}}{{if .Count}}<div class="s-{{.Name}}" style="width:{{.Pct}}%"></div>{{end}}{{end}}</div>
+
+{{if .ShowVulns}}
+<h2>Vulnerable dependencies</h2>
+{{if .Vulns}}
+<p class="note">{{len .Vulns}} known {{if eq (len .Vulns) 1}}vulnerability{{else}}vulnerabilities{{end}} in {{.AdvisoriesChecked}} checked packages{{if .TransitiveCnt}}; {{.TransitiveCnt}} of them in packages pulled in indirectly, with the chain that brings each in{{end}}. Source: OSV (osv.dev).</p>
+{{range .Vulns}}
+<article class="finding s-{{.Severity}}">
+<h3><span class="badge s-{{.Severity}}">{{.Severity}}</span>{{if .URL}}<a href="{{.URL}}" style="color:inherit">{{.ID}}</a>{{else}}{{.ID}}{{end}} <span style="color:var(--muted);font-weight:400">{{.Package}}</span></h3>
+{{if .Summary}}<div>{{.Summary}}</div>{{end}}
+{{if .Via}}<p class="note"><strong>{{if .Transitive}}Pulled in by.{{else}}Direct dependency.{{end}}</strong> {{.Via}}</p>{{end}}
+{{if .Fixed}}<p class="note"><strong>Fixed in.</strong> {{.Fixed}}</p>{{end}}
+</article>
+{{end}}
+{{else}}
+<p class="note">No known vulnerabilities in {{.AdvisoriesChecked}} checked packages. This covers the advisories in OSV, not unknown flaws.</p>
+{{end}}
+{{end}}
 
 <h2>Findings</h2>
 {{range .Findings}}
@@ -172,3 +263,16 @@ footer{margin-top:3rem;color:var(--muted);font-size:.75rem;border-top:1px solid 
 </body>
 </html>
 `
+
+// packageText turns a package URL into "name version": "pkg:cargo/time@0.1.43"
+// reads "time 0.1.43".
+func packageText(purl string) string {
+	body := strings.TrimPrefix(purl, "pkg:")
+	if i := strings.Index(body, "/"); i >= 0 {
+		body = body[i+1:]
+	}
+	if at := strings.LastIndex(body, "@"); at > 0 {
+		return body[:at] + " " + body[at+1:]
+	}
+	return body
+}

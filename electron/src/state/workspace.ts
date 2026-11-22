@@ -1,3 +1,10 @@
+/**
+ * What the main pane shows: the file tree, the open file, its syntax tree,
+ * the proposed patch, and a request to jump to a line (jumpLine with a
+ * counter, so jumping to the same line twice still scrolls). A zustand
+ * store (https://zustand.docs.pmnd.rs/), filled by AppController.
+ */
+
 import { create } from 'zustand';
 
 import type { AST, FileContent, FileNode, Patch } from '../api/types';

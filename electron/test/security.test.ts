@@ -40,6 +40,7 @@ const EXPECTED_BRIDGE_MEMBERS = [
   'chooseFolder',
   'connectEvents',
   'disconnect',
+  'exportPdf',
   'folderFromDrop',
   'forgetProviderKey',
   'getMode',
@@ -53,6 +54,8 @@ const EXPECTED_BRIDGE_MEMBERS = [
   'openReleasePage',
   'providerKeyStatus',
   'send',
+  'setMenuShortcuts',
+  'showInFolder',
 ];
 
 /** The API prefixes the renderer is allowed to reach. */

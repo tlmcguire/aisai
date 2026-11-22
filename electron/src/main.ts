@@ -9,6 +9,8 @@
 import '@fontsource-variable/jetbrains-mono';
 import './styles/tokens.css';
 import './styles/app.css';
+// Editor theme and accessibility settings are applied before the first paint.
+import './state/prefs';
 
 import { ApiClient } from './api/client';
 import { AppController } from './app';

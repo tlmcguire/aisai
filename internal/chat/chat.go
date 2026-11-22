@@ -114,7 +114,9 @@ type RiskAssessor interface {
 
 // Step is one thing the model did while answering.
 type Step struct {
-	// Kind is "thinking", "tool" (a call started) or "tool_result".
+	// Kind is "thinking", "tool" (a call started), "tool_result",
+	// "approval", "approval_result", "compacting", "compacted" or "notice"
+	// (something the user should know about the answer, in Output).
 	Kind string
 	// Think is a piece of reasoning text (Kind "thinking").
 	Think string
@@ -336,6 +338,9 @@ func quarantineNotice(n int) string {
 	return fmt.Sprintf("\n\n_Note: %d retrieved chunk(s) were withheld from the context because they contained instruction-like text. They are listed in the chat metadata._", n)
 }
 
+// toolsUnsupportedNotice is shown under an answer the model gave without tools.
+const toolsUnsupportedNotice = "This model cannot call tools, so it answered from the retrieved code only: it could not open more files, run commands or search the web. Choose a model with tool support (for example qwen3 or llama3.1) to use them."
+
 // run streams the answer, using the tool-calling loop when the provider
 // supports tools.
 func (c *Chat) run(ctx context.Context, messages []llm.Message, emit func(string), step func(Step), approve approveFunc) (string, error) {
@@ -347,6 +352,7 @@ func (c *Chat) run(ctx context.Context, messages []llm.Message, emit func(string
 			if !errors.Is(err, llm.ErrNotSupported) {
 				return answer, err
 			}
+
 		}
 	}
 	return c.runPlain(ctx, messages, emit, step)
@@ -401,6 +407,11 @@ func (c *Chat) runWithTools(ctx context.Context, tp llm.ToolProvider, messages [
 		events, err := tp.ChatTools(ctx, req)
 		if err != nil {
 			log.Printf("chat: tool calling unavailable (%v), falling back to retrieval-only", err)
+			// Say so: without tools the model cannot read more files, run
+			// commands or search the web, and the answer may be thinner.
+			if errors.Is(err, llm.ErrToolsUnsupported) && step != nil {
+				step(Step{Kind: "notice", Output: toolsUnsupportedNotice})
+			}
 			return c.runPlain(ctx, messages, emit, step)
 		}
 

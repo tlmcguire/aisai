@@ -1,5 +1,5 @@
 /**
- * vis-network integration.
+ * vis-network integration (docs: https://visjs.github.io/vis-network/docs/network/).
  *
  * The library is vendored (web/vis-9.1.2) — it is NOT installed from npm.
  * `vis-network.min.js` is a UMD bundle, so it is loaded as a classic script

@@ -16,7 +16,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type OpenDialogOption
 import { autoUpdater, type UpdateInfo } from 'electron-updater';
 import { spawn } from 'node:child_process';
 
-import type { BackendStatus, ClientMessage, HttpMethod, HttpResponse, UpdateStatus } from './src/api/bridge';
+import type { BackendStatus, ClientMessage, HttpMethod, HttpResponse, MenuCommand, UpdateStatus } from './src/api/bridge';
 import type { Event } from './src/api/types';
 import { FolderApprovals } from './src/main-process/folders';
 import {
@@ -31,6 +31,7 @@ import {
 } from './src/main-process/macUpdate';
 import { activeSecret, canStoreSecrets, forgetSecret, hasSecret, readSecret, saveSecret, setActiveProvider } from './src/main-process/secrets';
 import { backendRequest } from './src/main-process/http';
+import { MAX_REPORT_BYTES, pageSizeFor, renderPdf } from './src/main-process/pdf';
 import { defaultSocketPath, findSidecar } from './src/main-process/paths';
 import { startSidecar, type SidecarHandle } from './src/main-process/sidecar';
 import { WsClient } from './src/main-process/ws';
@@ -38,6 +39,8 @@ import { WsClient } from './src/main-process/ws';
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 
 let mainWindow: BrowserWindow | null = null;
+/** The PDFs saved in this session; only these can be shown in the file manager. */
+const exportedFiles = new Set<string>();
 let sidecar: SidecarHandle | null = null;
 let wsClient: WsClient | null = null;
 
@@ -632,11 +635,44 @@ function registerIpc(): void {
   });
 }
 
+/**
+ * The keys the menu shows, by shortcut id, as Electron accelerators. The
+ * window sends them (the user can rebind keys in Settings); until it does,
+ * these defaults are shown.
+ */
+let menuShortcuts: Record<string, string> = {
+  'app.settings': 'CmdOrCtrl+,',
+  'app.shortcuts': 'CmdOrCtrl+Shift+/',
+  'file.save': 'CmdOrCtrl+S',
+  'file.open-folder': 'CmdOrCtrl+O',
+  'file.export-pdf': 'CmdOrCtrl+Shift+E',
+  'edit.undo': 'CmdOrCtrl+Z',
+  'edit.redo': process.platform === 'darwin' ? 'CmdOrCtrl+Shift+Z' : 'CmdOrCtrl+Y',
+};
+
+/**
+ * The application menu.
+ *
+ * Items the window handles itself carry `registerAccelerator: false`: the
+ * menu shows their keys, but the keystroke goes to the page, where the
+ * user's own bindings decide what it does. Only the native editing roles
+ * (cut, copy, paste, select all) keep real accelerators, because macOS text
+ * fields rely on them. See https://www.electronjs.org/docs/latest/api/menu-item
+ */
 function buildMenu(): void {
-  const send = (command: 'open-folder' | 'settings' | 'about'): void => {
+  const send = (command: MenuCommand): void => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('aisai:menu', command);
   };
+  const keys = (id: string): Partial<Electron.MenuItemConstructorOptions> => {
+    const accelerator = menuShortcuts[id];
+    return accelerator ? { accelerator, registerAccelerator: false } : {};
+  };
   const mac = process.platform === 'darwin';
+  const help: Electron.MenuItemConstructorOptions[] = [
+    { label: 'Tutorials', click: () => send('tutorials') },
+    { label: 'Keyboard Shortcuts', ...keys('app.shortcuts'), click: () => send('shortcuts') },
+    ...(mac ? [] : [{ type: 'separator' as const }, { label: 'About aisai', click: () => send('about') }]),
+  ];
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(mac
       ? [{
@@ -644,7 +680,7 @@ function buildMenu(): void {
           submenu: [
             { label: 'About aisai', click: () => send('about') },
             { type: 'separator' as const },
-            { label: 'Settings…', accelerator: 'Cmd+,', registerAccelerator: false, click: () => send('settings') },
+            { label: 'Settings…', ...keys('app.settings'), click: () => send('settings') },
             { type: 'separator' as const },
             { role: 'services' as const },
             { type: 'separator' as const },
@@ -659,15 +695,33 @@ function buildMenu(): void {
     {
       label: 'File',
       submenu: [
-        { label: 'Open Folder…', accelerator: 'CmdOrCtrl+O', registerAccelerator: false, click: () => send('open-folder') },
+        { label: 'Open Folder…', ...keys('file.open-folder'), click: () => send('open-folder') },
         { type: 'separator' },
-        ...(mac ? [{ role: 'close' as const }] : [{ label: 'Settings…', click: () => send('settings') }, { role: 'quit' as const }]),
+        { label: 'Save', ...keys('file.save'), click: () => send('save') },
+        { type: 'separator' },
+        { label: 'Export Report as PDF…', ...keys('file.export-pdf'), click: () => send('export-pdf') },
+        { label: 'Export Report as HTML', click: () => send('export-html') },
+        { type: 'separator' },
+        ...(mac ? [{ role: 'close' as const }] : [{ label: 'Settings…', ...keys('app.settings'), click: () => send('settings') }, { role: 'quit' as const }]),
       ],
     },
-    { role: 'editMenu' },
+    {
+      label: 'Edit',
+      submenu: [
+        { label: 'Undo', ...keys('edit.undo'), click: () => send('undo') },
+        { label: 'Redo', ...keys('edit.redo'), click: () => send('redo') },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        ...(mac ? [{ role: 'pasteAndMatchStyle' as const }] : []),
+        { role: 'delete' },
+        { role: 'selectAll' },
+      ],
+    },
     { role: 'viewMenu' },
     { role: 'windowMenu' },
-    ...(mac ? [] : [{ label: 'Help', submenu: [{ label: 'About aisai', click: () => send('about') }] }]),
+    { role: 'help', submenu: help },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
@@ -789,6 +843,42 @@ function configureAutoUpdate(): void {
     } catch {
       /* not a URL: ignored */
     }
+  });
+  // The audit report as a PDF: rendered in a locked-down hidden window, then
+  // saved where the user picks. Only the save dialog decides the path.
+  ipcMain.handle('aisai:export-pdf', async (_event, html: unknown, name: unknown) => {
+    if (typeof html !== 'string' || !html.trim()) throw new Error('There is no report to export.');
+    if (Buffer.byteLength(html, 'utf8') > MAX_REPORT_BYTES) throw new Error('The report is too large to turn into a PDF.');
+    const title = typeof name === 'string' && name.trim() ? name.trim().slice(0, 120) : 'audit';
+    const safe = title.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'audit';
+    const parent = BrowserWindow.getFocusedWindow() ?? mainWindow;
+    const options = {
+      title: 'Export the audit report as PDF',
+      defaultPath: path.join(app.getPath('downloads'), `aisai-${safe}-report.pdf`),
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    };
+    const choice = parent ? await dialog.showSaveDialog(parent, options) : await dialog.showSaveDialog(options);
+    if (choice.canceled || !choice.filePath) return { saved: false };
+    const filePath = choice.filePath.toLowerCase().endsWith('.pdf') ? choice.filePath : `${choice.filePath}.pdf`;
+    const pdf = await renderPdf(html, { title, pageSize: pageSizeFor(app.getLocale()) });
+    await writeFile(filePath, pdf);
+    exportedFiles.add(filePath);
+    return { saved: true, path: filePath, bytes: pdf.length };
+  });
+  ipcMain.handle('aisai:show-in-folder', (_event, file: unknown) => {
+    // Only a PDF this session saved can be revealed.
+    if (typeof file === 'string' && exportedFiles.has(file)) shell.showItemInFolder(file);
+  });
+  // The keys the window's shortcuts are bound to, for the menu to show.
+  ipcMain.handle('aisai:menu-shortcuts', (_event, shortcuts: unknown) => {
+    if (!shortcuts || typeof shortcuts !== 'object') return;
+    const next: Record<string, string> = {};
+    for (const [id, accelerator] of Object.entries(shortcuts as Record<string, unknown>)) {
+      // Only short accelerator strings: letters, digits, + and a few symbols.
+      if (typeof accelerator === 'string' && accelerator.length <= 40 && /^[A-Za-z0-9+,./`;'[\]=-]*$/.test(accelerator)) next[id] = accelerator;
+    }
+    menuShortcuts = { ...menuShortcuts, ...next };
+    buildMenu();
   });
   ipcMain.handle('aisai:update:page', () => shell.openExternal(updateStatus.url ?? RELEASES_URL));
 

@@ -1,7 +1,11 @@
 /**
  * API keys for hosted model services, kept in the operating system's
  * credential store through Electron's safeStorage (the macOS Keychain, the
- * Windows DPAPI, libsecret on Linux).
+ * Windows DPAPI, libsecret on Linux; https://www.electronjs.org/docs/latest/api/safe-storage).
+ *
+ * On macOS, the first use of safeStorage asks for the "AISAI Safe Storage"
+ * Keychain item, which may show a password prompt. That is why nothing here
+ * touches it until a key has actually been saved.
  *
  * The renderer can hand a key to the main process and ask whether one is
  * saved, but it can never read a saved key back. The main process adds a

@@ -221,7 +221,7 @@ func (p *OpenAIProvider) ChatTools(ctx context.Context, req ChatRequest) (<-chan
 	if resp.StatusCode != http.StatusOK {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		resp.Body.Close()
-		return nil, fmt.Errorf("openai: chat: %s: %s", resp.Status, p.safe(strings.TrimSpace(string(msg))))
+		return nil, toolsError("openai", resp.StatusCode, resp.Status, p.safe(string(msg)))
 	}
 
 	events := make(chan ToolEvent, 64)

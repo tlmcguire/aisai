@@ -1,3 +1,12 @@
+/**
+ * The toolbar, which is also the window's title bar: the package picker,
+ * Pull, Open folder, the two scans, the chip naming the project being
+ * inspected, and at the right edge (always in view) the update notice, the
+ * model server status, the terminal and Settings. It wraps onto a second row
+ * in a narrow window instead of hiding anything. Dropping a folder on the
+ * window audits it.
+ */
+
 import type { AppController } from '../app';
 import type { UpdateStatus } from '../api/bridge';
 import type { ProviderInfo } from '../api/types';
@@ -51,13 +60,18 @@ export function createToolbar(controller: AppController, container: HTMLElement)
 
   const scanButton = button('Pull', 'primary');
   scanButton.title = 'Download a package, or clone a repository, into this audit. It does not scan.';
+  // data-tour marks the controls the tutorials point at (views/tutorials.ts).
+  scanButton.dataset.tour = 'pull';
   const folderButton = button('Open folder…');
+  folderButton.dataset.tour = 'open-folder';
   folderButton.title = `Inspect a project folder on this computer (${isMac() ? '⌘O' : 'Ctrl+O'}, or drop a folder on the window)`;
   const staticButton = button('Static scan');
   staticButton.title = 'Run the static rules over the pulled code';
+  staticButton.dataset.tour = 'static-scan';
   staticButton.setAttribute('aria-keyshortcuts', isMac() ? 'Meta+Shift+S' : 'Control+Shift+S');
   const llmButton = button('LLM scan');
   llmButton.title = 'Ask the model to review the pulled code';
+  llmButton.dataset.tour = 'llm-scan';
 
   const providerChip = h('span', { class: 'provider-chips' }, h('span', { class: 'badge neutral', text: 'checking provider…' }));
   const mockBadge = h('span', { class: 'badge mock', text: 'MOCK DATA', hidden: true });
@@ -75,6 +89,8 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     { class: 'ghost icon', type: 'button', title: `Settings (${isMac() ? '⌘,' : 'Ctrl+,'})`, 'aria-label': 'Settings' },
     icon('gear'),
   );
+  settingsButton.dataset.tour = 'settings';
+  terminalButton.dataset.tour = 'terminal';
 
   // The self-updater: shown only while there is something to say.
   const updateButton = h('button', { class: 'tiny update-button', type: 'button', hidden: true });
@@ -203,8 +219,15 @@ export function createToolbar(controller: AppController, container: HTMLElement)
       return;
     }
     projectName.textContent = audit.package;
-    projectMeta.textContent = [audit.version && audit.version !== 'local' ? `v${audit.version}` : '', from].filter(Boolean).join(' · ');
-    projectChip.title = `${audit.package}${audit.version ? ` ${audit.version}` : ''} (${from})${audit.fileCount ? ` · ${audit.fileCount} files` : ''}`;
+    const nested = audit.skippedRepos?.length ?? 0;
+    projectMeta.textContent = [
+      audit.version && audit.version !== 'local' ? `v${audit.version}` : '',
+      from,
+      audit.truncated ? 'partial copy' : '',
+      nested ? `${nested} nested repo${nested === 1 ? '' : 's'} skipped` : '',
+    ].filter(Boolean).join(' · ');
+    projectChip.classList.toggle('is-partial', Boolean(audit.truncated) || nested > 0);
+    projectChip.title = `${audit.package}${audit.version ? ` ${audit.version}` : ''} (${from})${audit.fileCount ? ` · ${audit.fileCount} files` : ''}${audit.truncated ? ' · The folder is larger than the copy limit (20,000 files or 256 MB), so only part of it is audited.' : ''}${nested ? ` · Skipped nested repositories (worktrees, submodules or copies, audited separately if you open them): ${audit.skippedRepos?.join(', ')}` : ''}`;
   };
 
   const unsubscribeAudit = useAuditStore.subscribe((state) => {

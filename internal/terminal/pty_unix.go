@@ -14,6 +14,10 @@ import (
 	"github.com/creack/pty"
 )
 
+// unixSession is a shell on a pseudo-terminal: the shell sees a real
+// terminal (so prompts, colours and line editing work), and the app reads
+// and writes the other end. creack/pty opens it and starts the process:
+// https://pkg.go.dev/github.com/creack/pty
 type unixSession struct {
 	cmd    *exec.Cmd
 	ptmx   *os.File

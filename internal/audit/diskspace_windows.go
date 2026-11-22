@@ -11,7 +11,8 @@ import (
 var getDiskFreeSpaceEx = syscall.NewLazyDLL("kernel32.dll").NewProc("GetDiskFreeSpaceExW")
 
 // freeSpace reports the bytes the current user can still write to the disk
-// that holds path.
+// that holds path, honouring disk quotas, through GetDiskFreeSpaceExW:
+// https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-getdiskfreespaceexw
 func freeSpace(path string) (uint64, bool) {
 	p, err := syscall.UTF16PtrFromString(path)
 	if err != nil {

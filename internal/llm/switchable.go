@@ -3,6 +3,8 @@ package llm
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/tlmcguire/aisai/internal/model"
@@ -56,6 +58,26 @@ func HostedHeaders(kind, apiKey string) map[string]string {
 // does not implement, for example unloading models from a vLLM server.
 var ErrNotSupported = errors.New("llm: the active provider does not support this operation")
 
+// ErrToolsUnsupported is returned when the model refuses a request that
+// offers it tools. It wraps ErrNotSupported, so callers that fall back to a
+// plain answer keep working, and lets them tell the user why.
+var ErrToolsUnsupported = fmt.Errorf("the model cannot call tools: %w", ErrNotSupported)
+
+// toolsError turns a failed tool request into ErrToolsUnsupported when the
+// server says the model has no tool support, and into a plain error
+// otherwise. Servers word it differently: Ollama says "does not support
+// tools", llama.cpp and LM Studio mention tools or functions together with
+// "not supported".
+func toolsError(provider string, code int, status, body string) error {
+	msg := strings.TrimSpace(body)
+	lower := strings.ToLower(msg)
+	if code >= 400 && code < 500 && (strings.Contains(lower, "tool") || strings.Contains(lower, "function")) &&
+		(strings.Contains(lower, "not support") || strings.Contains(lower, "unsupported") || strings.Contains(lower, "does not support")) {
+		return fmt.Errorf("%s: %s: %w", provider, msg, ErrToolsUnsupported)
+	}
+	return fmt.Errorf("%s: chat: %s: %s", provider, status, msg)
+}
+
 // Switchable is a Provider whose backend can be replaced while the server
 // runs. Every consumer holds the Switchable, so a provider chosen in the
 // desktop app takes effect for the next scan and the next chat without a
@@ -65,7 +87,14 @@ type Switchable struct {
 	inner Provider
 	kind  string
 	url   string
+	// noTools remembers the models a server refused tool calls for, as
+	// "url|model". An OpenAI-compatible server has no way to ask in advance,
+	// so the first refusal is kept and the app can warn before the next
+	// question. It is forgotten when the provider is switched.
+	noTools map[string]bool
 }
+
+func toolsKey(url, model string) string { return url + "|" + model }
 
 // NewSwitchable wraps a provider. kind is the family reported to the app.
 func NewSwitchable(p Provider, kind, url string) *Switchable {
@@ -76,6 +105,7 @@ func NewSwitchable(p Provider, kind, url string) *Switchable {
 func (s *Switchable) Set(p Provider, kind, url string) {
 	s.mu.Lock()
 	s.inner, s.kind, s.url = p, kind, url
+	s.noTools = nil
 	s.mu.Unlock()
 }
 
@@ -164,7 +194,16 @@ func (s *Switchable) Delegate() Provider { return s.current() }
 // it. Callers fall back to retrieval-only chat on ErrNotSupported.
 func (s *Switchable) ChatTools(ctx context.Context, req ChatRequest) (<-chan ToolEvent, error) {
 	if tp, ok := s.current().(ToolProvider); ok {
-		return tp.ChatTools(ctx, req)
+		events, err := tp.ChatTools(ctx, req)
+		if errors.Is(err, ErrToolsUnsupported) {
+			s.mu.Lock()
+			if s.noTools == nil {
+				s.noTools = map[string]bool{}
+			}
+			s.noTools[toolsKey(s.url, req.Model)] = true
+			s.mu.Unlock()
+		}
+		return events, err
 	}
 	return nil, ErrNotSupported
 }
@@ -173,6 +212,29 @@ var (
 	_ Provider     = (*Switchable)(nil)
 	_ ToolProvider = (*Switchable)(nil)
 )
+
+// SupportsTools reports whether the active provider's model can call tools.
+// known is false when the provider cannot tell (an OpenAI-compatible server
+// has no standard way to ask), in which case a chat simply tries.
+func (s *Switchable) SupportsTools(ctx context.Context, model string) (supported, known bool, err error) {
+	if tp, ok := s.current().(interface {
+		SupportsTools(context.Context, string) (bool, error)
+	}); ok {
+		yes, err := tp.SupportsTools(ctx, model)
+		return yes, err == nil, err
+	}
+	if _, ok := s.current().(ToolProvider); !ok {
+		return false, true, nil
+	}
+	// The server could not be asked, but it may already have refused.
+	s.mu.RLock()
+	refused := s.noTools[toolsKey(s.url, model)]
+	s.mu.RUnlock()
+	if refused {
+		return false, true, nil
+	}
+	return true, false, nil
+}
 
 // SupportsThink reports whether the active provider's model shows its
 // reasoning. A provider that cannot tell answers false.

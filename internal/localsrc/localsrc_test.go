@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -135,5 +136,44 @@ func TestName(t *testing.T) {
 	}
 	if got := Name("/"); got != "project" {
 		t.Errorf("Name(/) = %q", got)
+	}
+}
+
+// A folder that is a repository of its own (a worktree or submodule) is not
+// part of the project: it is skipped and named, not audited as a copy.
+func TestSnapshotSkipsNestedRepositories(t *testing.T) {
+	src := t.TempDir()
+	write := func(rel, body string) {
+		p := filepath.Join(src, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("main.rs", "fn main() {}")
+	write("crates/a/lib.rs", "pub fn a() {}")
+	write("worktree/main.rs", "fn main() {}")
+	write("worktree/.git", "gitdir: /elsewhere") // a linked worktree has a .git file
+	write("sub/lib.rs", "pub fn s() {}")
+	if err := os.MkdirAll(filepath.Join(src, "sub", ".git"), 0o755); err != nil { // a clone has a .git folder
+		t.Fatal(err)
+	}
+
+	dst := t.TempDir()
+	res, err := Snapshot(context.Background(), src, dst, nil, Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sort.Strings(res.NestedRepos)
+	if strings.Join(res.NestedRepos, ",") != "sub,worktree" {
+		t.Fatalf("nested = %v", res.NestedRepos)
+	}
+	if res.Files != 2 {
+		t.Fatalf("copied %d files, want 2 (main.rs and crates/a/lib.rs)", res.Files)
+	}
+	if _, err := os.Stat(filepath.Join(dst, "worktree", "main.rs")); err == nil {
+		t.Error("a file of the nested worktree was copied")
 	}
 }

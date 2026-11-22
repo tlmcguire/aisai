@@ -1,3 +1,16 @@
+/**
+ * The window's layout: toolbar, status and download strips, the three panes
+ * (dependencies, main, findings) in the user's order, the terminal and the
+ * chat, and the dividers between them.
+ *
+ * Divider drags are throttled to one update per animation frame
+ * (rafThrottle), and transitions are switched off while the window itself
+ * is being resized, so nothing wobbles. Sizes are stored in reference
+ * pixels and applied in rem, so the whole interface scales with the
+ * Interface size setting. It also installs the shortcuts and tutorials and
+ * routes application menu commands.
+ */
+
 import type { AppController } from '../app';
 import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
@@ -15,6 +28,7 @@ import { createSettingsDialog } from './settingsDialog';
 import { progressStats } from '../lib/progress';
 import { createTerminalPanel } from './terminalPanel';
 import { installShortcuts } from './shortcuts';
+import { installTutorials } from './tutorials';
 import { createToolbar } from './toolbar';
 
 const TABS: Array<{ id: MainTab; label: string }> = [
@@ -332,6 +346,52 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     'aria-label': 'Resize the terminal',
     hidden: true,
   });
+  /**
+   * A grab handle on a divider: a pill to drag, with two arrows that step the
+   * panel bigger or smaller with a click. Dragging anywhere on the divider
+   * still works; the pill makes it obvious, and the arrows help when a drag
+   * is hard (a trackpad, a tremor).
+   */
+  const grabHandle = (resizer: HTMLElement, name: string, step: (bigger: boolean) => void): (() => void) => {
+    const bigger = h('button', { class: 'grab-arrow', type: 'button', tabindex: '-1' });
+    const smaller = h('button', { class: 'grab-arrow', type: 'button', tabindex: '-1' });
+    const pill = h('span', { class: 'grab-handle', 'aria-hidden': 'true' }, bigger, h('span', { class: 'grab-dots' }), smaller);
+    for (const [button, grow] of [[bigger, true], [smaller, false]] as const) {
+      // A click on an arrow steps; it must not start a drag of the divider.
+      button.addEventListener('pointerdown', (event) => event.stopPropagation());
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        step(grow);
+      });
+      button.addEventListener('dblclick', (event) => event.stopPropagation());
+    }
+    resizer.append(pill);
+    /** Points the arrows the way the panel grows: up, or left when docked at the side. */
+    const sync = (sideways = false): void => {
+      bigger.replaceChildren(icon(sideways ? 'chevron-left' : 'chevron-up'));
+      smaller.replaceChildren(icon(sideways ? 'chevron-right' : 'chevron-down'));
+      bigger.title = `Make the ${name} bigger`;
+      smaller.title = `Make the ${name} smaller`;
+      pill.classList.toggle('is-sideways', sideways);
+    };
+    sync();
+    return () => sync(useUiStore.getState().chatDock === 'right' && name === 'chat');
+  };
+  const STEP = 80;
+  grabHandle(terminalResizer, 'terminal', (grow) => {
+    const ui = useUiStore.getState();
+    ui.setTerminalHeight(ui.terminalHeight + (grow ? STEP : -STEP));
+  });
+  const syncChatHandle = grabHandle(chatResizer, 'chat', (grow) => {
+    const ui = useUiStore.getState();
+    if (ui.chatDock === 'right') ui.setChatWidth(ui.chatWidth + (grow ? STEP : -STEP));
+    else ui.setChatHeight(ui.chatHeight + (grow ? STEP : -STEP));
+  });
+  syncChatHandle();
+  useUiStore.subscribe((state, previous) => {
+    if (state.chatDock !== previous.chatDock) syncChatHandle();
+  });
+
   const stack = h('div', { class: 'stack' }, shell, terminalResizer, terminalPanel);
   const workspace = h('div', { class: 'workspace' }, stack, chatResizer, chatPanel);
   root.append(toolbar, errorBanner, statusStrip, downloadPanel, workspace);
@@ -346,13 +406,32 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const chat = createChatPanel(controller, chatPanel);
   const terminal = createTerminalPanel(controller, terminalPanel);
   const removeShortcuts = installShortcuts(controller, root);
+  const removeTutorials = installTutorials(root);
   const settings = createSettingsDialog(controller, root);
+  // Application menu items; Save, Undo, Redo and Keyboard Shortcuts are
+  // handled with the shortcuts (views/shortcuts.ts).
   const removeMenu = window.aisai.onMenuCommand((command) => {
     const ui = useUiStore.getState();
-    if (command === 'open-folder') void controller.chooseFolder();
-    else {
-      if (command === 'about') ui.setSettingsSection('about');
-      ui.setSettingsOpen(true);
+    switch (command) {
+      case 'open-folder':
+        void controller.chooseFolder();
+        break;
+      case 'about':
+        ui.setSettingsSection('about');
+        ui.setSettingsOpen(true);
+        break;
+      case 'settings':
+        ui.setSettingsOpen(true);
+        break;
+      case 'export-pdf':
+      case 'export-html':
+        window.dispatchEvent(new CustomEvent('aisai:export-report', { detail: command === 'export-pdf' ? 'pdf' : 'html' }));
+        break;
+      case 'tutorials':
+        window.dispatchEvent(new Event('aisai:tutorials'));
+        break;
+      default:
+        break;
     }
   });
 
@@ -674,6 +753,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       chat.dispose();
       terminal.dispose();
       removeShortcuts();
+      removeTutorials();
       window.clearInterval(statsTimer);
       removeMenu();
       settings.dispose();

@@ -6,9 +6,20 @@
  * The editor knows nothing about the backend. The code view gives it callbacks
  * for the things that need one (completion, ask, fix, change, save), so this
  * file stays a plain widget.
+ *
+ * CodeMirror 6 is built from small pieces, and most of this file is made of
+ * three kinds (https://codemirror.net/docs/guide/):
+ *   - StateField: a value kept in the editor state and updated by each
+ *     transaction (the findings, the breakpoints, the paused line).
+ *   - StateEffect: a message a transaction carries to change a field
+ *     ("set these breakpoints"), since the state itself is immutable.
+ *   - Decorations and gutter markers: what a field draws (a line background,
+ *     a dot in the margin), provided to the view from the field.
+ * A ViewPlugin draws the minimap, and Compartments let the language, the
+ * read-only flag and the user's key bindings change without a new editor.
  */
 
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { defaultKeymap, history, indentWithTab, redo, undo } from '@codemirror/commands';
 import { cpp } from '@codemirror/lang-cpp';
 import { go } from '@codemirror/lang-go';
 import { java } from '@codemirror/lang-java';
@@ -30,6 +41,7 @@ import {
 import {
   Decoration,
   EditorView,
+  hoverTooltip,
   GutterMarker,
   ViewPlugin,
   WidgetType,
@@ -48,11 +60,15 @@ import { tags } from '@lezer/highlight';
 
 import type { CodeSelection, Finding, Severity } from '../api/types';
 import { h } from '../lib/dom';
+import { icon, type IconName } from '../lib/icons';
+import { keysFor, toCodeMirror, useKeybindingStore } from '../lib/keybindings';
+import { isMac } from '../lib/shortcuts';
 import { severityColor } from '../lib/severity';
 
 /** What the selection toolbar can do. The code view implements them. */
 export interface SelectionActions {
   ask: (selection: CodeSelection) => void;
+  explain: (selection: CodeSelection) => void;
   fix: (selection: CodeSelection) => void;
   change: (selection: CodeSelection) => void;
 }
@@ -63,8 +79,12 @@ export interface EditorHooks {
   actions: SelectionActions;
   onDirty: (dirty: boolean) => void;
   onSave: () => void;
+  /** ⌘K / Ctrl+K: open the inline chat on the selection or the current line. */
+  onInlineChat?: () => void;
   /** The breakpoint lines changed: a click in the gutter, or an edit moved them. */
   onBreakpoints?: (lines: number[]) => void;
+  /** The value of a variable while the debugger is paused, for hover; null if unknown. */
+  debugValue?: (name: string) => { value: string; type: string } | null;
 }
 
 export interface CodeEditor {
@@ -90,10 +110,19 @@ export interface CodeEditor {
   reveal: (line: number) => void;
   /** Lets completion run only when a model can answer. */
   setCompletionEnabled: (enabled: boolean) => void;
+  /** Undo and redo in the open file, for the menu and focus outside the editor. */
+  undo: () => boolean;
+  redo: () => boolean;
+  /** The line the cursor is on (1-based). */
+  cursorLine: () => number;
+  /** Selects a whole line (1-based). */
+  selectLine: (line: number) => void;
   /** Shows these breakpoint lines (1-based). */
   setBreakpoints: (lines: number[]) => void;
   /** Marks the line the debugger is paused on, or clears it with null. */
   setPausedLine: (line: number | null) => void;
+  /** Shows variable values at the end of the paused line ("a = 1  b = 'x'"). */
+  setInlineValues: (line: number | null, text: string) => void;
   focus: () => void;
   destroy: () => void;
 }
@@ -142,19 +171,21 @@ function languageExtension(language: string, path: string): Extension {
 
 const theme = EditorView.theme(
   {
-    '&': { height: '100%', backgroundColor: 'var(--bg-base)', color: 'var(--fg)' },
-    '.cm-scroller': { fontFamily: 'var(--font-mono)', fontSize: '13px', lineHeight: '20px', overflow: 'auto' },
+    // Colours and sizes come from the editor theme and the accessibility
+    // settings, as CSS variables set by state/prefs.ts.
+    '&': { height: '100%', backgroundColor: 'var(--code-bg, var(--bg-base))', color: 'var(--code-fg, var(--fg))' },
+    '.cm-scroller': { fontFamily: 'var(--font-mono)', fontSize: 'var(--code-font-size, 13px)', lineHeight: 'var(--code-line-height, 1.55)', overflow: 'auto' },
     '.cm-content': { caretColor: 'var(--accent)', padding: '0' },
-    '.cm-gutters': { backgroundColor: 'var(--bg-base)', color: 'var(--fg-muted)', border: 'none' },
+    '.cm-gutters': { backgroundColor: 'var(--code-bg, var(--bg-base))', color: 'var(--code-gutter, var(--fg-muted))', border: 'none' },
     '.cm-lineNumbers .cm-gutterElement': { padding: '0 8px 0 12px', minWidth: '3.2em' },
     '.cm-activeLine': { backgroundColor: 'color-mix(in srgb, var(--accent) 6%, transparent)' },
-    '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--fg)' },
+    '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--code-fg, var(--fg))' },
     '&.cm-focused': { outline: 'none' },
     '&.cm-focused .cm-cursor': { borderLeftColor: 'var(--accent)' },
     '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
       backgroundColor: 'color-mix(in srgb, var(--accent) 28%, transparent) !important',
     },
-    '.cm-ghost': { color: 'var(--fg-muted)', opacity: '0.75', fontStyle: 'italic', whiteSpace: 'pre' },
+    '.cm-ghost': { color: 'var(--code-comment, var(--fg-muted))', opacity: '0.75', fontStyle: 'italic', whiteSpace: 'pre' },
     '.cm-finding-line': { backgroundColor: 'color-mix(in srgb, var(--sev-high, #e5484d) 14%, transparent)' },
     '.cm-finding-gutter': { width: '6px' },
     '.cm-tooltip': { border: 'none', backgroundColor: 'transparent' },
@@ -162,15 +193,20 @@ const theme = EditorView.theme(
   { dark: true },
 );
 
+/**
+ * Syntax colours, as CSS variables so the editor theme can change them
+ * without rebuilding the editor (state/prefs.ts sets them). The tags are
+ * Lezer's highlighting tags: https://lezer.codemirror.net/docs/ref/#highlight.tags
+ */
 const highlight = HighlightStyle.define([
-  { tag: [tags.keyword, tags.modifier, tags.controlKeyword], color: '#c792ea' },
-  { tag: [tags.string, tags.special(tags.string)], color: '#c3e88d' },
-  { tag: [tags.number, tags.bool, tags.null], color: '#f78c6c' },
-  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: '#6b8a88', fontStyle: 'italic' },
-  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: '#82aaff' },
-  { tag: [tags.className, tags.typeName], color: '#ffcb6b' },
-  { tag: [tags.operator, tags.punctuation], color: '#89ddff' },
-  { tag: [tags.propertyName, tags.attributeName], color: '#b2ccd6' },
+  { tag: [tags.keyword, tags.modifier, tags.controlKeyword], color: 'var(--code-keyword)' },
+  { tag: [tags.string, tags.special(tags.string)], color: 'var(--code-string)' },
+  { tag: [tags.number, tags.bool, tags.null], color: 'var(--code-number)' },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: 'var(--code-comment)', fontStyle: 'italic' },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: 'var(--code-function)' },
+  { tag: [tags.className, tags.typeName], color: 'var(--code-type)' },
+  { tag: [tags.operator, tags.punctuation], color: 'var(--code-operator)' },
+  { tag: [tags.propertyName, tags.attributeName], color: 'var(--code-property)' },
 ]);
 
 /* ---------------- findings ---------------- */
@@ -344,6 +380,36 @@ const pausedField = StateField.define<{ line: number | null; deco: DecorationSet
   provide: (field) => EditorView.decorations.from(field, (v) => v.deco),
 });
 
+/* Values of the variables used on the paused line, drawn after its text. */
+const setInlineValuesEffect = StateEffect.define<{ line: number; text: string } | null>();
+
+class InlineValuesWidget extends WidgetType {
+  constructor(private readonly text: string) {
+    super();
+  }
+  override eq(other: InlineValuesWidget): boolean {
+    return other.text === this.text;
+  }
+  override toDOM(): HTMLElement {
+    return h('span', { class: 'cm-inline-values', text: this.text, 'aria-label': `Values: ${this.text}` });
+  }
+}
+
+const inlineValuesField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (!effect.is(setInlineValuesEffect)) continue;
+      const v = effect.value;
+      if (!v || !v.text || v.line < 1 || v.line > tr.state.doc.lines) return Decoration.none;
+      const end = tr.state.doc.line(v.line).to;
+      return Decoration.set([Decoration.widget({ widget: new InlineValuesWidget(v.text), side: 1 }).range(end)]);
+    }
+    return tr.docChanged ? Decoration.none : value;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
 const pausedGutter = gutter({
   class: 'cm-paused-gutter',
   markers: (view) => view.state.field(pausedField).marks,
@@ -405,14 +471,17 @@ function selectionTooltip(actions: () => SelectionActions, describe: (view: Edit
             const selection = describe(view);
             if (selection) run(actions())(selection);
           };
-          const button = (label: string, title: string, onClick: () => void): HTMLElement =>
-            h('button', { class: 'tiny', type: 'button', title, onmousedown: (e: Event) => e.preventDefault(), onclick: onClick }, label);
+          // mousedown is cancelled so the click does not drop the selection.
+          const button = (name: IconName, label: string, title: string, onClick: () => void): HTMLElement =>
+            h('button', { class: 'tiny selection-action', type: 'button', title, onmousedown: (e: Event) => e.preventDefault(), onclick: onClick }, icon(name), label);
           const dom = h(
             'div',
             { class: 'selection-toolbar', role: 'toolbar', 'aria-label': 'Selection actions' },
-            button('Ask in chat', 'Ask the chat about this code', pick((a) => a.ask)),
-            button('Fix', 'Ask the model to fix this code', pick((a) => a.fix)),
-            button('Change…', 'Ask the model to change this code', pick((a) => a.change)),
+            button('pencil', 'Change…', `Say how this code should change (${isMac() ? '⌘K' : 'Ctrl+K'})`, pick((a) => a.change)),
+            button('tool', 'Fix', 'Ask the model to fix a bug or weakness here', pick((a) => a.fix)),
+            h('span', { class: 'selection-sep', 'aria-hidden': 'true' }),
+            button('info', 'Explain', 'Ask the chat to explain this code', pick((a) => a.explain)),
+            button('chat', 'Ask…', 'Put this code in the chat and ask your own question', pick((a) => a.ask)),
           );
           return { dom };
         },
@@ -466,7 +535,8 @@ const revealDecorations = EditorView.decorations.compute([revealField], (state) 
 /** Reveal [from, to) like typing, then glow the lines for a moment. */
 function typeIn(view: EditorView, from: number, to: number): void {
   const length = to - from;
-  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  // The system setting, or the app's own under Settings › Accessibility.
+  const reduce = document.documentElement.dataset.motion === 'reduce';
   const flashAfter = (): void => {
     view.dispatch({ effects: setRevealEffect.of({ hidden: null, flash: { from, to } }) });
     window.setTimeout(() => {
@@ -575,7 +645,7 @@ const minimap = ViewPlugin.fromClass(
       ctx.scale(dpr, dpr);
 
       const css = getComputedStyle(this.view.dom);
-      const ink = css.getPropertyValue('--fg-muted').trim() || '#8ea5a0';
+      const ink = css.getPropertyValue('--code-fg').trim() || css.getPropertyValue('--fg-muted').trim() || '#8ea5a0';
       const accent = css.getPropertyValue('--accent').trim() || '#b4f23c';
       const sevColor: Record<string, string> = {
         critical: css.getPropertyValue('--sev-critical').trim() || '#ff7a6b',
@@ -640,6 +710,33 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
 
   const language = new Compartment();
   const readOnly = new Compartment();
+  /** The keys the user can rebind: save, undo, redo, breakpoint. */
+  const userKeys = new Compartment();
+
+  /** Builds the rebindable part of the keymap from the user's bindings. */
+  const boundKeymap = (): Extension => {
+    const bindings: { key: string; run: (v: EditorView) => boolean; preventDefault?: boolean }[] = [];
+    const add = (id: string, defaults: string, run: (v: EditorView) => boolean): void => {
+      const key = toCodeMirror(keysFor(id, defaults));
+      if (key) bindings.push({ key, run, preventDefault: true });
+    };
+    add('file.save', 'Mod+S', () => {
+      hooks.onSave();
+      return true;
+    });
+    add('edit.undo', 'Mod+Z', undo);
+    add('edit.redo', isMac() ? 'Mod+Shift+Z' : 'Mod+Y', redo);
+    add('editor.inlineChat', 'Mod+K', () => {
+      if (!hooks.onInlineChat) return false;
+      hooks.onInlineChat();
+      return true;
+    });
+    add('editor.breakpoint', 'F9', (v) => {
+      v.dispatch({ effects: toggleBreakpointEffect.of(v.state.doc.lineAt(v.state.selection.main.head).from) });
+      return true;
+    });
+    return Prec.high(keymap.of(bindings));
+  };
 
   const describeSelection = (view: EditorView): CodeSelection | null => {
     const range = view.state.selection.main;
@@ -704,7 +801,17 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
         syntaxHighlighting(highlight),
         breakpointGutter,
         pausedGutter,
-        lineNumbers(),
+        // A click on a line number also sets or removes a breakpoint: the
+        // margin to its left is narrow to aim at.
+        lineNumbers({
+          domEventHandlers: {
+            mousedown(view, line, event) {
+              if ((event as MouseEvent).button !== 0) return false;
+              view.dispatch({ effects: toggleBreakpointEffect.of(line.from) });
+              return true;
+            },
+          },
+        }),
         findingGutter,
         highlightActiveLine(),
         highlightActiveLineGutter(),
@@ -719,6 +826,29 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
         findingDecorations,
         breakpointField,
         pausedField,
+        inlineValuesField,
+        // While paused, hovering a name shows its value. CodeMirror's hover
+        // tooltips: https://codemirror.net/docs/ref/#view.hoverTooltip
+        hoverTooltip((view, pos) => {
+          if (!hooks.debugValue) return null;
+          const word = view.state.wordAt(pos);
+          if (!word) return null;
+          const name = view.state.sliceDoc(word.from, word.to);
+          const found = hooks.debugValue(name);
+          if (!found) return null;
+          return {
+            pos: word.from,
+            end: word.to,
+            above: true,
+            create: () => ({
+              dom: h('div', { class: 'cm-debug-hover' },
+                h('span', { class: 'cm-debug-hover-name', text: name }),
+                h('span', { class: 'cm-debug-hover-type', text: found.type }),
+                h('pre', { class: 'cm-debug-hover-value', text: found.value }),
+              ),
+            }),
+          };
+        }),
         revealField,
         revealDecorations,
         minimap,
@@ -727,14 +857,7 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
         Prec.highest(
           keymap.of([
             { key: 'Tab', run: acceptGhost },
-            {
-              key: 'F9',
-              preventDefault: true,
-              run: (v) => {
-                v.dispatch({ effects: toggleBreakpointEffect.of(v.state.doc.lineAt(v.state.selection.main.head).from) });
-                return true;
-              },
-            },
+
             {
               key: 'Escape',
               run: (v) => {
@@ -744,17 +867,11 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
                 return true;
               },
             },
-            {
-              key: 'Mod-s',
-              preventDefault: true,
-              run: () => {
-                hooks.onSave();
-                return true;
-              },
-            },
+
           ]),
         ),
-        keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+        userKeys.of(boundKeymap()),
+        keymap.of([...defaultKeymap, indentWithTab]),
         EditorView.updateListener.of((update: ViewUpdate) => {
           // Breakpoints the user set or an edit moved are reported; the ones
           // the debug store sent are not echoed back.
@@ -783,6 +900,10 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
   ];
 
   const view = new EditorView({ parent: host, state: EditorState.create({ doc: '', extensions }) });
+  // A binding changed in Settings applies to the open editor at once.
+  const offBindings = useKeybindingStore.subscribe(() => {
+    view.dispatch({ effects: userKeys.reconfigure(boundKeymap()) });
+  });
 
   // Lets a script (the smoke test, a future keyboard command) select whole lines.
   host.addEventListener('aisai:select-lines', (event) => {
@@ -808,6 +929,7 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
         effects: [
           language.reconfigure(languageExtension(lang, path)),
           readOnly.reconfigure(EditorState.readOnly.of(locked)),
+          userKeys.reconfigure(boundKeymap()),
         ],
       });
     },
@@ -875,6 +997,9 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
       if (breakpointLines(view.state).join(',') === [...lines].sort((a, b) => a - b).join(',')) return;
       view.dispatch({ effects: setBreakpointsEffect.of(lines) });
     },
+    setInlineValues: (line, text) => {
+      view.dispatch({ effects: setInlineValuesEffect.of(line === null ? null : { line, text }) });
+    },
     setPausedLine: (line) => {
       if (view.state.field(pausedField).line === line) return;
       const effects: StateEffect<unknown>[] = [setPausedEffect.of(line)];
@@ -883,8 +1008,17 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
       }
       view.dispatch({ effects });
     },
+    undo: () => undo(view),
+    redo: () => redo(view),
+    cursorLine: () => view.state.doc.lineAt(view.state.selection.main.head).number,
+    selectLine: (line) => {
+      const n = Math.max(1, Math.min(view.state.doc.lines, line));
+      const l = view.state.doc.line(n);
+      view.dispatch({ selection: { anchor: l.from, head: l.to } });
+    },
     focus: () => view.focus(),
     destroy: () => {
+      offBindings();
       cancelCompletion();
       view.destroy();
     },

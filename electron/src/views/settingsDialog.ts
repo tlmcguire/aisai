@@ -1,8 +1,19 @@
+/**
+ * Settings: a modal <dialog> with one section at a time (model server,
+ * models, downloaded sources, appearance, accessibility, keyboard, layout,
+ * MCP, about). Sections are re-rendered in place when their data arrives,
+ * keeping focus and scroll. The Keyboard and Accessibility sections live in
+ * views/keyboardSettings.ts and views/accessibilitySettings.ts.
+ */
+
 import type { AppController } from '../app';
 import type { UpdateStatus } from '../api/bridge';
 import type { Audit, Config, ModelInfo, ModelState, ProviderInfo, ProviderKind } from '../api/types';
 import { formatBytes } from '../lib/format';
 import { useAuditStore } from '../state/audit';
+import { useChatStore } from '../state/chat';
+import { renderAccessibility, renderEditorAppearance } from './accessibilitySettings';
+import { renderKeyboardSettings } from './keyboardSettings';
 import { h } from '../lib/dom';
 import { isMac } from '../lib/shortcuts';
 import { ACCENTS, DEFAULT_LAYOUT, LAYOUT_PRESETS, PANE_IDS, PANE_LABELS, useUiStore, type SettingsSection } from '../state/ui';
@@ -104,6 +115,8 @@ const SECTIONS: Array<{ id: SettingsSection; label: string }> = [
   { id: 'models', label: 'Models' },
   { id: 'sources', label: 'Downloaded sources' },
   { id: 'appearance', label: 'Appearance' },
+  { id: 'accessibility', label: 'Accessibility' },
+  { id: 'keyboard', label: 'Keyboard' },
   { id: 'layout', label: 'Layout' },
   { id: 'mcp', label: 'MCP' },
   { id: 'about', label: 'About' },
@@ -710,6 +723,7 @@ export function createSettingsDialog(
       h('h2', { class: 'pref-title', text: 'Appearance' }),
       h('p', { class: 'pref-lede', text: 'The look of the interface and how fixes and completion behave. Remembered on this computer.' }),
       h('div', { class: 'pref-form' }, h('label', { for: 'pref-theme', text: 'Theme' }), themeSelect, h('label', { text: 'Accent colour' }), swatches),
+      renderEditorAppearance(),
       h('h3', { class: 'pref-subtitle', text: 'Behaviour' }),
       check('pref-completion', 'Inline completion in the editor', `Ghost text from the chat model as you type. Toggle anywhere with ${isMac() ? '⌘⌥K' : 'Ctrl+Alt+K'}.`, ui.completionEnabled, (v) => useUiStore.getState().setCompletionEnabled(v)),
       check('pref-web-search', 'Let the assistant search the web', 'Adds web search and page reading to the chat, for advisories, CVEs and library docs. You are asked before the first search of each answer, because the search text leaves your computer.', Boolean(lastConfig?.webSearch), (v) => {
@@ -717,9 +731,22 @@ export function createSettingsDialog(
           if (lastConfig) lastConfig = { ...lastConfig, webSearch: enabled };
         });
       }),
+      ...webSearchWarning(),
       h('p', { class: 'pref-hint', text: 'The assistant can also run commands in the package workspace. Read-only commands (ls, cat, grep, find…) run at once; anything else asks you first, in the chat.' }),
       check('pref-accept-fixed', 'Accepting a proposed fix marks the issue fixed', 'Turn this off to keep the finding open until you triage it yourself.', ui.acceptMarksFixed, (v) => useUiStore.getState().setAcceptMarksFixed(v)),
     );
+  };
+
+  /** Web search needs a model that can call tools; say so when this one cannot. */
+  const webSearchWarning = (): HTMLElement[] => {
+    const model = useChatStore.getState().model;
+    if (!model.available || model.tools !== 'no') return [];
+    return [
+      h('p', { class: 'pref-warning', role: 'note' },
+        h('strong', { text: `${model.name} cannot call tools. ` }),
+        'It cannot search the web, open files or run commands, whatever is switched on here. Choose a model with tool support (for example qwen3 or llama3.1) under Model server.',
+      ),
+    ];
   };
 
   /* ---------------- about ---------------- */
@@ -990,6 +1017,12 @@ export function createSettingsDialog(
         break;
       case 'appearance':
         content = renderAppearance();
+        break;
+      case 'accessibility':
+        content = renderAccessibility(renderSection);
+        break;
+      case 'keyboard':
+        content = renderKeyboardSettings(controller);
         break;
       case 'about':
         content = renderAbout();

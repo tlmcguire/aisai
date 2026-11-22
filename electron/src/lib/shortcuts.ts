@@ -26,12 +26,16 @@ export function parseKeys(spec: string): KeySpec {
 }
 
 /** The physical key of an event, independent of Shift and of the keyboard layout where it matters. */
-function eventKey(event: KeyboardEvent): string {
+export function eventKey(event: KeyboardEvent): string {
   // With Shift held, "/" arrives as "?" and "1" as "!"; the code is stable.
   if (/^Digit\d$/.test(event.code)) return event.code.slice(5);
   if (event.code === 'Slash') return '/';
   if (event.code === 'Comma') return ',';
   if (event.code === 'Backquote') return '`';
+  // On macOS ⌥ turns letters into other characters (⌥S is "ß", ⌥K is "˚"),
+  // so with ⌥ held, or whenever the character is not a plain letter, the
+  // letter comes from the physical key instead.
+  if (/^Key[A-Z]$/.test(event.code) && (event.altKey || !/^[a-z]$/i.test(event.key))) return event.code.slice(3).toLowerCase();
   return event.key.toLowerCase();
 }
 
@@ -69,7 +73,12 @@ export function displayKeys(spec: string, mac = isMac()): string[] {
 }
 
 export interface Shortcut {
+  /** A stable name, the key of the user's own binding ("file.save"). */
+  id: string;
+  /** The default keys; the user's binding replaces them (lib/keybindings.ts). */
   keys: string;
+  /** Keys the user cannot change: the editor's Tab and Escape, copy and paste. */
+  fixed?: boolean;
   label: string;
   group: string;
   /** Runs the action. Leave it out for keys handled elsewhere (the editor's own). */

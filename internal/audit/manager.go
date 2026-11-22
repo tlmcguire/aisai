@@ -123,6 +123,13 @@ type Audit struct {
 	sandboxBytes int64
 	// sourcesDeleted reports that the downloaded sources were deleted.
 	sourcesDeleted bool
+	// advisoriesChecked is how many packages the last advisory lookup queried.
+	advisoriesChecked int
+	// truncated reports that a local folder was larger than the copy limits
+	// (20,000 files or 256 MB), so only part of it is audited.
+	truncated bool
+	// skippedRepos are the nested repositories left out of a local folder.
+	skippedRepos []string
 
 	// findingCount is the number of findings the last scan stored.
 	findingCount int
@@ -451,17 +458,26 @@ func (m *Manager) runLocal(ctx context.Context, a *Audit) error {
 
 	purl := model.PURL("pkg:generic/" + strings.ToLower(dirName))
 	a.mu.Lock()
-	// The graph is the project and the dependencies its manifests declare.
+	// The graph is the project and its dependencies. A lockfile gives the whole
+	// resolved tree with exact versions, transitive dependencies included; with
+	// none, the graph is only what the manifests declare, one level deep.
 	declared, _ := readLocalDeps(a.sourceDir)
-	a.packages, a.edges = localGraph(model.Package{
+	rootPkg := model.Package{
 		PURL:      purl,
 		Name:      a.Package,
 		Version:   "local",
 		Ecosystem: "local",
 		Direct:    true,
-	}, declared)
+	}
+	if pkgs, edges, ok := lockedGraph(rootPkg, readLockfiles(a.sourceDir, declared)); ok {
+		a.packages, a.edges = pkgs, edges
+	} else {
+		a.packages, a.edges = localGraph(rootPkg, declared)
+	}
 	a.pkgByDir = map[string]model.PURL{dirName: purl}
 	a.sandboxBytes = sandboxSize(a.Root)
+	a.truncated = res.Truncated
+	a.skippedRepos = res.NestedRepos
 	a.mu.Unlock()
 
 	return m.finishRun(ctx, a, files)
@@ -880,6 +896,20 @@ func (m *Manager) Graph(ctx context.Context, id string) (*model.Graph, error) {
 		}
 		nodes = append(nodes, node)
 	}
+	// Count the vulnerable packages below each package, so a dependency that
+	// brings one in shows it even when it is itself clean.
+	vulnerable := make([]model.PURL, 0)
+	for _, p := range pkgs {
+		if len(p.Vulnerabilities) > 0 {
+			vulnerable = append(vulnerable, p.PURL)
+		}
+	}
+	if len(vulnerable) > 0 {
+		below := transitiveVulnCounts(edges, vulnerable)
+		for i := range nodes {
+			nodes[i].TransitiveVulns = below[nodes[i].ID]
+		}
+	}
 	sort.Slice(nodes, func(i, j int) bool { return nodes[i].Name < nodes[j].Name })
 
 	return &model.Graph{Nodes: nodes, Edges: edges}, nil
@@ -1168,6 +1198,8 @@ func (a *Audit) snapshot() *model.Audit {
 
 		SandboxBytes:   a.sandboxBytes,
 		SourcesDeleted: a.sourcesDeleted,
+		Truncated:      a.truncated,
+		SkippedRepos:   append([]string(nil), a.skippedRepos...),
 	}
 }
 

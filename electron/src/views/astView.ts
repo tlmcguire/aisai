@@ -1,3 +1,14 @@
+/**
+ * The AST tab: the syntax tree of the open file, from the backend's
+ * tree-sitter parse (https://tree-sitter.github.io/tree-sitter/).
+ *
+ * It has two views: an indented outline, where rows with findings are
+ * marked and a click jumps to the code, and a graph drawn with vis-network
+ * (https://visjs.github.io/vis-network/docs/network/), limited to a depth
+ * the user picks because whole-file trees get large. The graph exports to
+ * PNG (the canvas) and SVG (rebuilt from node positions).
+ */
+
 import type { AppController } from '../app';
 import type { ASTNode, Finding } from '../api/types';
 import { h } from '../lib/dom';
@@ -90,8 +101,14 @@ export function createAstView(controller: AppController, container: HTMLElement)
 
   /** 'tree' is the collapsible list; 'graph' draws the nodes and their parent links. */
   let mode: 'tree' | 'graph' = 'tree';
-  /** The most nodes the graph draws; a syntax tree of a big file has thousands. */
-  const GRAPH_NODE_CAP = 500;
+  /**
+   * The most nodes the graph draws; a syntax tree of a big file has thousands,
+   * and vis-network slows down well before the tens of thousands. The cap
+   * starts low and the note under the graph offers to raise it in steps.
+   */
+  const CAP_STEP = 500;
+  const CAP_MAX = 3000;
+  let graphNodeCap = CAP_STEP;
   let network: VisNetwork | null = null;
   let lastGraphNodes: VisNodeData[] = [];
   let lastGraphEdges: VisEdgeData[] = [];
@@ -417,9 +434,11 @@ export function createAstView(controller: AppController, container: HTMLElement)
     };
     const findings = useFindingsStore.getState().findings.filter((finding) => finding.file === ast.path);
     const shown: ASTNode[] = [];
-    let omitted = 0;
+    let tooDeep = 0;
+    let overCap = 0;
     for (const node of ast.nodes) {
-      if (depthOf(node) > depthLimit || shown.length >= GRAPH_NODE_CAP) omitted += 1;
+      if (depthOf(node) > depthLimit) tooDeep += 1;
+      else if (shown.length >= graphNodeCap) overCap += 1;
       else shown.push(node);
     }
     const ids = new Set(shown.map((node) => node.id));
@@ -445,8 +464,22 @@ export function createAstView(controller: AppController, container: HTMLElement)
 
     lastGraphNodes = nodes;
     lastGraphEdges = edges;
-    graphNote.hidden = omitted === 0;
-    graphNote.textContent = `${omitted} deeper or surplus node(s) are not drawn. Lower the depth or use the tree.`;
+    graphNote.hidden = tooDeep + overCap === 0;
+    const parts: string[] = [];
+    if (tooDeep) parts.push(`${tooDeep} node${tooDeep === 1 ? '' : 's'} deeper than the depth limit`);
+    if (overCap) parts.push(`${overCap} more beyond the ${graphNodeCap}-node drawing limit`);
+    const more = h('button', { class: 'tiny', type: 'button' }, `Draw ${Math.min(CAP_STEP, CAP_MAX - graphNodeCap)} more`);
+    more.addEventListener('click', () => {
+      graphNodeCap = Math.min(CAP_MAX, graphNodeCap + CAP_STEP);
+      graphAst = null; // force a redraw
+      renderGraph();
+    });
+    graphNote.replaceChildren(
+      `Not drawn: ${parts.join(' and ')}. `,
+      ...(overCap && graphNodeCap < CAP_MAX ? [more, ' '] : []),
+      tooDeep ? 'Raise the depth to include the deeper ones. ' : '',
+      overCap && graphNodeCap >= CAP_MAX ? 'The tree view shows every node.' : '',
+    );
 
     void loadVis()
       .then(() => {

@@ -1,3 +1,9 @@
+/**
+ * The Diff tab: a proposed patch shown side by side, from the unified diff
+ * the backend returns (parsed in lib/diff.ts), with Apply to write it to the
+ * copy of the code and Save to export it as a .patch file for git apply.
+ */
+
 import type { AppController } from '../app';
 import type { Finding } from '../api/types';
 import { diffStats, parseUnifiedDiff, toSideBySide, type DiffHunk } from '../lib/diff';

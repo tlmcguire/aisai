@@ -158,3 +158,130 @@ describe('the debug store', () => {
     expect(big[0].text.length).toBe(200_000);
   });
 });
+
+describe('the dependency path and package queries', () => {
+  const node = (id: string, name: string, extra: Partial<{ direct: boolean; root: boolean }> = {}) =>
+    ({ id, label: name, name, version: '1', direct: false, maxSeverity: 'info', findingCount: 0, vulnCount: 0, ...extra }) as never;
+
+  it('finds a path even when another dependent of the target cannot reach the root', async () => {
+    const { findPath } = await import('../src/state/graph');
+    // root → a → t, and an orphan b → t seen later.
+    const nodes = [node('root', 'root', { root: true }), node('a', 'a'), node('b', 'b'), node('t', 't')];
+    const edges = [{ source: 'root', target: 'a' }, { source: 'a', target: 't' }, { source: 'b', target: 't' }];
+    expect(findPath(nodes, edges, 't', 'root')).toEqual(['root', 'a', 't']);
+    expect(findPath(nodes, edges, 'root', 'root')).toEqual(['root']);
+    expect(findPath(nodes, [{ source: 'b', target: 't' }], 't', 'root')).toEqual([]);
+  });
+
+  it('reduces what people paste to a package name', async () => {
+    const { packageNameFromQuery } = await import('../src/state/graph');
+    expect(packageNameFromQuery('urllib3>=2.0; python_version<"3.12"')).toBe('urllib3');
+    expect(packageNameFromQuery('requests[socks]==2.31.0')).toBe('requests');
+    expect(packageNameFromQuery('pkg:pypi/urllib3@2.2.1')).toBe('urllib3');
+    expect(packageNameFromQuery('https://pypi.org/project/Jinja2/')).toBe('Jinja2');
+    expect(packageNameFromQuery('lodash@4.17.21')).toBe('lodash');
+    expect(packageNameFromQuery('@types/node@20.1.0')).toBe('@types/node');
+    expect(packageNameFromQuery('  "MarkupSafe"  ')).toBe('MarkupSafe');
+  });
+
+  it('matches names the way Python normalises them, and suggests close spellings', async () => {
+    const { matchPackage } = await import('../src/state/graph');
+    const nodes = [node('1', 'typing_extensions'), node('2', 'urllib3'), node('3', 'charset-normalizer'), node('4', 'certifi')];
+    expect(matchPackage(nodes, 'Typing-Extensions').match?.name).toBe('typing_extensions');
+    expect(matchPackage(nodes, 'charset').match?.name).toBe('charset-normalizer');
+    const typo = matchPackage(nodes, 'urlib3');
+    expect(typo.match).toBeNull();
+    expect(typo.fuzzy).toBe(true);
+    expect(typo.suggestions[0].name).toBe('urllib3');
+    expect(matchPackage(nodes, 'zzzz').suggestions).toEqual([]);
+  });
+});
+
+describe('the line diff of a proposed change', () => {
+  it('keeps shared lines and marks the rest', async () => {
+    const { diffCounts, diffLines } = await import('../src/lib/linediff');
+    const diff = diffLines('a\nb\nc\n', 'a\nB\nc\nd\n');
+    expect(diff.map((l) => `${l.kind[0]}${l.text}`)).toEqual(['sa', 'rb', 'aB', 'sc', 'ad']);
+    expect(diffCounts(diff)).toEqual({ added: 2, removed: 1 });
+  });
+});
+
+describe('key bindings', () => {
+  it('writes specs canonically and translates them for CodeMirror and menus', async () => {
+    const { normalizeSpec, toAccelerator, toCodeMirror, isPlainTypingKey } = await import('../src/lib/keybindings');
+    expect(normalizeSpec('shift+mod+z')).toBe('Mod+Shift+Z');
+    expect(normalizeSpec('f9')).toBe('F9');
+    expect(toCodeMirror('Mod+Shift+Z')).toBe('Mod-Shift-z');
+    expect(toCodeMirror('F9')).toBe('F9');
+    expect(toAccelerator('Mod+Shift+E')).toBe('CmdOrCtrl+Shift+E');
+    expect(toAccelerator('Mod+,')).toBe('CmdOrCtrl+,');
+    expect(isPlainTypingKey('K')).toBe(true);
+    expect(isPlainTypingKey('Shift+K')).toBe(true);
+    expect(isPlainTypingKey('F5')).toBe(false);
+    expect(isPlainTypingKey('Mod+K')).toBe(false);
+  });
+
+  it('records a key press as a spec', async () => {
+    const { specFromEvent } = await import('../src/lib/keybindings');
+    const press = (init: Partial<KeyboardEvent>) => ({ key: 'k', code: 'KeyK', metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...init }) as KeyboardEvent;
+    expect(specFromEvent(press({ metaKey: true }), true)).toBe('Mod+K');
+    expect(specFromEvent(press({ ctrlKey: true }), false)).toBe('Mod+K');
+    expect(specFromEvent(press({ ctrlKey: true }), true)).toBe('Ctrl+K');
+    expect(specFromEvent(press({ key: 'Shift', code: 'ShiftLeft', shiftKey: true }), true)).toBeNull();
+    expect(specFromEvent(press({ key: '!', code: 'Digit1', shiftKey: true, metaKey: true }), true)).toBe('Mod+Shift+1');
+  });
+});
+
+describe('reading keys on macOS', () => {
+  it('takes the letter from the physical key when Option changes the character', async () => {
+    const { specFromEvent } = await import('../src/lib/keybindings');
+    const press = { key: 'ß', code: 'KeyS', metaKey: true, altKey: true, ctrlKey: false, shiftKey: false } as KeyboardEvent;
+    expect(specFromEvent(press, true)).toBe('Mod+Alt+S');
+  });
+});
+
+describe('the error screen hider', () => {
+  it('restores only what it hid, so an element meant to stay hidden stays hidden', async () => {
+    const { createHider } = await import('../src/views/errorScreen');
+    const shell = { hidden: false };
+    const tourOverlay = { hidden: true }; // only shows while a tour runs
+    const hider = createHider([shell, tourOverlay]);
+    hider.hide();
+    expect(shell.hidden).toBe(true);
+    hider.restore();
+    expect(shell.hidden).toBe(false);
+    expect(tourOverlay.hidden).toBe(true);
+    // Restoring when nothing was hidden changes nothing.
+    hider.restore();
+    expect(tourOverlay.hidden).toBe(true);
+  });
+});
+
+describe('vulnerable dependencies', () => {
+  it('lists the worst first and reads a package url', async () => {
+    const { packageLabel, sortAdvisories } = await import('../src/state/advisories');
+    const sorted = sortAdvisories([
+      { id: 'B', source: 'osv', summary: '', severity: 'low', package: 'pkg:cargo/b@1' },
+      { id: 'A2', source: 'osv', summary: '', severity: 'critical', package: 'pkg:cargo/z@1' },
+      { id: 'A1', source: 'osv', summary: '', severity: 'critical', package: 'pkg:cargo/a@1' },
+    ]);
+    expect(sorted.map((a) => a.id)).toEqual(['A1', 'A2', 'B']);
+    expect(packageLabel('pkg:cargo/time@0.1.43')).toBe('time 0.1.43');
+    expect(packageLabel('pkg:npm/@types/node@20.1.0')).toBe('@types/node 20.1.0');
+    expect(packageLabel(undefined)).toBe('');
+  });
+
+  it('tells "not checked" from "nothing found"', async () => {
+    const { useAdvisoryStore } = await import('../src/state/advisories');
+    const store = useAdvisoryStore.getState();
+    store.setList([], 0, false);
+    expect(useAdvisoryStore.getState().status).toBe('unknown');
+    store.setList([], 40, true);
+    expect(useAdvisoryStore.getState().status).toBe('ready');
+    expect(useAdvisoryStore.getState().checked).toBe(40);
+    store.setChecking();
+    expect(useAdvisoryStore.getState().status).toBe('checking');
+    store.reset();
+    expect(useAdvisoryStore.getState().status).toBe('unknown');
+  });
+});

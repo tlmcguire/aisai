@@ -1,3 +1,13 @@
+/**
+ * The bottom panel: the integrated terminal and the Debug view.
+ *
+ * Each terminal tab is a shell on the backend (a pseudo-terminal in the
+ * audit's folder), drawn with xterm.js (https://xtermjs.org/docs/) and sized
+ * with its fit addon. Keystrokes go to the backend in order; output comes
+ * back as terminal.data events through terminalBus, which bypasses the
+ * store because it is many small chunks a second.
+ */
+
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
@@ -9,6 +19,7 @@ import { terminalBus, useTerminalStore } from '../state/terminal';
 import { DEFAULT_LAYOUT, useUiStore, type BottomView } from '../state/ui';
 import { useDebugStore } from '../state/debug';
 import { createDebugPanel } from './debugPanel';
+import { usePrefsStore } from '../state/prefs';
 import { isGlobalShortcut } from './shortcuts';
 
 export interface TerminalPanel {
@@ -131,7 +142,7 @@ export function createTerminalPanel(controller: AppController, container: HTMLEl
     const term = new Terminal({
       fontFamily: 'JetBrains Mono Variable, ui-monospace, monospace',
       fontSize: 13,
-      cursorBlink: true,
+      cursorBlink: usePrefsStore.getState().cursorBlink,
       theme: terminalTheme(),
       scrollback: 5000,
       allowProposedApi: false,

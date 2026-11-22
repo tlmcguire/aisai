@@ -3397,17 +3397,28 @@ button:focus-visible:hover:not(:disabled) {
 
 /* The minimap beside the code. */
 .cm-editor.has-minimap { position: relative; }
-.cm-editor.has-minimap .cm-scroller { margin-right: 84px; }
+/* A see-through overlay on the right edge: the code stays full width and
+   shows through it, and it firms up under the pointer. It leaves room for
+   the scrollbar so that stays usable. */
 .cm-minimap {
   position: absolute;
   top: 0;
-  right: 0;
+  right: 12px;
   bottom: 0;
   width: 84px;
   height: 100%;
   cursor: pointer;
-  background: var(--bg-inset);
-  border-left: 1px solid var(--border);
+  background: transparent;
+  opacity: 0.55;
+  z-index: 3;
+  transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.cm-minimap:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--code-bg, var(--bg-base)) 70%, transparent);
+}
+[data-minimap='off'] .cm-minimap {
+  display: none;
 }
 
 /* A failed audit or scan, above the workspace. */
@@ -3893,4 +3904,1035 @@ body.is-window-resizing *::after { transition: none !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cm-breakpoint { animation: none; }
+}
+
+/* Report export in the findings rail. */
+.export-row {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.export-label {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+.export-status {
+  flex: 1 1 100%;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  min-height: 0;
+}
+.export-status:empty {
+  display: none;
+}
+.export-status.is-error {
+  color: var(--danger);
+}
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* A model that cannot call tools: the chat header badge, the note under an
+   answer and the warning in Settings. */
+.web-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--fg-muted);
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+}
+.web-badge[hidden] {
+  display: none;
+}
+.web-badge .icon {
+  width: 11px;
+  height: 11px;
+}
+.web-badge.is-warn {
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 60%, transparent);
+  background: var(--warning-soft);
+}
+.web-badge.is-warn .icon {
+  /* a struck-through globe */
+  background: linear-gradient(to top right, transparent 46%, currentColor 46%, currentColor 56%, transparent 56%);
+  border-radius: 50%;
+}
+.chat-notice {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--warning-soft);
+  color: var(--fg);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+.chat-notice .icon {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  margin-top: 1px;
+  color: var(--warning);
+}
+.pref-warning {
+  margin: var(--space-1) 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--warning-soft);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+/* ---------------- accessibility ----------------
+   Each option in Settings › Accessibility is a data attribute on <html>
+   (state/prefs.ts). These rules are the whole of what they do. */
+
+/* Reduce motion: no animation or transition anywhere, including the
+   typewriter reveal of AI edits (codeEditor.ts checks the same attribute). */
+[data-motion='reduce'] *,
+[data-motion='reduce'] *::before,
+[data-motion='reduce'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Higher contrast: secondary text close to primary, borders you can see. */
+:root[data-contrast='high'] {
+  --fg: #ffffff;
+  --fg-muted: #d5e1dd;
+  --fg-subtle: #bfcdc9;
+  --border: #5f7a75;
+  --border-strong: #9ab3ad;
+  --bg-base: #000000;
+  --bg-surface: #071012;
+  --bg-inset: #000000;
+}
+:root[data-theme='light'][data-contrast='high'] {
+  --fg: #000000;
+  --fg-muted: #1d2a26;
+  --fg-subtle: #2a3833;
+  --border: #4f625c;
+  --border-strong: #26332f;
+  --bg-base: #ffffff;
+  --bg-surface: #f6f8f7;
+  --bg-inset: #ffffff;
+}
+[data-contrast='high'] button,
+[data-contrast='high'] input,
+[data-contrast='high'] select,
+[data-contrast='high'] .badge,
+[data-contrast='high'] .chip {
+  border-width: 1.5px;
+}
+
+/* Strong focus: a thick ring on whatever has focus, mouse or keyboard. */
+[data-focus='strong'] :focus,
+[data-focus='strong'] :focus-visible {
+  outline: 3px solid var(--accent) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 30%, transparent) !important;
+}
+[data-focus='strong'] .cm-editor.cm-focused {
+  outline: 3px solid var(--accent) !important;
+}
+
+/* Underlined links. */
+[data-links='underline'] a,
+[data-links='underline'] .link-button,
+[data-links='underline'] .citation,
+[data-links='underline'] .web-link {
+  text-decoration: underline !important;
+  text-underline-offset: 2px;
+}
+
+/* Colour-blind-safe severities (the Okabe–Ito palette, which stays distinct
+   with the common forms of colour blindness:
+   https://jfly.uni-koeln.de/color/). */
+:root[data-severity='colourblind'] {
+  --sev-critical: #e3632c;
+  --sev-high: #e6a700;
+  --sev-medium: #f0e442;
+  --sev-low: #56b4e9;
+  --sev-info: #a7a7a7;
+  --sev-critical-chip: #3a2418;
+  --sev-high-chip: #3a3014;
+  --sev-medium-chip: #36351a;
+  --sev-low-chip: #16303f;
+  --sev-info-chip: #2a2a2a;
+}
+:root[data-theme='light'][data-severity='colourblind'] {
+  --sev-critical: #b24400;
+  --sev-high: #8f5f00;
+  --sev-medium: #6e6400;
+  --sev-low: #005a8f;
+  --sev-info: #4d4d4d;
+  --sev-critical-chip: #fbe0d2;
+  --sev-high-chip: #f8ead0;
+  --sev-medium-chip: #f3f0c7;
+  --sev-low-chip: #d6eaf7;
+  --sev-info-chip: #e6e6e6;
+}
+
+/* Readable spacing in prose: chat answers, notes and descriptions. */
+[data-spacing='readable'] .chat-text,
+[data-spacing='readable'] .chat-message,
+[data-spacing='readable'] .finding-card,
+[data-spacing='readable'] .pref-hint,
+[data-spacing='readable'] .pref-lede,
+[data-spacing='readable'] .tutorial-body,
+[data-spacing='readable'] p {
+  letter-spacing: 0.03em;
+  word-spacing: 0.12em;
+  line-height: 1.8;
+}
+
+/* No blinking caret. */
+[data-blink='off'] .cm-cursorLayer {
+  animation: none !important;
+}
+
+/* Settings › Keyboard */
+.keys-toolbar {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+.keys-filter {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.keys-message {
+  min-height: 1.4em;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+.keys-row {
+  display: grid;
+  grid-template-columns: 1fr auto 4.5rem;
+  gap: var(--space-2);
+  align-items: center;
+  padding: 3px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+.keys-label {
+  font-size: var(--text-sm);
+}
+.keys-button {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 7rem;
+  padding: 3px 8px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.keys-button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.keys-button.is-changed {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.keys-button.is-fixed {
+  cursor: default;
+  opacity: 0.7;
+}
+.keys-button.is-recording {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  animation: keys-pulse 1.2s ease-in-out infinite;
+}
+@keyframes keys-pulse {
+  50% { box-shadow: 0 0 0 5px var(--accent-soft); }
+}
+.keys-button kbd,
+.shortcuts-dialog kbd {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: 1px 5px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg-raised);
+  color: var(--fg);
+}
+
+/* Settings › Appearance › Editor */
+.pref-range {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.pref-range output {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  min-width: 3.5em;
+}
+.pref-actions {
+  margin-top: var(--space-4);
+}
+.code-theme-preview {
+  margin: var(--space-2) 0 var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--code-fg);
+  font-family: var(--font-mono);
+  font-size: var(--code-font-size, 13px);
+  line-height: var(--code-line-height, 1.55);
+  white-space: pre;
+  overflow-x: auto;
+}
+.code-theme-preview .tok-comment { color: var(--code-comment); font-style: italic; }
+.code-theme-preview .tok-keyword { color: var(--code-keyword); }
+.code-theme-preview .tok-function { color: var(--code-function); }
+.code-theme-preview .tok-type { color: var(--code-type); }
+.code-theme-preview .tok-string { color: var(--code-string); }
+.code-theme-preview .tok-number { color: var(--code-number); }
+.code-theme-preview .tok-operator { color: var(--code-operator); }
+
+/* The grab handle on the terminal and chat dividers: a pill you can drag,
+   with arrows that step the panel bigger or smaller. */
+.grab-handle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 15px;
+  padding: 0 2px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  cursor: inherit;
+  transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.grab-handle.is-sideways {
+  flex-direction: column;
+  height: auto;
+  width: 15px;
+  padding: 2px 0;
+}
+.resizer:hover .grab-handle,
+.resizer:focus-visible .grab-handle,
+.resizer:active .grab-handle {
+  color: var(--fg);
+  border-color: var(--accent);
+  transform: translate(-50%, -50%) scale(1.08);
+}
+.grab-dots {
+  width: 8px;
+  height: 5px;
+  background: radial-gradient(circle, currentColor 1px, transparent 1.4px) 0 0 / 4px 3px;
+  opacity: 0.7;
+}
+.grab-handle.is-sideways .grab-dots {
+  width: 5px;
+  height: 8px;
+  background-size: 3px 4px;
+}
+.grab-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 11px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.grab-arrow:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.grab-arrow .icon {
+  width: 9px;
+  height: 9px;
+}
+/* The old hairline grip is replaced by the pill on these two dividers. */
+.resizer:has(.grab-handle)::after {
+  display: none;
+}
+
+/* Debugger: breakpoint list, inline values and hover values. */
+.debug-subhead {
+  margin-top: var(--space-3) !important;
+}
+.debug-breakpoints {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.debug-breakpoint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.debug-bp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex: 0 0 auto;
+}
+.debug-bp-go {
+  flex: 1 1 auto;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.debug-bp-go:hover {
+  color: var(--accent);
+}
+.debug-run-to-cursor .icon {
+  transform: rotate(-90deg);
+}
+.cm-inline-values {
+  margin-left: 2.5ch;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+  font-size: 0.9em;
+  font-style: italic;
+  white-space: pre;
+}
+.cm-debug-hover {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px var(--space-2);
+  max-width: 480px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-pop);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.cm-debug-hover-name {
+  font-weight: 650;
+  color: var(--fg);
+}
+.cm-debug-hover-type {
+  color: var(--fg-muted);
+  justify-self: end;
+}
+.cm-debug-hover-value {
+  grid-column: 1 / -1;
+  margin: 0;
+  max-height: 200px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--accent);
+}
+.cm-lineNumbers .cm-gutterElement {
+  cursor: pointer;
+}
+
+/* Inline chat in the editor: the selection toolbar, the instruction box and
+   the proposed change as a line diff. */
+.selection-toolbar {
+  align-items: center;
+  box-shadow: var(--shadow-pop);
+  border-radius: var(--radius-md);
+}
+.selection-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border-color: transparent;
+}
+.selection-action:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.selection-action .icon {
+  width: 12px;
+  height: 12px;
+}
+.selection-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 2px;
+  background: var(--border);
+}
+.edit-panel {
+  border-left: 3px solid var(--accent);
+  animation: inline-in var(--dur-base) var(--ease-out);
+}
+@keyframes inline-in {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+.edit-panel-head {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.inline-meta {
+  font-size: var(--text-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 40ch;
+}
+.inline-input-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-end;
+  margin-top: var(--space-2);
+}
+.inline-instruction {
+  flex: 1 1 auto;
+  min-width: 0;
+  resize: none;
+  min-height: 2rem;
+  max-height: 140px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--fg);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+}
+.inline-instruction:focus {
+  border-color: var(--accent);
+}
+.inline-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: var(--space-2);
+}
+.inline-suggestion {
+  font-size: var(--text-xs);
+}
+.diff-count {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.diff-count .is-add { color: var(--success); }
+.diff-count .is-remove { color: var(--danger); }
+.inline-diff {
+  margin-top: var(--space-2);
+  max-height: 16rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--code-bg, var(--bg-inset));
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+}
+.inline-diff-line {
+  display: flex;
+  white-space: pre;
+}
+.inline-diff-line code {
+  font: inherit;
+  color: var(--code-fg, var(--fg));
+  padding-right: var(--space-3);
+}
+.inline-diff-mark {
+  flex: 0 0 1.6em;
+  text-align: center;
+  color: var(--fg-subtle);
+  user-select: none;
+}
+.inline-diff-line.is-add {
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+}
+.inline-diff-line.is-add .inline-diff-mark { color: var(--success); }
+.inline-diff-line.is-remove {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+.inline-diff-line.is-remove .inline-diff-mark { color: var(--danger); }
+.inline-diff-line.is-remove code {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--danger) 60%, transparent);
+}
+.inline-refine {
+  width: 100%;
+  margin-top: var(--space-2);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* "Why is this package here?" */
+.why-box {
+  position: relative;
+}
+.why-box input {
+  width: 100%;
+}
+.why-suggestions {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop);
+}
+.why-suggestions[hidden] {
+  display: none;
+}
+.why-heading {
+  padding: 2px 8px 4px;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.why-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.why-option:hover,
+.why-option[aria-selected='true'] {
+  background: var(--accent-soft);
+}
+.why-option-name {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.why-option-version,
+.why-option-kind {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+.why-result {
+  font-size: var(--text-sm);
+  position: relative;
+}
+.why-result:empty {
+  display: none;
+}
+.why-result p {
+  margin: 0 1.6rem var(--space-1) 0;
+  line-height: 1.5;
+}
+.why-clear {
+  position: absolute;
+  top: -2px;
+  right: 0;
+}
+.why-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: var(--space-1) 0;
+}
+.why-chip {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+  color: var(--fg);
+  cursor: pointer;
+}
+.why-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.why-arrow {
+  color: var(--fg-subtle);
+}
+.why-also {
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+}
+
+/* Tutorials: the chooser, and the tour's ring and card. */
+.tutorials-dialog {
+  width: min(560px, calc(100vw - 32px));
+  padding: var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  color: var(--fg);
+  box-shadow: var(--shadow-panel);
+}
+.tutorials-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+.tutorial-lede {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+}
+.tutorial-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.tutorial-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  color: var(--fg);
+  cursor: pointer;
+}
+.tutorial-item:hover {
+  border-color: var(--accent);
+}
+.tutorial-check {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+}
+.tutorial-check.is-done {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--fg-on-accent);
+}
+.tutorial-check .icon {
+  width: 12px;
+  height: 12px;
+}
+.tutorial-text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-sm);
+}
+.tutorial-time {
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.tour-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+.tour-layer[hidden] {
+  display: none;
+}
+.tour-ring {
+  position: fixed;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--accent);
+  /* Dims everything but the control. */
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.42), 0 0 0 6px var(--accent-soft);
+  transition: left var(--dur-base) var(--ease-out), top var(--dur-base) var(--ease-out), width var(--dur-base) var(--ease-out), height var(--dur-base) var(--ease-out);
+}
+.tour-ring[hidden] {
+  display: none;
+}
+.tour-card {
+  position: fixed;
+  width: min(360px, calc(100vw - 24px));
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  color: var(--fg);
+  box-shadow: var(--shadow-panel);
+  pointer-events: auto;
+  animation: inline-in var(--dur-base) var(--ease-out);
+}
+.tour-card.is-centered {
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.42), var(--shadow-panel);
+}
+.tour-head {
+  display: flex;
+  align-items: center;
+}
+.tour-progress {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+.tour-title {
+  margin: var(--space-1) 0 var(--space-2);
+  font-size: var(--text-md);
+}
+.tutorial-body {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+.tour-dots {
+  display: flex;
+  gap: 5px;
+  margin: var(--space-3) 0 var(--space-2);
+}
+.tour-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+.tour-dot.is-past {
+  background: color-mix(in srgb, var(--accent) 50%, var(--border-strong));
+}
+.tour-dot.is-current {
+  background: var(--accent);
+  width: 16px;
+  border-radius: 3px;
+}
+.tour-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.welcome-tour {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) auto 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  background: var(--accent-soft);
+  color: var(--fg);
+  cursor: pointer;
+}
+.welcome-tour .icon {
+  width: 12px;
+  height: 12px;
+  color: var(--accent);
+}
+
+/* In-app confirmation (views/confirm.ts). */
+.confirm-dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  color: var(--fg);
+  box-shadow: var(--shadow-panel);
+}
+.confirm-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+.confirm-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+}
+.confirm-message {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* The package list under the graph: a keyboard and screen-reader route to
+   every node (views/graphView.ts). */
+.graph-list-box {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border);
+  font-size: var(--text-xs);
+}
+.graph-list-summary {
+  padding: var(--space-1) var(--space-3);
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.graph-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--space-2) var(--space-2);
+  max-height: 10rem;
+  overflow: auto;
+}
+.graph-list-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 2px var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+.graph-list-item:hover {
+  background: var(--bg-hover);
+}
+.graph-list-item[aria-pressed='true'] {
+  background: var(--accent-soft);
+}
+.graph-list-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+.graph-list-kind {
+  color: var(--fg-muted);
+}
+
+/* A local folder too big to copy whole: the chip says the audit is partial. */
+.project-chip.is-partial .project-meta {
+  color: var(--warning);
+}
+
+/* Vulnerable dependencies: what the advisory database knows about the locked
+   packages, and the chain of packages that pulls each one in. */
+.vuln-box {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border);
+  font-size: var(--text-xs);
+}
+.vuln-box[hidden] {
+  display: none;
+}
+.vuln-summary {
+  padding: var(--space-1) var(--space-3);
+  color: var(--fg);
+  font-weight: 600;
+  cursor: pointer;
+}
+.vuln-count[hidden] {
+  display: none;
+}
+.vuln-body {
+  max-height: 16rem;
+  overflow: auto;
+  padding: 0 var(--space-3) var(--space-2);
+}
+.vuln-note {
+  margin: 0 0 var(--space-2);
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+.vuln-note.is-error {
+  color: var(--danger);
+}
+.vuln-list {
+  list-style: none;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.vuln-item {
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+.vuln-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.vuln-id {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.vuln-pkg {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+.vuln-pkg:hover:not(:disabled) {
+  color: var(--accent);
+}
+.vuln-summary-text {
+  margin-top: 2px;
+  color: var(--fg);
+  line-height: 1.45;
+}
+.vuln-via {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: var(--space-1);
+}
+.vuln-fix {
+  margin-top: 2px;
+}
+.graph-tip-warn {
+  color: var(--warning);
 }

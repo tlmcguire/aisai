@@ -1,3 +1,12 @@
+/**
+ * The findings of the open audit, with the rail's filters and sort.
+ *
+ * A zustand store (https://zustand.docs.pmnd.rs/): a plain object with
+ * actions, which views read with getState() and follow with subscribe().
+ * The list is filled by AppController.loadFindings and kept current by
+ * finding.created events; filtering happens in the findings rail.
+ */
+
 import { create } from 'zustand';
 
 import type { Finding, FindingState, Severity } from '../api/types';

@@ -13,7 +13,8 @@ export interface ToolStep {
   error?: string;
   /** What the call will do, shown when it needs approval. */
   summary?: string;
-  approval?: 'pending' | 'approved' | 'denied';
+  /** "expired": nobody answered in time, which counts as a refusal but is not the user's choice. */
+  approval?: 'pending' | 'approved' | 'denied' | 'expired';
 }
 
 export interface ChatMessage {
@@ -36,6 +37,8 @@ export interface ChatMessage {
   compacting?: boolean;
   /** A note that the history was compacted for this turn. */
   compacted?: string;
+  /** Something the user should know about this answer (it was given without tools, …). */
+  notice?: string;
 }
 
 /** A conversation about one audit. */
@@ -60,6 +63,13 @@ export interface ChatModelInfo {
   available: boolean;
   /** Why chat is limited, shown to the user when it is not available. */
   reason: string;
+  /**
+   * Whether the model can call tools: "no" means it cannot search the web,
+   * open files or run commands; "unknown" when the server cannot tell.
+   */
+  tools?: 'yes' | 'no' | 'unknown';
+  /** Web search is switched on in Settings. */
+  webSearch?: boolean;
 }
 
 export const NO_CHAT_MODEL: ChatModelInfo = {
@@ -149,6 +159,7 @@ export interface ChatState {
   upsertStep: (jobId: string, step: ToolStep) => void;
   finishAssistant: (jobId: string, citations: string[], chunksUsed: string[]) => void;
   failAssistant: (jobId: string, error: string) => void;
+  addNotice: (jobId: string, text: string) => void;
   setCompacting: (jobId: string, compacting: boolean, note?: string) => void;
   /** Remove a message and everything after it (to edit or retry from there). */
   truncateFrom: (messageId: string) => void;
@@ -364,7 +375,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
               name: step.name || prev.name,
               args: step.args && Object.keys(step.args).length ? step.args : prev.args,
               summary: step.summary ?? prev.summary,
-              approval: step.approval ?? prev.approval,
+              // A timeout is followed by a plain "denied" result; the timeout is the more useful story.
+              approval: prev.approval === 'expired' ? 'expired' : (step.approval ?? prev.approval),
             };
           } else steps.push(step);
           return { ...m, steps };
@@ -409,6 +421,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }),
         { busy: false, error, jobId: null },
       );
+    }),
+
+  addNotice: (jobId, text) =>
+    set((state) => {
+      if (state.jobId !== jobId) return state;
+      return withActive(state, (thread) => ({
+        ...thread,
+        messages: mapStreaming(thread.messages, (m) => ({ ...m, notice: text })),
+      }));
     }),
 
   setCompacting: (jobId, compacting, note) =>

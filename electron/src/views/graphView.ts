@@ -1,6 +1,19 @@
+/**
+ * The dependency graph pane, drawn with vis-network
+ * (https://visjs.github.io/vis-network/docs/network/).
+ *
+ * Packages are sized by importance (the audited package, then direct
+ * dependencies, then by findings) and coloured by their worst severity;
+ * packages with nothing found stay quiet. The layout is forceAtlas2Based
+ * physics, stopped once it has settled so the picture does not drift. Above
+ * it: search, severity filters, the "Why is this package here?" box, and
+ * PNG or SVG export. The colours follow the app's theme.
+ */
+
 import type { AppController } from '../app';
 import { SEVERITIES, type GraphNode, type Severity } from '../api/types';
 import { h } from '../lib/dom';
+import { icon } from '../lib/icons';
 import { severityClass, severityColor, severityFill, severityLabel } from '../lib/severity';
 import {
   createNetwork,
@@ -13,8 +26,9 @@ import {
   type VisNodeData,
 } from '../lib/vis';
 import { useAuditStore } from '../state/audit';
+import { packageLabel, sortAdvisories, useAdvisoryStore } from '../state/advisories';
 import { useUiStore } from '../state/ui';
-import { findPath, useGraphStore } from '../state/graph';
+import { dependentsOf, findPath, matchPackage, useGraphStore } from '../state/graph';
 
 /** The theme colours, read from the page so the graph follows light and dark. */
 function themeColors(): { fg: string; muted: string; bg: string; raised: string; border: string; borderStrong: string; accent: string } {
@@ -56,6 +70,9 @@ function nodeTooltip(node: GraphNode): HTMLElement {
     h('span', { class: 'graph-tip-version', text: node.version }),
     h('div', { class: 'graph-tip-meta', text: `${node.root ? 'package studied' : node.direct ? 'direct dependency' : 'transitive dependency'}` }),
     h('div', { class: 'graph-tip-meta', text: `${node.findingCount} finding${node.findingCount === 1 ? '' : 's'} · ${node.vulnCount} advisor${node.vulnCount === 1 ? 'y' : 'ies'}` }),
+    node.transitiveVulns
+      ? h('div', { class: 'graph-tip-meta graph-tip-warn', text: `${node.transitiveVulns} vulnerable package${node.transitiveVulns === 1 ? '' : 's'} further down` })
+      : null,
   );
 }
 
@@ -209,13 +226,23 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
     'aria-label': 'Search packages in the dependency graph',
   });
 
+  // "Why is this package here?": a combobox that understands what people
+  // paste (requirement lines, package URLs, index pages), suggests names as
+  // you type, and explains the chain that pulled the package in.
   const pathInput = h('input', {
     type: 'search',
     placeholder: 'Why is this package here? e.g. urllib3',
-    'aria-label': 'Path finder: package name',
+    'aria-label': 'Why is this package here? Type a package name',
+    role: 'combobox',
+    'aria-autocomplete': 'list',
+    'aria-expanded': 'false',
+    'aria-controls': 'why-suggestions',
+    autocomplete: 'off',
+    spellcheck: 'false',
   });
-
-  const pathResult = h('span', { class: 'legend-item', text: '' });
+  const suggestionList = h('ul', { class: 'why-suggestions', id: 'why-suggestions', role: 'listbox', hidden: true, 'aria-label': 'Matching packages' });
+  const pathResult = h('div', { class: 'why-result', role: 'status', 'aria-live': 'polite' });
+  const whyBox = h('div', { class: 'why-box' }, pathInput, suggestionList);
 
   const severityChips = SEVERITIES.map((severity) =>
     h(
@@ -242,7 +269,8 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
     { class: 'graph-controls' },
     h('div', { class: 'row' }, searchInput),
     h('div', { class: 'row' }, ...severityChips),
-    h('div', { class: 'row' }, pathInput, pathResult),
+    whyBox,
+    pathResult,
     h(
       'div',
       { class: 'row' },
@@ -263,7 +291,169 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
     cycleBadge,
   );
 
-  container.append(controls, canvas, status, legend);
+  // The canvas cannot be reached with a keyboard or read by a screen reader, so
+  // the same packages are also offered as a list of buttons. Choosing one does
+  // what clicking its node does: selects it, highlights its neighbours and
+  // brings it into view.
+  /** Selects a package everywhere: the store, the highlight, the canvas. */
+  const selectPackage = (id: string): void => {
+    useGraphStore.getState().select(id);
+    highlightNeighbourhood(id);
+    network?.selectNodes([id]);
+    network?.focus(id, { scale: 1.2, animation: true });
+  };
+
+  /* ---- vulnerable dependencies: what OSV knows about the locked packages,
+     and the chain of packages that pulls each one in ---- */
+  const vulnBody = h('div', { class: 'vuln-body' });
+  const vulnCount = h('span', { class: 'badge neutral vuln-count', text: '' });
+  const vulnBox = h('details', { class: 'vuln-box' },
+    h('summary', { class: 'vuln-summary' }, 'Vulnerable dependencies ', vulnCount),
+    vulnBody,
+  );
+  let vulnTouched = false;
+  vulnBox.addEventListener('toggle', () => {
+    vulnTouched = true;
+  });
+
+  /** A package name in a chain, as a chip that selects it in the graph. */
+  const chainChip = (name: string): HTMLElement => {
+    const node = useGraphStore.getState().nodes.find((n) => n.name === name);
+    return h('button', {
+      class: 'why-chip',
+      type: 'button',
+      title: node ? `Show ${name} in the graph` : name,
+      disabled: !node || undefined,
+      onclick: () => node && selectPackage(node.id),
+    }, name);
+  };
+
+  const renderVulns = (): void => {
+    const adv = useAdvisoryStore.getState();
+    const audit = useAuditStore.getState().current;
+    const nodes = useGraphStore.getState().nodes;
+    const local = audit?.source === 'local';
+    vulnBox.hidden = !audit || audit.sourcesDeleted === true || nodes.length === 0;
+    if (vulnBox.hidden) return;
+    const unpinned = nodes.filter((n) => !n.root).length;
+    vulnCount.textContent = adv.status === 'ready' ? String(adv.list.length) : '';
+    vulnCount.hidden = adv.status !== 'ready';
+    vulnCount.className = `badge vuln-count ${adv.list.length ? 'bad' : 'neutral'}`;
+
+    const check = (label: string): HTMLElement =>
+      h('button', { class: 'tiny primary', type: 'button', onclick: () => void _controller.checkDependencies() }, label);
+
+    if (adv.status === 'checking') {
+      vulnBody.replaceChildren(h('p', { class: 'vuln-note', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), ' Checking the dependencies against the advisory database…'));
+      return;
+    }
+    if (adv.status === 'error') {
+      vulnBody.replaceChildren(h('p', { class: 'vuln-note is-error', role: 'alert', text: `The check failed: ${adv.error ?? 'unknown error'}` }), check('Try again'));
+      return;
+    }
+    if (adv.status === 'unknown') {
+      vulnBody.replaceChildren(
+        h('p', { class: 'vuln-note', text: local
+          ? `Not checked yet. This looks up the ${unpinned} locked package${unpinned === 1 ? '' : 's'} (transitive ones included) in the OSV database. It sends their names and versions to osv.dev; your code is not sent.`
+          : 'The advisory lookup runs after the pull. Check again if it did not finish.' }),
+        check('Check for vulnerabilities'),
+      );
+      return;
+    }
+    if (!adv.list.length) {
+      vulnBody.replaceChildren(h('p', { class: 'vuln-note', text: `No known vulnerabilities in ${adv.checked} checked package${adv.checked === 1 ? '' : 's'}. This covers advisories in OSV, not unknown flaws.` }), check('Check again'));
+      return;
+    }
+    if (!vulnTouched) vulnBox.open = true;
+    vulnBody.replaceChildren(
+      h('ul', { class: 'vuln-list' },
+        ...sortAdvisories(adv.list).map((a) => {
+          const via = a.via ?? [];
+          const transitive = via.length > 1;
+          const target = nodes.find((n) => n.id === a.package);
+          return h('li', { class: 'vuln-item' },
+            h('div', { class: 'vuln-head' },
+              h('span', { class: `badge ${severityClass(a.severity)}`, text: severityLabel(a.severity) }),
+              a.url && /^https?:\/\//.test(a.url)
+                ? h('button', { class: 'link-button vuln-id', type: 'button', title: 'Open the advisory in your browser', onclick: () => void window.aisai.openExternal(a.url as string) }, a.id)
+                : h('span', { class: 'vuln-id', text: a.id }),
+              h('button', {
+                class: 'vuln-pkg',
+                type: 'button',
+                disabled: !target || undefined,
+                title: target ? 'Show it in the graph' : '',
+                onclick: () => target && selectPackage(target.id),
+              }, packageLabel(a.package)),
+            ),
+            a.summary ? h('div', { class: 'vuln-summary-text', text: a.summary }) : null,
+            via.length
+              ? h('div', { class: 'vuln-via' },
+                  h('span', { class: 'muted', text: transitive ? 'Pulled in by ' : 'Direct dependency' }),
+                  ...(transitive
+                    ? via.flatMap((name, i) => [i ? h('span', { class: 'why-arrow', 'aria-label': 'which needs', text: '→' }) : '', chainChip(name)])
+                    : []),
+                )
+              : null,
+            transitive ? h('div', { class: 'vuln-fix muted', text: `Update ${via[0]}, which brings it in, to a version that depends on a fixed ${via[via.length - 1]}.` }) : null,
+            a.fixedIn?.length ? h('div', { class: 'vuln-fix muted', text: `Fixed in ${a.fixedIn.slice(0, 4).join(', ')}` }) : null,
+          );
+        }),
+      ),
+      check('Check again'),
+    );
+  };
+  const unsubscribeVulns = useAdvisoryStore.subscribe(renderVulns);
+  const unsubscribeVulnGraph = useGraphStore.subscribe((state, previous) => {
+    if (state.nodes !== previous.nodes) renderVulns();
+  });
+  const unsubscribeVulnAudit = useAuditStore.subscribe((state, previous) => {
+    if (state.current !== previous.current) {
+      vulnTouched = false;
+      vulnBox.open = false;
+      renderVulns();
+    }
+  });
+
+  const listBody = h('ul', { class: 'graph-list', 'aria-label': 'Packages in the dependency graph' });
+  const listBox = h('details', { class: 'graph-list-box' },
+    h('summary', { class: 'graph-list-summary', text: 'Package list (keyboard and screen reader access)' }),
+    listBody,
+  );
+  const renderPackageList = (): void => {
+    if (!listBox.open) return;
+    const { nodes, selectedId } = useGraphStore.getState();
+    const ranked = [...nodes].sort((a, b) => Number(Boolean(b.root)) - Number(Boolean(a.root)) || Number(b.direct) - Number(a.direct) || b.findingCount - a.findingCount || a.name.localeCompare(b.name));
+    listBody.replaceChildren(
+      ...ranked.map((node) => {
+        const kind = node.root ? 'audited package' : node.direct ? 'direct dependency' : 'indirect dependency';
+        const findings = node.findingCount ? `${node.findingCount} finding${node.findingCount === 1 ? '' : 's'}, worst ${node.maxSeverity}` : 'no findings';
+        return h('li', {},
+          h('button', {
+            class: 'graph-list-item',
+            type: 'button',
+            'aria-pressed': String(node.id === selectedId),
+            // Spoken in full, since the row only shows the short form.
+            'aria-label': `${node.name}${node.version && node.version !== 'local' ? ` ${node.version}` : ''}, ${kind}, ${findings}`,
+            onclick: () => selectPackage(node.id),
+          },
+            h('span', { class: 'graph-list-name', text: node.name }),
+            h('span', { class: 'graph-list-kind', text: node.root ? 'audited' : node.direct ? 'direct' : 'indirect' }),
+            node.transitiveVulns && !node.root ? h('span', { class: 'badge warn', title: `${node.transitiveVulns} vulnerable package${node.transitiveVulns === 1 ? '' : 's'} further down`, text: `${node.transitiveVulns} below` }) : null,
+            node.findingCount ? h('span', { class: `badge ${severityClass(node.maxSeverity)}`, text: String(node.findingCount) }) : null,
+          ),
+        );
+      }),
+    );
+  };
+  listBox.addEventListener('toggle', renderPackageList);
+  const unsubscribeList = useGraphStore.subscribe((state, previous) => {
+    if (state.nodes !== previous.nodes || state.selectedId !== previous.selectedId) renderPackageList();
+  });
+
+  canvas.dataset.tour = 'graph';
+  whyBox.dataset.tour = 'why';
+  container.append(controls, canvas, status, vulnBox, listBox, legend);
+  renderVulns();
 
   let network: VisNetwork | null = null;
   let nodeSet: VisDataSet<VisNodeData> | null = null;
@@ -362,44 +552,189 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
     applyFilters();
   });
 
-  const runPathFinder = (): void => {
+  const nameOf = (id: string): string => useGraphStore.getState().nodes.find((n) => n.id === id)?.name ?? id;
+
+  /** A package as a chip that shows it in the graph. */
+  const packageChip = (id: string): HTMLElement =>
+    h('button', {
+      class: 'why-chip',
+      type: 'button',
+      title: 'Show it in the graph',
+      onclick: () => {
+        network?.selectNodes([id]);
+        network?.focus(id, { scale: 1.2, animation: true });
+      },
+    }, nameOf(id));
+
+  /** Shows why a package is in the audit: the chain from the root to it. */
+  const explain = (target: GraphNode): void => {
     const state = useGraphStore.getState();
-    const query = pathInput.value.trim().toLowerCase();
-    if (!query) {
-      state.setPath(null, []);
-      pathResult.textContent = '';
-      applyFilters();
-      return;
-    }
-    const target =
-      state.nodes.find((node) => node.name.toLowerCase() === query) ??
-      state.nodes.find((node) => node.name.toLowerCase().includes(query));
-    if (!target) {
-      state.setPath(null, []);
-      pathResult.textContent = `No package named “${pathInput.value.trim()}” in this audit.`;
-      applyFilters();
-      return;
-    }
-    const rootId = (state.nodes.find((node) => node.root) ?? state.nodes.find((node) => node.direct))?.id;
-    const path = findPath(state.nodes, state.edges, target.id, rootId);
+    const root = state.nodes.find((node) => node.root) ?? state.nodes.find((node) => node.direct);
+    const path = findPath(state.nodes, state.edges, target.id, root?.id);
     state.setPath(target.id, path);
-    pathResult.textContent = path.length
-      ? path.map((id) => state.nodes.find((n) => n.id === id)?.name ?? id).join(' → ')
-      : `No dependency path from the root package to ${target.name}.`;
     applyFilters();
-    if (network && path.length) {
+    const others = dependentsOf(state.edges, target.id).filter((id) => id !== path[path.length - 2]);
+    const also = others.length
+      ? [h('p', { class: 'why-also' }, `Also required by `, ...others.slice(0, 6).flatMap((id, i) => [i ? ', ' : '', packageChip(id)]), others.length > 6 ? ` and ${others.length - 6} more.` : '.')]
+      : [];
+    const clear = h('button', { class: 'ghost tiny icon-button why-clear', type: 'button', title: 'Clear', 'aria-label': 'Clear the answer', onclick: () => resetWhy() }, icon('x'));
+    if (target.root || path.length === 1) {
+      pathResult.replaceChildren(h('p', {}, h('strong', { text: target.name }), ' is the package this audit is about.'), clear);
+    } else if (!path.length) {
+      pathResult.replaceChildren(
+        h('p', {}, h('strong', { text: target.name }), ` is in this audit, but nothing links it to ${root?.name ?? 'the root package'}. It may be optional, platform-specific or declared by a manifest without a resolved parent.`),
+        ...also,
+        clear,
+      );
+    } else {
+      const chain = path.flatMap((id, i) => [i ? h('span', { class: 'why-arrow', 'aria-label': 'depends on', text: '→' }) : '', packageChip(id)]);
+      pathResult.replaceChildren(
+        h('p', {},
+          h('strong', { text: target.name }),
+          path.length === 2 ? ` is a direct dependency of ${nameOf(path[0])}.` : ` is here because ${nameOf(path[0])} needs it through ${path.length - 2} other package${path.length === 3 ? '' : 's'}:`,
+        ),
+        h('div', { class: 'why-chain' }, ...chain),
+        ...also,
+        clear,
+      );
+    }
+    if (network) {
+      network.selectNodes([target.id]);
       network.focus(target.id, { scale: 1.2, animation: true });
     }
   };
 
+  let active = -1;
+  let offered: GraphNode[] = [];
+
+  const closeList = (): void => {
+    suggestionList.hidden = true;
+    pathInput.setAttribute('aria-expanded', 'false');
+    pathInput.removeAttribute('aria-activedescendant');
+    active = -1;
+  };
+
+  const choose = (node: GraphNode): void => {
+    pathInput.value = node.name;
+    closeList();
+    explain(node);
+  };
+
+  const renderList = (items: GraphNode[], heading: string): void => {
+    offered = items;
+    active = -1;
+    if (!items.length) {
+      closeList();
+      return;
+    }
+    suggestionList.replaceChildren(
+      h('li', { class: 'why-heading', role: 'presentation', text: heading }),
+      ...items.map((node, i) =>
+        h('li', {
+          class: 'why-option',
+          id: `why-option-${i}`,
+          role: 'option',
+          'aria-selected': 'false',
+          // mousedown, so the click lands before the input loses focus
+          onmousedown: (event: Event) => {
+            event.preventDefault();
+            choose(node);
+          },
+        },
+          h('span', { class: 'why-option-name', text: node.name }),
+          node.version && node.version !== 'local' ? h('span', { class: 'why-option-version', text: node.version }) : null,
+          h('span', { class: 'grow' }),
+          node.findingCount ? h('span', { class: `badge ${severityClass(node.maxSeverity)}`, text: `${node.findingCount}` }) : null,
+          h('span', { class: 'why-option-kind', text: node.root ? 'audited' : node.direct ? 'direct' : 'indirect' }),
+        ),
+      ),
+    );
+    suggestionList.hidden = false;
+    pathInput.setAttribute('aria-expanded', 'true');
+  };
+
+  const highlight = (index: number): void => {
+    const options = Array.from(suggestionList.querySelectorAll<HTMLElement>('.why-option'));
+    if (!options.length) return;
+    active = (index + options.length) % options.length;
+    options.forEach((el, i) => el.setAttribute('aria-selected', String(i === active)));
+    pathInput.setAttribute('aria-activedescendant', options[active].id);
+    options[active].scrollIntoView({ block: 'nearest' });
+  };
+
+  /** With nothing typed: the indirect packages, the usual "why is this here?" ones. */
+  const offerIndirect = (): void => {
+    const nodes = useGraphStore.getState().nodes.filter((n) => !n.direct && !n.root);
+    const ranked = [...nodes].sort((a, b) => b.findingCount - a.findingCount || a.name.localeCompare(b.name)).slice(0, 8);
+    renderList(ranked, ranked.length ? 'Pulled in indirectly' : '');
+  };
+
+  const onType = (): void => {
+    const query = pathInput.value;
+    if (!query.trim()) {
+      offerIndirect();
+      return;
+    }
+    const result = matchPackage(useGraphStore.getState().nodes, query);
+    renderList(result.suggestions, result.fuzzy ? 'Did you mean' : 'Packages');
+  };
+
+  const resetWhy = (): void => {
+    pathInput.value = '';
+    closeList();
+    useGraphStore.getState().setPath(null, []);
+    pathResult.replaceChildren();
+    applyFilters();
+  };
+
+  const runPathFinder = (): void => {
+    const query = pathInput.value;
+    if (!query.trim()) {
+      resetWhy();
+      return;
+    }
+    const state = useGraphStore.getState();
+    const result = matchPackage(state.nodes, query);
+    if (result.match) {
+      choose(result.match);
+      return;
+    }
+    state.setPath(null, []);
+    applyFilters();
+    if (result.suggestions.length && !result.fuzzy) {
+      pathResult.replaceChildren(h('p', {}, `Several packages match “${result.name}”. Pick one:`), h('div', { class: 'why-chain' }, ...result.suggestions.map((n) => h('button', { class: 'why-chip', type: 'button', onclick: () => choose(n) }, n.name))));
+    } else if (result.fuzzy) {
+      pathResult.replaceChildren(h('p', {}, `No package called “${result.name}” in this audit. Did you mean `, ...result.suggestions.slice(0, 4).flatMap((n, i) => [i ? ', ' : '', h('button', { class: 'why-chip', type: 'button', onclick: () => choose(n) }, n.name)]), '?'));
+    } else {
+      pathResult.replaceChildren(h('p', {}, `No package called “${result.name || query.trim()}” in this audit. It may not be a dependency at all, or it may come from a part of the project AISAI did not resolve. Try part of the name.`));
+    }
+  };
+
+  pathInput.addEventListener('input', onType);
+  pathInput.addEventListener('focus', onType);
+  pathInput.addEventListener('blur', () => window.setTimeout(closeList, 120));
   pathInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
+    if (event.key === 'ArrowDown') {
       event.preventDefault();
-      runPathFinder();
+      if (suggestionList.hidden) onType();
+      highlight(active + 1);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      highlight(active - 1);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      if (active >= 0 && offered[active]) choose(offered[active]);
+      else runPathFinder();
+    } else if (event.key === 'Escape') {
+      if (!suggestionList.hidden) {
+        event.preventDefault();
+        closeList();
+      }
     }
   });
-  pathInput.addEventListener('change', () => {
-    runPathFinder();
+  // The search field's own clear button fires "search" with an empty value.
+  pathInput.addEventListener('search', () => {
+    if (!pathInput.value) resetWhy();
   });
 
   exportPngButton.addEventListener('click', () => {
@@ -515,6 +850,10 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
     element: container,
     dispose: () => {
       destroyed = true;
+      unsubscribeList();
+      unsubscribeVulns();
+      unsubscribeVulnGraph();
+      unsubscribeVulnAudit();
       unsubscribe();
       unsubscribeTheme();
       network?.destroy();

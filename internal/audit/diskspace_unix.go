@@ -8,7 +8,9 @@ import (
 )
 
 // freeSpace reports the bytes an unprivileged process can still write to the
-// disk that holds path.
+// disk that holds path. statfs(2) fills in the block size and the number of
+// blocks available to non-root users (Bavail, not Bfree, which counts the
+// blocks reserved for root): https://man7.org/linux/man-pages/man2/statfs.2.html
 func freeSpace(path string) (uint64, bool) {
 	var st syscall.Statfs_t
 	if err := syscall.Statfs(path, &st); err != nil {

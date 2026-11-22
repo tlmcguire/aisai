@@ -18,8 +18,9 @@ type approvalBook struct {
 }
 
 // wait blocks until the user answers the request, the timeout passes or the
-// context ends. Anything but an explicit yes is a no.
-func (b *approvalBook) wait(ctx context.Context, key string) (bool, error) {
+// context ends. Anything but an explicit yes is a no. timedOut tells a
+// refusal from nobody answering, so the app can say which happened.
+func (b *approvalBook) wait(ctx context.Context, key string) (ok, timedOut bool, err error) {
 	ch := make(chan bool, 1)
 	b.mu.Lock()
 	if b.waiting == nil {
@@ -36,12 +37,12 @@ func (b *approvalBook) wait(ctx context.Context, key string) (bool, error) {
 	timer := time.NewTimer(approvalTimeout)
 	defer timer.Stop()
 	select {
-	case ok := <-ch:
-		return ok, nil
+	case answer := <-ch:
+		return answer, false, nil
 	case <-timer.C:
-		return false, nil
+		return false, true, nil
 	case <-ctx.Done():
-		return false, ctx.Err()
+		return false, false, ctx.Err()
 	}
 }
 
@@ -93,4 +94,34 @@ func (s *Server) handleSetWebSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"enabled": req.Enabled, "saved": true})
+}
+
+// handleChatCapabilities says what the chat model can do, so the app can
+// warn before a question instead of after it: "tools" is "yes", "no" or
+// "unknown" (an OpenAI-compatible server has no standard way to tell).
+// Without tools the model cannot search the web, read files or run commands.
+func (s *Server) handleChatCapabilities(w http.ResponseWriter, r *http.Request) {
+	model := ""
+	if s.models != nil {
+		model = s.models.Chat()
+	}
+	out := map[string]any{"model": model, "tools": "unknown"}
+	type toolProber interface {
+		SupportsTools(ctx context.Context, model string) (supported, known bool, err error)
+	}
+	if p, ok := s.llm.(toolProber); ok && model != "" {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		yes, known, err := p.SupportsTools(ctx, model)
+		switch {
+		case err != nil:
+			out["error"] = err.Error()
+		case !known:
+		case yes:
+			out["tools"] = "yes"
+		default:
+			out["tools"] = "no"
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }

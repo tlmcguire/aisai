@@ -122,7 +122,7 @@ export const DEFAULT_LAYOUT = {
   uiScale: 1,
 } as const;
 
-export type SettingsSection = 'server' | 'models' | 'sources' | 'layout' | 'mcp' | 'about' | 'appearance';
+export type SettingsSection = 'server' | 'models' | 'sources' | 'layout' | 'mcp' | 'about' | 'appearance' | 'keyboard' | 'accessibility';
 
 function loadPersisted(): Partial<PersistedUi> {
   try {

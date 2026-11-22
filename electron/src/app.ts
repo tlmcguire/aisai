@@ -43,6 +43,7 @@ import { useAuditStore } from './state/audit';
 import { useChatStore } from './state/chat';
 import { terminalBus, useTerminalStore } from './state/terminal';
 import { useDebugStore, type DebugFrame, type DebugVariable } from './state/debug';
+import { useAdvisoryStore } from './state/advisories';
 import { useFindingsStore } from './state/findings';
 import { useGraphStore } from './state/graph';
 import { useUiStore } from './state/ui';
@@ -105,6 +106,7 @@ export class AppController {
   /** Load everything that belongs to one audit. */
   async selectAudit(id: string): Promise<void> {
     this.auditId = id;
+    useAdvisoryStore.getState().reset();
     useChatStore.getState().setAudit(id);
     const auditStore = useAuditStore.getState();
     try {
@@ -113,7 +115,7 @@ export class AppController {
     } catch (err) {
       auditStore.setError(messageOf(err));
     }
-    await Promise.all([this.loadGraph(), this.loadFiles(), this.loadFindings()]);
+    await Promise.all([this.loadGraph(), this.loadFiles(), this.loadFindings(), this.loadAdvisories()]);
   }
 
   async loadGraph(): Promise<void> {
@@ -270,17 +272,23 @@ export class AppController {
   }
 
   /** Run a scan (sast or llm) over the current audit. */
-  async runScan(engine: 'sast' | 'llm'): Promise<void> {
+  /**
+   * Runs a scan of the whole audit, or of one file when `path` is given
+   * (workspace-relative). A one-file static scan re-parses the file and
+   * replaces its findings; a one-file LLM scan reviews only that file.
+   */
+  async runScan(engine: 'sast' | 'llm', path?: string): Promise<void> {
     if (!this.auditId) return;
     const auditStore = useAuditStore.getState();
     auditStore.setError(null);
     auditStore.setBusy(`scan:${engine}`);
-    auditStore.setProgress(`${engine} scan`, 0, 'Starting the scan');
+    const where = path ? ` of ${path.split('/').pop()}` : '';
+    auditStore.setProgress(`${engine} scan${where}`, 0, path ? `Scanning ${path}` : 'Starting the scan');
     try {
       const response = await this.client.request<JobResponse>(
         'POST',
         `/api/audits/${this.auditId}/scan`,
-        engine === 'llm' ? { engine } : { engine: 'sast' },
+        { engine, ...(path ? { path } : {}) },
       );
       // The scan runs in the backend after the request returns. The job stays
       // busy until scan.done or scan.error arrives, with polling as a safety net.
@@ -501,20 +509,30 @@ export class AppController {
   }
 
   /** Download the findings as a themed, self-contained HTML report. */
-  async exportReport(): Promise<void> {
-    if (!this.auditId) return;
+  /**
+   * Exports the findings report. HTML is downloaded as it is; PDF is printed
+   * from the same report by the main process and saved where the user picks.
+   */
+  async exportReport(format: 'html' | 'pdf' = 'html'): Promise<{ saved: boolean; path?: string; error?: string }> {
+    if (!this.auditId) return { saved: false, error: 'Open an audit first.' };
+    const name = useAuditStore.getState().current?.package ?? this.auditId;
     try {
       const html = await this.client.requestText('GET', `/api/audits/${this.auditId}/export?format=html`);
+      if (format === 'pdf') {
+        const result = await window.aisai.exportPdf(html, name);
+        return { saved: result.saved, path: result.path };
+      }
       const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
       const link = document.createElement('a');
       link.href = url;
-      link.download = `aisai-${useAuditStore.getState().current?.package ?? this.auditId}-report.html`;
+      link.download = `aisai-${name}-report.html`;
       document.body.append(link);
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return { saved: true };
     } catch (err) {
-      useFindingsStore.getState().setError(messageOf(err));
+      return { saved: false, error: messageOf(err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '') };
     }
   }
 
@@ -556,11 +574,23 @@ export class AppController {
     if (!list.length) reason = 'No model server is configured.';
     else if (!usable.length) reason = 'The model server is not reachable.';
     else if (!name) reason = 'No chat model is selected.';
+    // Whether the model can use tools decides if web search and file reading work.
+    let tools: 'yes' | 'no' | 'unknown' = 'unknown';
+    if (!reason) {
+      try {
+        const caps = await this.client.request<{ tools?: 'yes' | 'no' | 'unknown' }>('GET', '/api/chat/capabilities');
+        tools = caps.tools ?? 'unknown';
+      } catch {
+        /* an older backend: the chat finds out when it asks */
+      }
+    }
     useChatStore.getState().setModel({
       name,
       provider: provider?.kind ?? list[0]?.kind ?? '',
       available: reason === '',
       reason,
+      tools,
+      webSearch: Boolean(config?.webSearch),
     });
   }
 
@@ -611,7 +641,7 @@ export class AppController {
   }
 
   /** Runs a Python file of the local project under the debugger. */
-  async startDebug(program: string, stopOnEntry = false): Promise<void> {
+  async startDebug(program: string, stopOnEntry = false, breakpoints?: Record<string, number[]>): Promise<void> {
     if (!this.auditId) return;
     const debug = useDebugStore.getState();
     if (debug.sessionId && (debug.status === 'running' || debug.status === 'paused' || debug.status === 'starting')) {
@@ -625,7 +655,7 @@ export class AppController {
       const response = await this.client.request<{ id: string; python: string; version?: string; program: string }>('POST', '/api/debug', {
         auditId: this.auditId,
         program,
-        breakpoints: useDebugStore.getState().breakpoints,
+        breakpoints: { ...useDebugStore.getState().breakpoints, ...(breakpoints ?? {}) },
         stopOnEntry,
       });
       const now = useDebugStore.getState();
@@ -636,6 +666,38 @@ export class AppController {
     } catch (err) {
       useDebugStore.getState().failed(messageOf(err));
     }
+  }
+
+  /** Breakpoints to put back once a run-to-cursor has stopped. */
+  private runToCursorRestore: { file: string; lines: number[] } | null = null;
+
+  /**
+   * Runs (or continues) to a line: a breakpoint is set there for one stop
+   * only, and the breakpoints of that file are put back when the program
+   * stops anywhere, so the user's own breakpoints still win if they come first.
+   */
+  async runToCursor(file: string, line: number): Promise<void> {
+    const debug = useDebugStore.getState();
+    const own = debug.breakpoints[file] ?? [];
+    const withTemp = own.includes(line) ? own : [...own, line].sort((a, b) => a - b);
+    if (debug.status === 'paused') {
+      if (!own.includes(line)) {
+        this.runToCursorRestore = { file, lines: own };
+        this.debugSend({ cmd: 'setBreakpoints', file, lines: withTemp });
+      }
+      this.debugSend({ cmd: 'continue' });
+      return;
+    }
+    if (debug.status === 'running' || debug.status === 'starting') return;
+    if (!useDebugStore.getState().consented) {
+      // The first run still needs the user's go-ahead in the panel.
+      useUiStore.getState().setBottomView('debug');
+      useUiStore.getState().setTerminalOpen(true);
+      window.dispatchEvent(new Event('aisai:debug-start'));
+      return;
+    }
+    if (!own.includes(line)) this.runToCursorRestore = { file, lines: own };
+    await this.startDebug(file, false, { [file]: withTemp });
   }
 
   async restartDebug(): Promise<void> {
@@ -716,6 +778,7 @@ export class AppController {
       return;
     }
     if (type === 'debug.exit') {
+      this.runToCursorRestore = null;
       const code = typeof data.code === 'number' ? data.code : 0;
       debug.exited(code);
       useDebugStore.getState().print({ kind: 'info', text: `The program exited with code ${code}.` });
@@ -724,6 +787,12 @@ export class AppController {
     switch (data.event) {
       case 'stopped': {
         const frames = (data.frames as DebugFrame[] | undefined) ?? [];
+        // A run-to-cursor is over: its one-off breakpoint goes away.
+        if (this.runToCursorRestore) {
+          const { file, lines } = this.runToCursorRestore;
+          this.runToCursorRestore = null;
+          this.debugSend({ cmd: 'setBreakpoints', file, lines: useDebugStore.getState().breakpoints[file] ?? lines });
+        }
         if (debug.status === 'starting') useDebugStore.setState({ status: 'running' });
         useDebugStore.getState().stopped({
           reason: String(data.reason ?? ''),
@@ -900,6 +969,7 @@ export class AppController {
   async setWebSearch(enabled: boolean): Promise<boolean> {
     try {
       const response = await this.client.request<{ enabled: boolean }>('POST', '/api/config/web-search', { enabled });
+      void this.refreshChatModel();
       return response.enabled;
     } catch (err) {
       useChatStore.setState({ error: messageOf(err) });
@@ -1030,6 +1100,8 @@ export class AppController {
   async setModels(selection: ModelSelection): Promise<ModelState | null> {
     try {
       const response = await this.client.request<ModelsResponse>('POST', '/api/models', selection);
+      // A new chat model may differ in what it can do (tools, web search).
+      void this.refreshChatModel();
       return {
         models: response.models ?? [],
         chatModel: response.chatModel,
@@ -1107,6 +1179,39 @@ export class AppController {
       return null;
     } finally {
       auditStore.setBusy(null);
+    }
+  }
+
+  /** Reads the advisories already looked up for this audit (no network). */
+  async loadAdvisories(): Promise<void> {
+    if (!this.auditId) return;
+    const id = this.auditId;
+    try {
+      const response = await this.client.request<{ advisories: Advisory[]; fetched?: boolean; checked?: number }>(
+        'GET',
+        `/api/audits/${id}/advisories`,
+      );
+      if (this.auditId !== id) return;
+      useAdvisoryStore.getState().setList(response.advisories ?? [], response.checked ?? 0, Boolean(response.fetched));
+    } catch {
+      /* the list stays as it was */
+    }
+  }
+
+  /**
+   * Looks the dependencies up in the advisory database. This sends their
+   * names and versions to osv.dev, so for a local project it only happens
+   * when the person asks. The lookup runs in the backend; the result arrives
+   * as an advisories.ready event.
+   */
+  async checkDependencies(): Promise<void> {
+    if (!this.auditId) return;
+    const store = useAdvisoryStore.getState();
+    store.setChecking();
+    try {
+      await this.client.request('POST', `/api/audits/${this.auditId}/advisories`, { background: true });
+    } catch (err) {
+      store.setError(messageOf(err));
     }
   }
 
@@ -1197,6 +1302,16 @@ export class AppController {
         void this.selectAudit(this.auditId ?? '');
         break;
       }
+      case 'advisories.ready': {
+        if (event.auditId && event.auditId !== this.auditId) break;
+        if (event.error) {
+          useAdvisoryStore.getState().setError(event.error);
+          break;
+        }
+        // The counts on the graph and the list both changed.
+        void Promise.all([this.loadAdvisories(), this.loadGraph()]);
+        break;
+      }
       case 'audit.error': {
         auditStore.setError(event.error ?? 'The audit failed.');
         auditStore.setProgressVisible(false);
@@ -1260,10 +1375,13 @@ export class AppController {
         if (!event.jobId || !step) break;
         if (step.kind === 'thinking' && step.think) chat.appendThinking(event.jobId, step.think);
         else if (step.kind === 'compacting') chat.setCompacting(event.jobId, true);
+        else if (step.kind === 'notice' && step.output) chat.addNotice(event.jobId, step.output);
         else if (step.kind === 'compacted') {
           chat.setCompacting(event.jobId, false, step.error ? `The conversation could not be summarised (${step.error}); older turns were left out.` : `Conversation compacted: ${step.output ?? 'earlier messages summarised'}.`);
         } else if (step.kind === 'approval' && step.id) {
           chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? 'tool', args: step.args ?? {}, status: 'waiting', summary: step.summary, approval: 'pending' });
+        } else if (step.kind === 'approval_timeout' && step.id) {
+          chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? 'tool', args: {}, status: 'error', approval: 'expired' });
         } else if (step.kind === 'approval_result' && step.id) {
           chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? 'tool', args: {}, status: step.approved ? 'running' : 'error', approval: step.approved ? 'approved' : 'denied' });
         }

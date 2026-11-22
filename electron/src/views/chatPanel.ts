@@ -1,3 +1,16 @@
+/**
+ * The chat panel: conversations about the open audit.
+ *
+ * Each answer streams in token by token (chat.token events) and is drawn
+ * from markdown, with citations of files and lines turned into buttons and
+ * cited web pages into link chips. While it streams, only the text node
+ * that grew is updated, so the rest of the message does not flicker. Tool
+ * steps (files read, commands run) show under the answer, with Allow and
+ * Deny when a command needs approval. Messages can be edited, branched into
+ * a new thread or asked again; failures show a plain reason and Try again.
+ * State lives in state/chat.ts; the backend calls go through AppController.
+ */
+
 import type { AppController } from '../app';
 import type { ChatMessage, ChatThread, ToolStep } from '../state/chat';
 import { h } from '../lib/dom';
@@ -154,6 +167,12 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
   const growButton = h('button', { class: 'ghost tiny icon-button', type: 'button' }, icon('arrow-up'));
   const chunksUsed = h('span', { class: 'chunks-used', text: '' });
   const modelChip = h('span', { class: 'badge neutral chat-model', text: '' });
+  // Shown when web search is on but the model cannot call tools to use it.
+  const webBadge = h('span', { class: 'badge web-badge', hidden: true, role: 'status' }, icon('globe'), h('span', { class: 'web-badge-text' }));
+  webBadge.addEventListener('click', () => {
+    useUiStore.getState().setSettingsSection('server');
+    useUiStore.getState().setSettingsOpen(true);
+  });
 
   /* ---------------- threads ---------------- */
   const threadButton = h('button', { class: 'tiny thread-button', type: 'button', 'aria-haspopup': 'true', 'aria-expanded': 'false' });
@@ -176,6 +195,7 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
     threadWrap,
     newButton,
     modelChip,
+    webBadge,
     growButton,
     toggle,
     h('span', { class: 'grow' }),
@@ -192,6 +212,8 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
   const askButton = h('button', { class: 'primary', type: 'button' }, h('span', { class: 'btn-label', text: 'Ask' }));
   const footer = h('div', { class: 'chat-footer' }, selectionChip, h('div', { class: 'chat-input-row' }, input, askButton));
 
+  container.dataset.tour = 'chat';
+  footer.dataset.tour = 'chat-input';
   container.append(header, messages, footer);
 
   const setOpen = (open: boolean): void => {
@@ -436,7 +458,9 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
         [
           stepIcon(step),
           h('span', { class: 'tool-name', text: stepLabel(step) }),
-          ...(step.approval === 'denied'
+          ...(step.approval === 'expired'
+            ? [h('span', { class: 'badge is-bad', text: 'not run', title: 'Nobody answered within 2 minutes, so the command was not run.' }), h('span', { class: 'muted', text: 'no answer in 2 minutes' })]
+            : step.approval === 'denied'
             ? [h('span', { class: 'badge is-bad', text: 'denied' })]
             : step.approval === 'approved'
               ? [h('span', { class: 'badge neutral', text: 'allowed' })]
@@ -496,6 +520,7 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
       'div',
       { class: `chat-message ${message.role}${waiting ? ' is-pending' : ''}${message.error ? ' is-failed' : ''}`, 'data-id': message.id, 'data-started': String(message.startedAt ?? '') },
       h('div', { class: 'role' }, h('span', { text: message.role }), actions.length ? h('span', { class: 'message-actions' }, ...actions) : null),
+      message.notice ? h('div', { class: 'chat-notice', role: 'note' }, icon('globe'), h('span', { text: message.notice })) : null,
       message.compacted || message.compacting
         ? h('div', { class: 'chat-compacted muted' }, message.compacting ? h('span', { class: 'spinner', 'aria-hidden': 'true' }) : icon('archive'), message.compacting ? 'Compacting the conversation…' : message.compacted ?? '')
         : null,
@@ -614,7 +639,19 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
     modelChip.textContent = model.available ? `${model.name} · ${providerLabel(model.provider)}` : 'no model';
     modelChip.classList.toggle('is-bad', !model.available);
     modelChip.classList.toggle('neutral', model.available);
-    modelChip.title = model.available ? `Answering with ${model.name}` : model.reason;
+    modelChip.title = model.available
+      ? `Answering with ${model.name}${model.tools === 'no' ? ' · this model cannot call tools' : model.tools === 'yes' ? ' · can call tools' : ''}`
+      : model.reason;
+    const noWeb = model.available && model.tools === 'no';
+    webBadge.hidden = !noWeb;
+    webBadge.classList.toggle('is-warn', noWeb && Boolean(model.webSearch));
+    const webText = webBadge.querySelector('.web-badge-text');
+    if (webText) webText.textContent = model.webSearch ? 'no web search' : 'no tools';
+    webBadge.title = model.webSearch
+      ? `Web search is on, but ${model.name} cannot call tools, so it cannot search the web (or open files and run commands). Click to choose a model with tool support, such as qwen3 or llama3.1.`
+      : `${model.name} cannot call tools: it answers from the retrieved code only, and could not search the web even if that were switched on. Click to choose another model.`;
+    webBadge.setAttribute('role', 'button');
+    webBadge.tabIndex = 0;
     input.disabled = !model.available;
     input.placeholder = model.available
       ? 'Ask about this package… e.g. how does it authenticate?'
@@ -729,8 +766,14 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
   }, 1000);
 
   // "Ask in chat" from the editor focuses the input.
-  const onFocusChat = (): void => {
+  // "Explain" in the editor asks straight away; other callers just focus the box.
+  const onFocusChat = (event: Event): void => {
     setOpen(true);
+    const ask = (event as CustomEvent<{ ask?: string } | undefined>).detail?.ask;
+    if (ask && !useChatStore.getState().busy) {
+      input.value = ask;
+      submit();
+    }
     input.focus();
   };
   window.addEventListener('aisai:focus-chat', onFocusChat);

@@ -1,6 +1,16 @@
+/**
+ * The findings rail: every finding of the audit as a card, with search,
+ * severity chips, CWE, tool and state filters, sorting, and triage actions
+ * (confirm, suppress until a date, mark fixed, propose a fix). Its bottom
+ * row exports the report as PDF or HTML; File › Export Report and its
+ * shortcut arrive here as aisai:export-report events.
+ */
+
 import type { AppController } from '../app';
 import { SEVERITIES, type Finding, type FindingState, type Severity } from '../api/types';
 import { h } from '../lib/dom';
+import { setBusy } from './toolbar';
+import { confirmDialog } from './confirm';
 import { icon } from '../lib/icons';
 import { severityClass, severityLabel, severityWeight } from '../lib/severity';
 import { useFindingsStore, type FindingSortKey } from '../state/findings';
@@ -97,8 +107,43 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
   );
 
   const list = h('ul', { class: 'finding-list' });
-  const reportButton = h('button', { class: 'tiny', type: 'button', title: 'Export a report of the findings (HTML, in the aisai theme)' }, 'Export report');
-  reportButton.addEventListener('click', () => void controller.exportReport());
+  // The report, as a PDF to share or as the HTML page it is printed from.
+  const pdfButton = h('button', { class: 'tiny', type: 'button', title: 'Save the findings report as a PDF, laid out for paper' }, h('span', { class: 'btn-label', text: 'PDF' }));
+  const htmlButton = h('button', { class: 'tiny', type: 'button', title: 'Download the findings report as one HTML page, in the aisai theme' }, h('span', { class: 'btn-label', text: 'HTML' }));
+  const exportStatus = h('span', { class: 'export-status', role: 'status', 'aria-live': 'polite' });
+  const runExport = async (format: 'pdf' | 'html', button: HTMLButtonElement): Promise<void> => {
+    setBusy(button, true);
+    exportStatus.className = 'export-status';
+    exportStatus.textContent = format === 'pdf' ? 'Making the PDF…' : '';
+    const result = await controller.exportReport(format);
+    setBusy(button, false);
+    if (result.error) {
+      exportStatus.className = 'export-status is-error';
+      exportStatus.textContent = `Export failed: ${result.error}`;
+      return;
+    }
+    if (!result.saved || !result.path) {
+      exportStatus.textContent = '';
+      return;
+    }
+    const saved = result.path;
+    exportStatus.replaceChildren(
+      `Saved ${saved.split(/[\\/]/).pop() ?? 'the PDF'} · `,
+      h('button', { class: 'link-button', type: 'button', text: 'Show', onclick: () => void window.aisai.showInFolder(saved) }),
+    );
+  };
+  // File › Export Report and its shortcut arrive here, so they share the status line.
+  window.addEventListener('aisai:export-report', async (event) => {
+    const format = (event as CustomEvent<'pdf' | 'html'>).detail === 'html' ? 'html' : 'pdf';
+    if (!useFindingsStore.getState().findings.length) {
+      const ok = await confirmDialog('There are no findings yet, so the report will be empty. Export it anyway?', { confirmLabel: 'Export anyway', cancelLabel: 'Cancel' });
+      if (!ok) return;
+    }
+    void runExport(format, format === 'pdf' ? pdfButton : htmlButton);
+  });
+  pdfButton.addEventListener('click', () => void runExport('pdf', pdfButton));
+  htmlButton.addEventListener('click', () => void runExport('html', htmlButton));
+  const reportRow = h('div', { class: 'row export-row' }, h('span', { class: 'export-label', text: 'Export report' }), pdfButton, htmlButton, exportStatus);
 
   const controls = h(
     'div',
@@ -115,10 +160,12 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
       expiryInput,
     ),
     sortRow,
-    h('div', { class: 'row' }, reportButton),
+    reportRow,
   );
 
   const body = h('div', { class: 'pane-body' }, list);
+  container.dataset.tour = 'findings';
+  reportRow.dataset.tour = 'export';
   container.append(controls, body);
 
   function onSelectChange(select: HTMLSelectElement, kind: 'cwe' | 'tool' | 'state'): void {

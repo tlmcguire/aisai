@@ -1,3 +1,13 @@
+/**
+ * The Debug view of the bottom panel: the controls, the call stack, the
+ * breakpoint list, the variables of the selected frame and a console that
+ * prints the program's output and evaluates expressions.
+ *
+ * It only shows state (state/debug.ts) and asks AppController to act; the
+ * program runs in the backend under a small bdb-based driver
+ * (internal/debug). Debugging is offered for local Python projects only.
+ */
+
 import type { AppController } from '../app';
 import { h } from '../lib/dom';
 import { icon, type IconName } from '../lib/icons';
@@ -50,6 +60,8 @@ export function createDebugPanel(controller: AppController): DebugPanel {
   const overButton = toolButton('step-over', 'Step over', 'F10', () => controller.debugCommand('next'));
   const intoButton = toolButton('step-into', 'Step into', 'F11', () => controller.debugCommand('step'));
   const outButton = toolButton('step-out', 'Step out', 'Shift+F11', () => controller.debugCommand('out'));
+  const cursorButton = toolButton('step-into', 'Run to the cursor line', 'Mod+F10', () => window.dispatchEvent(new Event('aisai:run-to-cursor')));
+  cursorButton.classList.add('debug-run-to-cursor');
   const restartButton = toolButton('restart', 'Restart', 'Mod+Shift+F5', () => void controller.restartDebug());
   const stopButton = toolButton('stop', 'Stop', 'Shift+F5', () => void controller.stopDebug());
   const clearBreakpoints = h('button', { class: 'ghost tiny', type: 'button', title: 'Remove every breakpoint' }, 'Clear breakpoints');
@@ -59,7 +71,7 @@ export function createDebugPanel(controller: AppController): DebugPanel {
     'div',
     { class: 'debug-bar' },
     startButton,
-    h('span', { class: 'debug-tools', role: 'toolbar', 'aria-label': 'Debugger controls' }, continueButton, pauseButton, overButton, intoButton, outButton, restartButton, stopButton),
+    h('span', { class: 'debug-tools', role: 'toolbar', 'aria-label': 'Debugger controls' }, continueButton, pauseButton, overButton, intoButton, outButton, cursorButton, restartButton, stopButton),
     status,
     h('span', { class: 'grow' }),
     clearBreakpoints,
@@ -67,6 +79,7 @@ export function createDebugPanel(controller: AppController): DebugPanel {
 
   const notice = h('div', { class: 'debug-notice', hidden: true });
   const stackList = h('ol', { class: 'debug-stack' });
+  const breakpointList = h('ul', { class: 'debug-breakpoints' });
   const variables = h('div', { class: 'debug-vars' });
   const output = h('div', { class: 'debug-output', role: 'log', 'aria-label': 'Program output' });
   const input = h('input', {
@@ -103,7 +116,7 @@ export function createDebugPanel(controller: AppController): DebugPanel {
   const body = h(
     'div',
     { class: 'debug-body' },
-    h('section', { class: 'debug-section' }, h('h3', { text: 'Call stack' }), stackList),
+    h('section', { class: 'debug-section' }, h('h3', { text: 'Call stack' }), stackList, h('h3', { class: 'debug-subhead', text: 'Breakpoints' }), breakpointList),
     h('section', { class: 'debug-section' }, h('h3', { text: 'Variables' }), variables),
     h(
       'section',
@@ -270,6 +283,28 @@ export function createDebugPanel(controller: AppController): DebugPanel {
           )
         : [h('li', { class: 'muted debug-empty', text: state.status === 'running' ? 'Running. Pause to see the stack.' : 'Not paused' })]),
     );
+
+    // Every breakpoint, to jump to or remove; the hint says how to add one.
+    const entries = Object.entries(state.breakpoints).flatMap(([file, lines]) => lines.map((line) => ({ file, line })));
+    breakpointList.replaceChildren(
+      ...(entries.length
+        ? entries.map(({ file, line }) =>
+            h('li', { class: 'debug-breakpoint' },
+              h('span', { class: 'debug-bp-dot', 'aria-hidden': 'true' }),
+              h('button', { class: 'debug-bp-go', type: 'button', title: `Go to ${file}:${line}`, onclick: () => void controller.openFile(file, line) }, `${baseName(file)}:${line}`),
+              h('button', {
+                class: 'ghost tiny icon-button',
+                type: 'button',
+                title: 'Remove this breakpoint',
+                'aria-label': `Remove the breakpoint at ${baseName(file)} line ${line}`,
+                onclick: () => useDebugStore.getState().toggleBreakpoint(file, line),
+              }, icon('x')),
+            ),
+          )
+        : [h('li', { class: 'muted debug-empty', text: 'None yet. Click a line number in a Python file (or press F9) to add one.' })]),
+    );
+    cursorButton.disabled = !local || !program || state.status === 'running' || state.status === 'starting';
+    cursorButton.title = state.status === 'paused' ? 'Continue to the cursor line (Mod+F10)' : 'Run until the cursor line (Mod+F10)';
 
     variables.replaceChildren(
       ...(state.status === 'paused'
