@@ -30,6 +30,9 @@ import type {
   Patch,
   PatchResponse,
   PackageLookup,
+  LinkInfo,
+  SaveFileResponse,
+  TerminalOpenResponse,
   Ecosystem,
   DownloadEvent,
   ProviderInfo,
@@ -38,6 +41,7 @@ import type {
 } from './api/types';
 import { useAuditStore } from './state/audit';
 import { useChatStore } from './state/chat';
+import { terminalBus, useTerminalStore } from './state/terminal';
 import { useFindingsStore } from './state/findings';
 import { useGraphStore } from './state/graph';
 import { useUiStore } from './state/ui';
@@ -97,6 +101,7 @@ export class AppController {
   /** Load everything that belongs to one audit. */
   async selectAudit(id: string): Promise<void> {
     this.auditId = id;
+    useChatStore.getState().setAudit(id);
     const auditStore = useAuditStore.getState();
     try {
       const response = await this.client.request<AuditResponse>('GET', `/api/audits/${id}`);
@@ -160,6 +165,23 @@ export class AppController {
     await this.beginAudit(packageName, body);
   }
 
+  /** Pull a pasted link: a package page, a package URL or a repository to clone. */
+  async startLinkAudit(url: string): Promise<void> {
+    await this.beginAudit(url, { url });
+  }
+
+  /** Works out what a pasted link refers to. Resolves to an error message when it is none. */
+  async resolveLink(url: string): Promise<{ link?: LinkInfo; error?: string }> {
+    try {
+      return await this.client.request<{ link?: LinkInfo; error?: string }>(
+        'GET',
+        `/api/packages/link?url=${encodeURIComponent(url)}`,
+      );
+    } catch (err) {
+      return { error: messageOf(err) };
+    }
+  }
+
   /** Start a new audit for a project folder the user chose. */
   async startFolderAudit(folder: string): Promise<void> {
     const name = folder.split(/[\\/]/).filter(Boolean).pop() ?? folder;
@@ -187,17 +209,60 @@ export class AppController {
       const response = await this.client.request<AuditResponse>('POST', '/api/audits', body);
       auditStore.setCurrent(response.audit);
       this.auditId = response.audit?.id ?? this.auditId;
+      useChatStore.getState().setAudit(this.auditId);
       await this.reloadAudits();
       // The audit keeps running in the backend after the request returns:
       // the job stays busy until audit.done or audit.error arrives, so the
       // progress strip and the download tracker stay up while it works.
       const status = useAuditStore.getState().current?.status;
       if (status === 'ready' || status === 'failed') auditStore.setBusy(null);
+      else if (this.auditId) this.watchAudit(this.auditId);
     } catch (err) {
       auditStore.setError(messageOf(err));
       auditStore.setProgressVisible(false);
       auditStore.setBusy(null);
     }
+  }
+
+  /**
+   * Follows a running audit by polling, as a safety net for the event stream.
+   *
+   * The audit's progress and completion arrive as events. If the event
+   * connection is down or an event is dropped, the Scan button would stay
+   * disabled for good and the app would look frozen. Asking for the audit's
+   * status every few seconds makes sure it always ends.
+   */
+  private watchAudit(id: string): void {
+    const timer = window.setInterval(() => {
+      const store = useAuditStore.getState();
+      // The events got there first, or another audit was started.
+      if (store.busy !== 'audit' || this.auditId !== id) {
+        window.clearInterval(timer);
+        return;
+      }
+      void this.client
+        .request<AuditResponse>('GET', `/api/audits/${id}`)
+        .then((response) => {
+          const audit = response.audit;
+          const now = useAuditStore.getState();
+          if (!audit || now.busy !== 'audit' || this.auditId !== id) return;
+          if (audit.status === 'ready') {
+            window.clearInterval(timer);
+            now.setProgress('complete', 1, 'Audit complete');
+            now.setProgressVisible(false);
+            now.setBusy(null);
+            void this.selectAudit(id);
+          } else if (audit.status === 'failed') {
+            window.clearInterval(timer);
+            now.setError(audit.error || 'The audit failed.');
+            now.setProgressVisible(false);
+            now.setBusy(null);
+          }
+        })
+        .catch(() => {
+          /* the next tick tries again */
+        });
+    }, 3000);
   }
 
   /** Run a scan (sast or llm) over the current audit. */
@@ -208,17 +273,138 @@ export class AppController {
     auditStore.setBusy(`scan:${engine}`);
     auditStore.setProgress(`${engine} scan`, 0, 'Starting the scan');
     try {
-      await this.client.request<JobResponse>(
+      const response = await this.client.request<JobResponse>(
         'POST',
         `/api/audits/${this.auditId}/scan`,
         engine === 'llm' ? { engine } : { engine: 'sast' },
       );
+      // The scan runs in the backend after the request returns. The job stays
+      // busy until scan.done or scan.error arrives, with polling as a safety net.
+      this.scanJob = response.jobId;
+      this.watchScan(response.jobId, this.auditId);
     } catch (err) {
       auditStore.setError(messageOf(err));
       auditStore.setProgressVisible(false);
-    } finally {
       auditStore.setBusy(null);
     }
+  }
+
+  /** The scan job the app is waiting for. */
+  private scanJob: string | null = null;
+
+  /** Ends the wait for a scan and shows what it found. */
+  private finishScan(jobId: string, error?: string): void {
+    if (this.scanJob !== jobId) return;
+    this.scanJob = null;
+    const store = useAuditStore.getState();
+    if (error) store.setError(error);
+    store.setProgress('complete', 1, error ? 'The scan failed' : 'Scan complete');
+    store.setProgressVisible(false);
+    store.setBusy(null);
+    void Promise.all([this.loadFindings(), this.loadFiles(), this.loadGraph()]);
+  }
+
+  private watchScan(jobId: string, auditId: string): void {
+    const timer = window.setInterval(() => {
+      if (this.scanJob !== jobId) {
+        window.clearInterval(timer);
+        return;
+      }
+      void this.client
+        .request<{ job: { state: string; error?: string } }>('GET', `/api/audits/${auditId}/jobs/${jobId}`)
+        .then((response) => {
+          if (response.job.state === 'done') this.finishScan(jobId);
+          else if (response.job.state === 'failed') this.finishScan(jobId, response.job.error ?? 'The scan failed.');
+        })
+        .catch(() => {
+          /* the next tick tries again */
+        });
+    }, 3000);
+  }
+
+  /** Re-reads the open file after something else changed it on disk (a patch). */
+  async reloadFile(path: string): Promise<void> {
+    if (!this.auditId || useWorkspaceStore.getState().file?.path !== path) return;
+    try {
+      const response = await this.client.request<{ file: FileContent }>(
+        'GET',
+        `/api/audits/${this.auditId}/file?path=${encodeURIComponent(path)}`,
+      );
+      useWorkspaceStore.getState().setFile(response.file);
+      await this.loadAst(path);
+    } catch {
+      /* the open copy stays; the next open reads it again */
+    }
+  }
+
+  /**
+   * Saves an edit made in the editor.
+   *
+   * The backend backs the file up and records the change, so it shows up in
+   * the Changes view and can be reverted; it also re-scans the file, so the
+   * findings follow the new text.
+   */
+  async saveFile(path: string, content: string): Promise<boolean> {
+    if (!this.auditId) return false;
+    const auditStore = useAuditStore.getState();
+    try {
+      const response = await this.client.request<SaveFileResponse>(
+        'PUT',
+        `/api/audits/${this.auditId}/file`,
+        { path, content },
+      );
+      if (response.error) auditStore.setError(`Saved, but the re-scan failed: ${response.error}`);
+      await Promise.all([this.loadFindings(), this.loadFiles(), this.loadAst(path)]);
+      // The open copy becomes what was saved, with the findings of the
+      // re-scan: Discard then goes back to the saved text, not the old one.
+      const workspace = useWorkspaceStore.getState();
+      if (workspace.file?.path === path) {
+        workspace.setFile({
+          ...workspace.file,
+          lines: content.split('\n'),
+          findings: useFindingsStore.getState().findings.filter((f) => f.file === path),
+        });
+      }
+      return true;
+    } catch (err) {
+      auditStore.setError(messageOf(err));
+      return false;
+    }
+  }
+
+  /** Inline completion for the cursor position. Resolves to '' when there is none. */
+  async complete(path: string, language: string, prefix: string, suffix: string): Promise<string> {
+    if (!this.auditId || !useChatStore.getState().model.available) return '';
+    try {
+      const response = await this.client.request<{ completion: string }>(
+        'POST',
+        `/api/audits/${this.auditId}/complete`,
+        { path, language, prefix, suffix },
+      );
+      return response.completion ?? '';
+    } catch {
+      return '';
+    }
+  }
+
+  /** Asks the model to rewrite a selection. Throws the backend's message on failure. */
+  async editSelection(request: {
+    path: string;
+    language: string;
+    before: string;
+    selection: string;
+    after: string;
+    instruction: string;
+    startLine: number;
+    endLine: number;
+  }): Promise<string> {
+    if (!this.auditId) throw new Error('Open an audit first.');
+    const response = await this.client.request<{ replacement: string }>(
+      'POST',
+      `/api/audits/${this.auditId}/edit-selection`,
+      request,
+    );
+    return response.replacement;
   }
 
   /** Open a file in the code pane and optionally jump to a line. */
@@ -294,6 +480,9 @@ export class AppController {
         { path, unified: patch.unified },
       );
       await this.loadFindings();
+      // The open file must show the patched text, or a later save from the
+      // editor would silently undo the fix.
+      await this.reloadFile(path);
       return response;
     } catch (err) {
       auditStore.setError(messageOf(err));
@@ -349,18 +538,92 @@ export class AppController {
     });
   }
 
+  /* ---------------------------------------------------------------- */
+  /* Terminals                                                         */
+  /* ---------------------------------------------------------------- */
+
+  /** Keystrokes are sent in order: each one waits for the one before it. */
+  private terminalQueue: Promise<unknown> = Promise.resolve();
+  private terminalsReset = false;
+
+  /** Starts a shell in the folder of the current audit (or the home folder). */
+  async openTerminal(cols: number, rows: number): Promise<string | null> {
+    const terminals = useTerminalStore.getState();
+    // Shells left by an earlier window (a reload) are ended once, first.
+    if (!this.terminalsReset) {
+      this.terminalsReset = true;
+      await this.client.request('DELETE', '/api/terminals').catch(() => undefined);
+    }
+    try {
+      const response = await this.client.request<TerminalOpenResponse>('POST', '/api/terminals', {
+        auditId: this.auditId ?? '',
+        cols,
+        rows,
+      });
+      const used = terminals.sessions.length + 1;
+      const folder = response.cwd.split(/[\\/]/).filter(Boolean).pop() ?? 'shell';
+      terminals.add({ id: response.id, title: `${folder} (${used})`, cwd: response.cwd });
+      return response.id;
+    } catch (err) {
+      terminals.setError(messageOf(err));
+      return null;
+    }
+  }
+
+  terminalInput(id: string, data: string): void {
+    this.terminalQueue = this.terminalQueue
+      .then(() => this.client.request('POST', `/api/terminals/${id}/input`, { data }))
+      .catch(() => undefined);
+  }
+
+  terminalResize(id: string, cols: number, rows: number): void {
+    void this.client.request('POST', `/api/terminals/${id}/resize`, { cols, rows }).catch(() => undefined);
+  }
+
+  async closeTerminal(id: string): Promise<void> {
+    useTerminalStore.getState().remove(id);
+    terminalBus.forget(id);
+    try {
+      await this.client.request('DELETE', `/api/terminals/${id}`);
+    } catch {
+      /* it may have ended on its own */
+    }
+  }
+
+  /** Names a conversation from its first exchange. The start of the question stays when this fails. */
+  async nameThread(threadId: string, question: string, answer: string): Promise<void> {
+    try {
+      const response = await this.client.request<{ title: string }>('POST', '/api/chat/title', { question, answer });
+      if (response.title) useChatStore.getState().autoTitleThread(threadId, response.title);
+    } catch {
+      /* the provisional title is fine */
+    }
+  }
+
   /** Ask a question about the current audit. */
   async ask(question: string): Promise<void> {
     const chat = useChatStore.getState();
     // The panel disables its input when no model is usable; this guards
     // every other caller.
     if (!chat.model.available) return;
-    chat.pushUser(question);
+    const selection = chat.selection;
+    // The thread so far is the conversation the model continues.
+    // Failed and stopped turns are not part of the conversation.
+    const history = chat.messages
+      .filter((m) => m.content && !m.streaming)
+      .filter((m) => !(m.role === 'assistant' && (m.content.startsWith('The assistant could not answer:') || m.content === 'Stopped.')))
+      .slice(-8)
+      .map((m) => ({ role: m.role, content: m.content }));
+    chat.pushUser(
+      selection ? `${question}\n[${selection.file}:${selection.startLine}-${selection.endLine}]` : question,
+    );
+    chat.setSelection(null);
     try {
       const response = await this.client.request<JobResponse>('POST', '/api/chat', {
         auditId: this.auditId ?? '',
         question,
-        history: [],
+        history,
+        ...(selection ? { selection } : {}),
       });
       chat.startAssistant(response.jobId);
     } catch (err) {
@@ -663,6 +926,14 @@ export class AppController {
         auditStore.setBusy(null);
         break;
       }
+      case 'scan.done': {
+        if (event.jobId) this.finishScan(event.jobId);
+        break;
+      }
+      case 'scan.error': {
+        if (event.jobId) this.finishScan(event.jobId, event.error ?? 'The scan failed.');
+        break;
+      }
       case 'scan.progress': {
         auditStore.setProgress(
           event.phase ?? 'scanning',
@@ -684,14 +955,55 @@ export class AppController {
         }
         break;
       }
+      case 'terminal.data': {
+        const data = event.data as { data?: string } | undefined;
+        if (event.jobId && data?.data) {
+          const raw = atob(data.data);
+          const bytes = new Uint8Array(raw.length);
+          for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+          terminalBus.emit(event.jobId, bytes);
+        }
+        break;
+      }
+      case 'terminal.exit': {
+        const data = event.data as { code?: number } | undefined;
+        if (event.jobId) useTerminalStore.getState().markExited(event.jobId, data?.code ?? 0);
+        break;
+      }
+      case 'chat.step': {
+        const step = event.data as
+          | { kind: string; think?: string; id?: string; name?: string; args?: Record<string, unknown>; output?: string; error?: string }
+          | undefined;
+        if (!event.jobId || !step) break;
+        if (step.kind === 'thinking' && step.think) chat.appendThinking(event.jobId, step.think);
+        else if (step.kind === 'tool' && step.id) {
+          chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? 'tool', args: step.args ?? {}, status: 'running' });
+        } else if (step.kind === 'tool_result' && step.id) {
+          chat.upsertStep(event.jobId, {
+            id: step.id,
+            name: step.name ?? 'tool',
+            args: {},
+            status: step.error ? 'error' : 'done',
+            output: step.output,
+            error: step.error,
+          });
+        }
+        break;
+      }
       case 'chat.done': {
         const data = event.data as ChatDoneData | undefined;
         if (event.jobId) {
+          const thread = chat.activeThread();
           chat.finishAssistant(
             event.jobId,
             data?.citations ?? [],
             data?.chunksUsed ?? [],
           );
+          // The first exchange of a thread names it.
+          const first = thread?.messages.find((m) => m.role === 'user');
+          if (thread && thread.autoTitle && thread.messages.filter((m) => m.role === 'user').length === 1 && first) {
+            void this.nameThread(thread.id, first.content, (data as { answer?: string } | undefined)?.answer ?? '');
+          }
         }
         break;
       }

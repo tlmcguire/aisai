@@ -218,7 +218,7 @@ describe('mock AISAI backend', () => {
     });
     expect(typeof jobId).toBe('string');
 
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await new Promise((resolve) => setTimeout(resolve, 3200));
     expect(deltas.join('')).toContain('hmac.compare_digest');
     expect(done).not.toBeNull();
     expect((done as unknown as { citations: string[] }).citations.length).toBeGreaterThan(0);

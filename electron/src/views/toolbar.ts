@@ -4,6 +4,7 @@ import type { ProviderInfo } from '../api/types';
 import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { brandMark } from '../lib/logo';
+import { isMac } from '../lib/shortcuts';
 import { useAuditStore } from '../state/audit';
 import { useUiStore } from '../state/ui';
 import { createPackagePicker } from './packagePicker';
@@ -39,16 +40,30 @@ export function createToolbar(controller: AppController, container: HTMLElement)
   const picker = createPackagePicker(controller);
   const brand = h('div', { class: 'brand' }, brandMark(), h('span', { class: 'brand-name', text: 'aisai' }));
 
-  const scanButton = button('Scan', 'primary');
+  const scanButton = button('Pull', 'primary');
+  scanButton.title = 'Download a package, or clone a repository, into this audit. It does not scan.';
   const folderButton = button('Open folder…');
-  folderButton.title = 'Inspect a project folder on this computer (Ctrl/Cmd+O, or drop a folder on the window)';
-  const llmButton = button('Scan LLM');
+  folderButton.title = `Inspect a project folder on this computer (${isMac() ? '⌘O' : 'Ctrl+O'}, or drop a folder on the window)`;
+  const staticButton = button('Static scan');
+  staticButton.title = 'Run the static rules over the pulled code';
+  staticButton.setAttribute('aria-keyshortcuts', isMac() ? 'Meta+Shift+S' : 'Control+Shift+S');
+  const llmButton = button('LLM scan');
+  llmButton.title = 'Ask the model to review the pulled code';
 
   const providerChip = h('span', { class: 'provider-chips' }, h('span', { class: 'badge neutral', text: 'checking provider…' }));
   const mockBadge = h('span', { class: 'badge mock', text: 'MOCK DATA', hidden: true });
+  const terminalButton = h(
+    'button',
+    { class: 'ghost icon', type: 'button', title: 'Terminal (Ctrl+`)', 'aria-label': 'Terminal', 'aria-pressed': 'false' },
+    icon('terminal'),
+  );
+  terminalButton.addEventListener('click', () => {
+    const ui = useUiStore.getState();
+    ui.setTerminalOpen(!ui.terminalOpen);
+  });
   const settingsButton = h(
     'button',
-    { class: 'ghost icon', type: 'button', title: 'Settings', 'aria-label': 'Settings' },
+    { class: 'ghost icon', type: 'button', title: `Settings (${isMac() ? '⌘,' : 'Ctrl+,'})`, 'aria-label': 'Settings' },
     icon('gear'),
   );
 
@@ -78,13 +93,25 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     void controller.startAudit(packageName, version, ecosystem);
   });
 
+  picker.onPullLink((url) => {
+    void controller.startLinkAudit(url);
+  });
+
   scanButton.addEventListener('click', () => {
     const pkg = picker.packageName();
     if (!pkg) {
       picker.promptForName();
       return;
     }
+    if (picker.repoUrl()) {
+      void controller.startLinkAudit(pkg);
+      return;
+    }
     void controller.startAudit(pkg, picker.version(), picker.ecosystem());
+  });
+
+  staticButton.addEventListener('click', () => {
+    void controller.runScan('sast');
   });
 
   llmButton.addEventListener('click', () => {
@@ -96,13 +123,6 @@ export function createToolbar(controller: AppController, container: HTMLElement)
   });
 
   // Ctrl/Cmd+O opens the folder dialog from anywhere in the window.
-  const onKeyDown = (event: KeyboardEvent): void => {
-    if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'o') {
-      event.preventDefault();
-      void controller.chooseFolder();
-    }
-  };
-
   // Dropping a folder on the window audits it.
   const hasFiles = (event: DragEvent): boolean => Boolean(event.dataTransfer?.types.includes('Files'));
   const onDragOver = (event: DragEvent): void => {
@@ -133,7 +153,6 @@ export function createToolbar(controller: AppController, container: HTMLElement)
         useAuditStore.getState().setError(err instanceof Error ? err.message : String(err));
       });
   };
-  document.addEventListener('keydown', onKeyDown);
   document.addEventListener('dragover', onDragOver);
   document.addEventListener('dragleave', onDragLeave);
   document.addEventListener('drop', onDrop);
@@ -147,11 +166,13 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     picker.element,
     scanButton,
     folderButton,
+    staticButton,
     llmButton,
     h('div', { class: 'toolbar-spacer' }),
     updateButton,
     mockBadge,
     providerChip,
+    terminalButton,
     settingsButton,
   );
 
@@ -165,11 +186,23 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     brand.classList.toggle('is-busy', state.busy !== null);
     setBusy(scanButton, state.busy === 'audit');
     folderButton.disabled = state.busy === 'audit';
-    setBusy(llmButton, state.busy?.startsWith('scan:') ?? false);
+    // A scan needs something pulled, and only one job runs at a time.
+    const ready = state.current?.status === 'ready' && !state.current.sourcesDeleted;
+    setBusy(staticButton, state.busy === 'scan:sast');
+    setBusy(llmButton, state.busy === 'scan:llm');
+    staticButton.disabled = !ready || state.busy !== null;
+    llmButton.disabled = !ready || state.busy !== null;
+    const why = ready ? '' : 'Pull a package or open a folder first';
+    staticButton.title = why || 'Run the static rules over the pulled code';
+    llmButton.title = why || 'Ask the model to review the pulled code';
   });
 
   const unsubscribeUi = useUiStore.subscribe((state, previous) => {
     if (state.providersStamp !== previous.providersStamp) void refreshProviders();
+    if (state.terminalOpen !== previous.terminalOpen) {
+      terminalButton.setAttribute('aria-pressed', String(state.terminalOpen));
+      terminalButton.classList.toggle('is-on', state.terminalOpen);
+    }
   });
 
   const unsubscribeBackend = window.aisai.onBackendStatus((status) => {
@@ -191,7 +224,6 @@ export function createToolbar(controller: AppController, container: HTMLElement)
       unsubscribeUi();
       unsubscribeBackend();
       unsubscribeUpdate();
-      document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('dragover', onDragOver);
       document.removeEventListener('dragleave', onDragLeave);
       document.removeEventListener('drop', onDrop);

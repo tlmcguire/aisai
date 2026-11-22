@@ -28,6 +28,7 @@ import (
 	"github.com/tlmcguire/aisai/internal/config"
 	"github.com/tlmcguire/aisai/internal/deps"
 	"github.com/tlmcguire/aisai/internal/findings"
+	"github.com/tlmcguire/aisai/internal/gitsrc"
 	"github.com/tlmcguire/aisai/internal/index"
 	"github.com/tlmcguire/aisai/internal/llm"
 	"github.com/tlmcguire/aisai/internal/localsrc"
@@ -57,6 +58,9 @@ type Deps struct {
 	// Advisory queries for known vulnerabilities. It is nil when advisory
 	// lookups are disabled.
 	Advisory *advisory.Client
+	// GitProtocols is git's transport allow-list for repository audits;
+	// "https" when empty. Only tests change it.
+	GitProtocols string
 	// Detector runs the LLM detection pipeline. It is nil when LLM features
 	// are disabled.
 	Detector *scan.Detector
@@ -77,6 +81,8 @@ const (
 	sourcePyPI = "pypi"
 	// sourceLocal is an audit of a project folder on the local disk.
 	sourceLocal = "local"
+	// sourceGit is an audit of a cloned repository.
+	sourceGit = "git"
 )
 
 // Audit is one in-flight or completed analysis.
@@ -87,6 +93,8 @@ type Audit struct {
 	Root    string
 	// ecosystem is the package index of a published package.
 	ecosystem string
+	// repo is the repository of a git audit.
+	repo gitsrc.Repo
 
 	// source says where the code came from: sourcePyPI or sourceLocal.
 	source string
@@ -185,6 +193,22 @@ func (m *Manager) CreateLocal(ctx context.Context, dir string) (*model.Audit, er
 	return m.create(localsrc.Name(abs), "", sourceLocal, abs)
 }
 
+// CreateRepo allocates an audit of a git repository and its workspace, but
+// does not start work. The repository is cloned when the audit runs.
+func (m *Manager) CreateRepo(ctx context.Context, repo gitsrc.Repo) (*model.Audit, error) {
+	snap, err := m.create(repo.Name, repo.Ref, sourceGit, "")
+	if err != nil {
+		return nil, err
+	}
+	m.mu.RLock()
+	a := m.audits[snap.ID]
+	m.mu.RUnlock()
+	a.mu.Lock()
+	a.repo = repo
+	a.mu.Unlock()
+	return snap, nil
+}
+
 // ErrBadSource is returned when the folder chosen for a local audit cannot be
 // inspected.
 var ErrBadSource = errors.New("cannot inspect that folder")
@@ -201,7 +225,7 @@ func (m *Manager) create(pkg, version, source, sourceDir string) (*model.Audit, 
 	}
 
 	eco := ""
-	if source != sourceLocal {
+	if source != sourceLocal && source != sourceGit {
 		eco = source
 	}
 	a := &Audit{
@@ -236,6 +260,9 @@ func (m *Manager) Run(ctx context.Context, id string) error {
 
 	if a.source == sourceLocal {
 		return m.runLocal(ctx, a)
+	}
+	if a.source == sourceGit {
+		return m.runGit(ctx, a)
 	}
 
 	a.setStatus(model.AuditAcquiring, "acquiring", 0.05, "Resolving dependencies")
@@ -293,6 +320,75 @@ func (m *Manager) Run(ctx context.Context, id string) error {
 		a.fail(err)
 		return err
 	}
+
+	return m.finishRun(ctx, a, files)
+}
+
+// runGit clones a repository, copies its source files into the sandbox, parses
+// them and makes the audit ready.
+//
+// The clone is made in the scratch space outside the sandbox and then copied
+// through the same snapshot as a local folder, which leaves out .git, symlinks,
+// dependency folders and large files and caps the size. Nothing is executed.
+func (m *Manager) runGit(ctx context.Context, a *Audit) error {
+	a.mu.RLock()
+	repo := a.repo
+	a.mu.RUnlock()
+	a.setStatus(model.AuditAcquiring, "acquiring", 0.1, "Cloning "+repo.Display())
+	m.emit(model.Event{Type: model.EventAuditProgress, AuditID: a.ID, Phase: "acquiring", Percent: 0.1, Message: "Cloning " + repo.Display()})
+
+	scratchRoot := downloadDir(a.Root)
+	if err := os.MkdirAll(scratchRoot, 0o700); err != nil {
+		a.fail(err)
+		return err
+	}
+	defer os.RemoveAll(scratchRoot)
+	scratch := filepath.Join(scratchRoot, "clone")
+	if err := gitsrc.Clone(ctx, repo, scratch, gitsrc.Options{Protocols: m.deps.GitProtocols}); err != nil {
+		a.fail(err)
+		return err
+	}
+
+	dirName := safeDirName(repo.Name, "")
+	dest := filepath.Join(sandboxDir(a.Root), dirName)
+	res, err := localsrc.Snapshot(ctx, scratch, dest, isInterestingTextFile, localsrc.Limits{})
+	if err != nil {
+		a.fail(fmt.Errorf("copy the repository: %w", err))
+		return err
+	}
+	if res.Files == 0 {
+		err := errors.New("no source files were found in that repository")
+		a.fail(err)
+		return err
+	}
+	if err := hardenSandbox(dest); err != nil {
+		a.fail(fmt.Errorf("harden the copy: %w", err))
+		return err
+	}
+	msg := fmt.Sprintf("Cloned %d files", res.Files)
+	if res.Truncated {
+		msg += " (the repository is larger than the limit, so the copy is partial)"
+	}
+	a.setStatus(model.AuditAcquiring, "acquiring", 0.4, msg)
+	m.emit(model.Event{Type: model.EventAuditProgress, AuditID: a.ID, Phase: "acquiring", Percent: 0.4, Message: msg})
+
+	files, err := parseTree(dest, a.Root, a.ID)
+	if err != nil {
+		a.fail(fmt.Errorf("parse the repository: %w", err))
+		return err
+	}
+
+	version := repo.Ref
+	if version == "" {
+		version = "HEAD"
+	}
+	purl := model.PURL("pkg:generic/" + strings.ToLower(dirName))
+	a.mu.Lock()
+	a.packages = []model.Package{{PURL: purl, Name: repo.Name, Version: version, Ecosystem: "git", Direct: true}}
+	a.edges = nil
+	a.pkgByDir = map[string]model.PURL{dirName: purl}
+	a.sandboxBytes = sandboxSize(a.Root)
+	a.mu.Unlock()
 
 	return m.finishRun(ctx, a, files)
 }
@@ -397,7 +493,7 @@ func (m *Manager) finishRun(ctx context.Context, a *Audit, files []*ast.File) er
 	// Advisories are fetched in the background: the audit is already usable
 	// and the graph must not appear to show "0 vulnerabilities" while the
 	// lookup is still in flight. The client is told when it lands.
-	if m.deps.Advisory != nil && a.source != sourceLocal {
+	if m.deps.Advisory != nil && a.source != sourceLocal && a.source != sourceGit {
 		go func() {
 			// The audit request may have been cancelled by the time the
 			// graph is drawn; the advisory lookup outlives it.
@@ -618,6 +714,9 @@ func (m *Manager) Scan(ctx context.Context, id string) ([]model.Finding, error) 
 
 	if len(files) == 0 {
 		return nil, nil
+	}
+	if m.deps.SAST == nil {
+		return nil, errors.New("no static analysis engine configured")
 	}
 
 	scanID := fmt.Sprintf("scan-%d", time.Now().UnixNano())

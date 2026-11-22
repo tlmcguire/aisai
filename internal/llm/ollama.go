@@ -303,6 +303,14 @@ func (p *OllamaProvider) Chat(ctx context.Context, req ChatRequest) (<-chan Stre
 				}
 			},
 			nil,
+			func(think string) bool {
+				select {
+				case ch <- StreamChunk{Think: think}:
+					return true
+				case <-ctx.Done():
+					return false
+				}
+			},
 		)
 		if err != nil {
 			log.Printf("ollama: chat stream failed: %v", err)
@@ -347,6 +355,7 @@ func (p *OllamaProvider) ChatTools(ctx context.Context, req ChatRequest) (<-chan
 		err := p.readChatStream(ctx, resp,
 			func(delta string) bool { return send(ToolEvent{Delta: delta}) },
 			func(call ToolCall) bool { return send(ToolEvent{ToolCall: &call}) },
+			func(think string) bool { return send(ToolEvent{Think: think}) },
 		)
 		if err != nil {
 			log.Printf("ollama: tool chat stream failed: %v", err)
@@ -357,7 +366,7 @@ func (p *OllamaProvider) ChatTools(ctx context.Context, req ChatRequest) (<-chan
 }
 
 // readChatStream consumes the NDJSON body of a streamed /api/chat response.
-func (p *OllamaProvider) readChatStream(ctx context.Context, resp *http.Response, onDelta func(string) bool, onTool func(ToolCall) bool) error {
+func (p *OllamaProvider) readChatStream(ctx context.Context, resp *http.Response, onDelta func(string) bool, onTool func(ToolCall) bool, onThink func(string) bool) error {
 	sc := bufio.NewScanner(resp.Body)
 	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
 	for sc.Scan() {
@@ -374,6 +383,11 @@ func (p *OllamaProvider) readChatStream(ctx context.Context, resp *http.Response
 		}
 		if obj.Error != "" {
 			return errors.New(obj.Error)
+		}
+		if obj.Message.Think != "" && onThink != nil {
+			if !onThink(obj.Message.Think) {
+				return ctx.Err()
+			}
 		}
 		if obj.Message.Content != "" && onDelta != nil {
 			if !onDelta(obj.Message.Content) {

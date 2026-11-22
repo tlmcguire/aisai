@@ -63,6 +63,7 @@ const EXPECTED_API_PREFIXES = [
   '/api/audits',
   '/api/advisories',
   '/api/chat',
+  '/api/terminals',
 ];
 
 /**
@@ -227,6 +228,9 @@ return isAllowedApiPath;`;
     expect(predicate('/api/audits/a1/findings')).toBe(true);
     expect(predicate('/api/audits/a1/file')).toBe(true);
     expect(predicate('/api/chat')).toBe(true);
+    expect(predicate('/api/terminals')).toBe(true);
+    expect(predicate('/api/terminals/t1/input')).toBe(true);
+    expect(predicate('/api/terminalsx')).toBe(false);
     expect(predicate('/api/advisories/status')).toBe(true);
   });
 

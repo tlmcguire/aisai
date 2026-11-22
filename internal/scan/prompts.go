@@ -131,9 +131,9 @@ func (d *Detector) detectUserPrompt(chunk model.Chunk) string {
 		b.WriteString(fmt.Sprintf("File: %s (lines %d-%d)\n", chunk.File, chunk.StartLine, chunk.EndLine))
 	}
 	b.WriteString("\n```" + fence + "\n")
-	b.WriteString(chunk.Content)
+	b.WriteString(numberLines(chunk.Content, chunk.StartLine))
 	b.WriteString("\n```\n\n")
-	b.WriteString("Report only genuine, exploitable vulnerabilities with a CWE, a severity, a confidence, the exact line numbers within the snippet above, and a patch.")
+	b.WriteString("Every line above starts with its line number in the file and a \"|\". Report only genuine, exploitable vulnerabilities with a CWE, a severity, a confidence, the line numbers from that left margin (not counted from the top of the snippet), the exact vulnerable code as code_snippet, and a patch.")
 	return b.String()
 }
 
@@ -185,5 +185,22 @@ func (d *Detector) verifyUserPrompt(chunk model.Chunk, f model.Finding) string {
 	b.WriteString(chunk.Content)
 	b.WriteString("\n```\n\n")
 	b.WriteString("Give your verdict.")
+	return b.String()
+}
+
+// numberLines prefixes every line with its number in the file, so the model
+// can report real line numbers instead of counting.
+func numberLines(content string, first int) string {
+	if first < 1 {
+		first = 1
+	}
+	lines := strings.Split(content, "\n")
+	var b strings.Builder
+	for i, l := range lines {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		fmt.Fprintf(&b, "%d| %s", first+i, l)
+	}
 	return b.String()
 }

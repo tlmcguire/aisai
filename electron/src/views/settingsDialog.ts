@@ -763,7 +763,12 @@ export function createSettingsDialog(
         ...slider('chat-height', 'Chat height (below)', ui.chatHeight, 120, 640, 10, px, (v) => useUiStore.getState().setChatHeight(v)),
         ...slider('chat-width', 'Chat width (right)', ui.chatWidth, 260, 720, 10, px, (v) => useUiStore.getState().setChatWidth(v)),
       ),
-      h('div', { class: 'pref-actions' }, reset),
+      h(
+        'div',
+        { class: 'pref-actions' },
+        reset,
+        h('button', { type: 'button', onclick: () => window.dispatchEvent(new Event('aisai:show-shortcuts')) }, 'Keyboard shortcuts…'),
+      ),
       h('p', {
         class: 'pref-hint',
         text: `Defaults: left ${DEFAULT_LAYOUT.graphWidth} px, rail ${DEFAULT_LAYOUT.railWidth} px, chat ${DEFAULT_LAYOUT.chatHeight} px. The interface also grows with large displays.`,

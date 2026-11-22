@@ -173,3 +173,14 @@ var (
 	_ Provider     = (*Switchable)(nil)
 	_ ToolProvider = (*Switchable)(nil)
 )
+
+// SupportsThink reports whether the active provider's model shows its
+// reasoning. A provider that cannot tell answers false.
+func (s *Switchable) SupportsThink(ctx context.Context, model string) (bool, error) {
+	if tp, ok := s.current().(interface {
+		SupportsThink(context.Context, string) (bool, error)
+	}); ok {
+		return tp.SupportsThink(ctx, model)
+	}
+	return false, nil
+}

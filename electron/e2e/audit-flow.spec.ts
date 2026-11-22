@@ -54,11 +54,11 @@ test.describe('audit → scan → finding → patch → re-scan', () => {
    */
   const openSettings = async (): Promise<void> => {
     const isOpen = await window.evaluate(() => {
-      const dialog = document.querySelector('dialog');
+      const dialog = document.querySelector('dialog.prefs');
       return dialog?.hasAttribute('open') ?? false;
     });
     if (!isOpen) {
-      await window.click('button.ghost[title="Settings"]');
+      await window.click('button[aria-label="Settings"]');
     }
     // Settings opens on the model server; the picker is in its own section.
     await window.locator('.pref-nav-item', { hasText: 'Models' }).click();
@@ -75,7 +75,9 @@ test.describe('audit → scan → finding → patch → re-scan', () => {
     // The version is a dropdown of the versions the index published, not
     // a free text field.
     await window.selectOption('#version-input', '2.0.0');
-    await window.getByRole('button', { name: 'Scan', exact: true }).click();
+    await window.getByRole('button', { name: 'Pull', exact: true }).click();
+    // Pulling only downloads; the scan is its own step.
+    await window.getByRole('button', { name: 'Static scan' }).click();
 
     // The findings of the audit appear in the rail.
     await expect(window.locator('.finding-card').first()).toBeVisible();
@@ -86,7 +88,7 @@ test.describe('audit → scan → finding → patch → re-scan', () => {
   });
 
   test('a scan reports its progress', async () => {
-    await window.getByRole('button', { name: 'Scan LLM' }).click();
+    await window.getByRole('button', { name: 'LLM scan' }).click();
     // The scan runs through the socket and comes back as a job.
     await expect(window.locator('.finding-card').first()).toBeVisible();
   });
@@ -96,7 +98,7 @@ test.describe('audit → scan → finding → patch → re-scan', () => {
     await card.click();
 
     // The code pane shows the vendored file.
-    await expect(window.locator('.code-line').first()).toBeVisible();
+    await expect(window.locator('.cm-line').first()).toBeVisible();
     await expect(window.locator('.file-header')).toContainText('flask/security.py');
   });
 
@@ -119,7 +121,7 @@ test.describe('audit → scan → finding → patch → re-scan', () => {
   });
 
   test('a scan after the patch still works', async () => {
-    await window.getByRole('button', { name: 'Scan LLM' }).click();
+    await window.getByRole('button', { name: 'LLM scan' }).click();
     await expect(window.locator('.finding-card').first()).toBeVisible();
     await expect(window.locator('.patch-toolbar .legend-item')).toContainText('Applied.');
   });
@@ -154,7 +156,7 @@ test.describe('audit → scan → finding → patch → re-scan', () => {
     await chat.selectOption({ index: other!.index });
     // The diff view has an "Apply" button too, so the click is scoped to
     // the settings dialog.
-    await window.locator('dialog').getByRole('button', { name: 'Apply' }).click();
+    await window.locator('dialog.prefs').getByRole('button', { name: 'Apply' }).click();
     await expect(window.locator('.model-status')).toContainText('Applied.');
   });
 
@@ -166,7 +168,7 @@ test.describe('audit → scan → finding → patch → re-scan', () => {
 
   test('the package picker suggests packages and lists their versions', async () => {
     // The settings dialog is a modal and stays open between the tests.
-    const dialog = window.locator('dialog');
+    const dialog = window.locator('dialog.prefs');
     if (await dialog.evaluate((el) => el.hasAttribute('open'))) {
       await dialog.getByRole('button', { name: 'Close' }).click();
     }

@@ -1,38 +1,45 @@
 import type { AppController } from '../app';
-import type { Finding } from '../api/types';
+import type { CodeSelection, Finding } from '../api/types';
 import { h } from '../lib/dom';
-import { severityClass, severityColor } from '../lib/severity';
 import { useAuditStore } from '../state/audit';
 import { useFindingsStore } from '../state/findings';
 import { brandMark } from '../lib/logo';
 import { useWorkspaceStore } from '../state/workspace';
 
-const LINE_HEIGHT = 20;
-const OVERSCAN = 12;
+import { useChatStore } from '../state/chat';
+import { createCodeEditor, type CodeEditor } from './codeEditor';
 
 export interface CodeView {
   element: HTMLElement;
   dispose: () => void;
 }
 
+/** The result of a "fix" or "change" request, waiting for the user's decision. */
+interface PendingEdit {
+  from: number;
+  to: number;
+  original: string;
+  replacement: string;
+}
+
 export function createCodeView(controller: AppController, container: HTMLElement): CodeView {
   const header = h('div', { class: 'file-header' }, h('span', { text: 'No file open' }));
-  const scroll = h('div', { class: 'code-scroll', tabindex: '0' });
-  const lines = h('div', { class: 'code-lines' });
-  scroll.append(lines);
-  container.append(header, scroll);
+  const editPanel = h('div', { class: 'edit-panel', hidden: true });
+  const editorHost = h('div', { class: 'code-editor', hidden: true });
+  const placeholder = h('div', { class: 'code-lines' });
+  container.append(header, editPanel, editorHost, placeholder);
 
-  // What the DOM currently shows. A render whose inputs match is skipped, so
-  // scrolling inside the same window and unrelated store ticks never rebuild
-  // (and therefore never flash) the lines.
   let shownKey = '';
   let shownHeader = '';
+  let dirty = false;
+  /** The file changed on disk (a patch was applied) while it had unsaved edits. */
+  let diskChanged = false;
 
   /** The first screen: two ways in, and the audits already on disk. */
   const welcome = (): HTMLElement => {
     const scanPackage = h('button', { class: 'welcome-action primary-action', type: 'button' },
       h('span', { class: 'welcome-action-title', text: 'Audit a package' }),
-      h('span', { class: 'welcome-action-text', text: 'From PyPI, npm or crates.io: resolve its dependencies, download every source archive and scan it.' }),
+      h('span', { class: 'welcome-action-text', text: 'From PyPI, npm or crates.io, or paste a package or repository link: pull the source and its dependencies, then run a static or LLM scan.' }),
     );
     scanPackage.addEventListener('click', () => document.getElementById('package-input')?.focus());
     const openFolder = h('button', { class: 'welcome-action', type: 'button' },
@@ -69,6 +76,216 @@ export function createCodeView(controller: AppController, container: HTMLElement
     );
   };
 
+
+  /* ---------------- editing ---------------- */
+
+  const save = async (): Promise<void> => {
+    if (!editor.isDirty()) return;
+    const path = editor.path();
+    const text = editor.text();
+    if (diskChanged && !window.confirm('The file changed on disk since you started editing (a fix was applied). Save anyway and overwrite that change?')) {
+      return;
+    }
+    const ok = await controller.saveFile(path, text);
+    if (ok) {
+      editor.markSaved();
+      diskChanged = false;
+      refreshHeader();
+    }
+  };
+
+  const discard = (): void => {
+    const file = useWorkspaceStore.getState().file;
+    if (file) loadFile(file, true);
+  };
+
+  /** Closes the edit panel. */
+  const closePanel = (): void => {
+    editPanel.hidden = true;
+    editPanel.replaceChildren();
+  };
+
+  const showResult = (pending: PendingEdit): void => {
+    const accept = h('button', { class: 'primary tiny', type: 'button' }, 'Accept');
+    const reject = h('button', { class: 'tiny', type: 'button' }, 'Discard');
+    accept.addEventListener('click', () => {
+      editor.replace(pending.from, pending.to, pending.replacement);
+      closePanel();
+      editor.focus();
+    });
+    reject.addEventListener('click', () => {
+      closePanel();
+      editor.focus();
+    });
+    editPanel.hidden = false;
+    editPanel.replaceChildren(
+      h('div', { class: 'edit-panel-head' }, h('strong', { text: 'Proposed change' }), h('span', { class: 'grow' }), reject, accept),
+      h(
+        'div',
+        { class: 'edit-diff' },
+        h('pre', { class: 'edit-before', text: pending.original.replace(/\n$/, '') }),
+        h('pre', { class: 'edit-after', text: pending.replacement.replace(/\n$/, '') }),
+      ),
+      h('p', { class: 'muted edit-note', text: 'Accepting puts the change in the editor. Save to keep it; undo takes it back.' }),
+    );
+  };
+
+  const showError = (message: string): void => {
+    editPanel.hidden = false;
+    const close = h('button', { class: 'tiny', type: 'button' }, 'Close');
+    close.addEventListener('click', closePanel);
+    editPanel.replaceChildren(
+      h('div', { class: 'edit-panel-head' }, h('strong', { text: 'The model could not help' }), h('span', { class: 'grow' }), close),
+      h('p', { class: 'edit-note', text: message }),
+    );
+  };
+
+  /** Asks the model to rewrite the selection and shows the result for review. */
+  const runEdit = async (instruction: string): Promise<void> => {
+    const sel = editor.selection();
+    if (!sel) return;
+    const file = useWorkspaceStore.getState().file;
+    editPanel.hidden = false;
+    editPanel.replaceChildren(
+      h('div', { class: 'chat-status', role: 'status' }, h('span', { class: 'shimmer', text: 'Asking the model…' })),
+    );
+    try {
+      const { before, after } = editor.around(sel.from, sel.to);
+      const replacement = await controller.editSelection({
+        path: sel.file,
+        language: file?.language ?? '',
+        before,
+        selection: sel.text,
+        after,
+        instruction,
+        startLine: sel.startLine,
+        endLine: sel.endLine,
+      });
+      if (replacement === sel.text) {
+        showError('The model suggested no change to this code.');
+        return;
+      }
+      showResult({ from: sel.from, to: sel.to, original: sel.text, replacement });
+    } catch (err) {
+      showError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const askForChange = (): void => {
+    const input = h('input', { type: 'text', placeholder: 'What should change? e.g. “use a constant-time comparison”', 'aria-label': 'What to change' });
+    const go = h('button', { class: 'primary tiny', type: 'button' }, 'Change');
+    const cancel = h('button', { class: 'tiny', type: 'button' }, 'Cancel');
+    const submit = (): void => {
+      const text = input.value.trim();
+      if (text) void runEdit(text);
+    };
+    go.addEventListener('click', submit);
+    cancel.addEventListener('click', closePanel);
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        submit();
+      } else if (event.key === 'Escape') closePanel();
+    });
+    editPanel.hidden = false;
+    editPanel.replaceChildren(h('div', { class: 'edit-panel-head' }, input, go, cancel));
+    input.focus();
+  };
+
+  const actions = {
+    ask: (selection: CodeSelection): void => {
+      useChatStore.getState().setSelection(selection);
+      window.dispatchEvent(new Event('aisai:focus-chat'));
+    },
+    fix: (): void => {
+      void runEdit('Fix the bug or security weakness in this code. Change as little as possible.');
+    },
+    change: (): void => askForChange(),
+  };
+
+  const editor: CodeEditor = createCodeEditor(editorHost, {
+    complete: (prefix, suffix) => {
+      const file = useWorkspaceStore.getState().file;
+      return controller.complete(file?.path ?? '', file?.language ?? '', prefix, suffix);
+    },
+    actions,
+    onDirty: (value) => {
+      dirty = value;
+      refreshHeader();
+    },
+    onSave: () => void save(),
+  });
+
+  /* ---------------- header ---------------- */
+
+  let headerFile: { path: string; language: string; findings: number } | null = null;
+
+  const refreshHeader = (): void => {
+    if (!headerFile) return;
+    const model = useChatStore.getState().model;
+    const saveButton = h('button', { class: 'primary tiny', type: 'button', title: 'Save (Ctrl/Cmd+S)' }, 'Save');
+    const discardButton = h('button', { class: 'tiny', type: 'button', title: 'Throw away the unsaved changes' }, 'Discard');
+    saveButton.addEventListener('click', () => void save());
+    discardButton.addEventListener('click', discard);
+    header.replaceChildren(
+      h('span', { text: headerFile.path }),
+      h('span', { class: 'badge neutral', text: headerFile.language || 'text' }),
+      h('span', {
+        class: `badge ${headerFile.findings ? 'bad' : 'ok'}`,
+        text: headerFile.findings ? `${headerFile.findings} finding(s)` : 'no findings',
+      }),
+      ...(dirty ? [h('span', { class: 'badge warn', text: 'unsaved' })] : []),
+      ...(diskChanged
+        ? [
+            h('span', {
+              class: 'badge bad',
+              text: 'changed on disk',
+              title: 'The file was changed (a fix was applied) while you had unsaved edits. Saving now would overwrite that change.',
+            }),
+            h('button', { class: 'tiny', type: 'button', title: 'Load the file as it is on disk and drop your edits', onclick: () => discard() }, 'Reload'),
+          ]
+        : []),
+      h('span', { class: 'grow' }),
+      h('span', {
+        class: `badge ${model.available ? 'neutral' : 'is-bad'}`,
+        text: model.available ? 'completion on' : 'completion off',
+        title: model.available ? `Inline completion by ${model.name}. Tab accepts, Esc dismisses.` : `${model.reason} Inline completion needs a model.`,
+      }),
+      ...(dirty ? [discardButton, saveButton] : []),
+    );
+  };
+
+  /* ---------------- rendering ---------------- */
+
+  const loadFile = (file: NonNullable<ReturnType<typeof useWorkspaceStore.getState>['file']>, force = false): void => {
+    const audit = useAuditStore.getState().current;
+    const locked = Boolean(audit?.sourcesDeleted);
+    const text = file.lines.join('\n');
+    const samePath = editor.path() === file.path;
+    // The text the user is typing is never replaced from under them; they
+    // are told the file changed and choose.
+    if (!force && samePath && editor.isDirty()) {
+      if (editor.text() !== text && !diskChanged) {
+        diskChanged = true;
+        refreshHeader();
+      }
+      return;
+    }
+    if (!force && samePath && editor.text() === text) return;
+    diskChanged = false;
+    closePanel();
+    editor.setDocument(file.path, text, file.language, locked);
+    editor.setFindings(findingsFor(file));
+  };
+
+  const findingsFor = (file: { path: string; findings?: Finding[] }): Finding[] => {
+    const all = useFindingsStore.getState().findings;
+    return [
+      ...(file.findings ?? []),
+      ...all.filter((f) => f.file === file.path && !(file.findings ?? []).some((g) => g.id === f.id)),
+    ];
+  };
+
   const render = (): void => {
     const state = useWorkspaceStore.getState();
     const file = state.file;
@@ -79,8 +296,11 @@ export function createCodeView(controller: AppController, container: HTMLElement
       if (shownKey === key) return;
       shownKey = key;
       shownHeader = '';
+      headerFile = null;
+      editorHost.hidden = true;
+      placeholder.hidden = false;
       header.replaceChildren(h('span', { text: 'Start' }));
-      lines.replaceChildren(welcome());
+      placeholder.replaceChildren(welcome());
       return;
     }
 
@@ -88,8 +308,11 @@ export function createCodeView(controller: AppController, container: HTMLElement
       if (shownKey === 'none') return;
       shownKey = 'none';
       shownHeader = '';
+      headerFile = null;
+      editorHost.hidden = true;
+      placeholder.hidden = false;
       header.replaceChildren(h('span', { text: 'No file open' }));
-      lines.replaceChildren(
+      placeholder.replaceChildren(
         h(
           'div',
           { class: 'empty-state' },
@@ -97,131 +320,56 @@ export function createCodeView(controller: AppController, container: HTMLElement
           h('p', {
             text:
               'Choose a file in the tree on the left, or click a finding in the rail to jump ' +
-              'straight to the offending line. Findings are highlighted in the gutter and inline.',
+              'straight to the offending line. Findings are highlighted in the gutter and inline. ' +
+              'You can edit the file here: select code to ask about it, fix it or change it.',
           }),
         ),
       );
       return;
     }
 
-    const allFindings = useFindingsStore.getState().findings;
-    const findings = [
-      ...(file.findings ?? []),
-      ...allFindings.filter(
-        (finding) => finding.file === file.path && !(file.findings ?? []).some((f) => f.id === finding.id),
-      ),
-    ];
-
+    shownKey = `file|${file.path}`;
+    placeholder.hidden = true;
+    editorHost.hidden = false;
+    const findings = findingsFor(file);
     const headerKey = `${file.path}|${findings.length}`;
     if (headerKey !== shownHeader) {
       shownHeader = headerKey;
-      header.replaceChildren(
-      h('span', { text: file.path }),
-      h('span', { class: 'badge neutral', text: file.language || 'text' }),
-      h('span', {
-        class: `badge ${findings.length ? 'bad' : 'ok'}`,
-        text: findings.length ? `${findings.length} finding(s)` : 'no findings',
-      }),
-      );
+      headerFile = { path: file.path, language: file.language, findings: findings.length };
+      refreshHeader();
     }
-
-    const byLine = new Map<number, Finding[]>();
-    for (const finding of findings) {
-      const list = byLine.get(finding.startLine) ?? [];
-      list.push(finding);
-      byLine.set(finding.startLine, list);
-    }
-
-    const total = file.lines.length;
-    const viewHeight = scroll.clientHeight || 600;
-    const start = Math.max(0, Math.floor(scroll.scrollTop / LINE_HEIGHT) - OVERSCAN);
-    const end = Math.min(total, start + Math.ceil(viewHeight / LINE_HEIGHT) + OVERSCAN * 2);
-
-    const key = `${file.path}|${start}|${end}|${total}|${findings.map((f) => f.id).join(',')}`;
-    if (key === shownKey) return;
-    shownKey = key;
-
-    const fragment = document.createDocumentFragment();
-    if (start > 0) {
-      fragment.appendChild(h('div', { style: `height:${start * LINE_HEIGHT}px` }));
-    }
-    for (let i = start; i < end; i += 1) {
-      const lineNumber = i + 1;
-      const lineFindings = byLine.get(lineNumber) ?? [];
-      const worst = lineFindings[0];
-      fragment.appendChild(
-        h(
-          'div',
-          {
-            class: `code-line${lineFindings.length ? ' has-finding' : ''}`,
-            'data-line': String(lineNumber),
-            title: lineFindings.map((f) => f.message).join('\n'),
-          },
-          h('span', { class: `gutter${lineFindings.length ? ' has-finding' : ''}`, text: String(lineNumber) }),
-          worst
-            ? h('span', {
-                class: `marker ${severityClass(worst.severity)}`,
-                style: `background:${severityColor(worst.severity)}`,
-              })
-            : h('span', { class: 'marker' }),
-          h('span', { class: 'text', text: file.lines[i] ?? '' }),
-        ),
-      );
-    }
-    if (end < total) {
-      fragment.appendChild(h('div', { style: `height:${(total - end) * LINE_HEIGHT}px` }));
-    }
-    lines.replaceChildren(fragment);
+    loadFile(file);
+    editor.setFindings(findings);
   };
 
-  const scrollToLine = (line: number): void => {
-    const target = Math.max(0, (line - 1) * LINE_HEIGHT - scroll.clientHeight / 3);
-    scroll.scrollTop = target;
-    render();
-    const element = lines.querySelector<HTMLElement>(`.code-line[data-line="${line}"]`);
-    if (element) {
-      element.classList.remove('flash');
-      // Force a reflow so the animation restarts for the same line.
-      void element.offsetHeight;
-      element.classList.add('flash');
-      element.scrollIntoView({ block: 'center' });
-    }
+  const syncCompletion = (): void => {
+    editor.setCompletionEnabled(useChatStore.getState().model.available);
+    refreshHeader();
   };
-
-  let frame = 0;
-  scroll.addEventListener(
-    'scroll',
-    () => {
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        render();
-      });
-    },
-    { passive: true },
-  );
 
   const unsubscribe = useWorkspaceStore.subscribe((state, previous) => {
     if (state.file !== previous.file) {
       render();
-      return;
     }
     if (state.jumpToken !== previous.jumpToken && state.jumpLine) {
-      scrollToLine(state.jumpLine);
+      editor.reveal(state.jumpLine);
     }
   });
 
   const unsubscribeFindings = useFindingsStore.subscribe((state, previous) => {
-    if (state.findings !== previous.findings) {
-      render();
-    }
+    if (state.findings !== previous.findings) render();
   });
 
   const unsubscribeAudit = useAuditStore.subscribe((state, previous) => {
     if (state.current !== previous.current || state.audits !== previous.audits) render();
   });
 
+  const unsubscribeChat = useChatStore.subscribe((state, previous) => {
+    if (state.model !== previous.model) syncCompletion();
+  });
+
   render();
+  syncCompletion();
 
   return {
     element: container,
@@ -229,6 +377,8 @@ export function createCodeView(controller: AppController, container: HTMLElement
       unsubscribe();
       unsubscribeFindings();
       unsubscribeAudit();
+      unsubscribeChat();
+      editor.destroy();
     },
   };
 }

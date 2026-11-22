@@ -906,6 +906,21 @@ export class MockApi {
       return this.ok<T>({ providers: PROVIDERS } satisfies ProvidersResponse);
     }
 
+    if (method === 'GET' && p === '/api/packages/link') {
+      const raw = q.get('url') ?? '';
+      const npm = /npmjs\.com\/package\/(@?[^/]+(?:\/[^/]+)?)/.exec(raw);
+      const pypi = /pypi\.org\/project\/([^/]+)(?:\/([^/]+))?/.exec(raw);
+      const repo = /^https:\/\/(?:github|gitlab)\.com\/([^/]+)\/([^/.]+)/.exec(raw);
+      if (npm) return this.ok<T>({ link: { kind: 'package', ecosystem: 'npm', name: npm[1] } });
+      if (pypi) return this.ok<T>({ link: { kind: 'package', ecosystem: 'pypi', name: pypi[1], version: pypi[2] } });
+      if (repo) {
+        return this.ok<T>({
+          link: { kind: 'repo', repoUrl: `${raw.split('/').slice(0, 5).join('/')}.git`, name: repo[2], display: `${repo[1]}/${repo[2]}` },
+        });
+      }
+      return this.ok<T>({ error: 'that link is not a package page or a repository' });
+    }
+
     if (method === 'GET' && p === '/api/packages') {
       const name = (q.get('name') ?? '').trim().toLowerCase();
       const eco = q.get('ecosystem') ?? 'pypi';
@@ -985,6 +1000,43 @@ export class MockApi {
         mode: 'online',
         osv: { available: true, updatedAt: '2026-11-20T00:00:00Z', count: 26428 },
       });
+    }
+
+    const job = /^\/api\/audits\/[^/]+\/jobs\/([^/]+)$/.exec(p);
+    if (method === 'GET' && job) {
+      return this.ok<T>({ job: { state: this.mockJobs.get(job[1]) ?? 'done' } });
+    }
+
+    if (method === 'PUT' && /^\/api\/audits\/[^/]+\/file$/.test(p)) {
+      return this.ok<T>({ saved: true, changed: true });
+    }
+    if (method === 'POST' && /^\/api\/audits\/[^/]+\/complete$/.test(p)) {
+      return this.ok<T>({ completion: 'return hmac.compare_digest(a, b)', model: CONFIG.chatModel });
+    }
+    if (method === 'POST' && /^\/api\/audits\/[^/]+\/edit-selection$/.test(p)) {
+      const input = (body ?? {}) as { selection?: string };
+      return this.ok<T>({ replacement: (input.selection ?? '').replace('a == b', 'hmac.compare_digest(a, b)'), model: CONFIG.chatModel });
+    }
+
+    // A pretend shell, so the terminal panel can be seen without a backend.
+    if (method === 'POST' && p === '/api/terminals') {
+      const id = `mock-t${++this.mockTerminals}`;
+      const say = (text: string): void =>
+        this.emit({ type: 'terminal.data', jobId: id, data: { data: btoa(text) } });
+      this.later(() => say('\x1b[2mmock terminal: no shell is attached (mock data)\x1b[0m\r\n$ '), 150);
+      return this.ok<T>({ id, cwd: '/mock/flask' });
+    }
+    const terminalInput = /^\/api\/terminals\/([^/]+)\/input$/.exec(p);
+    if (method === 'POST' && terminalInput) {
+      const typed = ((body ?? {}) as { data?: string }).data ?? '';
+      const echo = typed.replace(/\r/g, '\r\n$ ');
+      this.emit({ type: 'terminal.data', jobId: terminalInput[1], data: { data: btoa(echo) } });
+      return this.ok<T>({ ok: true });
+    }
+    if (/^\/api\/terminals\//.test(p)) return this.ok<T>({ ok: true });
+
+    if (method === 'POST' && p === '/api/chat/title') {
+      return this.ok<T>({ title: 'Where the secret is compared' });
     }
 
     if (method === 'POST' && p === '/api/chat') {
@@ -1144,8 +1196,15 @@ export class MockApi {
     return { findings: list, total };
   }
 
+  private mockTerminals = 0;
+  private mockJobs = new Map<string, string>();
+
   private createAudit(body: unknown): Promise<AuditResponse> {
-    const input = (body ?? {}) as { package?: string; version?: string; path?: string; ecosystem?: Ecosystem };
+    const input = (body ?? {}) as { package?: string; version?: string; path?: string; ecosystem?: Ecosystem; url?: string };
+    if (input.url) {
+      const parsed = /\/([^/]+?)(?:\.git)?\/?$/.exec(input.url);
+      input.package = parsed?.[1] ?? 'repository';
+    }
     const folder = input.path ? (input.path.split(/[\\/]/).filter(Boolean).pop() ?? input.path) : '';
     const pkg = folder || (input.package ?? 'flask');
     const version = folder ? '' : (input.version ?? '2.0.0');
@@ -1271,7 +1330,10 @@ export class MockApi {
         percent: 1,
         message: `${engine} scan complete`,
       });
+      this.mockJobs.set(jobId, 'done');
+      this.emit({ type: 'scan.done', auditId, jobId, data: { engine } });
     }, 420);
+    this.mockJobs.set(jobId, 'running');
     return this.ok<JobResponse>({ jobId });
   }
 
@@ -1301,18 +1363,52 @@ export class MockApi {
       'timing information about the secret. `hmac.compare_digest` (flask/security.py:22) is ' +
       'already used elsewhere in this module, so the fix is to reuse it.';
     const chunks = answer.match(/.{1,24}/gs) ?? [answer];
+    // The model thinks, runs a tool, then writes the answer.
+    const lead = 1400;
+    const thinking = [
+      'The question is about where the secret is compared. ',
+      'I should look for equality checks on it, ',
+      'and for a constant-time helper already in the module.',
+    ];
+    thinking.forEach((think, i) => {
+      this.later(() => this.emit({ type: 'chat.step', jobId, data: { kind: 'thinking', think } }), 250 * (i + 1));
+    });
+    this.later(
+      () =>
+        this.emit({
+          type: 'chat.step',
+          jobId,
+          data: { kind: 'tool', id: 'search-1', name: 'search_code', args: { query: 'compare secret' } },
+        }),
+      800,
+    );
+    this.later(
+      () =>
+        this.emit({
+          type: 'chat.step',
+          jobId,
+          data: {
+            kind: 'tool_result',
+            id: 'search-1',
+            name: 'search_code',
+            output: 'flask/security.py:22  return hmac.compare_digest(a, b)\nflask/security.py:27  return a == b',
+          },
+        }),
+      lead - 200,
+    );
     chunks.forEach((chunk, i) => {
       this.later(() => {
         this.emit({ type: 'chat.token', jobId, data: { delta: chunk } });
-      }, 40 * (i + 1));
+      }, lead + 40 * (i + 1));
     });
     this.later(() => {
-      const done: ChatDoneData = {
+      const done: ChatDoneData & { answer?: string } = {
         citations: ['flask/security.py:27', 'flask/security.py:22'],
         chunksUsed: ['c1', 'c2'],
+        answer,
       };
       this.emit({ type: 'chat.done', jobId, data: done });
-    }, 40 * (chunks.length + 1));
+    }, lead + 40 * (chunks.length + 1));
     void input;
     return this.ok<JobResponse>({ jobId });
   }

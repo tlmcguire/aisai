@@ -496,11 +496,21 @@ const (
 	EventAuditDone     = "audit.done"
 	EventAuditError    = "audit.error"
 	EventScanProgress  = "scan.progress"
-	EventFinding       = "finding.created"
-	EventAdvisories    = "advisories.ready"
-	EventChatToken     = "chat.token"
-	EventChatDone      = "chat.done"
-	EventChatError     = "chat.error"
+	// EventScanDone and EventScanError end a scan job (JobID set).
+	EventScanDone   = "scan.done"
+	EventScanError  = "scan.error"
+	EventFinding    = "finding.created"
+	EventAdvisories = "advisories.ready"
+	EventChatToken  = "chat.token"
+	// EventChatStep reports the model's thinking and tool calls (Data is a
+	// server.ChatStep).
+	EventChatStep = "chat.step"
+	// EventTerminalData carries output of a terminal session (base64 in
+	// Data["data"]); EventTerminalExit reports that its shell ended.
+	EventTerminalData = "terminal.data"
+	EventTerminalExit = "terminal.exit"
+	EventChatDone     = "chat.done"
+	EventChatError    = "chat.error"
 )
 
 // RelPath normalizes a path to be relative and slash-separated, so that

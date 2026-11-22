@@ -4,10 +4,10 @@ Location: mod.run
 File: pkgs/somepkg-1.0/mod.py (lines 10-14)
 
 ```python
-def run(cmd):
-    os.system(cmd)
-    return cmd
-
+10| def run(cmd):
+11|     os.system(cmd)
+12|     return cmd
+13| 
 ```
 
-Report only genuine, exploitable vulnerabilities with a CWE, a severity, a confidence, the exact line numbers within the snippet above, and a patch.
+Every line above starts with its line number in the file and a "|". Report only genuine, exploitable vulnerabilities with a CWE, a severity, a confidence, the line numbers from that left margin (not counted from the top of the snippet), the exact vulnerable code as code_snippet, and a patch.

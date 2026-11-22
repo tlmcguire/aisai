@@ -222,6 +222,7 @@ func run(socketPath, cfgPath, workspaceOverride string) error {
 		return err
 	}
 	defer listener.Close()
+	defer srv.CloseTerminals() // no shell outlives the server
 
 	// The Electron main process parses this single line.
 	if err := emitListening(addr); err != nil {

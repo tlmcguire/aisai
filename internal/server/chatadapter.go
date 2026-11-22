@@ -23,11 +23,20 @@ func NewChatEngine(c *chat.Chat) ChatEngine {
 
 // Ask answers a question about the audited package.
 func (a *chatAdapter) Ask(ctx context.Context, req ChatRequest, emit func(token string)) (*ChatResult, error) {
-	res, err := a.chat.Ask(ctx, chat.Request{
+	creq := chat.Request{
 		AuditID:  req.AuditID,
 		Question: req.Question,
 		History:  req.History,
-	}, emit)
+	}
+	if sel := req.Selection; sel != nil {
+		creq.Selection = &chat.Selection{File: sel.File, StartLine: sel.StartLine, EndLine: sel.EndLine, Text: sel.Text}
+	}
+	if req.OnStep != nil {
+		creq.OnStep = func(st chat.Step) {
+			req.OnStep(ChatStep{Kind: st.Kind, Think: st.Think, ID: st.ID, Name: st.Name, Args: st.Args, Output: st.Output, Error: st.Error})
+		}
+	}
+	res, err := a.chat.Ask(ctx, creq, emit)
 	if err != nil {
 		return nil, err
 	}
