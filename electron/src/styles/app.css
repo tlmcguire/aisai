@@ -605,7 +605,6 @@ button.tiny.is-armed {
 .pane-graph {
   flex: 0 0 auto;
   width: var(--graph-width);
-  border-right: 1px solid var(--border);
 }
 
 .pane-main {
@@ -615,7 +614,6 @@ button.tiny.is-armed {
 .pane-rail {
   flex: 0 0 auto;
   width: var(--rail-width);
-  border-left: 1px solid var(--border);
   background: var(--bg-surface);
 }
 
@@ -629,7 +627,12 @@ button.tiny.is-armed {
 
 .resizer {
   position: relative;
+  /* a hairline in the middle of the grab area stands in for the pane borders */
+  background: linear-gradient(var(--border), var(--border)) center / 1px 100% no-repeat;
   transition: background var(--dur-base) var(--ease-out);
+}
+.resizer-row {
+  background: linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat;
 }
 
 .resizer:hover,
@@ -2534,4 +2537,193 @@ button.ghost.icon .icon-gear {
 }
 button.ghost.icon:hover .icon-gear {
   transform: rotate(45deg);
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Movable panes, chat dock, layout presets, updater                   */
+/* ------------------------------------------------------------------ */
+
+.workspace {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+.workspace.dock-right {
+  flex-direction: row;
+}
+.workspace.dock-right .chat-panel {
+  height: auto;
+  width: var(--chat-width);
+  border-top: none;
+  border-left: 1px solid var(--border);
+  transition: width var(--dur-base) var(--ease-out);
+}
+.workspace.dock-right .chat-panel.collapsed {
+  width: 34px;
+  overflow: hidden;
+}
+.workspace.dock-right .chat-panel.collapsed .chat-header > :not(button) {
+  display: none;
+}
+.workspace.dock-right .resizer-chat {
+  cursor: col-resize;
+}
+
+.pane-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  opacity: 0.55;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+.pane:hover .pane-tools,
+.pane-tools:focus-within {
+  opacity: 1;
+}
+.pane-grip {
+  cursor: grab;
+  padding: 0 var(--space-1);
+  letter-spacing: -2px;
+  color: var(--fg-muted);
+}
+.pane-grip:active {
+  cursor: grabbing;
+}
+.pane-move {
+  padding: 0 var(--space-1);
+  line-height: 1.2;
+}
+.pane.is-dragged {
+  opacity: 0.55;
+}
+.pane.drop-before {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.pane.drop-after {
+  box-shadow: inset -3px 0 0 var(--accent);
+}
+
+.chat-model {
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-limited button {
+  margin-top: var(--space-2);
+}
+
+.update-button {
+  white-space: nowrap;
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+.preset-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  text-align: left;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-surface);
+  cursor: pointer;
+}
+.preset-card[aria-pressed='true'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.preset-card strong {
+  font-size: var(--text-sm);
+}
+.preset-card small {
+  color: var(--fg-muted);
+}
+.preset-thumb {
+  display: flex;
+  gap: 3px;
+  height: 2.2rem;
+}
+.preset-thumb.dock-right {
+  flex-direction: row;
+}
+.preset-thumb i {
+  display: block;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--fg-muted) 35%, transparent);
+}
+.preset-thumb i.main {
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.preset-thumb .cols {
+  display: flex;
+  gap: 3px;
+  flex: 1 1 auto;
+}
+.preset-thumb .cols i {
+  flex: 1 1 0;
+}
+.preset-thumb .cols i.main {
+  flex: 2 1 0;
+}
+.preset-thumb .chat {
+  flex: 0 0 22%;
+}
+.preset-thumb.dock-bottom {
+  flex-direction: column;
+}
+.preset-thumb.dock-bottom .chat {
+  flex: 0 0 28%;
+}
+.pref-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: var(--space-2) 0;
+}
+
+.ast-graph {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.ast-graph[hidden] {
+  display: none;
+}
+.ast-graph-canvas {
+  flex: 1 1 auto;
+}
+.ast-graph-note {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border);
+}
+.segmented {
+  display: inline-flex;
+  gap: 1px;
+}
+.segmented button[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--bg-base);
+}
+
+.chat-limited {
+  padding: var(--space-3);
+  gap: var(--space-1);
+}
+.chat-limited h3,
+.chat-limited p {
+  margin: 0;
 }

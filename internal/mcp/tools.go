@@ -173,9 +173,10 @@ func RegisterTools(s *Server, t *Toolset) {
 			"Source files in Python, JavaScript, TypeScript, Go, Rust, Java, C#, Ruby, C, C++, PHP, Scala and shell scripts are indexed and scanned. " +
 			"The returned audit id becomes the current audit, so later tools can be called without repeating it.",
 		InputSchema: ObjectSchema(map[string]any{
-			"package": StringProp("The PyPI package name to audit, e.g. \"requests\"."),
-			"version": StringProp("Optional version to audit, e.g. \"2.31.0\". Defaults to the latest release. Ignored with path."),
-			"path":    StringProp("Absolute path of a project folder to audit instead of a package, e.g. \"/Users/me/projects/app\"."),
+			"package":   StringProp("The package name to audit, e.g. \"requests\" (PyPI), \"express\" (npm) or \"serde\" (cargo)."),
+			"ecosystem": StringProp("The package index of the package: \"pypi\" (default), \"npm\" or \"cargo\". Ignored with path."),
+			"version":   StringProp("Optional version to audit, e.g. \"2.31.0\". Defaults to the latest release. Ignored with path."),
+			"path":      StringProp("Absolute path of a project folder to audit instead of a package, e.g. \"/Users/me/projects/app\"."),
 		}),
 		Handler: t.scanPackage,
 	})
@@ -355,7 +356,7 @@ func (t *Toolset) scanPackage(ctx context.Context, args map[string]any) (string,
 		a, err = t.manager.CreateLocal(ctx, folder)
 		pkg = folder
 	} else {
-		a, err = t.manager.Create(ctx, pkg, pkgVersion)
+		a, err = t.manager.CreateFor(ctx, ArgString(args, "ecosystem"), pkg, pkgVersion)
 	}
 	if err != nil {
 		return "", fmt.Errorf("create audit: %w", err)

@@ -130,6 +130,15 @@ type osvReference struct {
 
 // Query returns the advisories affecting one package version.
 func (c *Client) Query(ctx context.Context, name, version string) ([]model.Advisory, error) {
+	return c.QueryFor(ctx, "PyPI", name, version)
+}
+
+// QueryFor returns the advisories affecting one package version of an OSV
+// ecosystem ("PyPI", "npm", "crates.io").
+func (c *Client) QueryFor(ctx context.Context, ecosystem, name, version string) ([]model.Advisory, error) {
+	if ecosystem == "" {
+		ecosystem = "PyPI"
+	}
 	if version == "" {
 		return nil, nil
 	}
@@ -143,15 +152,15 @@ func (c *Client) Query(ctx context.Context, name, version string) ([]model.Advis
 				"the offline advisory database %s does not exist: the client stays offline rather than querying the network",
 				c.opts.OfflineDBPath)
 		}
-		return c.queryOffline(ctx, name, version)
+		return c.queryOffline(ctx, ecosystem, name, version)
 	}
-	return c.queryOnline(ctx, name, version)
+	return c.queryOnline(ctx, ecosystem, name, version)
 }
 
 // queryOnline queries the OSV API.
-func (c *Client) queryOnline(ctx context.Context, name, version string) ([]model.Advisory, error) {
+func (c *Client) queryOnline(ctx context.Context, ecosystem, name, version string) ([]model.Advisory, error) {
 	body, err := json.Marshal(osvQuery{
-		Package: osvPackage{Name: name, Ecosystem: "PyPI"},
+		Package: osvPackage{Name: name, Ecosystem: ecosystem},
 		Version: version,
 	})
 	if err != nil {
@@ -188,8 +197,8 @@ func (c *Client) queryOnline(ctx context.Context, name, version string) ([]model
 // The official offline database is a zip of per-package JSON files. This
 // implementation reads the directory form of that database: one JSON file
 // per package under <db>/PyPI/<package>.json.
-func (c *Client) queryOffline(ctx context.Context, name, version string) ([]model.Advisory, error) {
-	path := filepath.Join(c.opts.OfflineDBPath, "PyPI", name+".json")
+func (c *Client) queryOffline(ctx context.Context, ecosystem, name, version string) ([]model.Advisory, error) {
+	path := filepath.Join(c.opts.OfflineDBPath, ecosystem, strings.ReplaceAll(name, "/", "%2f")+".json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

@@ -28,10 +28,12 @@ function visNode(node: GraphNode): VisNodeData {
     id: node.id,
     label: `${node.name}\nv${node.version}`,
     title: `${node.name} ${node.version}\n${node.findingCount} findings, ${node.vulnCount} advisories`,
-    // Direct dependencies get a distinct shape.
-    shape: node.direct ? 'diamond' : 'dot',
+    // The studied package is a star, its direct dependencies are diamonds.
+    shape: node.root ? 'star' : node.direct ? 'diamond' : 'dot',
+    // An explicit undefined would override vis-network's default size.
+    ...(node.root ? { size: 26 } : {}),
     color: nodeColor(node),
-    borderWidth: node.direct ? 2 : 1,
+    borderWidth: node.root ? 3 : node.direct ? 2 : 1,
     font: { color: '#dde8e3', size: 11, face: 'JetBrains Mono Variable, monospace', multi: true },
   };
 }
@@ -126,9 +128,17 @@ function exportSvg(
   for (const node of nodes) {
     const point = positions[node.id];
     if (!point) continue;
-    const radius = node.direct ? 11 : 7;
+    const radius = node.root ? 15 : node.direct ? 11 : 7;
+    // The studied package is drawn as a five-pointed star.
+    const star = Array.from({ length: 10 }, (_, i) => {
+      const r = i % 2 === 0 ? radius : radius * 0.45;
+      const angle = (Math.PI / 5) * i - Math.PI / 2;
+      return `${(point.x + r * Math.cos(angle)).toFixed(1)},${(point.y + r * Math.sin(angle)).toFixed(1)}`;
+    }).join(' ');
     parts.push(
-      `<circle cx="${point.x}" cy="${point.y}" r="${radius}" fill="${severityFill(node.maxSeverity)}" stroke="${severityColor(node.maxSeverity)}" stroke-width="${node.direct ? 2 : 1}"/>`,
+      node.root
+        ? `<polygon points="${star}" fill="${severityFill(node.maxSeverity)}" stroke="${severityColor(node.maxSeverity)}" stroke-width="3"/>`
+        : `<circle cx="${point.x}" cy="${point.y}" r="${radius}" fill="${severityFill(node.maxSeverity)}" stroke="${severityColor(node.maxSeverity)}" stroke-width="${node.direct ? 2 : 1}"/>`,
       `<text x="${point.x}" y="${point.y - radius - 5}" fill="#dde8e3" font-family="monospace" font-size="11" text-anchor="middle">${node.name}</text>`,
       `<text x="${point.x}" y="${point.y - radius - 16}" fill="#8ea5a0" font-family="monospace" font-size="10" text-anchor="middle">v${node.version}</text>`,
     );
@@ -229,6 +239,7 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
       h('span', { class: 'legend-swatch', style: 'background:#8ea5a0' }),
       'info',
     ),
+    h('span', { class: 'legend-item', text: '★ package studied' }),
     h('span', { class: 'legend-item', text: '◆ direct dependency' }),
     cycleBadge,
   );
@@ -258,7 +269,7 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
         id: node.id,
         hidden: !(matchesSearch && matchesSeverity),
         color: inPath ? nodeColor(node) : 'rgba(200,200,200,0.22)',
-        borderWidth: inPath && hasPath ? 3 : node.direct ? 2 : 1,
+        borderWidth: inPath && hasPath ? 3 : node.root ? 3 : node.direct ? 2 : 1,
       });
     }
     nodeSet.update(updates);
@@ -338,7 +349,7 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
       applyFilters();
       return;
     }
-    const rootId = state.nodes.find((node) => node.direct)?.id;
+    const rootId = (state.nodes.find((node) => node.root) ?? state.nodes.find((node) => node.direct))?.id;
     const path = findPath(state.nodes, state.edges, target.id, rootId);
     state.setPath(target.id, path);
     pathResult.textContent = path.length

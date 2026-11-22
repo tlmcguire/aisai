@@ -9,6 +9,7 @@ import (
 
 	"github.com/tlmcguire/aisai/internal/model"
 	"github.com/tlmcguire/aisai/internal/pypi"
+	"github.com/tlmcguire/aisai/internal/registry"
 )
 
 // maxPackageVersions is the number of versions a lookup reports.
@@ -30,30 +31,52 @@ func (s *Server) handlePackageLookup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"package": s.packageLookup(r.Context(), name),
+		"package": s.packageLookup(r.Context(), r.URL.Query().Get("ecosystem"), name),
 	})
 }
 
+// handleEcosystems lists the package indexes an audit can start from.
+func (s *Server) handleEcosystems(w http.ResponseWriter, _ *http.Request) {
+	type entry struct {
+		ID    string `json:"id"`
+		Label string `json:"label"`
+	}
+	out := []entry{}
+	for _, reg := range s.registries.All() {
+		out = append(out, entry{ID: reg.ID(), Label: reg.Label()})
+	}
+	if len(out) == 0 && s.pypi != nil {
+		out = append(out, entry{ID: registry.PyPI, Label: "PyPI"})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ecosystems": out})
+}
+
 // packageLookup resolves a package name and lists its versions.
-func (s *Server) packageLookup(ctx context.Context, name string) *model.PackageLookup {
-	out := &model.PackageLookup{Name: name}
-	if s.pypi == nil {
+func (s *Server) packageLookup(ctx context.Context, ecosystem, name string) *model.PackageLookup {
+	eco := registry.Normalize(ecosystem)
+	out := &model.PackageLookup{Name: name, Ecosystem: eco}
+	var reg registry.Registry
+	if s.registries != nil {
+		var err error
+		if reg, err = s.registries.Get(eco); err != nil {
+			out.Error = err.Error()
+			return out
+		}
+	} else if s.pypi != nil && eco == registry.PyPI {
+		reg = registry.NewPyPI(s.pypi)
+	} else {
 		out.Error = "the package index is not available"
 		return out
 	}
-	info, err := s.pypi.Package(ctx, name, "")
+	info, err := reg.Lookup(ctx, name)
 	if err != nil {
 		out.Error = err.Error()
 		return out
 	}
 	out.Name = info.Name
 	out.Summary = info.Summary
-	out.Latest = info.Version
-
-	versions, err := s.pypi.Releases(ctx, info.Name)
-	if err == nil {
-		out.Versions = newestVersions(versions, maxPackageVersions)
-	}
+	out.Latest = info.Latest
+	out.Versions = newestVersions(eco, info.Versions, maxPackageVersions)
 	return out
 }
 
@@ -62,13 +85,16 @@ func (s *Server) packageLookup(ctx context.Context, name string) *model.PackageL
 // Pre-releases are kept but sorted after the stable versions of the same
 // number, because a pre-release is rarely what someone means by "the
 // version of this package".
-func newestVersions(versions []string, limit int) []string {
+func newestVersions(eco string, versions []string, limit int) []string {
 	if len(versions) == 0 {
 		return nil
 	}
 	sorted := append([]string(nil), versions...)
 	sort.SliceStable(sorted, func(i, j int) bool {
 		a, b := sorted[i], sorted[j]
+		if eco != registry.PyPI {
+			return compareSemver(a, b) > 0
+		}
 		if pypi.IsPrerelease(a) != pypi.IsPrerelease(b) {
 			return !pypi.IsPrerelease(a)
 		}
@@ -121,4 +147,36 @@ func humanBytes(n int64) string {
 	}
 	units := []string{"KB", "MB", "GB", "TB"}
 	return strconv.FormatFloat(float64(n)/float64(div), 'f', 1, 64) + " " + units[exp]
+}
+
+// compareSemver orders two semantic versions (npm, Cargo). A pre-release
+// sorts before the release it precedes; numeric parts compare as numbers.
+func compareSemver(a, b string) int {
+	coreA, preA, _ := strings.Cut(strings.SplitN(a, "+", 2)[0], "-")
+	coreB, preB, _ := strings.Cut(strings.SplitN(b, "+", 2)[0], "-")
+	pa, pb := strings.Split(coreA, "."), strings.Split(coreB, ".")
+	for i := 0; i < len(pa) || i < len(pb); i++ {
+		var x, y int
+		if i < len(pa) {
+			x, _ = strconv.Atoi(pa[i])
+		}
+		if i < len(pb) {
+			y, _ = strconv.Atoi(pb[i])
+		}
+		if x != y {
+			if x > y {
+				return 1
+			}
+			return -1
+		}
+	}
+	switch {
+	case preA == preB:
+		return 0
+	case preA == "":
+		return 1
+	case preB == "":
+		return -1
+	}
+	return strings.Compare(preA, preB)
 }

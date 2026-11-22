@@ -36,6 +36,7 @@ import preloadSource from '../preload.ts?raw';
 
 /** The members of the bridge the threat model documents. */
 const EXPECTED_BRIDGE_MEMBERS = [
+  'checkForUpdates',
   'chooseFolder',
   'connectEvents',
   'disconnect',
@@ -44,7 +45,10 @@ const EXPECTED_BRIDGE_MEMBERS = [
   'getMode',
   'getStatus',
   'http',
+  'installUpdate',
   'onBackendStatus',
+  'onUpdateStatus',
+  'openReleasePage',
   'providerKeyStatus',
   'send',
 ];

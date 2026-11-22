@@ -80,28 +80,66 @@ type PURL string
 
 // PackageURL builds a PURL for a PyPI package.
 func PackageURL(name, version string) PURL {
-	s := "pkg:pypi/" + strings.ToLower(name)
+	return PackageURLFor("pypi", name, version)
+}
+
+// PackageURLFor builds a PURL for a package of any ecosystem
+// (pkg:<ecosystem>/<name>@<version>). The name is lower-cased, which is how
+// PyPI and crates.io treat names; npm names are lower-case by rule.
+func PackageURLFor(ecosystem, name, version string) PURL {
+	if ecosystem == "" {
+		ecosystem = "pypi"
+	}
+	s := "pkg:" + ecosystem + "/" + strings.ToLower(name)
 	if version != "" {
 		s += "@" + version
 	}
 	return PURL(s)
 }
 
-// Name returns the package name portion of the PURL.
-func (p PURL) Name() string {
-	s := string(p)
-	s = strings.TrimPrefix(s, "pkg:pypi/")
-	if i := strings.Index(s, "@"); i >= 0 {
-		s = s[:i]
+// Ecosystem returns the ecosystem portion of the PURL ("pypi" when absent).
+func (p PURL) Ecosystem() string {
+	s := strings.TrimPrefix(string(p), "pkg:")
+	if i := strings.Index(s, "/"); i > 0 {
+		return s[:i]
+	}
+	return "pypi"
+}
+
+// body is the part of the PURL after "pkg:<ecosystem>/".
+func (p PURL) body() string {
+	s := strings.TrimPrefix(string(p), "pkg:")
+	if i := strings.Index(s, "/"); i >= 0 {
+		return s[i+1:]
 	}
 	return s
 }
 
+// versionAt is the index of the "@" that starts the version. A scoped npm
+// name (@scope/name) begins with an "@" of its own, so only an "@" after the
+// last "/" counts.
+func (p PURL) versionAt() int {
+	b := p.body()
+	slash := strings.LastIndex(b, "/")
+	if i := strings.Index(b[slash+1:], "@"); i >= 0 {
+		return slash + 1 + i
+	}
+	return -1
+}
+
+// Name returns the package name portion of the PURL.
+func (p PURL) Name() string {
+	b := p.body()
+	if i := p.versionAt(); i >= 0 {
+		return b[:i]
+	}
+	return b
+}
+
 // Version returns the version portion of the PURL, or "" when absent.
 func (p PURL) Version() string {
-	s := string(p)
-	if i := strings.Index(s, "@"); i >= 0 {
-		return s[i+1:]
+	if i := p.versionAt(); i >= 0 {
+		return p.body()[i+1:]
 	}
 	return ""
 }
@@ -140,11 +178,13 @@ type Package struct {
 
 // GraphNode is a renderable dependency node.
 type GraphNode struct {
-	ID           PURL     `json:"id"`
-	Label        string   `json:"label"`
-	Name         string   `json:"name"`
-	Version      string   `json:"version"`
-	Direct       bool     `json:"direct"`
+	ID      PURL   `json:"id"`
+	Label   string `json:"label"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Direct  bool   `json:"direct"`
+	// Root marks the package being studied: the one the audit was started on.
+	Root         bool     `json:"root,omitempty"`
 	MaxSeverity  Severity `json:"maxSeverity"`
 	FindingCount int      `json:"findingCount"`
 	VulnCount    int      `json:"vulnCount"`
@@ -265,7 +305,10 @@ type Audit struct {
 	Version string `json:"version,omitempty"`
 	// Source says where the code came from: "pypi" for a published package
 	// and "local" for a project folder.
-	Source       string      `json:"source,omitempty"`
+	Source string `json:"source,omitempty"`
+	// Ecosystem is the package index the code came from: "pypi", "npm" or
+	// "cargo". It is empty for a local folder.
+	Ecosystem    string      `json:"ecosystem,omitempty"`
 	Status       AuditStatus `json:"status"`
 	Phase        string      `json:"phase,omitempty"`
 	Progress     float64     `json:"progress"`
@@ -288,6 +331,8 @@ type Audit struct {
 // It is what the package picker shows: the summary of the project and the
 // versions that can be audited.
 type PackageLookup struct {
+	// Ecosystem is the index that was asked.
+	Ecosystem string `json:"ecosystem,omitempty"`
 	// Name is the canonical name of the project.
 	Name string `json:"name"`
 	// Summary is the short description of the project.

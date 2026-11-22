@@ -8,6 +8,7 @@ import (
 	"github.com/tlmcguire/aisai/internal/advisory"
 	"github.com/tlmcguire/aisai/internal/findings"
 	"github.com/tlmcguire/aisai/internal/model"
+	"github.com/tlmcguire/aisai/internal/registry"
 )
 
 // ErrNoAdvisorySource is returned when an advisory query is requested but no
@@ -84,7 +85,7 @@ func (m *Manager) FetchAdvisories(ctx context.Context, id string, refresh bool) 
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		advs, qerr := m.deps.Advisory.Query(ctx, p.Name, p.Version)
+		advs, qerr := m.deps.Advisory.QueryFor(ctx, registry.OSVEcosystem(p.Ecosystem), p.Name, p.Version)
 		if qerr != nil {
 			// Keep going: one unreachable package must not lose the rest.
 			m.emit(model.Event{

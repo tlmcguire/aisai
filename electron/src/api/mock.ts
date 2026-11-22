@@ -42,6 +42,7 @@ import type {
   ModelSelection,
   ModelsResponse,
   PackageLookup,
+  Ecosystem,
   PackageLookupResponse,
   Patch,
   PatchResponse,
@@ -117,6 +118,20 @@ const INSTALLED_MODELS: ModelInfo[] = [
 
 const PACKAGE_FIXTURES: PackageLookup[] = [
   {
+    name: 'express',
+    ecosystem: 'npm',
+    summary: 'Fast, unopinionated, minimalist web framework.',
+    latest: '4.21.1',
+    versions: ['4.21.1', '4.21.0', '4.20.0', '4.19.2'],
+  },
+  {
+    name: 'serde',
+    ecosystem: 'cargo',
+    summary: 'A generic serialization/deserialization framework.',
+    latest: '1.0.215',
+    versions: ['1.0.215', '1.0.214', '1.0.210'],
+  },
+  {
     name: 'flask',
     summary: 'A simple framework for building complex web applications.',
     latest: '3.1.0',
@@ -174,6 +189,7 @@ const GRAPH: Graph = {
       name: 'flask',
       version: '2.0.0',
       direct: true,
+      root: true,
       maxSeverity: 'critical',
       findingCount: 9,
       vulnCount: 1,
@@ -875,7 +891,7 @@ export class MockApi {
     if (method === 'GET' && p === '/api/health') {
       return this.ok<T>({
         ok: true,
-        version: '0.2.0-mock',
+        version: '0.3.0-mock',
         workspace: CONFIG.workspace,
         uptimeSeconds: 412,
         providers: PROVIDERS,
@@ -892,10 +908,13 @@ export class MockApi {
 
     if (method === 'GET' && p === '/api/packages') {
       const name = (q.get('name') ?? '').trim().toLowerCase();
-      const found = PACKAGE_FIXTURES.find((entry) => entry.name.toLowerCase() === name);
+      const eco = q.get('ecosystem') ?? 'pypi';
+      const found = PACKAGE_FIXTURES.find(
+        (entry) => entry.name.toLowerCase() === name && (entry.ecosystem ?? 'pypi') === eco,
+      );
       if (!found) {
         return this.ok<T>({
-          package: { name, error: `pypi: GET /pypi/${name}/json: not found` },
+          package: { name, ecosystem: eco as Ecosystem, error: `${eco}: ${name} was not found` },
         });
       }
       return this.ok<T>({ package: found } satisfies PackageLookupResponse);
@@ -1126,7 +1145,7 @@ export class MockApi {
   }
 
   private createAudit(body: unknown): Promise<AuditResponse> {
-    const input = (body ?? {}) as { package?: string; version?: string; path?: string };
+    const input = (body ?? {}) as { package?: string; version?: string; path?: string; ecosystem?: Ecosystem };
     const folder = input.path ? (input.path.split(/[\\/]/).filter(Boolean).pop() ?? input.path) : '';
     const pkg = folder || (input.package ?? 'flask');
     const version = folder ? '' : (input.version ?? '2.0.0');
@@ -1136,7 +1155,8 @@ export class MockApi {
       id,
       package: pkg,
       version,
-      source: folder ? 'local' : 'pypi',
+      source: folder ? 'local' : (input.ecosystem ?? 'pypi'),
+      ecosystem: folder ? undefined : (input.ecosystem ?? 'pypi'),
       status: 'pending',
       phase: 'queued',
       progress: 0,

@@ -21,6 +21,7 @@ import (
 	"github.com/tlmcguire/aisai/internal/model"
 	"github.com/tlmcguire/aisai/internal/purl"
 	"github.com/tlmcguire/aisai/internal/pypi"
+	"github.com/tlmcguire/aisai/internal/registry"
 )
 
 // DefaultBaseURL is the public deps.dev API endpoint.
@@ -38,6 +39,9 @@ const (
 	SourceDepsDev = "deps.dev"
 	// SourcePyPIMetadata marks a resolution derived from PyPI metadata.
 	SourcePyPIMetadata = "pypi-metadata"
+	// SourceRootOnly marks a graph reduced to the root package because no
+	// resolver could answer.
+	SourceRootOnly = "root-only"
 )
 
 // maxFallbackDepth bounds the recursion of the PyPI metadata fallback.
@@ -105,14 +109,41 @@ func NewResolver(opts Options) *Resolver {
 	}
 }
 
-// Resolve returns the resolved dependency graph for name@version.
+// Resolve returns the resolved dependency graph for a PyPI name@version.
 //
 // The root package is included in the returned packages and is the only
 // package marked as a direct dependency.
 func (r *Resolver) Resolve(ctx context.Context, name, version string) (*Resolution, error) {
+	return r.ResolveFor(ctx, Ecosystem, name, version)
+}
+
+// ResolveFor resolves the dependency graph of a package of any ecosystem.
+//
+// PyPI falls back to walking the index metadata when deps.dev cannot answer.
+// Other ecosystems have no such fallback: a version range of npm or Cargo
+// cannot be resolved without the full resolver of that tool, so when deps.dev
+// fails the graph is reduced to the root package and Source says so. That is
+// reported, never hidden: the audit still downloads and scans the package.
+// For those ecosystems the version must be given.
+func (r *Resolver) ResolveFor(ctx context.Context, eco, name, version string) (*Resolution, error) {
+	eco = registry.Normalize(eco)
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, fmt.Errorf("deps: package name is required")
+	}
+	if eco != Ecosystem {
+		if strings.TrimSpace(version) == "" {
+			return nil, fmt.Errorf("deps: a version is required to resolve %s packages", eco)
+		}
+		res, err := r.resolveFromDepsDev(ctx, eco, name, version)
+		if err == nil {
+			return res, nil
+		}
+		log.Printf("deps: deps.dev resolution failed for %s %s@%s: %v; scanning the root package only", eco, name, version, err)
+		b := newGraphBuilder(eco, name, version)
+		b.addPackage(name, version, true)
+		b.source = SourceRootOnly
+		return b.build(), nil
 	}
 	if strings.TrimSpace(version) == "" {
 		resolved, err := r.pypi.Package(ctx, name, "")
@@ -122,7 +153,7 @@ func (r *Resolver) Resolve(ctx context.Context, name, version string) (*Resoluti
 		version = resolved.Version
 	}
 
-	res, primaryErr := r.resolveFromDepsDev(ctx, name, version)
+	res, primaryErr := r.resolveFromDepsDev(ctx, eco, name, version)
 	if primaryErr == nil {
 		return res, nil
 	}
@@ -195,9 +226,9 @@ type depsResponse struct {
 }
 
 // resolveFromDepsDev resolves the graph through the deps.dev API.
-func (r *Resolver) resolveFromDepsDev(ctx context.Context, name, version string) (*Resolution, error) {
-	endpoint := fmt.Sprintf("%s/v3/systems/PYPI/packages/%s/versions/%s:dependencies",
-		r.baseURL, url.PathEscape(name), url.PathEscape(version))
+func (r *Resolver) resolveFromDepsDev(ctx context.Context, eco, name, version string) (*Resolution, error) {
+	endpoint := fmt.Sprintf("%s/v3/systems/%s/packages/%s/versions/%s:dependencies",
+		r.baseURL, registry.DepsDevSystem(eco), url.PathEscape(name), url.PathEscape(version))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("deps: build request for %s: %w", endpoint, err)
@@ -219,11 +250,16 @@ func (r *Resolver) resolveFromDepsDev(ctx context.Context, name, version string)
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		return nil, fmt.Errorf("deps: decode %s: %w", endpoint, err)
 	}
-	return resolutionFromDepsResponse(&payload, name, version)
+	return resolutionFromDepsResponseFor(eco, &payload, name, version)
 }
 
 // resolutionFromDepsResponse converts a deps.dev graph into a Resolution.
 func resolutionFromDepsResponse(payload *depsResponse, name, version string) (*Resolution, error) {
+	return resolutionFromDepsResponseFor(Ecosystem, payload, name, version)
+}
+
+// resolutionFromDepsResponseFor converts a deps.dev graph of any ecosystem.
+func resolutionFromDepsResponseFor(eco string, payload *depsResponse, name, version string) (*Resolution, error) {
 	if len(payload.Nodes) == 0 {
 		return nil, fmt.Errorf("deps: deps.dev returned no nodes for %s@%s", name, version)
 	}
@@ -245,8 +281,8 @@ func resolutionFromDepsResponse(payload *depsResponse, name, version string) (*R
 				continue
 			}
 			edges[key] = append(edges[key], model.GraphEdge{
-				Source: model.PURL(purl.New(node.VersionKey.Name, node.VersionKey.Version)),
-				Target: model.PURL(purl.New(child.VersionKey.Name, child.VersionKey.Version)),
+				Source: model.PURL(model.PackageURLFor(eco, node.VersionKey.Name, node.VersionKey.Version)),
+				Target: model.PURL(model.PackageURLFor(eco, child.VersionKey.Name, child.VersionKey.Version)),
 			})
 		}
 		for _, edge := range node.Edges {
@@ -264,8 +300,8 @@ func resolutionFromDepsResponse(payload *depsResponse, name, version string) (*R
 				continue
 			}
 			edges[fromKey] = append(edges[fromKey], model.GraphEdge{
-				Source: model.PURL(purl.New(from.Name, from.Version)),
-				Target: model.PURL(purl.New(to.Name, to.Version)),
+				Source: model.PURL(model.PackageURLFor(eco, from.Name, from.Version)),
+				Target: model.PURL(model.PackageURLFor(eco, to.Name, to.Version)),
 			})
 		}
 	}
@@ -288,8 +324,8 @@ func resolutionFromDepsResponse(payload *depsResponse, name, version string) (*R
 			continue
 		}
 		edges[fromKey] = append(edges[fromKey], model.GraphEdge{
-			Source: model.PURL(purl.New(from.Name, from.Version)),
-			Target: model.PURL(purl.New(to.Name, to.Version)),
+			Source: model.PURL(model.PackageURLFor(eco, from.Name, from.Version)),
+			Target: model.PURL(model.PackageURLFor(eco, to.Name, to.Version)),
 		})
 	}
 
@@ -298,7 +334,7 @@ func resolutionFromDepsResponse(payload *depsResponse, name, version string) (*R
 		return nil, fmt.Errorf("deps: deps.dev response does not contain %s@%s", name, version)
 	}
 
-	builder := newGraphBuilder(name, version)
+	builder := newGraphBuilder(eco, name, version)
 	builder.addPackage(name, version, true)
 
 	// deps.dev marks the root's immediate dependencies with a relation of
@@ -374,6 +410,7 @@ func packageKey(name, version string) string {
 
 // graphBuilder accumulates packages, edges and version conflicts.
 type graphBuilder struct {
+	eco       string
 	packages  []model.Package
 	seen      map[string]bool
 	edges     []model.GraphEdge
@@ -384,8 +421,9 @@ type graphBuilder struct {
 }
 
 // newGraphBuilder returns a builder for a graph rooted at name@version.
-func newGraphBuilder(name, version string) *graphBuilder {
+func newGraphBuilder(eco, name, version string) *graphBuilder {
 	return &graphBuilder{
+		eco:      eco,
 		seen:     map[string]bool{},
 		edgeSeen: map[string]bool{},
 		versions: map[string]map[string]bool{},
@@ -410,10 +448,10 @@ func (b *graphBuilder) addPackage(name, version string, direct bool) {
 		}
 	}
 	b.packages = append(b.packages, model.Package{
-		PURL:        model.PURL(purl.New(name, version)),
+		PURL:        model.PackageURLFor(b.eco, name, version),
 		Name:        name,
 		Version:     version,
-		Ecosystem:   Ecosystem,
+		Ecosystem:   b.eco,
 		Direct:      direct,
 		MaxSeverity: model.SeverityInfo,
 	})

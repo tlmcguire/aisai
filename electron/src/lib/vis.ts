@@ -28,6 +28,8 @@ export interface VisNodeData {
   font?: { color?: string; size?: number; face?: string; multi?: boolean; bold?: boolean };
   value?: number;
   level?: number;
+  size?: number;
+  widthConstraint?: { maximum?: number; minimum?: number };
   fixed?: boolean;
 }
 

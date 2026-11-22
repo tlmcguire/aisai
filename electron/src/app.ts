@@ -30,6 +30,7 @@ import type {
   Patch,
   PatchResponse,
   PackageLookup,
+  Ecosystem,
   DownloadEvent,
   ProviderInfo,
   ProviderRequest,
@@ -153,8 +154,8 @@ export class AppController {
   /* ---------------------------------------------------------------- */
 
   /** Start a new audit for a package. */
-  async startAudit(packageName: string, version: string): Promise<void> {
-    const body: Record<string, string> = { package: packageName };
+  async startAudit(packageName: string, version: string, ecosystem: Ecosystem = 'pypi'): Promise<void> {
+    const body: Record<string, string> = { package: packageName, ecosystem };
     if (version) body.version = version;
     await this.beginAudit(packageName, body);
   }
@@ -324,9 +325,36 @@ export class AppController {
     }
   }
 
+  /**
+   * Works out which model answers chat questions, and whether one can.
+   *
+   * Chat is limited, not broken, when no model is usable: the panel says so
+   * and does not accept a question that could only fail.
+   */
+  async refreshChatModel(providers?: ProviderInfo[]): Promise<void> {
+    const list = providers ?? (await this.fetchProviders());
+    const config = await this.fetchConfig();
+    const name = config?.chatModel?.trim() ?? '';
+    const usable = list.filter((provider) => provider.ok);
+    const provider = usable[0];
+    let reason = '';
+    if (!list.length) reason = 'No model server is configured.';
+    else if (!usable.length) reason = 'The model server is not reachable.';
+    else if (!name) reason = 'No chat model is selected.';
+    useChatStore.getState().setModel({
+      name,
+      provider: provider?.kind ?? list[0]?.kind ?? '',
+      available: reason === '',
+      reason,
+    });
+  }
+
   /** Ask a question about the current audit. */
   async ask(question: string): Promise<void> {
     const chat = useChatStore.getState();
+    // The panel disables its input when no model is usable; this guards
+    // every other caller.
+    if (!chat.model.available) return;
     chat.pushUser(question);
     try {
       const response = await this.client.request<JobResponse>('POST', '/api/chat', {
@@ -505,11 +533,11 @@ export class AppController {
    * project it refers to, and to fill the version dropdown with the
    * versions that actually exist.
    */
-  async lookupPackage(name: string): Promise<PackageLookup | null> {
+  async lookupPackage(name: string, ecosystem: Ecosystem = 'pypi'): Promise<PackageLookup | null> {
     try {
       const response = await this.client.request<{ package: PackageLookup }>(
         'GET',
-        `/api/packages?name=${encodeURIComponent(name)}`,
+        `/api/packages?name=${encodeURIComponent(name)}&ecosystem=${ecosystem}`,
       );
       return response.package ?? null;
     } catch {

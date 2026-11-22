@@ -1,4 +1,5 @@
 import type { AppController } from '../app';
+import type { Ecosystem } from '../api/types';
 import { h } from '../lib/dom';
 import { useAuditStore } from '../state/audit';
 
@@ -9,27 +10,28 @@ import { useAuditStore } from '../state/audit';
  * two places: the packages that were audited before, and a short list of
  * the packages people actually install.
  */
-const POPULAR_PACKAGES = [
-  'requests',
-  'urllib3',
-  'flask',
-  'django',
-  'numpy',
-  'pandas',
-  'scipy',
-  'boto3',
-  'pyyaml',
-  'jinja2',
-  'click',
-  'setuptools',
-  'pytest',
-  'cryptography',
-  'pillow',
-  'sqlalchemy',
-  'aiohttp',
-  'fastapi',
-  'pydantic',
-  'rich',
+const POPULAR_PACKAGES: Record<Ecosystem, string[]> = {
+  pypi: [
+    'requests', 'urllib3', 'flask', 'django', 'numpy', 'pandas', 'scipy', 'boto3', 'pyyaml', 'jinja2',
+    'click', 'setuptools', 'pytest', 'cryptography', 'pillow', 'sqlalchemy', 'aiohttp', 'fastapi',
+    'pydantic', 'rich',
+  ],
+  npm: [
+    'express', 'react', 'lodash', 'axios', 'webpack', 'typescript', 'next', 'vue', 'moment', 'chalk',
+    'commander', 'debug', 'uuid', 'jsonwebtoken', 'minimist', 'yargs', 'eslint', 'jest', 'body-parser',
+    'node-fetch',
+  ],
+  cargo: [
+    'serde', 'tokio', 'rand', 'clap', 'regex', 'reqwest', 'hyper', 'syn', 'anyhow', 'log',
+    'chrono', 'once_cell', 'itertools', 'bytes', 'futures', 'axum', 'tracing', 'thiserror', 'openssl', 'rustls',
+  ],
+};
+
+/** The package managers a scan can start from. */
+export const ECOSYSTEMS: Array<{ id: Ecosystem; label: string; example: string }> = [
+  { id: 'pypi', label: 'PyPI (pip)', example: 'flask' },
+  { id: 'npm', label: 'npm', example: 'express' },
+  { id: 'cargo', label: 'crates.io (cargo)', example: 'serde' },
 ];
 
 /** How long to wait before asking the index about the typed name. */
@@ -53,10 +55,12 @@ export interface PackagePicker {
   element: DocumentFragment;
   /** The package name to audit. */
   packageName(): string;
+  /** The package manager the name belongs to. */
+  ecosystem(): Ecosystem;
   /** The version to audit; an empty string means the latest release. */
   version(): string;
   /** Registers the handler called when the user asks to scan. */
-  onScan(handler: (packageName: string, version: string) => void): void;
+  onScan(handler: (packageName: string, version: string, ecosystem: Ecosystem) => void): void;
   /** Focuses the package field. */
   focus(): void;
   /** Focuses the field and explains that a package name is needed. */
@@ -103,8 +107,20 @@ export function createPackagePicker(controller: AppController): PackagePicker {
     h('option', { value: '', text: 'latest' }),
   );
 
+  const ecosystemSelect = h(
+    'select',
+    { id: 'ecosystem-input', 'aria-label': 'Package manager' },
+    ...ECOSYSTEMS.map((eco) => h('option', { value: eco.id, text: eco.label })),
+  );
+
   const element = document.createDocumentFragment();
   element.append(
+    h(
+      'div',
+      { class: 'field picker-ecosystem-field' },
+      h('label', { for: 'ecosystem-input', text: 'Source' }),
+      ecosystemSelect,
+    ),
     h(
       'div',
       { class: 'picker-field' },
@@ -124,7 +140,8 @@ export function createPackagePicker(controller: AppController): PackagePicker {
     ),
   );
 
-  let scanHandler: ((packageName: string, version: string) => void) | null = null;
+  let scanHandler: ((packageName: string, version: string, ecosystem: Ecosystem) => void) | null = null;
+  const currentEcosystem = (): Ecosystem => ecosystemSelect.value as Ecosystem;
   let suggestions: Suggestion[] = [];
   let activeIndex = -1;
   let lookupTimer: ReturnType<typeof setTimeout> | null = null;
@@ -205,10 +222,10 @@ export function createPackagePicker(controller: AppController): PackagePicker {
       populateVersions([]);
       return;
     }
-    const lookup = await controller.lookupPackage(name);
+    const lookup = await controller.lookupPackage(name, currentEcosystem());
     if (token !== lookupToken) return; // a newer lookup won
     if (!lookup) {
-      setStatus('', 'the package index is unreachable');
+      setStatus('', 'the package registry is unreachable');
       return;
     }
     if (lookup.error) {
@@ -241,6 +258,7 @@ export function createPackagePicker(controller: AppController): PackagePicker {
     for (const audit of useAuditStore.getState().audits) {
       // A folder is not a package name: it cannot be looked up on the index.
       if (audit.source === 'local') continue;
+      if ((audit.ecosystem ?? 'pypi') !== currentEcosystem()) continue;
       const key = audit.package.toLowerCase();
       if (!key || seen.has(key)) continue;
       seen.add(key);
@@ -252,7 +270,7 @@ export function createPackagePicker(controller: AppController): PackagePicker {
   const updateSuggestions = (): void => {
     const query = input.value.trim().toLowerCase();
     const recent = knownPackages();
-    const popular: Suggestion[] = POPULAR_PACKAGES.map((name) => ({
+    const popular: Suggestion[] = POPULAR_PACKAGES[currentEcosystem()].map((name) => ({
       name,
       version: '',
       recent: false,
@@ -298,7 +316,7 @@ export function createPackagePicker(controller: AppController): PackagePicker {
       return;
     }
     closeList();
-    scanHandler?.(name, versionSelect.value);
+    scanHandler?.(name, versionSelect.value, currentEcosystem());
   };
 
   input.addEventListener('input', () => {
@@ -342,6 +360,16 @@ export function createPackagePicker(controller: AppController): PackagePicker {
     }
   });
 
+  const syncEcosystem = (): void => {
+    const eco = ECOSYSTEMS.find((candidate) => candidate.id === currentEcosystem()) ?? ECOSYSTEMS[0];
+    input.placeholder = eco.example;
+    populateVersions([]);
+    setStatus('');
+    closeList();
+    if (input.value.trim()) void resolve(input.value.trim());
+  };
+  ecosystemSelect.addEventListener('change', syncEcosystem);
+
   versionSelect.addEventListener('change', () => {
     const value = versionSelect.value;
     const name = input.value.trim();
@@ -351,6 +379,7 @@ export function createPackagePicker(controller: AppController): PackagePicker {
   return {
     element,
     packageName: () => input.value.trim(),
+    ecosystem: currentEcosystem,
     version: () => versionSelect.value,
     onScan: (handler) => {
       scanHandler = handler;

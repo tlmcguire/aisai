@@ -26,7 +26,7 @@ type pendingPackage struct {
 // published release list and environment markers are evaluated against the
 // resolver's marker environment.
 func (r *Resolver) resolveFromPyPIMetadata(ctx context.Context, rootName, rootVersion string) (*Resolution, error) {
-	builder := newGraphBuilder(rootName, rootVersion)
+	builder := newGraphBuilder(Ecosystem, rootName, rootVersion)
 	builder.source = SourcePyPIMetadata
 	builder.addPackage(rootName, rootVersion, true)
 

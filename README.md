@@ -1,8 +1,9 @@
 # AISAI
 
-AISAI finds software supply chain vulnerabilities in Python packages. Give it a
-package name and version; it resolves the dependency tree, downloads every
-source archive safely, parses it into semantic chunks, runs static rules and an
+AISAI finds software supply chain vulnerabilities in packages from **PyPI,
+npm and crates.io**, and in local project folders. Give it a package name and
+version; it resolves the dependency tree, downloads every source archive
+safely, parses it into semantic chunks, runs static rules and an
 LLM review over the code, and lets you interrogate the result — including
 asking the LLM questions about the code itself.
 
@@ -17,25 +18,49 @@ full audit.
 > the rewrite and [`PLAN_rewrite_electron_go.md`](PLAN_rewrite_electron_go.md)
 > for the design.
 
-## Why it was rewritten
+## At a glance
 
-The legacy app had real correctness problems, not just rough edges. The audit
-found ten of them, including:
+![The AISAI workspace: dependency graph and file tree, code with findings highlighted, findings rail and chat](docs/screenshots/overview.png)
 
-- Every LLM scan wiped every prior scan's results, so the findings list only
-  ever showed the last file scanned.
-- `__init__.py` files from different packages collided in the results
-  directory, silently losing findings.
-- Bandit ran at `-lll` (HIGH only) in the app but the benchmark accepted MEDIUM
-  **and** HIGH — so the app and the benchmark disagreed about the same code.
-- `tar.extractall` was called without path-traversal validation in four
-  places, on archives downloaded from the internet.
-- The Dash server bound `0.0.0.0` with `debug=True`, exposing a Werkzeug
-  console with code execution.
+The workspace after auditing a package: the dependency graph and files on the
+left, the code with the flagged lines in the middle, findings on the right and
+the chat below, which names the model that answers.
 
-The full list, with file and line references, is in
-[`NOTES_improvements.md`](NOTES_improvements.md). Findings are referenced
-throughout the new code as **F§n**.
+| | |
+|---|---|
+| ![The syntax tree drawn as a graph, with the nodes that carry findings in red](docs/screenshots/ast-graph.png) | ![Settings, Layout: five ready-made arrangements of the panes](docs/screenshots/layout-presets.png) |
+| **AST graph.** The syntax tree of the open file as a node-link diagram; nodes with a finding are red, a click jumps to the line. | **Layout presets.** Move panes by their grip, or pick an arrangement in Settings. |
+| ![The Reader layout: code, findings and the chat docked on the right](docs/screenshots/reader-layout.png) | ![The package picker with npm selected and a suggestion shown](docs/screenshots/package-manager-picker.png) |
+| **Reader layout.** The dependency column is hidden and the chat is docked on the right. | **Package managers.** Choose PyPI, npm or crates.io, then the package and version. |
+
+### How an audit runs
+
+```mermaid
+flowchart LR
+    A["Package + source<br/>(PyPI · npm · crates.io)<br/>or local folder"] --> B["Resolve dependencies<br/>(deps.dev)"]
+    B --> C["Download each source archive<br/>(integrity-checked, safe extraction)"]
+    C --> D["Parse into syntax trees<br/>and semantic chunks"]
+    D --> E["Static rules (SAST)"]
+    D --> F["Advisories (OSV)"]
+    D --> G["Retrieval index"]
+    G --> H["LLM scan and chat<br/>(optional)"]
+    E --> I["Findings<br/>(severity · CWE · SARIF)"]
+    F --> I
+    H --> I
+```
+
+### Where each package manager plugs in
+
+```mermaid
+flowchart TB
+    UI["Source dropdown / API ecosystem field / MCP scan_package"] --> M["audit.Manager"]
+    M --> R{"registry.Set"}
+    R --> P["PyPI<br/>sdist .tar.gz"]
+    R --> N["npm<br/>tarball + sha512 integrity"]
+    R --> C["crates.io<br/>.crate archive"]
+    M --> D["deps.Resolver<br/>(deps.dev system per ecosystem)"]
+    M --> V["advisory.Client<br/>(OSV ecosystem per package)"]
+```
 
 ## Architecture
 
@@ -52,8 +77,9 @@ throughout the new code as **F§n**.
 ┌──────────────────────────────▼───────────────────────────────────┐
 │  Go backend  cmd/aisai-server                                    │
 │    internal/audit    lifecycle: resolve → download → index       │
+│    internal/registry package indexes: PyPI, npm, crates.io       │
 │    internal/pypi     PyPI client + safe tar extraction (fuzzed)  │
-│    internal/deps     deps.dev resolver                           │
+│    internal/deps     deps.dev resolver (PyPI, npm, cargo)        │
 │    internal/ast      tree-sitter parsing + semantic chunker      │
 │    internal/sast     10 AST rules                                │
 │    internal/scan     LLM detect → verify pipeline                │
@@ -103,7 +129,7 @@ The server prints exactly one line of JSON on stdout — the address the
 Electron main process connects to:
 
 ```json
-{"address":"/path/to/.aisai/aisai.sock","transport":"unix","type":"listening","version":"0.2.0-dev"}
+{"address":"/path/to/.aisai/aisai.sock","transport":"unix","type":"listening","version":"0.3.0-dev"}
 ```
 
 Everything else is logged to stderr.
@@ -222,14 +248,16 @@ Two models to avoid on this machine: `gemma3n:e4b` (9.8GB) and
 3. Point `AISAI_OLLAMA_URLS` at a local Ollama.
 
 With those set, the app performs no outbound network calls. The dependency
-resolution uses deps.dev and the package downloads use PyPI, so a fully
+resolution uses deps.dev and the package downloads use the public package indexes, so a fully
 offline audit needs a local mirror of both; that is not implemented yet.
 
 ## Inspecting a package
 
 ### The package picker
 
-The toolbar holds a package field and a version dropdown. The version is
+The toolbar holds a **Source** dropdown (the package manager: PyPI, npm or
+crates.io), a package field and a version dropdown. Each source has its own
+suggestions, and the packages are downloaded from that index. The version is
 never typed by hand: it is either **latest** or one of the versions the
 package index actually published, so an audit cannot silently run against a
 release that does not exist.
@@ -239,6 +267,55 @@ name refers to — the canonical name, the latest release and the summary of
 the project. The suggestions are the packages that were audited before and a
 short list of the packages people actually install. `Enter` scans the typed
 name, `Arrow Down` walks the suggestions.
+
+### Package managers
+
+| Source | Index | Dependency graph | Advisories |
+|---|---|---|---|
+| PyPI (`pypi`) | pypi.org source distributions | deps.dev, with a PyPI-metadata fallback | OSV `PyPI` |
+| npm (`npm`) | registry.npmjs.org tarballs, checked against the published integrity hash | deps.dev | OSV `npm` |
+| crates.io (`cargo`) | crates.io `.crate` archives | deps.dev | OSV `crates.io` |
+
+Over the API, send `POST /api/audits` with `{"package": "express",
+"ecosystem": "npm"}` (`ecosystem` defaults to `pypi`); `GET /api/ecosystems`
+lists the supported indexes and `GET /api/packages?name=…&ecosystem=…` looks a
+name up. Over MCP, `scan_package` takes an `ecosystem` argument. Package URLs
+follow the ecosystem (`pkg:npm/@scope/name@1.0.0`). For npm and cargo, when
+deps.dev cannot answer, only the root package is scanned and the graph says so,
+because a semver range cannot be resolved without the package manager itself.
+
+### The workspace layout
+
+Every column can be moved: drag a pane by its **⋮⋮** grip onto another pane, or
+use its **‹ ›** buttons. Drag an edge to resize it (double-click resets it).
+**Settings → Layout** offers ready-made arrangements (Classic, Triage, Reader,
+Focus, Supply-chain map), lets you hide the dependency and findings columns,
+and docks the chat below or on the right. The arrangement is remembered.
+
+### Chat
+
+The chat header names the model that answers (for example `qwen3.5:4b · Ollama`).
+When no model is usable — no server configured, the server unreachable, or no
+chat model selected — chat is explicitly limited: the input is disabled, the
+header says *no model*, and the panel explains why and links to the model
+settings. Scanning, the graph, the AST and the static rules keep working.
+
+### The syntax tree
+
+The **AST** tab shows the syntax tree of the open file either as a collapsible
+**Tree** or as a **Graph**, a left-to-right node-link diagram. Both respect the depth
+limit, mark nodes that carry a finding, and jump to the source line on click.
+The graph draws at most 500 nodes and says when it leaves some out.
+
+### Updates
+
+The installed app updates itself: it checks the project's GitHub releases on
+launch and every six hours, downloads a new version in the background and
+installs it when the app quits, or at once from the **Restart to update**
+button in the toolbar. No reinstall is needed. Windows and Linux (AppImage)
+update in place. macOS only updates a *signed* build; an unsigned build shows
+**Update available: download** and opens the release page instead. Set
+`AISAI_UPDATE_FEED_URL` to point the app at a private feed.
 
 ### Languages
 
@@ -337,8 +414,8 @@ These are the properties the rewrite treats as non-negotiable.
   flows across functions and can flag safe code.
 - **Fully offline operation is not complete.** The advisory database and the
   model can both be local, but dependency resolution still uses deps.dev and
-  package downloads still use PyPI. A local mirror of both is not
-  implemented.
+  package downloads still use the public package indexes. A local mirror of
+  both is not implemented.
 - **The published releases are not signed.** The pipeline publishes an
   artifact for Windows, macOS and Linux on every tag, but the signing
   identities are not configured in this repository, so the artifacts are
@@ -475,8 +552,8 @@ app for all three platforms:
 | Linux (x64 and arm64) | AppImage and deb |
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 The pipeline builds the Go backend once and hands it to every platform

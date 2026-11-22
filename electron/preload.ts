@@ -14,6 +14,7 @@ import type {
   ClientMessage,
   HttpMethod,
   HttpResponse,
+  UpdateStatus,
 } from './src/api/bridge';
 import type { Event } from './src/api/types';
 
@@ -56,7 +57,24 @@ try {
   /* main process not ready yet — the broadcast will arrive shortly */
 }
 
+const updateListeners = new Set<(status: UpdateStatus) => void>();
+let updateStatus: UpdateStatus = { state: 'idle' };
+ipcRenderer.on('aisai:update', (_event, payload: UpdateStatus) => {
+  updateStatus = payload;
+  for (const listener of Array.from(updateListeners)) listener(payload);
+});
+
 const bridge: AisaiBridge = {
+  onUpdateStatus: (cb) => {
+    updateListeners.add(cb);
+    cb(updateStatus);
+    return () => {
+      updateListeners.delete(cb);
+    };
+  },
+  checkForUpdates: () => ipcRenderer.invoke('aisai:update:check') as Promise<void>,
+  installUpdate: () => ipcRenderer.invoke('aisai:update:install') as Promise<void>,
+  openReleasePage: () => ipcRenderer.invoke('aisai:update:page') as Promise<void>,
   getMode: () => currentStatus.mode,
   getStatus: () => currentStatus,
   http: (method: HttpMethod, path: string, body?: unknown): Promise<HttpResponse> =>

@@ -32,7 +32,9 @@ import (
 	"github.com/tlmcguire/aisai/internal/llm"
 	"github.com/tlmcguire/aisai/internal/localsrc"
 	"github.com/tlmcguire/aisai/internal/model"
+	"github.com/tlmcguire/aisai/internal/purl"
 	"github.com/tlmcguire/aisai/internal/pypi"
+	"github.com/tlmcguire/aisai/internal/registry"
 	"github.com/tlmcguire/aisai/internal/sast"
 	"github.com/tlmcguire/aisai/internal/scan"
 )
@@ -42,13 +44,16 @@ type Emitter func(model.Event)
 
 // Deps are the collaborators an audit Manager needs.
 type Deps struct {
-	Config   *config.Config
-	PyPI     *pypi.Client
-	Resolver *deps.Resolver
-	SAST     *sast.Engine
-	Store    *findings.Store
-	Index    *index.Index
-	LLM      llm.Provider
+	Config *config.Config
+	PyPI   *pypi.Client
+	// Registries are the package indexes sources can be downloaded from. When
+	// nil, only PyPI (through the PyPI client) is available.
+	Registries *registry.Set
+	Resolver   *deps.Resolver
+	SAST       *sast.Engine
+	Store      *findings.Store
+	Index      *index.Index
+	LLM        llm.Provider
 	// Advisory queries for known vulnerabilities. It is nil when advisory
 	// lookups are disabled.
 	Advisory *advisory.Client
@@ -80,6 +85,8 @@ type Audit struct {
 	Package string
 	Version string
 	Root    string
+	// ecosystem is the package index of a published package.
+	ecosystem string
 
 	// source says where the code came from: sourcePyPI or sourceLocal.
 	source string
@@ -135,7 +142,33 @@ func NewManager(d Deps) *Manager {
 // Create allocates an audit of a published package and its workspace, but
 // does not start work.
 func (m *Manager) Create(ctx context.Context, pkg, version string) (*model.Audit, error) {
-	return m.create(pkg, version, sourcePyPI, "")
+	return m.CreateFor(ctx, registry.PyPI, pkg, version)
+}
+
+// CreateFor allocates an audit of a package published on the index of an
+// ecosystem (pypi, npm, cargo), but does not start work.
+func (m *Manager) CreateFor(ctx context.Context, ecosystem, pkg, version string) (*model.Audit, error) {
+	ecosystem = registry.Normalize(ecosystem)
+	// PyPI is always accepted (its absence is reported when the audit runs,
+	// as it always was); any other ecosystem must have a configured index.
+	if ecosystem != registry.PyPI {
+		if _, err := m.registry(ecosystem); err != nil {
+			return nil, fmt.Errorf("%w: %s", ErrBadSource, err)
+		}
+	}
+	return m.create(pkg, version, ecosystem, "")
+}
+
+// registry returns the index of an ecosystem, falling back to the PyPI client
+// for PyPI when no registry set was configured.
+func (m *Manager) registry(ecosystem string) (registry.Registry, error) {
+	if m.deps.Registries != nil {
+		return m.deps.Registries.Get(ecosystem)
+	}
+	if registry.Normalize(ecosystem) == registry.PyPI && m.deps.PyPI != nil {
+		return registry.NewPyPI(m.deps.PyPI), nil
+	}
+	return nil, registry.ErrUnknownEcosystem
 }
 
 // CreateLocal allocates an audit of a project folder on the local disk and its
@@ -167,12 +200,17 @@ func (m *Manager) create(pkg, version, source, sourceDir string) (*model.Audit, 
 		return nil, fmt.Errorf("create audit workspace: %w", err)
 	}
 
+	eco := ""
+	if source != sourceLocal {
+		eco = source
+	}
 	a := &Audit{
-		ID:      id,
-		Package: pkg,
-		Version: version,
-		Root:    root,
-		source:  source,
+		ID:        id,
+		Package:   pkg,
+		Version:   version,
+		Root:      root,
+		source:    source,
+		ecosystem: eco,
 
 		sourceDir: sourceDir,
 		status:    model.AuditPending,
@@ -208,7 +246,29 @@ func (m *Manager) Run(ctx context.Context, id string) error {
 		return err
 	}
 
-	res, err := m.deps.Resolver.Resolve(ctx, a.Package, a.Version)
+	eco := a.ecosystem
+	if eco == "" {
+		eco = registry.PyPI
+	}
+	reg, err := m.registry(eco)
+	if err != nil {
+		a.fail(err)
+		return err
+	}
+	if a.Version == "" && eco != registry.PyPI {
+		// Only PyPI resolves its own latest version; the others are asked.
+		info, lerr := reg.Lookup(ctx, a.Package)
+		if lerr != nil {
+			a.fail(fmt.Errorf("look up %s: %w", a.Package, lerr))
+			return lerr
+		}
+		a.mu.Lock()
+		a.Version = info.Latest
+		a.Package = info.Name
+		a.mu.Unlock()
+	}
+
+	res, err := m.deps.Resolver.ResolveFor(ctx, eco, a.Package, a.Version)
 	if err != nil {
 		a.fail(fmt.Errorf("resolve dependencies: %w", err))
 		return err
@@ -511,7 +571,15 @@ func (m *Manager) fetchPackage(ctx context.Context, a *Audit, p model.Package, d
 	}
 	defer os.RemoveAll(scratch)
 
-	tarball, err := m.deps.PyPI.DownloadSdist(ctx, p.Name, p.Version, scratch)
+	eco := p.Ecosystem
+	if eco == "" {
+		eco = a.ecosystem
+	}
+	reg, err := m.registry(eco)
+	if err != nil {
+		return nil, err
+	}
+	tarball, _, err := reg.Download(ctx, p.Name, p.Version, scratch)
 	if err != nil {
 		return nil, err
 	}
@@ -633,6 +701,7 @@ func (m *Manager) Graph(ctx context.Context, id string) (*model.Graph, error) {
 	a.mu.RLock()
 	pkgs := append([]model.Package(nil), a.packages...)
 	edges := append([]model.GraphEdge(nil), a.edges...)
+	rootName := purl.NormalizeName(a.Package)
 	a.mu.RUnlock()
 
 	counts := map[string]int{}
@@ -660,6 +729,7 @@ func (m *Manager) Graph(ctx context.Context, id string) (*model.Graph, error) {
 			Name:         p.Name,
 			Version:      p.Version,
 			Direct:       p.Direct,
+			Root:         purl.NormalizeName(p.Name) == rootName,
 			MaxSeverity:  p.MaxSeverity,
 			FindingCount: counts[key],
 			VulnCount:    len(p.Vulnerabilities),
@@ -953,6 +1023,7 @@ func (a *Audit) snapshot() *model.Audit {
 		ChunkCount:   totalChunks(a.files),
 		FindingCount: a.findingCount,
 		Source:       a.source,
+		Ecosystem:    a.ecosystem,
 
 		SandboxBytes:   a.sandboxBytes,
 		SourcesDeleted: a.sourcesDeleted,

@@ -102,3 +102,13 @@ func TestRelPath(t *testing.T) {
 		}
 	}
 }
+
+func TestScopedNPMPURL(t *testing.T) {
+	p := PackageURLFor("npm", "@Scope/Pkg", "1.2.3")
+	if p.String() != "pkg:npm/@scope/pkg@1.2.3" || p.Name() != "@scope/pkg" || p.Version() != "1.2.3" || p.Ecosystem() != "npm" {
+		t.Fatalf("unexpected: %q %q %q %q", p, p.Name(), p.Version(), p.Ecosystem())
+	}
+	if q := PackageURLFor("npm", "@scope/pkg", ""); q.Name() != "@scope/pkg" || q.Version() != "" {
+		t.Fatalf("versionless scoped purl parsed wrong: %q %q", q.Name(), q.Version())
+	}
+}
