@@ -11,7 +11,7 @@
  */
 
 import type { AppController } from '../app';
-import { SEVERITIES, type GraphNode, type Severity } from '../api/types';
+import { SEVERITIES, type GraphEdge, type GraphNode, type Severity } from '../api/types';
 import { h } from '../lib/dom';
 import { t, tn } from '../lib/i18n';
 import { icon } from '../lib/icons';
@@ -103,6 +103,84 @@ function visNode(node: GraphNode): VisNodeData {
   };
 }
 
+/** The nodes and edges of the dependency graph, as vis-network wants them. */
+export function dependencyGraphData(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+): { nodes: VisNodeData[]; edges: VisEdgeData[] } {
+  return {
+    nodes: nodes.map(visNode),
+    edges: edges.map((edge) => visEdge(edge.source, edge.target)),
+  };
+}
+
+/**
+ * What the search, the severity filters and the highlighted path change
+ * about the nodes: the ones that do not match are hidden, the ones off the
+ * path are dimmed.
+ *
+ * The expanded window draws the same graph, so both use this.
+ */
+export function dependencyFilterUpdates(state: {
+  nodes: GraphNode[];
+  search: string;
+  severities: Severity[];
+  path: string[];
+}): VisNodeData[] {
+  const search = state.search.trim().toLowerCase();
+  const pathNodes = new Set(state.path);
+  const hasPath = pathNodes.size > 0;
+  return state.nodes.map((node) => {
+    const matchesSearch = !search || node.name.toLowerCase().includes(search);
+    const matchesSeverity =
+      state.severities.length === 0 || state.severities.includes(node.maxSeverity);
+    const inPath = !hasPath || pathNodes.has(node.id);
+    return {
+      id: node.id,
+      hidden: !(matchesSearch && matchesSeverity),
+      color: inPath ? nodeColor(node) : 'rgba(140,160,155,0.18)',
+      borderWidth: inPath && hasPath ? 3 : node.root ? 3 : hasIssues(node) ? 2 : 1,
+    };
+  });
+}
+
+/**
+ * The options the dependency graph is drawn with.
+ *
+ * A fresh object each time, so the pane and the expanded window can each
+ * have a network with the same look.
+ */
+export function dependencyNetworkOptions(): Record<string, unknown> {
+  return {
+    // The labels do not scale with the zoom: a graph that is fitted
+    // into a narrow pane would otherwise shrink its labels until
+    // they cannot be read.
+    nodes: {
+      scaling: { label: { enabled: false } },
+      shape: 'dot',
+      font: { size: 11, face: 'JetBrains Mono Variable, monospace' },
+      borderWidth: 1,
+      chosen: { label: false },
+    },
+    edges: {
+      smooth: { type: 'curvedCW', roundness: 0.12 },
+      arrows: { to: { enabled: true, scaleFactor: 0.35 } },
+      selectionWidth: 1.5,
+      hoverWidth: 0.6,
+    },
+    interaction: { hover: true, tooltipDelay: 80, navigationButtons: false, keyboard: false, zoomSpeed: 0.6 },
+    // A calm force layout that settles and then stops, so the graph does
+    // not keep drifting while it is read.
+    physics: {
+      enabled: true,
+      solver: 'forceAtlas2Based',
+      forceAtlas2Based: { gravitationalConstant: -38, centralGravity: 0.012, springLength: 85, springConstant: 0.07, damping: 0.6, avoidOverlap: 0.5 },
+      stabilization: { enabled: true, iterations: 400, fit: true, updateInterval: 40 },
+      minVelocity: 0.8,
+    },
+  };
+}
+
 function visEdge(from: string, to: string): VisEdgeData {
   const t = themeColors();
   return {
@@ -152,7 +230,7 @@ export function exportPng(container: HTMLElement): string | null {
  * vis-network 9 has no `canvasToSVG()` either, so the SVG is generated from
  * the live node positions returned by `network.getPositions()`.
  */
-function exportSvg(
+export function exportSvg(
   network: VisNetwork,
   nodes: GraphNode[],
   edges: Array<{ source: string; target: string }>,
@@ -268,6 +346,19 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
   const exportPngButton = h('button', { class: 'tiny', type: 'button', title: t('graph.exportPng') }, 'PNG');
   const exportSvgButton = h('button', { class: 'tiny', type: 'button', title: t('graph.exportSvg') }, 'SVG');
 
+  // The expanded window shows the same graph with room to breathe.
+  const expandButton = h(
+    'button',
+    {
+      class: 'tiny icon-button',
+      type: 'button',
+      title: t('graph.expandTitle'),
+      'aria-label': t('graph.expand'),
+      onclick: () => useUiStore.getState().setExpandedGraph('deps'),
+    },
+    icon('expand'),
+  );
+
   const cycleBadge = h('span', { class: 'badge neutral', text: '' });
 
   const controls = h(
@@ -283,6 +374,8 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
       h('span', { class: 'legend-item', text: t('graph.export') }),
       exportPngButton,
       exportSvgButton,
+      h('span', { class: 'grow' }),
+      expandButton,
     ),
   );
 
@@ -490,31 +583,13 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
   const applyFilters = (): void => {
     if (!nodeSet) return;
     const state = useGraphStore.getState();
-    const search = state.search.trim().toLowerCase();
-    const severityFilter = state.severities;
-    const pathNodes = new Set(state.path);
-    const hasPath = pathNodes.size > 0;
-
-    const updates: VisNodeData[] = [];
-    for (const node of state.nodes) {
-      const matchesSearch = !search || node.name.toLowerCase().includes(search);
-      const matchesSeverity =
-        severityFilter.length === 0 || severityFilter.includes(node.maxSeverity);
-      const inPath = !hasPath || pathNodes.has(node.id);
-      updates.push({
-        id: node.id,
-        hidden: !(matchesSearch && matchesSeverity),
-        color: inPath ? nodeColor(node) : 'rgba(140,160,155,0.18)',
-        borderWidth: inPath && hasPath ? 3 : node.root ? 3 : hasIssues(node) ? 2 : 1,
-      });
-    }
-    nodeSet.update(updates);
+    nodeSet.update(dependencyFilterUpdates(state));
 
     for (const chip of severityChips) {
       const severity = chip.dataset.severity as Severity | undefined;
       chip.setAttribute(
         'aria-pressed',
-        String(severity ? severityFilter.includes(severity) : false),
+        String(severity ? state.severities.includes(severity) : false),
       );
     }
   };
@@ -539,8 +614,7 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
       );
     }
 
-    const nodes = state.nodes.map(visNode);
-    const edges = state.edges.map((edge) => visEdge(edge.source, edge.target));
+    const { nodes, edges } = dependencyGraphData(state.nodes, state.edges);
 
     // The vendored neighbourhood helper restores colours from this map.
     window.nodeColors = {};
@@ -793,6 +867,9 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
   });
 
   const unsubscribe = useGraphStore.subscribe((state, previous) => {
+    // The expanded window has a search box of its own, and both write to
+    // the same store, so the boxes follow each other.
+    if (searchInput.value !== state.search) searchInput.value = state.search;
     if (state.nodes !== previous.nodes || state.edges !== previous.edges) {
       renderData();
       return;
@@ -809,39 +886,7 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
   void loadVis()
     .then(() => {
       if (destroyed) return;
-      const created = createNetwork(
-        canvas,
-        [],
-        [],
-        {
-          // The labels do not scale with the zoom: a graph that is fitted
-          // into a narrow pane would otherwise shrink its labels until
-          // they cannot be read.
-          nodes: {
-            scaling: { label: { enabled: false } },
-            shape: 'dot',
-            font: { size: 11, face: 'JetBrains Mono Variable, monospace' },
-            borderWidth: 1,
-            chosen: { label: false },
-          },
-          edges: {
-            smooth: { type: 'curvedCW', roundness: 0.12 },
-            arrows: { to: { enabled: true, scaleFactor: 0.35 } },
-            selectionWidth: 1.5,
-            hoverWidth: 0.6,
-          },
-          interaction: { hover: true, tooltipDelay: 80, navigationButtons: false, keyboard: false, zoomSpeed: 0.6 },
-          // A calm force layout that settles and then stops, so the graph does
-          // not keep drifting while it is read.
-          physics: {
-            enabled: true,
-            solver: 'forceAtlas2Based',
-            forceAtlas2Based: { gravitationalConstant: -38, centralGravity: 0.012, springLength: 85, springConstant: 0.07, damping: 0.6, avoidOverlap: 0.5 },
-            stabilization: { enabled: true, iterations: 400, fit: true, updateInterval: 40 },
-            minVelocity: 0.8,
-          },
-        },
-      );
+      const created = createNetwork(canvas, [], [], dependencyNetworkOptions());
       network = created.network;
       // Once the layout has settled, stop the simulation and glide the view to fit.
       network.on('stabilizationIterationsDone', () => {

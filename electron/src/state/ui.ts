@@ -4,6 +4,9 @@ import { t } from '../lib/i18n';
 
 export type MainTab = 'code' | 'ast' | 'diff';
 
+/** The graphs that can be shown in the expanded window. */
+export type GraphKind = 'deps' | 'ast';
+
 /** The three columns of the workspace. The chat panel is docked separately. */
 export type PaneId = 'deps' | 'main' | 'findings';
 export type ChatDock = 'bottom' | 'right';
@@ -163,6 +166,8 @@ export interface UiState {
   chatHeight: number;
   settingsOpen: boolean;
   settingsSection: SettingsSection;
+  /** Which graph is open in the expanded window, if any. */
+  expandedGraph: GraphKind | null;
   /** Share of the left column given to the file tree (0.15–0.85). */
   filesShare: number;
   /** Interface size multiplier (0.85–1.3). */
@@ -212,6 +217,8 @@ export interface UiState {
   setRailWidth: (width: number) => void;
   setChatHeight: (height: number) => void;
   setSettingsOpen: (open: boolean) => void;
+  /** Opens a graph in the expanded window, or closes it with null. */
+  setExpandedGraph: (kind: GraphKind | null) => void;
 }
 
 export type BottomView = 'terminal' | 'debug';
@@ -280,6 +287,7 @@ export const useUiStore = create<UiState>((set) => ({
     }),
   settingsOpen: false,
   settingsSection: 'server',
+  expandedGraph: null,
   setSettingsSection: (settingsSection) => set({ settingsSection }),
   setFilesShare: (share) => set({ filesShare: Math.max(0.15, Math.min(0.85, share)) }),
   setUiScale: (scale) => set({ uiScale: Math.max(0.85, Math.min(1.3, Math.round(scale * 100) / 100)) }),
@@ -292,6 +300,7 @@ export const useUiStore = create<UiState>((set) => ({
   setGraphWidth: (width) => set({ graphWidth: Math.max(180, Math.min(720, width)) }),
   setRailWidth: (width) => set({ railWidth: Math.max(240, Math.min(720, width)) }),
   setChatHeight: (height) => set({ chatHeight: Math.max(120, Math.min(640, height)) }),
+  setExpandedGraph: (expandedGraph) => set({ expandedGraph }),
   setSettingsOpen: (open) => set({ settingsOpen: open }),
 }));
 

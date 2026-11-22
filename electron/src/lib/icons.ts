@@ -37,6 +37,17 @@ const PATHS = {
   'step-over': ['M3 9 A5 5 0 0 1 13 9', 'M13 5.5 V9 H9.5', 'M8 13 V13.01'],
   'step-into': ['M8 2.5 V10', 'M4.5 6.5 L8 10 L11.5 6.5', 'M8 13.5 V13.51'],
   'step-out': ['M8 10.5 V3', 'M4.5 6.5 L8 3 L11.5 6.5', 'M8 13.5 V13.51'],
+  /** Four corners drawn apart: open the graph in a window of its own. */
+  expand: [
+    'M6 3.5 H3.5 V6',
+    'M3.5 3.5 L7 7',
+    'M10 3.5 H12.5 V6',
+    'M12.5 3.5 L9 7',
+    'M3.5 10 V12.5 H6',
+    'M3.5 12.5 L7 9',
+    'M12.5 10 V12.5 H10',
+    'M12.5 12.5 L9 9',
+  ],
   /** A speech bubble: the chat. */
   chat: ['M3 3.5 H13 V10.5 H7 L4 13 V10.5 H3 Z'],
   /** An i in a circle: explain. */

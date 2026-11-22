@@ -25,6 +25,7 @@ import { createDiffView } from './diffView';
 import { createFileTree } from './fileTree';
 import { createFindingsRail } from './findingsRail';
 import { createGraphView } from './graphView';
+import { createGraphWindow } from './graphWindow';
 import { createSettingsDialog } from './settingsDialog';
 import { progressStats } from '../lib/progress';
 import { createTerminalPanel } from './terminalPanel';
@@ -443,6 +444,8 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const removeShortcuts = installShortcuts(controller, root);
   const removeTutorials = installTutorials(root);
   const settings = createSettingsDialog(controller, root);
+  // The expanded graph window: the same graphs, with room to breathe.
+  const graphWindow = createGraphWindow(controller, root);
   // Application menu items; Save, Undo, Redo and Keyboard Shortcuts are
   // handled with the shortcuts (views/shortcuts.ts).
   const removeMenu = window.aisai.onMenuCommand((command) => {
@@ -792,6 +795,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       window.clearInterval(statsTimer);
       removeMenu();
       settings.dispose();
+      graphWindow.dispose();
     },
   };
 }
