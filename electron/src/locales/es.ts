@@ -1,4 +1,4 @@
-import type { Catalog } from '../lib/i18n';
+import type { Catalog } from '../lib/messages';
 
 export const es: Catalog = {
   'accent.blue': 'Azul',
@@ -36,7 +36,6 @@ export const es: Catalog = {
   'app.terminalTitle': '{folder} ({n})',
   'app.toolName': 'herramienta',
   'ast.allDepths': 'todas las profundidades',
-  'ast.and': 'y',
   'ast.beyondDrawingLimit': '{count} más fuera del límite de dibujo de {cap} nodos',
   'ast.collapseAll': 'Contraer todo',
   'ast.collapseNode': 'Contraer {label}',
@@ -54,6 +53,7 @@ export const es: Catalog = {
   'ast.graphLabel': 'Grafo del árbol sintáctico',
   'ast.graphView': 'Grafo',
   'ast.hiddenChildren': '{count} nodos hijos ocultos',
+  'ast.listSeparator': ' y ',
   'ast.maxDepthLabel': 'Profundidad máxima del AST que se muestra',
   'ast.noTree': 'No hay ningún árbol sintáctico cargado',
   'ast.noTreeHint': 'Abre un archivo de código fuente y su árbol sintáctico aparecerá aquí como un árbol plegable. Haz clic en cualquier nodo para ir a la línea correspondiente.',

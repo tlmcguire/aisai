@@ -1,4 +1,4 @@
-import type { Catalog } from '../lib/i18n';
+import type { Catalog } from '../lib/messages';
 
 export const de: Catalog = {
   'accent.blue': 'Blau',
@@ -36,7 +36,6 @@ export const de: Catalog = {
   'app.terminalTitle': '{folder} ({n})',
   'app.toolName': 'Werkzeug',
   'ast.allDepths': 'alle Tiefen',
-  'ast.and': 'und',
   'ast.beyondDrawingLimit': '{count} weitere jenseits des Zeichnungslimits von {cap} Knoten',
   'ast.collapseAll': 'Alle einklappen',
   'ast.collapseNode': '{label} einklappen',
@@ -54,6 +53,7 @@ export const de: Catalog = {
   'ast.graphLabel': 'Syntaxbaum-Graph',
   'ast.graphView': 'Graph',
   'ast.hiddenChildren': '{count} verborgene untergeordnete Knoten',
+  'ast.listSeparator': ' und ',
   'ast.maxDepthLabel': 'Maximale anzuzeigende AST-Tiefe',
   'ast.noTree': 'Kein Syntaxbaum geladen',
   'ast.noTreeHint': 'Öffne eine Quelldatei, und ihr Syntaxbaum erscheint hier als einklappbarer Baum. Klicke einen Knoten an, um zur passenden Quellzeile zu springen.',

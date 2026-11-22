@@ -12,7 +12,7 @@
 import type { AppController } from '../app';
 import type { AST, ASTNode, Finding } from '../api/types';
 import { h } from '../lib/dom';
-import { t, tn } from '../lib/i18n';
+import { joinMessages, t, tn } from '../lib/i18n';
 import { icon } from '../lib/icons';
 import { AST_CAP_MAX, AST_CAP_STEP, useAstStore, type AstMode } from '../state/ast';
 import { useFindingsStore } from '../state/findings';
@@ -528,10 +528,11 @@ export function createAstView(controller: AppController, container: HTMLElement)
       renderGraph();
     });
     graphNote.replaceChildren(
-      `${t('ast.notDrawn', { parts: parts.join(` ${t('ast.and')} `) })} `,
+      t('ast.notDrawn', { parts: joinMessages(parts, t('ast.listSeparator')) }),
+      ' ',
       ...(overCap && graphNodeCap < AST_CAP_MAX ? [more, ' '] : []),
-      tooDeep ? `${t('ast.raiseDepth')} ` : '',
-      overCap && graphNodeCap >= AST_CAP_MAX ? t('ast.treeShowsEveryNode') : '',
+      ...(tooDeep ? [t('ast.raiseDepth'), ' '] : []),
+      ...(overCap && graphNodeCap >= AST_CAP_MAX ? [t('ast.treeShowsEveryNode')] : []),
     );
 
     void loadVis()

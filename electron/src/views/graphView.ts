@@ -13,7 +13,7 @@
 import type { AppController } from '../app';
 import { SEVERITIES, type GraphEdge, type GraphNode, type Severity } from '../api/types';
 import { h } from '../lib/dom';
-import { t, tn } from '../lib/i18n';
+import { joinMessages, t, tn } from '../lib/i18n';
 import { icon } from '../lib/icons';
 import { severityClass, severityColor, severityFill, severityLabel } from '../lib/severity';
 import {
@@ -65,7 +65,7 @@ function nodeColor(node: GraphNode): VisColorSet {
 /** A small card shown on hover. */
 function nodeTooltip(node: GraphNode): HTMLElement {
   const role = node.root ? t('graph.role.studied') : node.direct ? t('graph.role.direct') : t('graph.role.transitive');
-  const counts = `${tn('graph.finding', node.findingCount)} · ${tn('graph.advisory', node.vulnCount)}`;
+  const counts = joinMessages([tn('graph.finding', node.findingCount), tn('graph.advisory', node.vulnCount)], ' · ');
   return h(
     'div',
     { class: 'graph-tip' },
@@ -407,7 +407,7 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
   const vulnBody = h('div', { class: 'vuln-body' });
   const vulnCount = h('span', { class: 'badge neutral vuln-count', text: '' });
   const vulnBox = h('details', { class: 'vuln-box' },
-    h('summary', { class: 'vuln-summary' }, `${t('graph.vulnerableDependencies')} `, vulnCount),
+    h('summary', { class: 'vuln-summary' }, t('graph.vulnerableDependencies'), ' ', vulnCount),
     vulnBody,
   );
   let vulnTouched = false;
@@ -487,7 +487,7 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
             a.summary ? h('div', { class: 'vuln-summary-text', text: a.summary }) : null,
             via.length
               ? h('div', { class: 'vuln-via' },
-                  h('span', { class: 'muted', text: transitive ? `${t('graph.pulledInBy')} ` : t('graph.directDependency') }),
+                  h('span', { class: 'muted' }, transitive ? t('graph.pulledInBy') : t('graph.directDependency'), transitive ? ' ' : null),
                   ...(transitive
                     ? via.flatMap((name, i) => [i ? h('span', { class: 'why-arrow', 'aria-label': t('graph.whichNeeds'), text: '→' }) : '', chainChip(name)])
                     : []),
@@ -669,17 +669,18 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
     const others = dependentsOf(state.edges, target.id).filter((id) => id !== path[path.length - 2]);
     const also = others.length
       ? [h('p', { class: 'why-also' },
-          `${t('graph.alsoRequiredBy')} `,
+          t('graph.alsoRequiredBy'),
+          ' ',
           ...others.slice(0, 6).flatMap((id, i) => [i ? ', ' : '', packageChip(id)]),
-          others.length > 6 ? ` ${t('graph.andMore', { n: others.length - 6 })}` : '.')]
+          ...(others.length > 6 ? [' ', t('graph.andMore', { n: others.length - 6 })] : ['.']))]
       : [];
     const clear = h('button', { class: 'ghost tiny icon-button why-clear', type: 'button', title: t('graph.clear'), 'aria-label': t('graph.clearAnswer'), onclick: () => resetWhy() }, icon('x'));
     if (target.root || path.length === 1) {
-      pathResult.replaceChildren(h('p', {}, h('strong', { text: target.name }), ` ${t('graph.isAuditTarget')}`), clear);
+      pathResult.replaceChildren(h('p', {}, h('strong', { text: target.name }), ' ', t('graph.isAuditTarget')), clear);
     } else if (!path.length) {
       pathResult.replaceChildren(
-        h('p', {}, h('strong', { text: target.name }),
-          ` ${t('graph.unlinkedPackage', { root: root?.name ?? t('graph.theRootPackage') })}`),
+        h('p', {}, h('strong', { text: target.name }), ' ',
+          t('graph.unlinkedPackage', { root: root?.name ?? t('graph.theRootPackage') })),
         ...also,
         clear,
       );
@@ -688,9 +689,10 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
       pathResult.replaceChildren(
         h('p', {},
           h('strong', { text: target.name }),
+          ' ',
           path.length === 2
-            ? ` ${t('graph.isDirectDependency', { parent: nameOf(path[0]) })}`
-            : ` ${tn('graph.isHereBecause', path.length - 2, { parent: nameOf(path[0]) })}`,
+            ? t('graph.isDirectDependency', { parent: nameOf(path[0]) })
+            : tn('graph.isHereBecause', path.length - 2, { parent: nameOf(path[0]) }),
         ),
         h('div', { class: 'why-chain' }, ...chain),
         ...also,
@@ -806,7 +808,7 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
     if (result.suggestions.length && !result.fuzzy) {
       pathResult.replaceChildren(h('p', {}, t('graph.severalMatches', { name: result.name })), h('div', { class: 'why-chain' }, ...result.suggestions.map((n) => h('button', { class: 'why-chip', type: 'button', onclick: () => choose(n) }, n.name))));
     } else if (result.fuzzy) {
-      pathResult.replaceChildren(h('p', {}, `${t('graph.noPackageDidYouMean', { name: result.name })} `, ...result.suggestions.slice(0, 4).flatMap((n, i) => [i ? ', ' : '', h('button', { class: 'why-chip', type: 'button', onclick: () => choose(n) }, n.name)]), '?'));
+      pathResult.replaceChildren(h('p', {}, t('graph.noPackageDidYouMean', { name: result.name }), ' ', ...result.suggestions.slice(0, 4).flatMap((n, i) => [i ? ', ' : '', h('button', { class: 'why-chip', type: 'button', onclick: () => choose(n) }, n.name)]), '?'));
     } else {
       pathResult.replaceChildren(h('p', {}, t('graph.noPackageInAudit', { name: result.name || query.trim() })));
     }

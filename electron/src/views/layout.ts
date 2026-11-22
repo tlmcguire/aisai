@@ -15,7 +15,7 @@ import type { AppController } from '../app';
 import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { formatBytes } from '../lib/format';
-import { t, tn } from '../lib/i18n';
+import { t, tn, type MessageKey } from '../lib/i18n';
 import { useAuditStore } from '../state/audit';
 import { DEFAULT_LAYOUT, paneName, useUiStore, type MainTab, type PaneId } from '../state/ui';
 import { createAstView } from './astView';
@@ -122,11 +122,13 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
 
   // One row per package, reused across events so the list never flashes.
   const downloadRows = new Map<string, HTMLElement>();
-  const STATE_LABEL: Record<string, string> = {
-    downloading: t('layout.stateDownloading'),
-    done: t('layout.stateFetched'),
-    warning: t('layout.stateFetchedWithWarnings'),
-    failed: t('layout.stateSkipped'),
+  // The keys, not the text: the label is made when the row is drawn, so
+  // that it speaks the language that is in effect at that moment.
+  const STATE_LABEL: Record<string, MessageKey> = {
+    downloading: 'layout.stateDownloading',
+    done: 'layout.stateFetched',
+    warning: 'layout.stateFetchedWithWarnings',
+    failed: 'layout.stateSkipped',
   };
   const renderDownloads = (): void => {
     const audit = useAuditStore.getState();
@@ -165,7 +167,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       (row.children[1] as HTMLElement).textContent = entry.package;
       (row.children[2] as HTMLElement).textContent = entry.version;
       (row.children[2] as HTMLElement).textContent = entry.bytes ? `${entry.version} · ${formatBytes(entry.bytes)}` : entry.version;
-      const stateLabel = STATE_LABEL[entry.state];
+      const stateLabel = t(STATE_LABEL[entry.state]);
       (row.children[3] as HTMLElement).textContent =
         entry.detail && entry.state !== 'done' ? t('layout.stateDetail', { state: stateLabel, detail: entry.detail }) : stateLabel;
     }

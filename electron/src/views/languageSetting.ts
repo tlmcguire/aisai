@@ -3,8 +3,9 @@
  *
  * The language is a preference rather than a build option: "system" follows
  * the operating system's language list, and a language picked here is
- * remembered on this computer. Changing it rebuilds the interface in the new
- * language (main.ts), so the picker itself is drawn again afterwards.
+ * remembered on this computer. Changing it makes every message on screen
+ * again in the new language (main.ts), without building the interface a
+ * second time.
  *
  * The languages are listed under their own names, because that is how people
  * look for their language, not how they would translate it.

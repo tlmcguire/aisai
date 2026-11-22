@@ -12,7 +12,7 @@ import type { UpdateStatus } from '../api/bridge';
 import type { ProviderInfo } from '../api/types';
 import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { t, tn } from '../lib/i18n';
+import { joinMessages, t, tn } from '../lib/i18n';
 import { brandMark } from '../lib/logo';
 import { isMac } from '../lib/shortcuts';
 import { useAuditStore } from '../state/audit';
@@ -221,12 +221,15 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     }
     projectName.textContent = audit.package;
     const nested = audit.skippedRepos?.length ?? 0;
-    projectMeta.textContent = [
-      audit.version && audit.version !== 'local' ? `v${audit.version}` : '',
-      from,
-      audit.truncated ? t('toolbar.partialCopy') : '',
-      nested ? tn('toolbar.nestedReposSkipped', nested) : '',
-    ].filter(Boolean).join(t('toolbar.dotSeparator'));
+    projectMeta.textContent = joinMessages(
+      [
+        audit.version && audit.version !== 'local' ? `v${audit.version}` : '',
+        from,
+        audit.truncated ? t('toolbar.partialCopy') : '',
+        nested ? tn('toolbar.nestedReposSkipped', nested) : '',
+      ].filter(Boolean),
+      t('toolbar.dotSeparator'),
+    );
     projectChip.classList.toggle('is-partial', Boolean(audit.truncated) || nested > 0);
     const title = audit.version
       ? t('toolbar.projectTitleWithVersion', { package: audit.package, version: audit.version, source: from })
@@ -235,7 +238,7 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     if (audit.fileCount) parts.push(tn('toolbar.projectFiles', audit.fileCount));
     if (audit.truncated) parts.push(t('toolbar.projectTruncated'));
     if (nested) parts.push(t('toolbar.projectNested', { repos: audit.skippedRepos?.join(', ') ?? '' }));
-    projectChip.title = parts.join(t('toolbar.dotSeparator'));
+    projectChip.title = joinMessages(parts, t('toolbar.dotSeparator'));
   };
 
   const unsubscribeAudit = useAuditStore.subscribe((state) => {
@@ -304,7 +307,10 @@ function providerChips(providers: ProviderInfo[]): Node[] {
       'span',
       {
         class: `badge provider-badge ${provider.ok ? 'is-ok' : 'is-bad'}`,
-        title: `${provider.error ?? `${provider.id} (${provider.kind})`}${t('toolbar.dotSeparator')}${t('toolbar.clickToConfigure')}`,
+        title: joinMessages(
+          [provider.error ?? `${provider.id} (${provider.kind})`, t('toolbar.clickToConfigure')],
+          t('toolbar.dotSeparator'),
+        ),
         role: 'button',
         tabindex: '0',
         onclick: () => {

@@ -1,5 +1,7 @@
 /** Tiny DOM helpers — no framework, no CSS-in-JS. */
 
+import { isTranslated, registerAttribute, registerText } from './i18n';
+
 export type Child = Node | string | number | null | undefined | false;
 
 export type AttrValue =
@@ -30,11 +32,22 @@ export function h<K extends keyof HTMLElementTagNameMap>(
       } else if (key === 'dataset' && typeof value === 'object') {
         Object.assign(el.dataset, value);
       } else if (key === 'text') {
-        el.textContent = String(value);
+        if (isTranslated(value)) {
+          // A message becomes a text node of its own, so that another
+          // language can fill it again without touching the rest of it.
+          const node = document.createTextNode(String(value));
+          registerText(node, value);
+          el.appendChild(node);
+        } else {
+          el.textContent = String(value);
+        }
       } else if (value === true) {
         el.setAttribute(key, '');
       } else {
-        el.setAttribute(key, String(value));
+        // A message is handed over as it is, so that the interface knows
+        // where the attribute came from and can fill it in again.
+        el.setAttribute(key, isTranslated(value) ? (value as unknown as string) : String(value));
+        if (isTranslated(value)) registerAttribute(el, key, value);
       }
     }
   }
@@ -46,6 +59,12 @@ export function h<K extends keyof HTMLElementTagNameMap>(
 export function append(parent: Node, children: Child[]): void {
   for (const child of children) {
     if (child === null || child === undefined || child === false) continue;
+    if (isTranslated(child)) {
+      const node = document.createTextNode(String(child));
+      registerText(node, child);
+      parent.appendChild(node);
+      continue;
+    }
     parent.appendChild(
       typeof child === 'string' || typeof child === 'number'
         ? document.createTextNode(String(child))

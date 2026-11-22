@@ -1119,8 +1119,8 @@ export function createSettingsDialog(
     }
   });
 
-  // The window may already be open when this is built: the interface is
-  // rebuilt when the language changes, and the Settings window stays open.
+  // The window may already be open when this is built, and it stays open
+  // when the language changes: the interface is not built a second time.
   if (useUiStore.getState().settingsOpen) {
     renderSection();
     dialog.showModal();

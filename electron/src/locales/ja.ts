@@ -1,4 +1,4 @@
-import type { Catalog } from '../lib/i18n';
+import type { Catalog } from '../lib/messages';
 
 export const ja: Catalog = {
   'accent.blue': 'ブルー',
@@ -36,7 +36,6 @@ export const ja: Catalog = {
   'app.terminalTitle': '{folder}（{n}）',
   'app.toolName': 'ツール',
   'ast.allDepths': 'すべての深さ',
-  'ast.and': 'と',
   'ast.beyondDrawingLimit': '描画上限（{cap} ノード）を超えて {count} 件あります',
   'ast.collapseAll': 'すべて折りたたむ',
   'ast.collapseNode': '{label} を折りたたむ',
@@ -54,6 +53,7 @@ export const ja: Catalog = {
   'ast.graphLabel': '構文ツリーグラフ',
   'ast.graphView': 'グラフ',
   'ast.hiddenChildren': '非表示の子ノード {count} 件',
+  'ast.listSeparator': '、',
   'ast.maxDepthLabel': '表示する AST の最大深さ',
   'ast.noTree': '構文ツリーは読み込まれていません',
   'ast.noTreeHint': 'ソースファイルを開くと、構文ツリーが折りたたみ可能なツリーとしてここに表示されます。ノードをクリックすると対応する行にジャンプします。',

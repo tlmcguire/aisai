@@ -1,7 +1,7 @@
 /**
  * The English catalog: the source of every message in the interface.
  *
- * Its keys define the type MessageKey (lib/i18n.ts), and the other catalogs
+ * Its keys define the type MessageKey (lib/messages.ts), and the other catalogs
  * translate a subset of them. Write a message so that it can be translated as
  * a whole sentence: put the variable parts in {placeholders} instead of
  * joining pieces of text in code, because other languages order the words
@@ -44,7 +44,6 @@ export const en = {
   'app.terminalTitle': '{folder} ({n})',
   'app.toolName': 'tool',
   'ast.allDepths': 'all depths',
-  'ast.and': 'and',
   'ast.beyondDrawingLimit': '{count} more beyond the {cap}-node drawing limit',
   'ast.collapseAll': 'Collapse all',
   'ast.collapseNode': 'Collapse {label}',
@@ -62,6 +61,7 @@ export const en = {
   'ast.graphLabel': 'Syntax tree graph',
   'ast.graphView': 'Graph',
   'ast.hiddenChildren': '{count} hidden child node(s)',
+  'ast.listSeparator': ' and ',
   'ast.maxDepthLabel': 'Maximum AST depth to show',
   'ast.noTree': 'No syntax tree loaded',
   'ast.noTreeHint': 'Open a source file and its syntax tree appears here as a collapsible tree. Click any node to jump to the matching source line.',

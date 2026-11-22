@@ -1,4 +1,4 @@
-import type { Catalog } from '../lib/i18n';
+import type { Catalog } from '../lib/messages';
 
 export const fr: Catalog = {
   'accent.blue': 'Bleu',
@@ -36,7 +36,6 @@ export const fr: Catalog = {
   'app.terminalTitle': '{folder} ({n})',
   'app.toolName': 'outil',
   'ast.allDepths': 'toutes les profondeurs',
-  'ast.and': 'et',
   'ast.beyondDrawingLimit': '{count} de plus au-delà de la limite de dessin de {cap} nœuds',
   'ast.collapseAll': 'Tout replier',
   'ast.collapseNode': 'Replier {label}',
@@ -54,6 +53,7 @@ export const fr: Catalog = {
   'ast.graphLabel': 'Graphe de l’arbre syntaxique',
   'ast.graphView': 'Graphe',
   'ast.hiddenChildren': '{count} nœud(s) enfant(s) masqué(s)',
+  'ast.listSeparator': ' et ',
   'ast.maxDepthLabel': 'Profondeur maximale de l’AST à afficher',
   'ast.noTree': 'Aucun arbre syntaxique chargé',
   'ast.noTreeHint': 'Ouvrez un fichier source et son arbre syntaxique s’affiche ici sous forme d’arbre repliable. Cliquez sur un nœud pour sauter à la ligne source correspondante.',
