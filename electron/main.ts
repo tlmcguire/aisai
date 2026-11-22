@@ -12,10 +12,10 @@
 import path from 'node:path';
 import { writeFile } from 'node:fs/promises';
 
-import { app, BrowserWindow, dialog, ipcMain, type OpenDialogOptions } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron';
 import { autoUpdater } from 'electron-updater';
 
-import type { BackendStatus, ClientMessage, HttpMethod, HttpResponse } from './src/api/bridge';
+import type { BackendStatus, ClientMessage, HttpMethod, HttpResponse, UpdateStatus } from './src/api/bridge';
 import type { Event } from './src/api/types';
 import { FolderApprovals } from './src/main-process/folders';
 import { activeSecret, canStoreSecrets, forgetSecret, hasSecret, readSecret, saveSecret, setActiveProvider } from './src/main-process/secrets';
@@ -155,6 +155,44 @@ async function runSmoke(win: BrowserWindow, smokePath: string): Promise<void> {
     `)) as string;
     console.log(`[smoke] chat: ${chatReport}`);
     await shoot('5-chat');
+
+    const click = async (script: string): Promise<string> =>
+      (await win.webContents.executeJavaScript(`(async () => {
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        const byText = (sel, text) => Array.from(document.querySelectorAll(sel)).find((el) => (el.textContent || '').trim().startsWith(text));
+        ${script}
+      })()`)) as string;
+
+    // The syntax tree as a graph.
+    await click(`
+      byText('.tab', 'AST')?.click(); await sleep(300);
+      const depth = document.querySelector('select[aria-label="Maximum AST depth to show"]');
+      if (depth) { depth.value = "3"; depth.dispatchEvent(new Event('change', { bubbles: true })); }
+      byText('.segmented button', 'Graph')?.click();
+      await sleep(1200); return 'ok';`);
+    await shoot('6-ast-graph');
+
+    // Settings → Layout, with the presets.
+    await click(`
+      document.querySelector('button[aria-label="Settings"]')?.click(); await sleep(400);
+      byText('.pref-nav button, .pref-nav a, nav button', 'Layout')?.click(); await sleep(500); return 'ok';`);
+    await shoot('7-layout');
+
+    // The Reader preset: code with the chat docked on the right.
+    await click(`
+      byText('.preset-card', 'Reader')?.click(); await sleep(300);
+      document.querySelector('dialog')?.close(); await sleep(600); return 'ok';`);
+    await shoot('8-reader');
+
+    // The package picker with another package manager.
+    await click(`
+      byText('.preset-card', 'Classic');
+      const sel = document.getElementById('ecosystem-input');
+      if (sel) { sel.value = 'npm'; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+      const input = document.getElementById('package-input');
+      if (input) { input.focus(); input.value = 'expr'; input.dispatchEvent(new Event('input', { bubbles: true })); }
+      await sleep(900); return 'ok';`);
+    await shoot('9-npm');
   } catch (err) {
     console.error('[smoke] failed', err);
   } finally {
@@ -516,36 +554,92 @@ app.whenReady().then(() => {
   configureAutoUpdate();
 });
 
+/** The releases page the app was published to. */
+const RELEASES_URL = 'https://github.com/tlmcguire/aisai/releases/latest';
+
+/** How often a running app looks for a new version. */
+const UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+let updateStatus: UpdateStatus = { state: 'idle' };
+
+function publishUpdate(status: UpdateStatus): void {
+  updateStatus = status;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('aisai:update', status);
+  }
+}
+
 /**
- * Points the updater at the release feed.
+ * Keeps the installed app up to date without a reinstall.
  *
- * The feed URL is never hard-coded: it comes from `AISAI_UPDATE_FEED_URL`,
- * which the release workflow reads from a secret. A build without that
- * variable never checks for updates at all, so a developer checkout cannot
- * be pulled onto a release channel.
+ * Every packaged build carries the update feed in its own `app-update.yml`
+ * (the GitHub release of this project, written by electron-builder), so an
+ * installed copy needs no configuration. `AISAI_UPDATE_FEED_URL` overrides
+ * it for a private signed feed. The update downloads in the background and
+ * is installed when the app quits, or at once from the "Restart to update"
+ * button; the app never restarts by itself.
  *
- * The feed only ever contains signed artifacts. electron-updater verifies the
- * code signature of the downloaded application on macOS and the publisher name
- * of the installer on Windows, and refuses an artifact that does not match; the
- * publisher name comes from `WINDOWS_PUBLISHER_NAME`, so it has to be the same
- * string in the build and in the updater.
+ * electron-updater verifies the code signature of a downloaded macOS app and
+ * the publisher name of a Windows installer, and refuses a mismatch. macOS
+ * cannot swap in an unsigned app, so an unsigned build reports a `manual`
+ * update that opens the release page instead.
  */
 function configureAutoUpdate(): void {
-  // An unpackaged checkout has nothing to update and no update feed.
-  if (!app.isPackaged) {
-    return;
-  }
-  const feed = process.env.AISAI_UPDATE_FEED_URL;
-  if (!feed) {
-    console.warn('[aisai] AISAI_UPDATE_FEED_URL is not set: automatic updates are off.');
-    return;
-  }
-  autoUpdater.setFeedURL({ provider: 'generic', url: feed });
+  ipcMain.handle('aisai:update:check', () => checkForUpdate());
+  ipcMain.handle('aisai:update:install', () => {
+    if (updateStatus.state === 'ready') autoUpdater.quitAndInstall();
+  });
+  ipcMain.handle('aisai:update:page', () => shell.openExternal(updateStatus.url ?? RELEASES_URL));
+
+  // An unpackaged checkout has nothing to update.
+  if (!app.isPackaged) return;
+
+  const feed = process.env.AISAI_UPDATE_FEED_URL?.trim();
+  if (feed) autoUpdater.setFeedURL({ provider: 'generic', url: feed });
   autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('checking-for-update', () => publishUpdate({ state: 'checking' }));
+  autoUpdater.on('update-not-available', () => publishUpdate({ state: 'idle' }));
+  autoUpdater.on('update-available', (info) =>
+    publishUpdate({ state: 'downloading', version: info.version, percent: 0 }),
+  );
+  autoUpdater.on('download-progress', (progress) =>
+    publishUpdate({ state: 'downloading', version: updateStatus.version, percent: Math.round(progress.percent) }),
+  );
+  autoUpdater.on('update-downloaded', (info) => publishUpdate({ state: 'ready', version: info.version }));
   autoUpdater.on('error', (error: Error) => {
     console.error('[aisai] updater:', error.message);
+    // An update that is known but cannot be applied here (an unsigned macOS
+    // build) is offered as a download; a failed check is just reported.
+    if (updateStatus.version) {
+      publishUpdate({
+        state: 'manual',
+        version: updateStatus.version,
+        url: RELEASES_URL,
+        message: 'This build cannot update itself. Download the new version.',
+      });
+    } else {
+      publishUpdate({ state: 'error', message: error.message });
+    }
   });
-  void autoUpdater.checkForUpdatesAndNotify();
+
+  void checkForUpdate();
+  setInterval(() => void checkForUpdate(), UPDATE_INTERVAL_MS).unref();
+}
+
+async function checkForUpdate(): Promise<void> {
+  if (!app.isPackaged) {
+    publishUpdate({ state: 'idle', message: 'Updates are only checked in an installed build.' });
+    return;
+  }
+  // Never interrupt a download that is already under way.
+  if (updateStatus.state === 'downloading' || updateStatus.state === 'ready') return;
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (error) {
+    console.error('[aisai] update check failed:', error instanceof Error ? error.message : error);
+  }
 }
 
 app.on('window-all-closed', () => {

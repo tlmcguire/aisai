@@ -31,8 +31,8 @@ export function createCodeView(controller: AppController, container: HTMLElement
   /** The first screen: two ways in, and the audits already on disk. */
   const welcome = (): HTMLElement => {
     const scanPackage = h('button', { class: 'welcome-action primary-action', type: 'button' },
-      h('span', { class: 'welcome-action-title', text: 'Audit a PyPI package' }),
-      h('span', { class: 'welcome-action-text', text: 'Resolve its dependencies, download every source archive and scan it.' }),
+      h('span', { class: 'welcome-action-title', text: 'Audit a package' }),
+      h('span', { class: 'welcome-action-text', text: 'From PyPI, npm or crates.io: resolve its dependencies, download every source archive and scan it.' }),
     );
     scanPackage.addEventListener('click', () => document.getElementById('package-input')?.focus());
     const openFolder = h('button', { class: 'welcome-action', type: 'button' },

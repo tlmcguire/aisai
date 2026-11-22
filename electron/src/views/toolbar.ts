@@ -1,4 +1,5 @@
 import type { AppController } from '../app';
+import type { UpdateStatus } from '../api/bridge';
 import type { ProviderInfo } from '../api/types';
 import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
@@ -51,8 +52,30 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     icon('gear'),
   );
 
-  picker.onScan((packageName, version) => {
-    void controller.startAudit(packageName, version);
+  // The self-updater: shown only while there is something to say.
+  const updateButton = h('button', { class: 'tiny update-button', type: 'button', hidden: true });
+  let updateState: UpdateStatus = { state: 'idle' };
+  updateButton.addEventListener('click', () => {
+    if (updateState.state === 'ready') void window.aisai.installUpdate();
+    else if (updateState.state === 'manual') void window.aisai.openReleasePage();
+  });
+  const unsubscribeUpdate = window.aisai.onUpdateStatus((status) => {
+    updateState = status;
+    const label: Partial<Record<UpdateStatus['state'], string>> = {
+      downloading: `Downloading update ${status.version ?? ''} ${status.percent ?? 0}%`,
+      ready: `Restart to update to ${status.version ?? 'the new version'}`,
+      manual: `Update ${status.version ?? ''} available: download`,
+    };
+    const text = label[status.state];
+    updateButton.hidden = !text;
+    updateButton.textContent = text ?? '';
+    updateButton.disabled = status.state === 'downloading';
+    updateButton.classList.toggle('primary', status.state === 'ready');
+    updateButton.title = status.message ?? 'AISAI updates itself in the background';
+  });
+
+  picker.onScan((packageName, version, ecosystem) => {
+    void controller.startAudit(packageName, version, ecosystem);
   });
 
   scanButton.addEventListener('click', () => {
@@ -61,7 +84,7 @@ export function createToolbar(controller: AppController, container: HTMLElement)
       picker.promptForName();
       return;
     }
-    void controller.startAudit(pkg, picker.version());
+    void controller.startAudit(pkg, picker.version(), picker.ecosystem());
   });
 
   llmButton.addEventListener('click', () => {
@@ -126,6 +149,7 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     folderButton,
     llmButton,
     h('div', { class: 'toolbar-spacer' }),
+    updateButton,
     mockBadge,
     providerChip,
     settingsButton,
@@ -134,6 +158,7 @@ export function createToolbar(controller: AppController, container: HTMLElement)
   const refreshProviders = async (): Promise<void> => {
     const providers = await controller.fetchProviders();
     providerChip.replaceChildren(...providerChips(providers));
+    void controller.refreshChatModel(providers);
   };
 
   const unsubscribeAudit = useAuditStore.subscribe((state) => {
@@ -165,6 +190,7 @@ export function createToolbar(controller: AppController, container: HTMLElement)
       unsubscribeAudit();
       unsubscribeUi();
       unsubscribeBackend();
+      unsubscribeUpdate();
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('dragover', onDragOver);
       document.removeEventListener('dragleave', onDragLeave);

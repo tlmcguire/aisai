@@ -127,6 +127,8 @@ export interface GraphNode {
   name: string;
   version: string;
   direct: boolean;
+  /** The package being studied: the one the audit was started on. */
+  root?: boolean;
   maxSeverity: Severity;
   findingCount: number;
   vulnCount: number;
@@ -199,7 +201,9 @@ export interface Audit {
   package: string;
   version?: string;
   /** Where the code came from: a published package or a local folder. */
-  source?: 'pypi' | 'local';
+  source?: string;
+  /** The package index of a published package: pypi, npm or cargo. */
+  ecosystem?: Ecosystem;
   status: AuditStatus;
   phase?: string;
   progress: number;
@@ -217,9 +221,13 @@ export interface Audit {
   sourcesDeleted: boolean;
 }
 
+/** The package indexes an audit can start from. */
+export type Ecosystem = 'pypi' | 'npm' | 'cargo';
+
 /** Mirrors model.PackageLookup — a package name resolved on the index. */
 export interface PackageLookup {
   name: string;
+  ecosystem?: Ecosystem;
   summary?: string;
   latest?: string;
   versions?: string[];
@@ -554,22 +562,36 @@ export interface ChatTurn {
 /* Small helpers mirroring Go methods                                 */
 /* ------------------------------------------------------------------ */
 
+function purlBody(purl: PURL): string {
+  const s = purl.startsWith('pkg:') ? purl.slice('pkg:'.length) : purl;
+  const slash = s.indexOf('/');
+  return slash >= 0 ? s.slice(slash + 1) : s;
+}
+
+/** The "@" that starts the version; a scoped npm name has one of its own. */
+function purlVersionAt(body: string): number {
+  const last = body.lastIndexOf('/');
+  const at = body.indexOf('@', last + 1);
+  return at;
+}
+
 /** Mirrors model.PURL.Name(). */
 export function purlName(purl: PURL): string {
-  const s = purl.startsWith('pkg:pypi/') ? purl.slice('pkg:pypi/'.length) : purl;
-  const at = s.indexOf('@');
-  return at >= 0 ? s.slice(0, at) : s;
+  const body = purlBody(purl);
+  const at = purlVersionAt(body);
+  return at >= 0 ? body.slice(0, at) : body;
 }
 
 /** Mirrors model.PURL.Version(). */
 export function purlVersion(purl: PURL): string {
-  const at = purl.indexOf('@');
-  return at >= 0 ? purl.slice(at + 1) : '';
+  const body = purlBody(purl);
+  const at = purlVersionAt(body);
+  return at >= 0 ? body.slice(at + 1) : '';
 }
 
-/** Mirrors model.PackageURL(). */
-export function packageURL(name: string, version: string): PURL {
-  let s = `pkg:pypi/${name.toLowerCase()}`;
+/** Mirrors model.PackageURLFor(). */
+export function packageURL(name: string, version: string, ecosystem = 'pypi'): PURL {
+  let s = `pkg:${ecosystem}/${name.toLowerCase()}`;
   if (version) s += `@${version}`;
   return s;
 }

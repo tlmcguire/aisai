@@ -3,7 +3,7 @@ import type { Audit, Config, ModelInfo, ModelState, ProviderInfo, ProviderKind }
 import { formatBytes } from '../lib/format';
 import { useAuditStore } from '../state/audit';
 import { h } from '../lib/dom';
-import { DEFAULT_LAYOUT, useUiStore, type SettingsSection } from '../state/ui';
+import { DEFAULT_LAYOUT, LAYOUT_PRESETS, PANE_IDS, PANE_LABELS, useUiStore, type SettingsSection } from '../state/ui';
 
 /** The keep-alive windows the picker offers. */
 const KEEP_ALIVE_OPTIONS: Array<{ value: string; label: string }> = [
@@ -621,7 +621,7 @@ export function createSettingsDialog(
           h('span', { class: 'source-name', text: audit.package }),
           audit.version ? h('span', { class: 'source-version', text: audit.version }) : null,
         ),
-        h('td', {}, h('span', { class: `badge ${audit.source === 'local' ? 'neutral' : 'ok'}`, text: audit.source === 'local' ? 'folder' : 'PyPI' })),
+        h('td', {}, h('span', { class: `badge ${audit.source === 'local' ? 'neutral' : 'ok'}`, text: audit.source === 'local' ? 'folder' : ({ npm: 'npm', cargo: 'crates.io' } as Record<string, string>)[audit.ecosystem ?? audit.source ?? ''] ?? 'PyPI' })),
         h('td', { class: 'num', text: deleted ? '—' : formatBytes(audit.sandboxBytes || 0) }),
         h('td', { class: 'num', text: String(audit.findingCount ?? 0) }),
         h('td', { class: 'muted', text: relativeTime(audit.updatedAt || audit.createdAt) }),
@@ -678,6 +678,61 @@ export function createSettingsDialog(
     return [h('label', { for: id, text: label }), input, out];
   };
 
+  const presetGrid = (): HTMLElement => {
+    const ui = useUiStore.getState();
+    return h(
+      'div',
+      { class: 'preset-grid', role: 'group', 'aria-label': 'Layout presets' },
+      ...LAYOUT_PRESETS.map((preset) => {
+        const cols = preset.order
+          .filter((id) => id === 'main' || !preset.hidden.includes(id))
+          .map((id) => h('i', { class: id === 'main' ? 'main' : '' }));
+        const card = h(
+          'button',
+          { class: 'preset-card', type: 'button', 'aria-pressed': String(ui.layoutPreset === preset.id) },
+          h(
+            'span',
+            { class: `preset-thumb dock-${preset.chatDock}`, 'aria-hidden': 'true' },
+            h('span', { class: 'cols' }, ...cols),
+            h('i', { class: 'chat' }),
+          ),
+          h('strong', { text: preset.label }),
+          h('small', { text: preset.description }),
+        );
+        card.addEventListener('click', () => {
+          useUiStore.getState().applyPreset(preset.id);
+          renderSection();
+        });
+        return card;
+      }),
+    );
+  };
+
+  const paneControls = (): HTMLElement => {
+    const ui = useUiStore.getState();
+    const checks = PANE_IDS.filter((id) => id !== 'main').map((id) => {
+      const box = h('input', { type: 'checkbox', id: `show-${id}`, checked: !ui.hiddenPanes.includes(id) });
+      box.checked = !ui.hiddenPanes.includes(id);
+      box.addEventListener('change', () => {
+        useUiStore.getState().setPaneHidden(id, !box.checked);
+        renderSection();
+      });
+      return h('label', { class: 'row', for: `show-${id}` }, box, `Show ${PANE_LABELS[id]}`);
+    });
+    const dock = h(
+      'select',
+      { id: 'chat-dock', 'aria-label': 'Where the chat panel sits' },
+      h('option', { value: 'bottom', selected: ui.chatDock === 'bottom' }, 'Chat below'),
+      h('option', { value: 'right', selected: ui.chatDock === 'right' }, 'Chat on the right'),
+    );
+    dock.value = ui.chatDock;
+    dock.addEventListener('change', () => {
+      useUiStore.getState().setChatDock(dock.value === 'right' ? 'right' : 'bottom');
+      renderSection();
+    });
+    return h('div', { class: 'pref-checks' }, ...checks, dock);
+  };
+
   const renderLayout = (): HTMLElement => {
     const ui = useUiStore.getState();
     const px = (v: number): string => `${Math.round(v)} px`;
@@ -690,7 +745,14 @@ export function createSettingsDialog(
       'section',
       { class: 'pref-section' },
       h('h2', { class: 'pref-title', text: 'Layout' }),
-      h('p', { class: 'pref-lede', text: 'Every pane can also be resized by dragging its edge. Sizes are remembered.' }),
+      h('p', {
+        class: 'pref-lede',
+        text:
+          'Pick an arrangement, or build your own: drag a pane by its ⋮⋮ grip (or use its ‹ › buttons) to move it, and drag an edge to resize it. Everything is remembered.',
+      }),
+      presetGrid(),
+      h('h3', { class: 'pref-subtitle', text: 'Panes' }),
+      paneControls(),
       h(
         'div',
         { class: 'pref-form sliders' },
@@ -698,7 +760,8 @@ export function createSettingsDialog(
         ...slider('graph-width', 'Left column', ui.graphWidth, 180, 720, 10, px, (v) => useUiStore.getState().setGraphWidth(v)),
         ...slider('files-share', 'File tree share', ui.filesShare, 0.15, 0.85, 0.01, (v) => `${Math.round(v * 100)}%`, (v) => useUiStore.getState().setFilesShare(v)),
         ...slider('rail-width', 'Findings rail', ui.railWidth, 240, 720, 10, px, (v) => useUiStore.getState().setRailWidth(v)),
-        ...slider('chat-height', 'Chat panel', ui.chatHeight, 120, 640, 10, px, (v) => useUiStore.getState().setChatHeight(v)),
+        ...slider('chat-height', 'Chat height (below)', ui.chatHeight, 120, 640, 10, px, (v) => useUiStore.getState().setChatHeight(v)),
+        ...slider('chat-width', 'Chat width (right)', ui.chatWidth, 260, 720, 10, px, (v) => useUiStore.getState().setChatWidth(v)),
       ),
       h('div', { class: 'pref-actions' }, reset),
       h('p', {
@@ -739,7 +802,7 @@ export function createSettingsDialog(
       },
     ];
     const tools = [
-      ['scan_package', 'Audit a PyPI package or a local folder'],
+      ['scan_package', 'Audit a package (PyPI, npm, cargo) or a local folder'],
       ['list_audits / select_audit', 'Resume earlier audits'],
       ['list_files / get_source / get_ast', 'Read the code and its syntax tree'],
       ['run_sast / run_llm_scan', 'Static rules in 14 languages, then an LLM review'],

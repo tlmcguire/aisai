@@ -3,7 +3,7 @@ import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { formatBytes } from '../lib/format';
 import { useAuditStore } from '../state/audit';
-import { DEFAULT_LAYOUT, useUiStore, type MainTab } from '../state/ui';
+import { DEFAULT_LAYOUT, PANE_LABELS, useUiStore, type MainTab, type PaneId } from '../state/ui';
 import { createAstView } from './astView';
 import { createChatPanel } from './chatPanel';
 import { createCodeView } from './codeView';
@@ -198,24 +198,75 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const railBody = h('div', { class: 'pane-body rail-body' });
   railPane.append(railHeader, railBody);
 
-  /* ---------------- resizers ---------------- */
+  /* ---------------- movable panes ---------------- */
   const shell = h('main', { class: 'shell' });
-  const graphResizer = h('div', {
-    class: 'resizer',
-    role: 'separator',
-    tabindex: '0',
-    'aria-orientation': 'vertical',
-    'aria-label': 'Resize the dependency graph pane',
-  });
-  const railResizer = h('div', {
-    class: 'resizer',
-    role: 'separator',
-    tabindex: '0',
-    'aria-orientation': 'vertical',
-    'aria-label': 'Resize the findings rail',
-  });
+  const paneEls: Record<PaneId, HTMLElement> = { deps: graphPane, main: mainPane, findings: railPane };
+  const PANE_MIME = 'application/x-aisai-pane';
 
-  shell.append(graphPane, graphResizer, mainPane, railResizer, railPane);
+  // Every pane gets a grip to drag it by and two arrows for the keyboard.
+  const paneTools = (id: PaneId): HTMLElement => {
+    const grip = h('span', {
+      class: 'pane-grip',
+      draggable: 'true',
+      title: `Drag to move “${PANE_LABELS[id]}”`,
+      'aria-hidden': 'true',
+      text: '⋮⋮',
+    });
+    grip.addEventListener('dragstart', (event) => {
+      event.dataTransfer?.setData(PANE_MIME, id);
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+      document.body.classList.add('is-moving-pane');
+      paneEls[id].classList.add('is-dragged');
+    });
+    grip.addEventListener('dragend', () => {
+      document.body.classList.remove('is-moving-pane');
+      paneEls[id].classList.remove('is-dragged');
+      clearDropMarks();
+    });
+    const arrow = (label: string, text: string, delta: -1 | 1): HTMLElement =>
+      h('button', {
+        class: 'ghost tiny pane-move',
+        type: 'button',
+        title: label,
+        'aria-label': `${label}: ${PANE_LABELS[id]}`,
+        text,
+        onclick: () => useUiStore.getState().nudgePane(id, delta),
+      });
+    return h('span', { class: 'pane-tools' }, grip, arrow('Move left', '‹', -1), arrow('Move right', '›', 1));
+  };
+  graphHeader.append(paneTools('deps'));
+  railHeader.append(paneTools('findings'));
+  tabBar.append(h('span', { class: 'grow' }), paneTools('main'));
+
+  const clearDropMarks = (): void => {
+    for (const el of Object.values(paneEls)) el.classList.remove('drop-before', 'drop-after');
+  };
+  for (const id of Object.keys(paneEls) as PaneId[]) {
+    const el = paneEls[id];
+    const side = (event: DragEvent): 'before' | 'after' => {
+      const rect = el.getBoundingClientRect();
+      return event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+    };
+    el.addEventListener('dragover', (event) => {
+      if (!event.dataTransfer?.types.includes(PANE_MIME)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      clearDropMarks();
+      el.classList.add(side(event) === 'before' ? 'drop-before' : 'drop-after');
+    });
+    el.addEventListener('dragleave', (event) => {
+      if (!el.contains(event.relatedTarget as Node | null)) el.classList.remove('drop-before', 'drop-after');
+    });
+    el.addEventListener('drop', (event) => {
+      const dragged = event.dataTransfer?.getData(PANE_MIME) as PaneId | undefined;
+      if (!dragged || dragged === id || !(dragged in paneEls)) return;
+      event.preventDefault();
+      const where = side(event);
+      clearDropMarks();
+      const rest = useUiStore.getState().paneOrder.filter((pane) => pane !== dragged);
+      useUiStore.getState().movePane(dragged, rest.indexOf(id) + (where === 'after' ? 1 : 0));
+    });
+  }
 
   /* ---------------- chat ---------------- */
   const chatPanel = h('section', { class: 'chat-panel', 'aria-label': 'Chat' });
@@ -228,7 +279,8 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     'aria-label': 'Resize the chat panel',
   });
 
-  root.append(toolbar, statusStrip, downloadPanel, shell, chatResizer, chatPanel);
+  const workspace = h('div', { class: 'workspace' }, shell, chatResizer, chatPanel);
+  root.append(toolbar, statusStrip, downloadPanel, workspace);
 
   /* ---------------- views ---------------- */
   const graphView = createGraphView(controller, graphBody);
@@ -274,19 +326,49 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const applyWidths = (): void => {
     const ui = useUiStore.getState();
     root.style.setProperty('--chat-height', `${ui.chatHeight / 16}rem`);
+    root.style.setProperty('--chat-width', `${ui.chatWidth / 16}rem`);
     graphPane.style.setProperty('--files-share', String(ui.filesShare));
     document.documentElement.style.setProperty('--ui-scale', String(ui.uiScale));
-    chatResizer.hidden = !ui.chatOpen;
     // Stored in reference pixels, applied in rem so the panes scale with the UI.
     shell.style.setProperty('--graph-width', `${ui.graphWidth / 16}rem`);
     shell.style.setProperty('--rail-width', `${ui.railWidth / 16}rem`);
   };
 
+  /** Puts the visible panes in the stored order, with a divider between neighbours. */
+  const renderShell = (): void => {
+    const ui = useUiStore.getState();
+    const visible = ui.paneOrder.filter((id) => id === 'main' || !ui.hiddenPanes.includes(id));
+    const nodes: HTMLElement[] = [];
+    visible.forEach((id, index) => {
+      if (index > 0) nodes.push(makeResizer(visible[index - 1], id));
+      nodes.push(paneEls[id]);
+    });
+    shell.replaceChildren(...nodes);
+    for (const id of Object.keys(paneEls) as PaneId[]) {
+      paneEls[id].dataset.slot = String(visible.indexOf(id));
+    }
+    const dockRight = ui.chatDock === 'right';
+    workspace.classList.toggle('dock-right', dockRight);
+    chatResizer.classList.toggle('resizer-row', !dockRight);
+    chatResizer.setAttribute('aria-orientation', dockRight ? 'vertical' : 'horizontal');
+    chatResizer.hidden = !ui.chatOpen && !dockRight;
+    placeIndicator();
+  };
+
   const unsubscribeUi = useUiStore.subscribe((state, previous) => {
+    if (
+      state.paneOrder !== previous.paneOrder ||
+      state.hiddenPanes !== previous.hiddenPanes ||
+      state.chatDock !== previous.chatDock ||
+      state.chatOpen !== previous.chatOpen
+    ) {
+      renderShell();
+    }
     if (
       state.graphWidth !== previous.graphWidth ||
       state.railWidth !== previous.railWidth ||
       state.chatHeight !== previous.chatHeight ||
+      state.chatWidth !== previous.chatWidth ||
       state.filesShare !== previous.filesShare ||
       state.uiScale !== previous.uiScale ||
       state.chatOpen !== previous.chatOpen
@@ -334,37 +416,6 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     track.setAttribute('aria-valuemax', '100');
   });
 
-  const attachResizer = (
-    resizer: HTMLElement,
-    compute: (clientX: number) => number,
-    getWidth: () => number,
-    apply: (width: number) => void,
-  ): void => {
-    resizer.addEventListener('pointerdown', (event) => {
-      event.preventDefault();
-      resizer.setPointerCapture(event.pointerId);
-      document.body.classList.add('is-resizing');
-      const onMove = (move: PointerEvent): void => {
-        apply(compute(move.clientX));
-      };
-      const onUp = (): void => {
-        document.body.classList.remove('is-resizing');
-        resizer.removeEventListener('pointermove', onMove);
-        resizer.removeEventListener('pointerup', onUp);
-      };
-      resizer.addEventListener('pointermove', onMove);
-      resizer.addEventListener('pointerup', onUp);
-    });
-    resizer.addEventListener('keydown', (event) => {
-      const key = (event as KeyboardEvent).key;
-      if (key !== 'ArrowLeft' && key !== 'ArrowRight') return;
-      event.preventDefault();
-      // The rail grows to the left, so the arrows mirror on it.
-      const direction = (key === 'ArrowLeft' ? -16 : 16) * (resizer === railResizer ? -1 : 1);
-      apply(getWidth() + direction);
-    });
-  };
-
   const attachRowResizer = (
     resizer: HTMLElement,
     compute: (clientY: number) => void,
@@ -391,6 +442,102 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     });
   };
 
+  const PANE_WIDTH: Record<'deps' | 'findings', { get: () => number; set: (w: number) => void; reset: () => void }> = {
+    deps: {
+      get: () => useUiStore.getState().graphWidth,
+      set: (w) => useUiStore.getState().setGraphWidth(w),
+      reset: () => useUiStore.getState().setGraphWidth(DEFAULT_LAYOUT.graphWidth),
+    },
+    findings: {
+      get: () => useUiStore.getState().railWidth,
+      set: (w) => useUiStore.getState().setRailWidth(w),
+      reset: () => useUiStore.getState().setRailWidth(DEFAULT_LAYOUT.railWidth),
+    },
+  };
+
+  /**
+   * A divider between two neighbouring columns. It resizes whichever of the
+   * two is not the main column; the main column takes the remaining space.
+   */
+  function makeResizer(left: PaneId, right: PaneId): HTMLElement {
+    const controlled = (left !== 'main' ? left : right) as 'deps' | 'findings';
+    const growsRight = left !== 'main'; // the controlled pane is left of the divider
+    const resizer = h('div', {
+      class: 'resizer',
+      role: 'separator',
+      tabindex: '0',
+      'aria-orientation': 'vertical',
+      'aria-label': `Resize ${PANE_LABELS[controlled]}`,
+    });
+    const control = PANE_WIDTH[controlled];
+    resizer.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      resizer.setPointerCapture(event.pointerId);
+      document.body.classList.add('is-resizing');
+      const rect = paneEls[controlled].getBoundingClientRect();
+      const onMove = (move: PointerEvent): void => {
+        control.set((growsRight ? move.clientX - rect.left : rect.right - move.clientX) / uiScale());
+      };
+      const onUp = (): void => {
+        document.body.classList.remove('is-resizing');
+        resizer.removeEventListener('pointermove', onMove);
+        resizer.removeEventListener('pointerup', onUp);
+      };
+      resizer.addEventListener('pointermove', onMove);
+      resizer.addEventListener('pointerup', onUp);
+    });
+    resizer.addEventListener('keydown', (event) => {
+      const key = event.key;
+      if (key !== 'ArrowLeft' && key !== 'ArrowRight') return;
+      event.preventDefault();
+      const toward = key === 'ArrowRight' ? 16 : -16;
+      control.set(control.get() + (growsRight ? toward : -toward));
+    });
+    resizer.addEventListener('dblclick', () => control.reset());
+    return resizer;
+  }
+
+  // The chat panel is docked below or beside the workspace; the same divider
+  // resizes it either way.
+  chatResizer.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    chatResizer.setPointerCapture(event.pointerId);
+    const dockRight = useUiStore.getState().chatDock === 'right';
+    document.body.classList.add('is-resizing');
+    if (!dockRight) document.body.classList.add('is-resizing-row');
+    const onMove = (move: PointerEvent): void => {
+      const ui = useUiStore.getState();
+      if (ui.chatDock === 'right') {
+        ui.setChatWidth((workspace.getBoundingClientRect().right - move.clientX) / uiScale());
+      } else {
+        ui.setChatHeight((root.getBoundingClientRect().bottom - move.clientY) / uiScale());
+      }
+    };
+    const onUp = (): void => {
+      document.body.classList.remove('is-resizing', 'is-resizing-row');
+      chatResizer.removeEventListener('pointermove', onMove);
+      chatResizer.removeEventListener('pointerup', onUp);
+    };
+    chatResizer.addEventListener('pointermove', onMove);
+    chatResizer.addEventListener('pointerup', onUp);
+  });
+  chatResizer.addEventListener('keydown', (event) => {
+    const ui = useUiStore.getState();
+    const dockRight = ui.chatDock === 'right';
+    const grow = dockRight ? 'ArrowLeft' : 'ArrowUp';
+    const shrink = dockRight ? 'ArrowRight' : 'ArrowDown';
+    if (event.key !== grow && event.key !== shrink) return;
+    event.preventDefault();
+    const delta = event.key === grow ? 16 : -16;
+    if (dockRight) ui.setChatWidth(ui.chatWidth + delta);
+    else ui.setChatHeight(ui.chatHeight + delta);
+  });
+  chatResizer.addEventListener('dblclick', () => {
+    const ui = useUiStore.getState();
+    if (ui.chatDock === 'right') ui.setChatWidth(DEFAULT_LAYOUT.chatWidth);
+    else ui.setChatHeight(DEFAULT_LAYOUT.chatHeight);
+  });
+
   attachRowResizer(
     filesResizer,
     (clientY) => {
@@ -401,31 +548,10 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     },
     (delta) => useUiStore.getState().setFilesShare(useUiStore.getState().filesShare - delta * 0.03),
   );
-  attachRowResizer(
-    chatResizer,
-    (clientY) => useUiStore.getState().setChatHeight((root.getBoundingClientRect().bottom - clientY) / uiScale()),
-    (delta) => useUiStore.getState().setChatHeight(useUiStore.getState().chatHeight - delta * 16),
-  );
-  // Double-clicking a divider puts that pane back to its default size.
   filesResizer.addEventListener('dblclick', () => useUiStore.getState().setFilesShare(DEFAULT_LAYOUT.filesShare));
-  chatResizer.addEventListener('dblclick', () => useUiStore.getState().setChatHeight(DEFAULT_LAYOUT.chatHeight));
-  graphResizer.addEventListener('dblclick', () => useUiStore.getState().setGraphWidth(DEFAULT_LAYOUT.graphWidth));
-  railResizer.addEventListener('dblclick', () => useUiStore.getState().setRailWidth(DEFAULT_LAYOUT.railWidth));
-
-  attachResizer(
-    graphResizer,
-    (clientX) => (clientX - shell.getBoundingClientRect().left) / uiScale(),
-    () => useUiStore.getState().graphWidth,
-    (width) => useUiStore.getState().setGraphWidth(width),
-  );
-  attachResizer(
-    railResizer,
-    (clientX) => (shell.getBoundingClientRect().right - clientX) / uiScale(),
-    () => useUiStore.getState().railWidth,
-    (width) => useUiStore.getState().setRailWidth(width),
-  );
 
   applyWidths();
+  renderShell();
   requestAnimationFrame(placeIndicator);
   void document.fonts?.ready.then(placeIndicator);
   void toolbarView.refreshProviders();

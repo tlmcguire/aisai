@@ -43,7 +43,28 @@ export interface ClientMessage {
   auditId?: string;
 }
 
+/** Progress of the self-updater, reported by the main process. */
+export interface UpdateStatus {
+  state: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'manual' | 'error';
+  /** The version on offer, once one is known. */
+  version?: string;
+  /** Download progress, 0–100, while downloading. */
+  percent?: number;
+  /** A human readable note: the error, or where to download by hand. */
+  message?: string;
+  /** The release page, for a platform that cannot update itself. */
+  url?: string;
+}
+
 export interface AisaiBridge {
+  /** Subscribe to updater status changes. Returns an unsubscribe function. */
+  onUpdateStatus(cb: (status: UpdateStatus) => void): () => void;
+  /** Check for a new version now. */
+  checkForUpdates(): Promise<void>;
+  /** Quit and install the downloaded update. */
+  installUpdate(): Promise<void>;
+  /** Open the release page in the browser. */
+  openReleasePage(): Promise<void>;
   /** Current transport mode. */
   getMode(): 'live' | 'mock';
   /** Current backend status snapshot. */

@@ -5,6 +5,7 @@ import { icon } from '../lib/icons';
 import { useChatStore } from '../state/chat';
 import { useUiStore } from '../state/ui';
 import { setBusy } from './toolbar';
+import { providerLabel } from './settingsDialog';
 
 const CITATION = /([\w./-]+\.[A-Za-z0-9]+):(\d+)/g;
 
@@ -55,10 +56,12 @@ export interface ChatPanel {
 export function createChatPanel(controller: AppController, container: HTMLElement): ChatPanel {
   const toggle = h('button', { class: 'ghost tiny icon-button', type: 'button' }, icon('chevron-down'));
   const chunksUsed = h('span', { class: 'chunks-used', text: '' });
+  const modelChip = h('span', { class: 'badge neutral chat-model', text: '' });
   const header = h(
     'div',
     { class: 'chat-header' },
     h('span', { text: 'Chat' }),
+    modelChip,
     toggle,
     h('span', { class: 'grow' }),
     chunksUsed,
@@ -92,7 +95,7 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
 
   const submit = (): void => {
     const question = input.value.trim();
-    if (!question) return;
+    if (!question || !useChatStore.getState().model.available) return;
     input.value = '';
     void controller.ask(question);
   };
@@ -110,6 +113,7 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
   // and every other message stays untouched.
   const rendered = new Map<string, { message: ChatMessage; element: HTMLElement }>();
   let emptyShown = false;
+  let emptyKey = '';
 
   const buildMessage = (message: ChatMessage): HTMLElement =>
     h(
@@ -120,6 +124,28 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
       message.chunksUsed && message.chunksUsed.length
         ? h('div', { class: 'chunks-used', text: `chunks used: ${message.chunksUsed.join(', ')}` })
         : null,
+    );
+
+  const buildLimited = (reason: string): HTMLElement =>
+    h(
+      'div',
+      { class: 'empty-state chat-limited' },
+      h('h3', { text: 'Chat is limited: no model' }),
+      h('p', {
+        text: `${reason} Questions are disabled until a model is available; scanning, the graph, the AST and the static rules still work.`,
+      }),
+      h(
+        'button',
+        {
+          class: 'primary tiny',
+          type: 'button',
+          onclick: () => {
+            useUiStore.getState().setSettingsSection('models');
+            useUiStore.getState().setSettingsOpen(true);
+          },
+        },
+        'Choose a model',
+      ),
     );
 
   const buildEmpty = (): HTMLElement =>
@@ -142,11 +168,26 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
     const state = useChatStore.getState();
     const nearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 48;
 
+    const model = state.model;
+    modelChip.textContent = model.available
+      ? `${model.name} · ${providerLabel(model.provider)}`
+      : 'no model';
+    modelChip.classList.toggle('is-bad', !model.available);
+    modelChip.classList.toggle('neutral', model.available);
+    modelChip.title = model.available ? `Answering with ${model.name}` : model.reason;
+    input.disabled = !model.available;
+    askButton.disabled = !model.available || state.busy;
+    input.placeholder = model.available
+      ? 'Ask about this package… e.g. how does it authenticate?'
+      : 'Chat is unavailable: no model';
+
     if (!state.messages.length) {
-      if (!emptyShown) {
+      const key = model.available ? 'ready' : `limited:${model.reason}`;
+      if (!emptyShown || emptyKey !== key) {
         rendered.clear();
-        messages.replaceChildren(buildEmpty());
+        messages.replaceChildren(model.available ? buildEmpty() : buildLimited(model.reason));
         emptyShown = true;
+        emptyKey = key;
       }
     } else {
       if (emptyShown) {
@@ -178,6 +219,7 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
 
     const last = state.messages[state.messages.length - 1];
     setBusy(askButton, state.busy, 'Ask');
+    if (!model.available) askButton.disabled = true;
     const used = last?.chunksUsed && last.chunksUsed.length ? `chunks: ${last.chunksUsed.join(', ')}` : '';
     if (chunksUsed.textContent !== used) chunksUsed.textContent = used;
   };

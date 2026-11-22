@@ -9,7 +9,28 @@ export interface ChatMessage {
   chunksUsed?: string[];
 }
 
+/** The model that answers chat questions, and whether one can. */
+export interface ChatModelInfo {
+  /** The model name, e.g. "qwen3.5:4b"; empty when none is selected. */
+  name: string;
+  /** The kind of the provider serving it (ollama, openai, …). */
+  provider: string;
+  /** Whether a question can be answered right now. */
+  available: boolean;
+  /** Why chat is limited, shown to the user when it is not available. */
+  reason: string;
+}
+
+export const NO_CHAT_MODEL: ChatModelInfo = {
+  name: '',
+  provider: '',
+  available: false,
+  reason: 'Checking for a model…',
+};
+
 export interface ChatState {
+  model: ChatModelInfo;
+  setModel: (model: ChatModelInfo) => void;
   messages: ChatMessage[];
   busy: boolean;
   error: string | null;
@@ -29,6 +50,8 @@ function nextId(prefix: string): string {
 }
 
 export const useChatStore = create<ChatState>((set) => ({
+  model: NO_CHAT_MODEL,
+  setModel: (model) => set({ model }),
   messages: [],
   busy: false,
   error: null,

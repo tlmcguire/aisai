@@ -36,6 +36,7 @@ import (
 	"github.com/tlmcguire/aisai/internal/model"
 	"github.com/tlmcguire/aisai/internal/patch"
 	"github.com/tlmcguire/aisai/internal/pypi"
+	"github.com/tlmcguire/aisai/internal/registry"
 	"github.com/tlmcguire/aisai/internal/sast"
 	"github.com/tlmcguire/aisai/internal/scan"
 	"github.com/tlmcguire/aisai/internal/server"
@@ -97,6 +98,12 @@ func run(socketPath, cfgPath, workspaceOverride string) error {
 
 	// --- scanners ---------------------------------------------------------
 	pypiClient := pypi.NewClient(pypi.ClientOptions{UserAgent: "AISAI/" + version.Short()})
+	agent := "AISAI/" + version.Short()
+	registries := registry.NewSet(
+		registry.NewPyPI(pypiClient),
+		registry.NewNPM(registry.NPMOptions{UserAgent: agent}),
+		registry.NewCrates(registry.CratesOptions{UserAgent: agent + " (+https://github.com/tlmcguire/aisai)"}),
+	)
 	resolver := deps.NewResolver(deps.Options{PyPI: pypiClient})
 	engine := sast.NewEngine()
 
@@ -162,13 +169,14 @@ func run(socketPath, cfgPath, workspaceOverride string) error {
 
 	// --- audit manager ----------------------------------------------------
 	srv := server.New(server.Options{
-		Config:  cfg,
-		Store:   store,
-		LLM:     provider,
-		Models:  models,
-		Index:   idx,
-		Patches: patch.NewApplier(),
-		PyPI:    pypiClient,
+		Config:     cfg,
+		Store:      store,
+		LLM:        provider,
+		Models:     models,
+		Index:      idx,
+		Patches:    patch.NewApplier(),
+		PyPI:       pypiClient,
+		Registries: registries,
 	})
 
 	// The LLM detector is only built when a provider is available.
@@ -178,15 +186,16 @@ func run(socketPath, cfgPath, workspaceOverride string) error {
 	}
 
 	mgr := audit.NewManager(audit.Deps{
-		Config:   cfg,
-		PyPI:     pypiClient,
-		Resolver: resolver,
-		SAST:     engine,
-		Store:    store,
-		Index:    idx,
-		LLM:      provider,
-		Detector: detector,
-		Advisory: adv,
+		Config:     cfg,
+		PyPI:       pypiClient,
+		Registries: registries,
+		Resolver:   resolver,
+		SAST:       engine,
+		Store:      store,
+		Index:      idx,
+		LLM:        provider,
+		Detector:   detector,
+		Advisory:   adv,
 		Emit: func(ev model.Event) {
 			srv.Hub().Broadcast(ev)
 		},

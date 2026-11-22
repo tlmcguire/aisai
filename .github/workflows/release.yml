@@ -336,19 +336,10 @@ jobs:
             node .github/run-builder.mjs ${{ matrix.target }} ${{ matrix.archs }} --release --unsigned
           fi
 
-      # The update metadata of the two Linux jobs has to end up in the same
-      # release without overwriting itself. electron-builder writes
-      # latest-linux.yml for the x64 build and latest-linux-arm64.yml for
-      # the arm64 one, so only the x64 file is renamed.
-      - name: Give the update metadata a unique name
-        if: startsWith(matrix.platform, 'linux-')
-        run: |
-          set -euo pipefail
-          cd electron/release
-          if [ -e latest-linux.yml ]; then
-            mv latest-linux.yml "latest-${{ matrix.platform }}.yml"
-          fi
-          ls -l latest-*.yml
+      # electron-builder names the update metadata itself (latest.yml,
+      # latest-mac.yml, latest-linux.yml and latest-linux-arm64.yml), and the
+      # installed app looks for exactly those names in the release, so none
+      # of them is renamed.
 
       # The output directory of electron-builder holds the unpacked
       # application directories as well. They are build output, they are

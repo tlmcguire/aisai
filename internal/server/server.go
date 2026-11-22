@@ -27,6 +27,7 @@ import (
 	"github.com/tlmcguire/aisai/internal/model"
 	"github.com/tlmcguire/aisai/internal/patch"
 	"github.com/tlmcguire/aisai/internal/pypi"
+	"github.com/tlmcguire/aisai/internal/registry"
 	"github.com/tlmcguire/aisai/internal/sbom"
 	"github.com/tlmcguire/aisai/internal/scan"
 	"github.com/tlmcguire/aisai/internal/version"
@@ -45,6 +46,7 @@ type Server struct {
 	chatFactory ChatFactory
 	patches     PatchApplier
 	pypi        *pypi.Client
+	registries  *registry.Set
 	started     time.Time
 }
 
@@ -114,6 +116,8 @@ type Options struct {
 	// PyPI resolves package names for the package picker. It is optional:
 	// without it the picker falls back to what the user types.
 	PyPI *pypi.Client
+	// Registries are the package indexes of every supported ecosystem.
+	Registries *registry.Set
 }
 
 // New creates a server.
@@ -140,6 +144,7 @@ func New(opts Options) *Server {
 		chatFactory: opts.ChatFactory,
 		patches:     opts.Patches,
 		pypi:        opts.PyPI,
+		registries:  opts.Registries,
 		started:     time.Now(),
 	}
 	return s
@@ -177,6 +182,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/models/unload", s.handleUnloadModels)
 
 	mux.HandleFunc("GET /api/packages", s.handlePackageLookup)
+	mux.HandleFunc("GET /api/ecosystems", s.handleEcosystems)
 
 	mux.HandleFunc("POST /api/audits", s.handleCreateAudit)
 	mux.HandleFunc("GET /api/audits", s.handleListAudits)
@@ -460,6 +466,8 @@ func (s *Server) handleCreateAudit(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Package string `json:"package"`
 		Version string `json:"version"`
+		// Ecosystem is the package index: pypi (the default), npm or cargo.
+		Ecosystem string `json:"ecosystem"`
 		// Path is a project folder on this computer. When it is set the
 		// audit inspects that folder instead of a published package.
 		Path string `json:"path"`
@@ -476,7 +484,7 @@ func (s *Server) handleCreateAudit(w http.ResponseWriter, r *http.Request) {
 	case strings.TrimSpace(req.Path) != "":
 		a, err = s.manager.CreateLocal(r.Context(), req.Path)
 	case strings.TrimSpace(req.Package) != "":
-		a, err = s.manager.Create(r.Context(), req.Package, req.Version)
+		a, err = s.manager.CreateFor(r.Context(), req.Ecosystem, req.Package, req.Version)
 	default:
 		writeError(w, http.StatusBadRequest, "bad_request", "package or path is required")
 		return

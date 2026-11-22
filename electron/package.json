@@ -1,6 +1,6 @@
 {
   "name": "aisai-electron",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "AISAI Electron frontend (renderer + main/preload) for the Go AISAI backend.",
   "homepage": "https://github.com/tlmcguire/aisai",
@@ -145,7 +145,15 @@
       "category": "Development"
     },
     "forceCodeSigning": false,
-    "beforeBuild": ".github/verify-release-env.mjs"
+    "beforeBuild": ".github/verify-release-env.mjs",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "tlmcguire",
+        "repo": "aisai",
+        "releaseType": "release"
+      }
+    ]
   },
   "allowScripts": {
     "electron@45.4.1": true,
