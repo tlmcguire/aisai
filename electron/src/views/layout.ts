@@ -348,21 +348,51 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   });
   /**
    * A grab handle on a divider: a pill to drag, with two arrows that step the
-   * panel bigger or smaller with a click. Dragging anywhere on the divider
-   * still works; the pill makes it obvious, and the arrows help when a drag
-   * is hard (a trackpad, a tremor).
+   * panel bigger or smaller.
+   *
+   * The whole pill is a drag target. A press anywhere on it — the dots, an
+   * arrow, the space between them — starts a drag of the divider, because the
+   * arrows used to swallow the press, which left the handle looking grabbable
+   * while only the invisible strip beside it really dragged. An arrow the
+   * pointer never moves still steps the panel, so the handle can be hit at
+   * any point: press and drag to resize, press and release on an arrow to
+   * step. Dragging anywhere on the divider works too; the pill makes it
+   * obvious, and the arrows help when a drag is hard (a trackpad, a tremor).
+   *
+   * The step is decided on pointerup rather than on click, because the
+   * divider captures the pointer as soon as it is pressed, and that
+   * suppresses the click the arrows would otherwise have listened for.
    */
   const grabHandle = (resizer: HTMLElement, name: string, step: (bigger: boolean) => void): (() => void) => {
     const bigger = h('button', { class: 'grab-arrow', type: 'button', tabindex: '-1' });
     const smaller = h('button', { class: 'grab-arrow', type: 'button', tabindex: '-1' });
-    const pill = h('span', { class: 'grab-handle', 'aria-hidden': 'true' }, bigger, h('span', { class: 'grab-dots' }), smaller);
-    for (const [button, grow] of [[bigger, true], [smaller, false]] as const) {
-      // A click on an arrow steps; it must not start a drag of the divider.
-      button.addEventListener('pointerdown', (event) => event.stopPropagation());
-      button.addEventListener('click', (event) => {
-        event.stopPropagation();
-        step(grow);
-      });
+    const pill = h('span', { class: 'grab-handle' }, bigger, h('span', { class: 'grab-dots', 'aria-hidden': 'true' }), smaller);
+    // What the press started on, and whether it turned into a drag.
+    let downOn: HTMLElement | null = null;
+    let dragged = false;
+    resizer.addEventListener('pointerdown', (event) => {
+      downOn = event.target as HTMLElement;
+      dragged = false;
+      const origin = { x: event.clientX, y: event.clientY };
+      const onMove = (move: PointerEvent): void => {
+        if (Math.abs(move.clientX - origin.x) + Math.abs(move.clientY - origin.y) > 4) dragged = true;
+      };
+      resizer.addEventListener('pointermove', onMove);
+      resizer.addEventListener('pointerup', () => resizer.removeEventListener('pointermove', onMove), { once: true });
+    });
+    resizer.addEventListener('pointerup', () => {
+      if (!dragged) {
+        // The press may have landed on the arrow's icon rather than the
+        // button itself, so ask the button that owns it.
+        const arrow = downOn?.closest('.grab-arrow');
+        if (arrow === bigger) step(true);
+        else if (arrow === smaller) step(false);
+      }
+      downOn = null;
+      dragged = false;
+    });
+    for (const button of [bigger, smaller]) {
+      // A double click on an arrow must not reset the divider.
       button.addEventListener('dblclick', (event) => event.stopPropagation());
     }
     resizer.append(pill);

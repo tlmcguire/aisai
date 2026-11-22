@@ -4221,9 +4221,9 @@ body.is-window-resizing *::after { transition: none !important; }
   z-index: 4;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  height: 15px;
-  padding: 0 2px;
+  gap: 3px;
+  height: 19px;
+  padding: 0 3px;
   border-radius: 8px;
   border: 1px solid var(--border-strong);
   background: var(--bg-raised);
@@ -4235,8 +4235,8 @@ body.is-window-resizing *::after { transition: none !important; }
 .grab-handle.is-sideways {
   flex-direction: column;
   height: auto;
-  width: 15px;
-  padding: 2px 0;
+  width: 19px;
+  padding: 3px 0;
 }
 .resizer:hover .grab-handle,
 .resizer:focus-visible .grab-handle,
@@ -4260,11 +4260,11 @@ body.is-window-resizing *::after { transition: none !important; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 13px;
-  height: 11px;
+  width: 18px;
+  height: 16px;
   padding: 0;
   border: none;
-  border-radius: 4px;
+  border-radius: 5px;
   background: transparent;
   color: inherit;
   cursor: pointer;
@@ -4274,12 +4274,16 @@ body.is-window-resizing *::after { transition: none !important; }
   color: var(--accent);
 }
 .grab-arrow .icon {
-  width: 9px;
-  height: 9px;
+  width: 11px;
+  height: 11px;
 }
 /* The old hairline grip is replaced by the pill on these two dividers. */
 .resizer:has(.grab-handle)::after {
   display: none;
+}
+/* The pill sits on top of the panels it divides, so it is never covered. */
+.resizer:has(.grab-handle) {
+  z-index: 3;
 }
 
 /* Debugger: breakpoint list, inline values and hover values. */
