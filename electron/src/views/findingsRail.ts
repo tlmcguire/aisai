@@ -1,6 +1,7 @@
 import type { AppController } from '../app';
 import { SEVERITIES, type Finding, type FindingState, type Severity } from '../api/types';
 import { h } from '../lib/dom';
+import { icon } from '../lib/icons';
 import { severityClass, severityLabel, severityWeight } from '../lib/severity';
 import { useFindingsStore, type FindingSortKey } from '../state/findings';
 
@@ -89,7 +90,8 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
           dataset: { sort: key },
           onclick: () => useFindingsStore.getState().setSort(key),
         },
-        label,
+        h('span', { class: 'sort-label', text: label }),
+        h('span', { class: 'sort-dir' }),
       ),
     ),
   );
@@ -302,6 +304,9 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
     );
   }
 
+  const cards = new Map<string, { signature: string; element: HTMLElement }>();
+  let listMode: 'none' | 'filtered' | 'list' | '' = '';
+
   const render = (): void => {
     const state = useFindingsStore.getState();
     const findings = visibleFindings();
@@ -323,12 +328,22 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
       const key = button.dataset.sort as FindingSortKey | undefined;
       const active = key === state.sortKey;
       button.setAttribute('aria-pressed', String(active));
-      button.textContent = active
-        ? `${button.textContent?.replace(/ [▲▼]$/, '')} ${state.sortDir === 'asc' ? '▲' : '▼'}`
-        : (button.textContent?.replace(/ [▲▼]$/, '') ?? '');
+      // Only the active key shows its direction; the arrow is redrawn only
+      // when the direction changes.
+      const slot = button.querySelector<HTMLElement>('.sort-dir');
+      const want = active ? (state.sortDir === 'asc' ? 'up' : 'down') : '';
+      if (slot && slot.dataset.dir !== want) {
+        slot.dataset.dir = want;
+        slot.replaceChildren(
+          want ? icon(want === 'up' ? 'arrow-up' : 'arrow-down', want === 'up' ? 'ascending' : 'descending') : '',
+        );
+      }
     }
 
     if (!state.findings.length) {
+      if (listMode === 'none') return;
+      listMode = 'none';
+      cards.clear();
       list.replaceChildren(
         h(
           'li',
@@ -345,6 +360,9 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
     }
 
     if (!findings.length) {
+      if (listMode === 'filtered') return;
+      listMode = 'filtered';
+      cards.clear();
       list.replaceChildren(
         h(
           'li',
@@ -358,9 +376,37 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
       return;
     }
 
-    const fragment = document.createDocumentFragment();
-    for (const finding of findings) fragment.appendChild(findingCard(finding));
-    list.replaceChildren(fragment);
+    if (listMode !== 'list') {
+      list.replaceChildren();
+      listMode = 'list';
+    }
+    // Reconcile by finding id: a card is rebuilt only when what it shows
+    // changed, and the rest keep their element, hover and focus.
+    const live = new Set<string>();
+    findings.forEach((finding, index) => {
+      live.add(finding.id);
+      const signature = JSON.stringify([
+        finding.severity, finding.state, finding.message, finding.confidence, finding.cwe,
+        finding.tool, finding.rule, finding.reachability, finding.suppressedUntil,
+        finding.file, finding.startLine, state.selectedId === finding.id,
+      ]);
+      let entry = cards.get(finding.id);
+      if (!entry || entry.signature !== signature) {
+        const element = findingCard(finding);
+        if (entry) entry.element.replaceWith(element);
+        entry = { signature, element };
+        cards.set(finding.id, entry);
+      }
+      if (list.children[index] !== entry.element) {
+        list.insertBefore(entry.element, list.children[index] ?? null);
+      }
+    });
+    for (const [id, entry] of cards) {
+      if (!live.has(id)) {
+        entry.element.remove();
+        cards.delete(id);
+      }
+    }
   };
 
   function syncOptions(select: HTMLSelectElement, values: string[], placeholder: string): void {

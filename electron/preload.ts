@@ -79,6 +79,9 @@ const bridge: AisaiBridge = {
     void ipcRenderer.invoke('aisai:ws:send', message);
   },
   chooseFolder: () => ipcRenderer.invoke('aisai:folder:choose') as Promise<string | null>,
+  providerKeyStatus: (kind: string) =>
+    ipcRenderer.invoke('aisai:secret:has', kind) as Promise<{ saved: boolean; available: boolean }>,
+  forgetProviderKey: (kind: string) => ipcRenderer.invoke('aisai:secret:forget', kind) as Promise<void>,
   folderFromDrop: async (file: File): Promise<string | null> => {
     // getPathForFile only answers for a real file the user dropped, so a
     // page cannot make one up.

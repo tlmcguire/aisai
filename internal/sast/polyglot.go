@@ -94,14 +94,14 @@ type pgLineRule struct {
 }
 
 const (
-	pgAll  = "go javascript typescript tsx java csharp ruby rust c"
+	pgAll  = "go javascript typescript tsx java csharp ruby rust c cpp php scala"
 	pgWeb  = "javascript typescript tsx"
 	pgGo   = "go"
-	pgJava = "java"
+	pgJava = "java scala"
 	pgCS   = "csharp"
 	pgRb   = "ruby"
 	pgRs   = "rust"
-	pgC    = "c"
+	pgC    = "c cpp"
 )
 
 // pgLangMatches reports whether a space-separated language list holds lang.

@@ -170,7 +170,7 @@ func RegisterTools(s *Server, t *Toolset) {
 		Name: "scan_package",
 		Description: "Prepare the source of a project for audit and return the audit id. Give either a PyPI package name or the path of a project folder on this computer. " +
 			"This is the first step of every audit: a package is never installed and its setup code never runs, its source distribution is only downloaded into an isolated workspace; a folder is copied into the workspace and the original is never modified. " +
-			"Source files in Python, JavaScript, TypeScript, Go, Rust, Java, C#, Ruby and C are indexed. " +
+			"Source files in Python, JavaScript, TypeScript, Go, Rust, Java, C#, Ruby, C, C++, PHP, Scala and shell scripts are indexed and scanned. " +
 			"The returned audit id becomes the current audit, so later tools can be called without repeating it.",
 		InputSchema: ObjectSchema(map[string]any{
 			"package": StringProp("The PyPI package name to audit, e.g. \"requests\"."),
@@ -330,6 +330,8 @@ func RegisterTools(s *Server, t *Toolset) {
 		}, "question"),
 		Handler: t.askCodebase,
 	})
+
+	registerManagementTools(s, t)
 }
 
 // scanPackage resolves, downloads and indexes a package, then makes it the

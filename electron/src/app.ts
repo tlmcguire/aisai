@@ -30,7 +30,9 @@ import type {
   Patch,
   PatchResponse,
   PackageLookup,
+  DownloadEvent,
   ProviderInfo,
+  ProviderRequest,
   UnloadResponse,
 } from './api/types';
 import { useAuditStore } from './state/audit';
@@ -177,6 +179,7 @@ export class AppController {
   private async beginAudit(label: string, body: Record<string, string>): Promise<void> {
     const auditStore = useAuditStore.getState();
     auditStore.setError(null);
+    auditStore.clearDownloads();
     auditStore.setBusy('audit');
     auditStore.setProgress('queued', 0, `Starting the audit of ${label}`);
     try {
@@ -184,10 +187,14 @@ export class AppController {
       auditStore.setCurrent(response.audit);
       this.auditId = response.audit?.id ?? this.auditId;
       await this.reloadAudits();
+      // The audit keeps running in the backend after the request returns:
+      // the job stays busy until audit.done or audit.error arrives, so the
+      // progress strip and the download tracker stay up while it works.
+      const status = useAuditStore.getState().current?.status;
+      if (status === 'ready' || status === 'failed') auditStore.setBusy(null);
     } catch (err) {
       auditStore.setError(messageOf(err));
       auditStore.setProgressVisible(false);
-    } finally {
       auditStore.setBusy(null);
     }
   }
@@ -366,14 +373,59 @@ export class AppController {
     }
   }
 
-  async testProvider(id: string, url: string, model: string): Promise<ProviderInfo | null> {
+  async testProvider(request: ProviderRequest): Promise<ProviderInfo | null> {
     try {
       const response = await this.client.request<{ provider: ProviderInfo }>(
         'POST',
         '/api/providers/test',
-        { id, url, model },
+        request,
       );
       return response.provider;
+    } catch (err) {
+      return { id: request.kind, kind: request.kind, ok: false, error: messageOf(err) };
+    }
+  }
+
+  /** Switch the backend that scans and chat use. The choice is saved. */
+  async setProvider(request: ProviderRequest): Promise<ProviderInfo | null> {
+    try {
+      const response = await this.client.request<{ provider: ProviderInfo }>(
+        'POST',
+        '/api/providers',
+        request,
+      );
+      return response.provider;
+    } catch (err) {
+      return { id: request.kind, kind: request.kind, ok: false, error: messageOf(err) };
+    }
+  }
+
+  /** Ask the toolbar to re-read the provider status. */
+  refreshProviderChip(): Promise<void> {
+    useUiStore.getState().bumpProviders();
+    return Promise.resolve();
+  }
+
+  /** Re-read the list of audits, for the sources manager. */
+  async refreshAudits(): Promise<void> {
+    try {
+      const response = await this.client.request<AuditsResponse>('GET', '/api/audits');
+      useAuditStore.getState().setAudits(response.audits ?? []);
+    } catch (err) {
+      useAuditStore.getState().setError(messageOf(err));
+    }
+  }
+
+  /** Delete the downloaded sources of any audit, not only the open one. */
+  async deleteSourcesOf(auditId: string): Promise<{ freed: number; freedText: string } | null> {
+    try {
+      const response = await this.client.request<{ freed: number; freedText: string }>(
+        'DELETE',
+        `/api/audits/${auditId}/workspace`,
+      );
+      await this.refreshAudits();
+      if (auditId === this.auditId) await this.selectAudit(auditId);
+      return { freed: response.freed ?? 0, freedText: response.freedText ?? '' };
     } catch (err) {
       useAuditStore.getState().setError(messageOf(err));
       return null;
@@ -549,11 +601,22 @@ export class AppController {
 
     switch (event.type) {
       case 'audit.progress': {
-        auditStore.setProgress(
-          event.phase ?? 'working',
-          event.percent ?? 0,
-          event.message ?? '',
-        );
+        const download = (event.data as { download?: DownloadEvent } | undefined)?.download;
+        if (download) {
+          auditStore.upsertDownload(
+            {
+              package: download.package,
+              version: download.version,
+              state: download.state,
+              detail: download.detail ?? '',
+            },
+            download.total,
+          );
+        }
+        // A package that only started downloading carries no percentage;
+        // keep the bar where it is instead of dropping it back to zero.
+        const percent = event.percent || (download ? auditStore.percent : 0);
+        auditStore.setProgress(event.phase ?? 'working', percent, event.message ?? '');
         break;
       }
       case 'audit.done': {

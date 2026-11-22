@@ -239,7 +239,12 @@ func quarantineNotice(n int) string {
 func (c *Chat) run(ctx context.Context, messages []llm.Message, emit func(string)) (string, error) {
 	if len(c.deps.Tools) > 0 && c.deps.ToolRunner != nil {
 		if tp, ok := c.deps.LLM.(llm.ToolProvider); ok {
-			return c.runWithTools(ctx, tp, messages, emit)
+			answer, err := c.runWithTools(ctx, tp, messages, emit)
+			// A switchable provider always offers the interface; when the
+			// active backend has no tool support, answer without tools.
+			if !errors.Is(err, llm.ErrNotSupported) {
+				return answer, err
+			}
 		}
 	}
 	return c.runPlain(ctx, messages, emit)

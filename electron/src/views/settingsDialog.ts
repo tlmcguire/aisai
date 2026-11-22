@@ -1,7 +1,9 @@
 import type { AppController } from '../app';
-import type { Config, ModelInfo, ModelState, ProviderInfo } from '../api/types';
+import type { Audit, Config, ModelInfo, ModelState, ProviderInfo, ProviderKind } from '../api/types';
+import { formatBytes } from '../lib/format';
+import { useAuditStore } from '../state/audit';
 import { h } from '../lib/dom';
-import { useUiStore } from '../state/ui';
+import { DEFAULT_LAYOUT, useUiStore, type SettingsSection } from '../state/ui';
 
 /** The keep-alive windows the picker offers. */
 const KEEP_ALIVE_OPTIONS: Array<{ value: string; label: string }> = [
@@ -69,83 +71,328 @@ function modelSelect(
   return select;
 }
 
-/** Settings dialog: providers, models, effective configuration, provider test. */
+/** The model servers the app can talk to, with their usual address. */
+export const SERVER_KINDS: Array<{
+  kind: ProviderKind;
+  label: string;
+  url: string;
+  note: string;
+  hosted: boolean;
+  model?: string;
+}> = [
+  { kind: 'ollama', label: 'Ollama', url: 'http://localhost:11434', hosted: false, note: 'Pulls and runs models on this machine. The default.' },
+  { kind: 'vllm', label: 'vLLM', url: 'http://localhost:8000/v1', hosted: false, note: 'OpenAI-compatible GPU server. Start it with `vllm serve <model>`. A key is only needed if you set --api-key.' },
+  { kind: 'llamacpp', label: 'llama.cpp', url: 'http://localhost:8080/v1', hosted: false, note: 'The `llama-server` binary, serving one GGUF model.' },
+  { kind: 'lmstudio', label: 'LM Studio', url: 'http://localhost:1234/v1', hosted: false, note: 'Turn on the local server in LM Studio’s Developer tab.' },
+  { kind: 'openai', label: 'OpenAI', url: 'https://api.openai.com/v1', hosted: true, model: 'gpt-5-mini', note: 'ChatGPT models with your OpenAI API key. Code you scan is sent to OpenAI.' },
+  { kind: 'anthropic', label: 'Anthropic', url: 'https://api.anthropic.com/v1', hosted: true, model: 'claude-sonnet-5-5', note: 'Claude models with your Anthropic API key. Anthropic has no embedding API, so code search falls back to keywords. Code you scan is sent to Anthropic.' },
+  { kind: 'gemini', label: 'Gemini', url: 'https://generativelanguage.googleapis.com/v1beta/openai', hosted: true, model: 'gemini-2.5-flash', note: 'Google Gemini through its OpenAI-compatible endpoint. Code you scan is sent to Google.' },
+  { kind: 'openrouter', label: 'OpenRouter', url: 'https://openrouter.ai/api/v1', hosted: true, model: 'anthropic/claude-sonnet-5-5', note: 'One key for hundreds of models. Code you scan is sent to OpenRouter and the model’s provider.' },
+  { kind: 'groq', label: 'Groq', url: 'https://api.groq.com/openai/v1', hosted: true, model: 'llama-3.3-70b-versatile', note: 'Fast hosted open models. Code you scan is sent to Groq.' },
+  { kind: 'mistral', label: 'Mistral', url: 'https://api.mistral.ai/v1', hosted: true, model: 'codestral-latest', note: 'Mistral and Codestral models. Code you scan is sent to Mistral.' },
+];
+
+/** The display name of a provider kind, for the toolbar and the status. */
+export function providerLabel(kind: string): string {
+  return SERVER_KINDS.find((entry) => entry.kind === kind)?.label ?? kind;
+}
+
+const SECTIONS: Array<{ id: SettingsSection; label: string }> = [
+  { id: 'server', label: 'Model server' },
+  { id: 'models', label: 'Models' },
+  { id: 'sources', label: 'Downloaded sources' },
+  { id: 'layout', label: 'Layout' },
+  { id: 'mcp', label: 'MCP' },
+];
+
+/** Turn a transport error into something a person can act on. */
+function friendlyError(error: string, url?: string): string {
+  const where = url ? ` at ${url}` : '';
+  if (/deadline exceeded|timeout/i.test(error)) return `No answer${where}. Is the server running?`;
+  if (/connection refused/i.test(error)) return `Nothing is listening${where}. Start the server, or pick another type below.`;
+  if (/401|unauthori[sz]ed|invalid.*key/i.test(error)) return 'The service rejected the API key.';
+  return error;
+}
+
+function relativeTime(iso: string): string {
+  const then = Date.parse(iso);
+  if (!Number.isFinite(then)) return '';
+  const minutes = Math.round((Date.now() - then) / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  return new Date(then).toLocaleDateString();
+}
+
+/**
+ * Settings: a preferences window with a sidebar of sections.
+ *
+ * It opens instantly. Each section renders from what was loaded last time
+ * and refreshes in place when its own request returns, so a slow or absent
+ * model server never holds the whole window.
+ */
 export function createSettingsDialog(
   controller: AppController,
   container: HTMLElement,
 ): { dispose: () => void } {
-  const body = h('div', {});
-  const close = h('button', { class: 'ghost', type: 'button' }, 'Close');
+  const nav = h('nav', { class: 'pref-nav', 'aria-label': 'Settings sections' });
+  const pane = h('div', { class: 'pref-pane' });
+  const close = h(
+    'button',
+    { class: 'ghost icon pref-close', type: 'button', 'aria-label': 'Close settings', title: 'Close (Esc)' },
+    closeIcon(),
+  );
 
   const dialog = h(
     'dialog',
-    {},
-    h(
-      'div',
-      { class: 'dialog-header' },
-      h('h2', { text: 'Settings' }),
-      close,
-    ),
-    body,
+    { class: 'prefs', 'aria-label': 'Settings' },
+    h('div', { class: 'pref-shell' }, nav, h('div', { class: 'pref-main' }, close, pane)),
   );
 
   close.addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => useUiStore.getState().setSettingsOpen(false));
+  // A click on the backdrop closes the window, like a sheet.
+  dialog.addEventListener('mousedown', (event) => {
+    if (event.target === dialog) dialog.close();
+  });
   container.append(dialog);
 
-  const renderProviders = (providers: ProviderInfo[], config: Config | null): HTMLElement => {
-    const children: Array<Node> = [];
+  let lastProviders: ProviderInfo[] = [];
+  let lastConfig: Config | null = null;
+  let lastModels: ModelState | null = null;
+  let loading = { providers: false, config: false, models: false };
+  let modelStatus = '';
 
-    children.push(
-      h('h3', { text: 'LLM providers' }),
-      providers.length
-        ? h(
-            'dl',
-            { class: 'kv' },
-            ...providers.flatMap((provider) => [
-              h('dt', { text: provider.id }),
-              h(
-                'dd',
-                {},
-                provider.kind + ' — ' + (provider.ok ? 'reachable' : 'unavailable: ' + (provider.error ?? 'unknown error')),
-                provider.models?.length ? ' · models: ' + provider.models.join(', ') : '',
-              ),
-            ]),
-          )
-        : h('p', { class: 'empty-state', text: 'No providers are configured.' }),
+  const navButtons = SECTIONS.map((section) =>
+    h(
+      'button',
+      {
+        class: 'pref-nav-item',
+        type: 'button',
+        'data-section': section.id,
+        onclick: () => useUiStore.getState().setSettingsSection(section.id),
+      },
+      section.label,
+    ),
+  );
+  nav.append(h('div', { class: 'pref-nav-title', text: 'Settings' }), ...navButtons);
+
+  /* ---------------- model server ---------------- */
+
+  let draftKind: ProviderKind | null = null;
+  let draftUrl = '';
+  let draftModel = '';
+  let draftKey = '';
+  let serverStatus = '';
+  let serverTone: 'ok' | 'bad' | '' = '';
+  let testedModels: string[] = [];
+  let keyState: { kind: ProviderKind; saved: boolean; available: boolean } | null = null;
+
+  const renderServer = (): HTMLElement => {
+    const active = lastProviders[0];
+    const activeKind = (active?.kind as ProviderKind | undefined) ?? 'ollama';
+    const kind = draftKind ?? activeKind;
+    const preset = SERVER_KINDS.find((entry) => entry.kind === kind) ?? SERVER_KINDS[0];
+    if (!draftUrl) {
+      draftUrl =
+        kind === activeKind && active?.url
+          ? active.url
+          : kind === 'ollama' && lastConfig?.ollamaUrl
+            ? lastConfig.ollamaUrl
+            : preset.url;
+    }
+    if (!draftModel && kind === activeKind) draftModel = lastConfig?.chatModel ?? '';
+
+    const current = h(
+      'div',
+      { class: `server-current ${active ? (active.ok ? 'is-ok' : 'is-bad') : 'is-pending'}` },
+      h('span', { class: 'status-dot', 'aria-hidden': 'true' }),
+      h(
+        'div',
+        { class: 'server-current-text' },
+        h('strong', {
+          text: active
+            ? `${providerLabel(active.kind)} ${active.ok ? 'is connected' : 'is not reachable'}`
+            : loading.providers
+              ? 'Checking the model server…'
+              : 'No model server configured',
+        }),
+        h('span', {
+          text: active
+            ? active.ok
+              ? `${active.url ?? ''} · ${active.models?.length ?? 0} model(s)`
+              : friendlyError(active.error ?? '', active.url)
+            : '',
+        }),
+      ),
     );
 
-    if (config) {
-      children.push(
-        h('h3', { text: 'Effective configuration' }),
+    const kindButtons = (hosted: boolean): HTMLElement => h(
+      'div',
+      { class: 'segmented', role: 'radiogroup', 'aria-label': hosted ? 'Hosted services' : 'Local servers' },
+      ...SERVER_KINDS.filter((entry) => entry.hosted === hosted).map((entry) =>
         h(
-          'dl',
-          { class: 'kv' },
-          h('dt', { text: 'workspace' }),
-          h('dd', { text: config.workspace }),
-          h('dt', { text: 'ollama url' }),
-          h('dd', { text: config.ollamaUrl }),
-          h('dt', { text: 'context size' }),
-          h('dd', { text: String(config.numCtx) }),
-          h('dt', { text: 'keep alive' }),
-          h('dd', { text: config.keepAlive ?? '3m' }),
+          'button',
+          {
+            type: 'button',
+            role: 'radio',
+            'aria-checked': String(entry.kind === kind),
+            class: 'segment',
+            onclick: () => {
+              if (draftKind === entry.kind) return;
+              draftKind = entry.kind;
+              draftUrl = entry.kind === activeKind && active?.url ? active.url : entry.url;
+              draftModel = entry.kind === activeKind ? (lastConfig?.chatModel ?? '') : (entry.model ?? '');
+              keyState = null;
+              testedModels = [];
+              serverStatus = '';
+              serverTone = '';
+              renderSection();
+            },
+          },
+          entry.label,
         ),
-      );
-    }
+      ),
+    );
+    const kinds = h(
+      'div',
+      { class: 'kind-groups' },
+      h('div', { class: 'kind-group' }, h('span', { class: 'kind-group-label', text: 'On this machine' }), kindButtons(false)),
+      h('div', { class: 'kind-group' }, h('span', { class: 'kind-group-label', text: 'Hosted, bring your own key' }), kindButtons(true)),
+    );
 
-    return h('section', { class: 'settings-section' }, ...children);
+    // Whether a key for this service is already in the keychain.
+    if (keyState === null || keyState.kind !== kind) {
+      keyState = { kind, saved: false, available: true };
+      void window.aisai
+        .providerKeyStatus(kind)
+        .then((status) => {
+          keyState = { kind, ...status };
+          if (dialog.open && useUiStore.getState().settingsSection === 'server') renderSection();
+        })
+        .catch(() => undefined);
+    }
+    const needsKey = preset.hosted || kind === 'vllm';
+
+    const url = h('input', { type: 'text', id: 'server-url', value: draftUrl, spellcheck: 'false' });
+    url.addEventListener('input', () => (draftUrl = url.value.trim()));
+    const modelList = h('datalist', { id: 'server-models' }, ...testedModels.map((m) => h('option', { value: m })));
+    const model = h('input', {
+      type: 'text',
+      id: 'server-model',
+      value: draftModel,
+      list: 'server-models',
+      placeholder: kind === 'ollama' ? 'qwen3.5:4b' : 'the model the server loaded',
+      spellcheck: 'false',
+    });
+    model.addEventListener('input', () => (draftModel = model.value.trim()));
+    const key = h('input', {
+      type: 'password',
+      id: 'server-key',
+      value: draftKey,
+      placeholder: keyState?.saved ? 'Saved in the keychain. Type to replace it.' : preset.hosted ? 'Paste your API key' : 'Optional',
+      autocomplete: 'off',
+      spellcheck: 'false',
+    });
+    key.addEventListener('input', () => (draftKey = key.value));
+    const forget = keyState?.saved
+      ? h('button', { class: 'tiny ghost', type: 'button' }, 'Forget key')
+      : null;
+    forget?.addEventListener('click', () => {
+      void window.aisai.forgetProviderKey(kind).then(() => {
+        keyState = { kind, saved: false, available: keyState?.available ?? true };
+        renderSection();
+      });
+    });
+    const keyNote = h('p', {
+      class: 'pref-hint key-note',
+      text: keyState && !keyState.available
+        ? 'This system has no usable keychain, so the key is kept only until the app quits.'
+        : 'Keys are stored encrypted in the system keychain and never written to the config file.',
+    });
+
+    const status = h('p', { class: `server-status ${serverTone}`, role: 'status', text: serverStatus });
+    const testButton = h('button', { type: 'button' }, 'Test connection');
+    const useButton = h('button', { class: 'primary', type: 'button' }, 'Use this server');
+
+    const request = () => ({ kind, url: draftUrl, model: draftModel || undefined, apiKey: draftKey || undefined });
+
+    testButton.addEventListener('click', () => {
+      if (!draftUrl) return;
+      serverStatus = 'Connecting…';
+      serverTone = '';
+      status.textContent = serverStatus;
+      status.className = 'server-status';
+      testButton.disabled = true;
+      void controller.testProvider(request()).then((info) => {
+        testButton.disabled = false;
+        testedModels = info?.models ?? [];
+        serverTone = info?.ok ? 'ok' : 'bad';
+        serverStatus = info?.ok
+          ? `Reachable. ${testedModels.length ? `Models: ${testedModels.slice(0, 6).join(', ')}${testedModels.length > 6 ? '…' : ''}` : 'No models listed.'}`
+          : friendlyError(info?.error ?? 'no answer', draftUrl);
+        if (info?.ok && !draftModel && testedModels[0]) draftModel = testedModels[0];
+        renderSection();
+      });
+    });
+
+    useButton.addEventListener('click', () => {
+      if (!draftUrl) return;
+      if (preset.hosted && !draftKey && !keyState?.saved) {
+        serverStatus = `Paste your ${preset.label} API key first.`;
+        serverTone = 'bad';
+        renderSection();
+        (pane.querySelector('#server-key') as HTMLElement | null)?.focus();
+        return;
+      }
+      serverStatus = 'Switching…';
+      serverTone = '';
+      status.textContent = serverStatus;
+      useButton.disabled = true;
+      void controller.setProvider(request()).then((info) => {
+        useButton.disabled = false;
+        if (info) lastProviders = [info];
+        serverTone = info?.ok ? 'ok' : 'bad';
+        serverStatus = info?.ok
+          ? `Now using ${preset.label}${draftModel ? ` with ${draftModel}` : ''}. Scans and chat use it from the next request.`
+          : `Saved, but the server did not answer: ${info?.error ?? 'unknown error'}`;
+        draftKind = null;
+        draftKey = '';
+        void loadModels();
+        renderSection();
+        void controller.refreshProviderChip();
+      });
+    });
+
+    return h(
+      'section',
+      { class: 'pref-section' },
+      h('h2', { class: 'pref-title', text: 'Model server' }),
+      h('p', { class: 'pref-lede', text: 'Where scans and chat send their prompts. Everything can stay on this machine.' }),
+      current,
+      h('div', { class: 'pref-group' }, h('div', { class: 'pref-label', text: 'Server type' }), kinds, h('p', { class: 'pref-hint', text: preset.note })),
+      h(
+        'div',
+        { class: 'pref-form' },
+        h('label', { for: 'server-url', text: 'Address' }),
+        url,
+        h('label', { for: 'server-model', text: 'Model' }),
+        h('div', {}, model, modelList),
+        needsKey ? h('label', { for: 'server-key', text: 'API key' }) : null,
+        needsKey ? h('div', { class: 'key-field' }, key, forget) : null,
+      ),
+      needsKey ? keyNote : null,
+      h('div', { class: 'pref-actions' }, testButton, useButton),
+      status,
+    );
   };
 
-  /**
-   * renders the model picker.
-   *
-   * The picker lists the models installed on the Ollama server with the
-   * size each one takes, because the size is what decides whether a model
-   * fits on the machine at all.
-   */
+  /* ---------------- models ---------------- */
+
   const renderModels = (state: ModelState | null): HTMLElement => {
     const children: Array<Node> = [];
-    children.push(h('h3', { text: 'Models' }));
+    children.push(h('h2', { class: 'pref-title', text: 'Models' }), h('p', { class: 'pref-lede', text: 'The models the active server runs for scanning, chat and the retrieval index.' }));
 
     if (!state) {
       children.push(
@@ -322,80 +569,309 @@ export function createSettingsDialog(
     return h('section', { class: 'settings-section' }, ...children);
   };
 
-  const renderProviderTest = (config: Config | null): HTMLElement => {
-    const providerId = h('input', { type: 'text', value: 'ollama', 'aria-label': 'Provider id' });
-    const providerUrl = h('input', {
-      type: 'text',
-      value: config?.ollamaUrl ?? 'http://localhost:11434',
-      'aria-label': 'Provider URL',
-    });
-    const providerModel = h('input', {
-      type: 'text',
-      value: config?.chatModel ?? '',
-      'aria-label': 'Provider model',
-    });
-    const result = h('span', { class: 'chunks-used', text: '' });
-    const testButton = h('button', { class: 'tiny', type: 'button' }, 'Test connection');
 
-    testButton.addEventListener('click', () => {
-      result.textContent = 'Testing…';
-      void controller
-        .testProvider(providerId.value.trim(), providerUrl.value.trim(), providerModel.value.trim())
-        .then((info) => {
-          result.textContent = info
-            ? info.ok
-              ? 'OK — ' + (info.models?.join(', ') || 'reachable')
-              : 'Failed: ' + (info.error ?? 'unknown error')
-            : 'The provider test failed.';
-        });
+  /* ---------------- downloaded sources ---------------- */
+
+  const armed = new Set<string>();
+
+  const renderSources = (): HTMLElement => {
+    const audits = useAuditStore.getState().audits;
+    const currentId = useAuditStore.getState().current?.id;
+    const total = audits.reduce((sum, a) => sum + (a.sourcesDeleted ? 0 : a.sandboxBytes || 0), 0);
+
+    const openFolder = h('button', { type: 'button' }, 'Open a local folder…');
+    openFolder.addEventListener('click', () => {
+      dialog.close();
+      void controller.chooseFolder();
     });
+
+    const row = (audit: Audit): HTMLElement => {
+      const deleted = audit.sourcesDeleted;
+      const isArmed = armed.has(audit.id);
+      const del = h(
+        'button',
+        { class: `tiny${isArmed ? ' is-armed' : ''}`, type: 'button', disabled: deleted || undefined },
+        deleted ? 'Deleted' : isArmed ? 'Confirm delete' : 'Delete sources',
+      );
+      del.addEventListener('click', () => {
+        if (!armed.has(audit.id)) {
+          armed.add(audit.id);
+          renderSection();
+          window.setTimeout(() => {
+            if (armed.delete(audit.id)) renderSection();
+          }, 5000);
+          return;
+        }
+        armed.delete(audit.id);
+        del.disabled = true;
+        del.textContent = 'Deleting…';
+        void controller.deleteSourcesOf(audit.id).then(() => renderSection());
+      });
+      const open = h('button', { class: 'tiny', type: 'button', disabled: audit.id === currentId || undefined }, audit.id === currentId ? 'Open now' : 'Open');
+      open.addEventListener('click', () => {
+        void controller.selectAudit(audit.id);
+        dialog.close();
+      });
+      return h(
+        'tr',
+        { class: audit.id === currentId ? 'is-current' : '' },
+        h(
+          'td',
+          {},
+          h('span', { class: 'source-name', text: audit.package }),
+          audit.version ? h('span', { class: 'source-version', text: audit.version }) : null,
+        ),
+        h('td', {}, h('span', { class: `badge ${audit.source === 'local' ? 'neutral' : 'ok'}`, text: audit.source === 'local' ? 'folder' : 'PyPI' })),
+        h('td', { class: 'num', text: deleted ? '—' : formatBytes(audit.sandboxBytes || 0) }),
+        h('td', { class: 'num', text: String(audit.findingCount ?? 0) }),
+        h('td', { class: 'muted', text: relativeTime(audit.updatedAt || audit.createdAt) }),
+        h('td', { class: 'actions' }, h('div', { class: 'actions-inner' }, open, del)),
+      );
+    };
 
     return h(
       'section',
-      { class: 'settings-section' },
-      h('h3', { text: 'Test a provider' }),
-      h('div', { class: 'row' }, providerId, providerUrl, providerModel, testButton),
-      result,
+      { class: 'pref-section' },
+      h('h2', { class: 'pref-title', text: 'Downloaded sources' }),
+      h('p', {
+        class: 'pref-lede',
+        text: `Each audit keeps the code it downloaded in a sandbox. ${audits.length} ${audits.length === 1 ? 'audit' : 'audits'}, ${formatBytes(total)} on disk. Deleting sources keeps the findings and the report.`,
+      }),
+      h('div', { class: 'pref-actions' }, openFolder),
+      audits.length
+        ? h(
+            'div',
+            { class: 'table-wrap' },
+            h(
+              'table',
+              { class: 'model-table sources-table' },
+              h('thead', {}, h('tr', {},
+                h('th', { text: 'Project' }), h('th', { text: 'From' }), h('th', { class: 'num', text: 'Size' }),
+                h('th', { class: 'num', text: 'Findings' }), h('th', { text: 'Updated' }), h('th', { text: '' }),
+              )),
+              h('tbody', {}, ...audits.map(row)),
+            ),
+          )
+        : h('p', { class: 'pref-hint', text: 'No audits yet. Scan a package or open a folder and it appears here.' }),
     );
   };
 
-  let lastProviders: ProviderInfo[] = [];
-  let lastConfig: Config | null = null;
-  let lastModels: ModelState | null = null;
-  // modelStatus survives a re-render, so the message of the last action
-  // stays on screen after the picker is rebuilt.
-  let modelStatus = '';
+  /* ---------------- layout ---------------- */
 
-  const renderAll = (): void => {
-    body.replaceChildren(
-      renderProviders(lastProviders, lastConfig),
-      renderModels(lastModels),
-      renderProviderTest(lastConfig),
+  const slider = (
+    id: string,
+    label: string,
+    value: number,
+    min: number,
+    max: number,
+    step: number,
+    format: (v: number) => string,
+    apply: (v: number) => void,
+  ): Node[] => {
+    const out = h('output', { for: id, text: format(value) });
+    const input = h('input', { type: 'range', id, min: String(min), max: String(max), step: String(step), value: String(value) });
+    input.addEventListener('input', () => {
+      const v = Number(input.value);
+      out.textContent = format(v);
+      apply(v);
+    });
+    return [h('label', { for: id, text: label }), input, out];
+  };
+
+  const renderLayout = (): HTMLElement => {
+    const ui = useUiStore.getState();
+    const px = (v: number): string => `${Math.round(v)} px`;
+    const reset = h('button', { type: 'button' }, 'Reset to defaults');
+    reset.addEventListener('click', () => {
+      ui.resetLayout();
+      renderSection();
+    });
+    return h(
+      'section',
+      { class: 'pref-section' },
+      h('h2', { class: 'pref-title', text: 'Layout' }),
+      h('p', { class: 'pref-lede', text: 'Every pane can also be resized by dragging its edge. Sizes are remembered.' }),
+      h(
+        'div',
+        { class: 'pref-form sliders' },
+        ...slider('ui-scale', 'Interface size', ui.uiScale, 0.85, 1.3, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => useUiStore.getState().setUiScale(v)),
+        ...slider('graph-width', 'Left column', ui.graphWidth, 180, 720, 10, px, (v) => useUiStore.getState().setGraphWidth(v)),
+        ...slider('files-share', 'File tree share', ui.filesShare, 0.15, 0.85, 0.01, (v) => `${Math.round(v * 100)}%`, (v) => useUiStore.getState().setFilesShare(v)),
+        ...slider('rail-width', 'Findings rail', ui.railWidth, 240, 720, 10, px, (v) => useUiStore.getState().setRailWidth(v)),
+        ...slider('chat-height', 'Chat panel', ui.chatHeight, 120, 640, 10, px, (v) => useUiStore.getState().setChatHeight(v)),
+      ),
+      h('div', { class: 'pref-actions' }, reset),
+      h('p', {
+        class: 'pref-hint',
+        text: `Defaults: left ${DEFAULT_LAYOUT.graphWidth} px, rail ${DEFAULT_LAYOUT.railWidth} px, chat ${DEFAULT_LAYOUT.chatHeight} px. The interface also grows with large displays.`,
+      }),
     );
   };
 
-  const refresh = async (): Promise<void> => {
-    const [providers, config, models] = await Promise.all([
-      controller.fetchProviders(),
-      controller.fetchConfig(),
-      controller.fetchModels(),
-    ]);
-    lastProviders = providers;
-    lastConfig = config;
-    lastModels = models;
-    renderAll();
+  /* ---------------- MCP ---------------- */
+
+  const renderMcp = (): HTMLElement => {
+    const binary = 'aisai-mcp';
+    const snippets: Array<{ id: string; label: string; where: string; text: string }> = [
+      {
+        id: 'claude-code',
+        label: 'Claude Code',
+        where: 'Run in a terminal',
+        text: `claude mcp add aisai -- ${binary}`,
+      },
+      {
+        id: 'claude-desktop',
+        label: 'Claude Desktop',
+        where: 'claude_desktop_config.json',
+        text: JSON.stringify({ mcpServers: { aisai: { command: binary } } }, null, 2),
+      },
+      {
+        id: 'cursor',
+        label: 'Cursor',
+        where: '.cursor/mcp.json',
+        text: JSON.stringify({ mcpServers: { aisai: { command: binary } } }, null, 2),
+      },
+      {
+        id: 'vscode',
+        label: 'VS Code',
+        where: '.vscode/mcp.json',
+        text: JSON.stringify({ servers: { aisai: { type: 'stdio', command: binary } } }, null, 2),
+      },
+    ];
+    const tools = [
+      ['scan_package', 'Audit a PyPI package or a local folder'],
+      ['list_audits / select_audit', 'Resume earlier audits'],
+      ['list_files / get_source / get_ast', 'Read the code and its syntax tree'],
+      ['run_sast / run_llm_scan', 'Static rules in 14 languages, then an LLM review'],
+      ['list_findings / get_finding', 'Triage what was found'],
+      ['set_finding_state', 'Confirm, suppress or close a finding'],
+      ['propose_fix / apply_patch', 'Draft and apply a patch'],
+      ['search_code / ask_codebase', 'Search and ask questions with citations'],
+      ['get_dependency_graph', 'See what a package pulls in'],
+      ['list_rules / list_languages', 'What the scanner covers'],
+      ['export_report / delete_sources', 'SARIF or Markdown report; free disk space'],
+    ];
+    const blocks = snippets.map((snippet) => {
+      const copy = h('button', { class: 'tiny', type: 'button' }, 'Copy');
+      copy.addEventListener('click', () => {
+        void navigator.clipboard.writeText(snippet.text).then(() => {
+          copy.textContent = 'Copied';
+          window.setTimeout(() => (copy.textContent = 'Copy'), 1400);
+        });
+      });
+      return h(
+        'div',
+        { class: 'snippet' },
+        h('div', { class: 'snippet-head' }, h('strong', { text: snippet.label }), h('span', { class: 'pref-hint', text: snippet.where }), h('span', { class: 'grow' }), copy),
+        h('pre', {}, h('code', { text: snippet.text })),
+      );
+    });
+    return h(
+      'section',
+      { class: 'pref-section' },
+      h('h2', { class: 'pref-title', text: 'MCP' }),
+      h('p', {
+        class: 'pref-lede',
+        text: 'AISAI ships an MCP server, so an agent like Claude can run audits, triage findings and draft fixes with the same engine as this app. It uses the model server chosen above.',
+      }),
+      ...blocks,
+      h('p', { class: 'pref-hint', text: 'The MCP server shares this app’s workspace, so audits started by an agent show up here and the other way round. Build it with `make build`; it lands in bin/aisai-mcp.' }),
+      h('h4', { text: '20 tools' }),
+      h('dl', { class: 'kv tool-list' }, ...tools.flatMap(([name, what]) => [h('dt', {}, h('code', { text: name })), h('dd', { text: what })])),
+    );
+  };
+
+  /* ---------------- shell ---------------- */
+
+  const renderSection = (): void => {
+    const section = useUiStore.getState().settingsSection;
+    for (const button of navButtons) {
+      button.setAttribute('aria-current', String(button.dataset.section === section));
+    }
+    const scroll = pane.scrollTop;
+    const sameSection = pane.dataset.section === section;
+    pane.dataset.section = section;
+    let content: HTMLElement;
+    switch (section) {
+      case 'models':
+        content = renderModels(lastModels);
+        break;
+      case 'sources':
+        content = renderSources();
+        break;
+      case 'layout':
+        content = renderLayout();
+        break;
+      case 'mcp':
+        content = renderMcp();
+        break;
+      default:
+        content = renderServer();
+    }
+    // Keep focus and scroll when a section refreshes in place.
+    const focusedId = (document.activeElement as HTMLElement | null)?.id;
+    pane.replaceChildren(content);
+    if (sameSection) {
+      pane.scrollTop = scroll;
+      if (focusedId) (pane.querySelector(`#${CSS.escape(focusedId)}`) as HTMLElement | null)?.focus();
+    } else {
+      content.classList.add('is-entering');
+    }
+  };
+  const renderAll = renderSection;
+
+  const loadModels = async (): Promise<void> => {
+    loading.models = true;
+    lastModels = await controller.fetchModels();
+    loading.models = false;
+    if (dialog.open) renderSection();
+  };
+
+  // Each request updates its own section as soon as it lands.
+  const refresh = (): void => {
+    loading = { providers: true, config: true, models: true };
+    void controller.fetchProviders().then((providers) => {
+      lastProviders = providers;
+      loading.providers = false;
+      if (dialog.open) renderSection();
+    });
+    void controller.fetchConfig().then((config) => {
+      lastConfig = config;
+      loading.config = false;
+      if (dialog.open) renderSection();
+    });
+    void loadModels();
+    void controller.refreshAudits();
   };
 
   const unsubscribe = useUiStore.subscribe((state, previous) => {
     if (state.settingsOpen && !previous.settingsOpen) {
-      void refresh();
+      renderSection();
       if (!dialog.open) dialog.showModal();
+      refresh();
     } else if (!state.settingsOpen && previous.settingsOpen && dialog.open) {
       dialog.close();
+    }
+    if (state.settingsSection !== previous.settingsSection && dialog.open) renderSection();
+  });
+  const unsubscribeAudits = useAuditStore.subscribe((state, previous) => {
+    if (state.audits !== previous.audits && dialog.open && useUiStore.getState().settingsSection === 'sources') {
+      renderSection();
     }
   });
 
   return {
-    dispose: unsubscribe,
+    dispose: () => {
+      unsubscribe();
+      unsubscribeAudits();
+    },
   };
+}
+
+function closeIcon(): SVGElement {
+  const doc = new DOMParser().parseFromString(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+    'image/svg+xml',
+  );
+  return document.importNode(doc.documentElement, true) as unknown as SVGElement;
 }

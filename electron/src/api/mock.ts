@@ -937,17 +937,20 @@ export class MockApi {
       return this.ok<T>({ unloaded } satisfies UnloadResponse);
     }
 
-    if (method === 'POST' && p === '/api/providers/test') {
-      const input = (body ?? {}) as { id?: string; url?: string; model?: string };
-      return this.ok<T>({
-        provider: {
-          id: input.id ?? 'ollama',
-          kind: input.id === 'openai' ? 'openai' : 'ollama',
-          url: input.url ?? CONFIG.ollamaUrl,
-          ok: true,
-          models: ['qwen3.5:4b', 'qwen2.5-coder:7b', 'embeddinggemma'],
-        },
-      });
+    if (method === 'POST' && (p === '/api/providers/test' || p === '/api/providers')) {
+      const input = (body ?? {}) as { kind?: string; url?: string; model?: string };
+      const kind = input.kind ?? 'ollama';
+      const provider: ProviderInfo = {
+        id: kind,
+        kind,
+        url: input.url ?? CONFIG.ollamaUrl,
+        ok: true,
+        models: kind === 'ollama' ? ['qwen3.5:4b', 'qwen2.5-coder:7b', 'embeddinggemma'] : [input.model || 'local-model'],
+      };
+      if (p === '/api/providers') {
+        PROVIDERS.splice(0, PROVIDERS.length, provider);
+      }
+      return this.ok<T>({ provider });
     }
 
     if (method === 'POST' && p === '/api/audits') {
@@ -1147,6 +1150,34 @@ export class MockApi {
       ['indexing', 0.45, 'Building retrieval index'],
       ['scanning', 0.75, 'Running static analysis'],
     ];
+    // Per-package download events, as the Go backend sends them.
+    const packages = folder
+      ? []
+      : [
+          [pkg, version],
+          ['click', '8.1.7'],
+          ['itsdangerous', '2.2.0'],
+          ['jinja2', '3.1.4'],
+          ['markupsafe', '2.1.5'],
+          ['werkzeug', '3.0.3'],
+        ];
+    packages.forEach(([name, ver], i) => {
+      this.later(() => {
+        this.emit({
+          type: 'audit.progress', auditId: id, phase: 'acquiring', percent: 0.1,
+          message: `Downloading ${name} ${ver}`,
+          data: { download: { package: name, version: ver, state: 'downloading', done: i, total: packages.length } },
+        });
+      }, 30 + i * 40);
+      this.later(() => {
+        this.emit({
+          type: 'audit.progress', auditId: id, phase: 'acquiring', percent: 0.15 + (0.3 * (i + 1)) / packages.length,
+          message: `Fetched ${name} ${ver}`,
+          data: { download: { package: name, version: ver, state: name === 'markupsafe' ? 'warning' : 'done', detail: name === 'markupsafe' ? 'no source archive; used the wheel' : '', done: i + 1, total: packages.length } },
+        });
+      }, 80 + i * 50);
+    });
+    const offset = packages.length ? 80 + packages.length * 50 : 0;
     phases.forEach(([phase, percent, message], i) => {
       this.later(() => {
         this.emit({
@@ -1156,13 +1187,13 @@ export class MockApi {
           percent,
           message,
         });
-      }, 120 * (i + 1));
+      }, offset + 90 * (i + 1));
     });
     this.later(() => {
       this.emit({ type: 'audit.done', auditId: id });
       const updated: Audit = { ...audit, status: 'ready', phase: 'complete', progress: 1 };
       this.state.audits = this.state.audits.map((a) => (a.id === id ? updated : a));
-    }, 120 * (phases.length + 1));
+    }, offset + 90 * (phases.length + 1));
 
     return this.ok<AuditResponse>({ audit });
   }

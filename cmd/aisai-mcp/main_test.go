@@ -21,18 +21,24 @@ import (
 var expectedTools = []string{
 	"apply_patch",
 	"ask_codebase",
+	"delete_sources",
 	"export_report",
 	"get_ast",
 	"get_dependency_graph",
 	"get_finding",
 	"get_source",
+	"list_audits",
 	"list_files",
 	"list_findings",
+	"list_languages",
+	"list_rules",
 	"propose_fix",
 	"run_llm_scan",
 	"run_sast",
 	"scan_package",
 	"search_code",
+	"select_audit",
+	"set_finding_state",
 }
 
 // runMainWithIO runs main() with stdin, stdout and stderr replaced by pipes

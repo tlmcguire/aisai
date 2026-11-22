@@ -161,6 +161,10 @@ type Options struct {
 	EmbedModel string
 	// APIKey is the bearer token for OpenAI-compatible endpoints.
 	APIKey string
+	// Headers are extra request headers some hosted endpoints require, for
+	// example Anthropic's x-api-key and anthropic-version. Values may hold
+	// a secret and are never logged.
+	Headers map[string]string
 	// Timeout bounds a single HTTP request.
 	Timeout time.Duration
 	// NumCtx is the context window sent to the backend.

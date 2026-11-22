@@ -60,6 +60,8 @@ test.describe('audit → scan → finding → patch → re-scan', () => {
     if (!isOpen) {
       await window.click('button.ghost[title="Settings"]');
     }
+    // Settings opens on the model server; the picker is in its own section.
+    await window.locator('.pref-nav-item', { hasText: 'Models' }).click();
     await window.locator('#model-chat').waitFor({ state: 'visible' });
   };
 

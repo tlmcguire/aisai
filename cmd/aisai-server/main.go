@@ -110,18 +110,32 @@ func run(socketPath, cfgPath, workspaceOverride string) error {
 
 	var provider llm.Provider
 	if !cfg.DisableLLM {
-		if cfg.BYOKBaseURL != "" && cfg.BYOKAPIKey != "" {
-			provider = llm.NewOpenAICompat(llm.Options{
+		kind := cfg.ProviderKind
+		if kind == "" && cfg.BYOKBaseURL != "" && cfg.BYOKAPIKey != "" {
+			kind = llm.KindOpenAI
+		}
+		if kind == "" {
+			kind = llm.KindOllama
+		}
+		var inner llm.Provider
+		var url string
+		if kind != llm.KindOllama && cfg.BYOKBaseURL != "" {
+			url = cfg.BYOKBaseURL
+			inner = llm.NewOpenAICompat(llm.Options{
 				URL:     cfg.BYOKBaseURL,
 				Model:   cfg.BYOKModel,
 				APIKey:  cfg.BYOKAPIKey,
+				Headers: llm.HostedHeaders(kind, cfg.BYOKAPIKey),
 				NumCtx:  cfg.NumCtx,
+				Models:  models,
 				Timeout: 180 * time.Second,
 			})
-			log.Printf("using BYOK provider at %s (model %s)", cfg.BYOKBaseURL, cfg.BYOKModel)
+			log.Printf("using %s provider at %s (model %s)", kind, cfg.BYOKBaseURL, cfg.BYOKModel)
 		} else {
-			provider = llm.NewOllama(llm.Options{
-				URL:        strings.Join(cfg.OllamaURLs, ","),
+			kind = llm.KindOllama
+			url = strings.Join(cfg.OllamaURLs, ",")
+			inner = llm.NewOllama(llm.Options{
+				URL:        url,
 				Model:      cfg.ChatModel,
 				EmbedModel: cfg.EmbedModel,
 				NumCtx:     cfg.NumCtx,
@@ -129,9 +143,10 @@ func run(socketPath, cfgPath, workspaceOverride string) error {
 				Models:     models,
 				Timeout:    180 * time.Second,
 			})
-			log.Printf("using Ollama at %s (model %s, keep-alive %s)",
-				strings.Join(cfg.OllamaURLs, ","), cfg.ChatModel, cfg.KeepAlive)
+			log.Printf("using Ollama at %s (model %s, keep-alive %s)", url, cfg.ChatModel, cfg.KeepAlive)
 		}
+		// Wrapped so the desktop app can switch backends without a restart.
+		provider = llm.NewSwitchable(inner, kind, url)
 	} else {
 		log.Printf("LLM features are disabled (DISABLE_LLM)")
 	}

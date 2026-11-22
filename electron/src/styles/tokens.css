@@ -1,128 +1,137 @@
 /*
- * AISAI design tokens.
+ * AISAI design tokens: the "Verdigris" theme.
  *
- * Every foreground/background pair used by the UI is listed below with its
- * measured WCAG 2.1 contrast ratio. All pairs meet or exceed WCAG AA (4.5:1
- * for normal text, 3:1 for large text and UI borders). The legacy Dash app
- * shipped white-on-white tabs (NOTES_improvements.md §2.2) — this table is the
- * guard against that regression.
+ * Built for long reading sessions in a dim room: an oxidised-copper ink
+ * ground, bone-green text, and a single signal colour (lime) reserved for
+ * what the user can act on or what is selected. Syntax colours are a real
+ * editor palette, so the AST view reads like the code it describes.
  *
- * Measured ratios (foreground on background):
+ * Measured WCAG 2.1 contrast (foreground on background). Every text pair is
+ * at least 4.5:1; the legacy Dash app shipped white-on-white tabs
+ * (NOTES_improvements.md §2.2) and this table is the guard against that.
  *
- *   --fg            #e6edf3  on --bg-base     #0d1117  = 16.02:1   (AAA)
- *   --fg            #e6edf3  on --bg-surface  #161b22  = 14.64:1   (AAA)
- *   --fg            #e6edf3  on --bg-raised   #1c2128  = 13.70:1   (AAA)
- *   --fg            #e6edf3  on --bg-inset    #010409  = 17.38:1   (AAA)
- *   --fg-muted      #9198a1  on --bg-base     #0d1117  =  6.50:1   (AA)
- *   --fg-muted      #9198a1  on --bg-surface  #161b22  =  5.94:1   (AA)
- *   --fg-muted      #9198a1  on --bg-raised   #1c2128  =  5.56:1   (AA)
- *   --fg-subtle     #7d8590  on --bg-base     #0d1117  =  5.07:1   (AA)
- *   --fg-subtle     #7d8590  on --bg-surface  #161b22  =  4.64:1   (AA)
- *   --fg-subtle     #7d8590  on --bg-inset    #010409  =  5.51:1   (AA)
- *   --accent        #58a6ff  on --bg-base     #0d1117  =  7.49:1   (AA)
- *   --accent        #58a6ff  on --bg-surface  #161b22  =  5.01:1   (AA)
- *   --accent        #58a6ff  on --bg-raised   #1c2128  =  4.66:1   (AA)
- *   --success       #3fb950  on --bg-base     #0d1117  =  7.45:1   (AA)
- *   --warning       #d29922  on --bg-base     #0d1117  =  7.50:1   (AA)
- *   --danger        #f85149  on --bg-base     #0d1117  =  5.65:1   (AA)
- *   --danger        #f85149  on --bg-surface  #161b22  =  5.24:1   (AA)
+ *   --fg         #dde8e3  on --bg-base #0a1112 = 15.18   on --bg-surface #0f1819 = 14.36
+ *                         on --bg-raised #152123 = 13.13  on --bg-inset #070c0d = 15.67
+ *   --fg-muted   #8ea5a0  on --bg-base = 7.30   on --bg-surface = 6.90   on --bg-raised = 6.31
+ *   --fg-subtle  #7a9692  on --bg-surface = 5.67  on --bg-raised = 5.19
+ *   --accent     #b4f23c  on --bg-base = 14.26  on --bg-raised = 12.33
+ *   --fg-on-accent #0a1112 on --accent = 14.26
+ *   --signal     #5fd3c4  on --bg-base = 10.53  on --bg-raised = 9.11
+ *   --danger     #ff6b5e  on --bg-base = 6.82   on --bg-raised = 5.90
  *
- * Severity colours (used as text on --bg-surface / --bg-raised and on their
- * own 18% tinted chips):
- *
- *   --sev-critical  #ff7b72  on --bg-base     =  7.51:1   on --bg-surface = 6.86:1
- *                   #ff7b72  on chip #402c30   =  5.14:1
- *   --sev-high      #ffa657  on --bg-base     =  9.77:1   on --bg-surface = 8.93:1
- *                   #ffa657  on chip #40342c   =  6.21:1
- *   --sev-medium    #d29922  on --bg-base     =  7.50:1   on --bg-surface = 6.85:1
- *                   #d29922  on chip #383222   =  5.05:1
- *   --sev-low       #58a6ff  on --bg-base     =  7.49:1   on --bg-surface = 5.01:1
- *                   #58a6ff  on chip #22344a   =  5.01:1
- *   --sev-info      #8b949e  on --bg-base     =  6.15:1   on --bg-surface = 5.62:1
- *                   #8b949e  on chip #2b3138   =  4.27:1  → chip text uses --fg instead
- *
- * Diff surfaces (text --fg #e6edf3):
- *
- *   --diff-add-bg   #1d3429  → 11.28:1
- *   --diff-del-bg   #3a2428  → 12.15:1
- *   --accent-soft   #1d2e44  → 11.64:1
- *   --warning-soft  #342f22  → 11.28:1
- *   --danger-soft   #3a2428  → 12.15:1
+ * Severity text on its own 16% chip, and --fg on that chip:
+ *   critical #ff7a6b 5.56 / 11.28   high #ff9f4a 6.59 / 10.69
+ *   medium   #f0c93a 7.95 / 10.13   low  #5fd3c4 7.13 / 10.28
+ *   info     #8ea5a0 5.29 / 11.01
  */
 
 :root {
-  /* Surfaces */
-  --bg-base: #0d1117;
-  --bg-surface: #161b22;
-  --bg-raised: #1c2128;
-  --bg-inset: #010409;
-  --bg-hover: #21262d;
-  --bg-selected: #284260;
+  color-scheme: dark;
+
+  /* Surfaces: ink with a green undertone, never neutral grey. */
+  --bg-base: #0a1112;
+  --bg-surface: #0f1819;
+  --bg-raised: #152123;
+  --bg-inset: #070c0d;
+  --bg-hover: #1b2a2d;
+  --bg-selected: #1d3a38;
 
   /* Borders */
-  --border: #30363d;
-  --border-strong: #484f58;
+  --border: #223336;
+  --border-strong: #35494c;
 
   /* Text */
-  --fg: #e6edf3;
-  --fg-muted: #9198a1;
-  --fg-subtle: #7d8590;
-  --fg-on-accent: #0d1117;
+  --fg: #dde8e3;
+  --fg-muted: #8ea5a0;
+  --fg-subtle: #7a9692;
+  --fg-on-accent: #0a1112;
 
   /* Accents */
-  --accent: #58a6ff;
-  --accent-soft: #1d2e44;
-  --success: #3fb950;
-  --success-soft: #1d3429;
-  --warning: #d29922;
-  --warning-soft: #342f22;
-  --danger: #f85149;
-  --danger-soft: #3a2428;
+  --accent: #b4f23c;
+  --accent-strong: #c8ff5a;
+  --accent-soft: #232f16;
+  --signal: #5fd3c4;
+  --signal-soft: #17302e;
+  --success: #4fd18b;
+  --success-soft: #19362b;
+  --warning: #f0b429;
+  --warning-soft: #33301b;
+  --danger: #ff6b5e;
+  --danger-soft: #35201f;
 
   /* Severity */
-  --sev-critical: #ff7b72;
-  --sev-high: #ffa657;
-  --sev-medium: #d29922;
-  --sev-low: #58a6ff;
-  --sev-info: #8b949e;
+  --sev-critical: #ff7a6b;
+  --sev-high: #ff9f4a;
+  --sev-medium: #f0c93a;
+  --sev-low: #5fd3c4;
+  --sev-info: #8ea5a0;
 
-  --sev-critical-chip: #402c30;
-  --sev-high-chip: #40342c;
-  --sev-medium-chip: #383222;
-  --sev-low-chip: #22344a;
-  --sev-info-chip: #2b3138;
+  --sev-critical-chip: #352826;
+  --sev-high-chip: #352e21;
+  --sev-medium-chip: #33341e;
+  --sev-low-chip: #1c3634;
+  --sev-info-chip: #232f2f;
 
   /* Diff */
-  --diff-add-bg: #1d3429;
-  --diff-add-fg: #7ee2a8;
-  --diff-del-bg: #3a2428;
-  --diff-del-fg: #ffb4ab;
+  --diff-add-bg: #17332a;
+  --diff-add-fg: #8ae9b4;
+  --diff-del-bg: #35201f;
+  --diff-del-fg: #ffb9b0;
 
-  /* Type scale */
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
-  --text-xs: 11px;
-  --text-sm: 12px;
-  --text-base: 13px;
-  --text-md: 14px;
-  --text-lg: 16px;
-  --text-xl: 20px;
+  /* Syntax: used by the AST view and the code view. */
+  --syn-keyword: #f48fb1;
+  --syn-function: #ffbd6e;
+  --syn-call: #6fd8ec;
+  --syn-import: #9fb2ae;
+  --syn-assign: #e9d46f;
+  --syn-branch: #ff8a8a;
+  --syn-class: #c4a8ff;
+  --syn-string: #a6ec78;
+
+  /* Type */
+  /* The interface speaks the platform's own font (SF Pro, Segoe UI Variable,
+     Cantarell/Ubuntu); code is set in JetBrains Mono. */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', Ubuntu, Cantarell, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* The scale follows the root size, so the whole UI scales with the display. */
+  --text-xs: 0.6875rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.8125rem;
+  --text-md: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
 
   /* Spacing */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
 
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 10px;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.625rem;
 
-  --shadow-panel: 0 8px 24px rgba(1, 4, 9, 0.45);
+  /* Depth: an offset and a soft blur, never a halo. */
+  --shadow-panel: 0 12px 32px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 14px 30px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.35);
 
-  /* Pane widths, driven by the drag handles (see src/state/ui.ts). */
-  --graph-width: 300px;
-  --rail-width: 320px;
-  --chat-height: 200px;
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 520ms;
+
+  /* Pane sizes, driven by the drag handles (see src/state/ui.ts). */
+  --graph-width: clamp(220px, 20vw, 360px);
+  --rail-width: clamp(240px, 22vw, 400px);
+  --chat-height: clamp(160px, 22vh, 280px);
+}
+
+/* The interface scales smoothly with the window: the root size grows
+   continuously from a laptop to a 4K monitor, and the Layout settings
+   multiply it by --ui-scale. Everything else is in rem. */
+html {
+  --ui-scale: 1;
+  font-size: calc(clamp(15px, 13.4px + 0.16vw, 22px) * var(--ui-scale));
 }

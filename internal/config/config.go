@@ -63,6 +63,12 @@ type Config struct {
 	// change made in the app can be written back to the same file.
 	path string
 
+	// ProviderKind selects the LLM backend: "ollama" (the default), or an
+	// OpenAI-compatible server: "vllm", "llamacpp", "lmstudio" or "openai".
+	// The OpenAI-compatible kinds use BYOKBaseURL and BYOKModel; a local
+	// server needs no API key.
+	ProviderKind string `json:"providerKind,omitempty"`
+
 	// BYOK (bring your own key) optional OpenAI-compatible provider.
 	BYOKBaseURL string `json:"byokBaseUrl,omitempty"`
 	BYOKModel   string `json:"byokModel,omitempty"`

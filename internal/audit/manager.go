@@ -371,6 +371,20 @@ func (m *Manager) finishRun(ctx context.Context, a *Audit, files []*ast.File) er
 // that waiting into overlapping waiting.
 const acquireDownloads = 4
 
+// downloadState is the payload of a per-package download event.
+func downloadState(p model.Package, state, detail string, done, total int) map[string]any {
+	return map[string]any{
+		"download": map[string]any{
+			"package": p.Name,
+			"version": p.Version,
+			"state":   state,
+			"detail":  detail,
+			"done":    done,
+			"total":   total,
+		},
+	}
+}
+
 // acquire downloads and safely extracts the source of every resolved package.
 func (m *Manager) acquire(ctx context.Context, a *Audit, res *deps.Resolution) ([]*ast.File, error) {
 	pkgs := append([]model.Package(nil), res.Packages...)
@@ -405,6 +419,15 @@ func (m *Manager) acquire(ctx context.Context, a *Audit, res *deps.Resolution) (
 				return
 			}
 
+			// The app's download tracker lists every package with its state.
+			m.emit(model.Event{
+				Type:    model.EventAuditProgress,
+				AuditID: a.ID,
+				Phase:   "acquiring",
+				Message: fmt.Sprintf("Downloading %s %s", p.Name, p.Version),
+				Data:    downloadState(p, "downloading", "", 0, len(pkgs)),
+			})
+
 			files, err := m.fetchPackage(ctx, a, p, dirName)
 
 			mu.Lock()
@@ -426,6 +449,7 @@ func (m *Manager) acquire(ctx context.Context, a *Audit, res *deps.Resolution) (
 					Phase:   "acquiring",
 					Percent: percent,
 					Message: fmt.Sprintf("Skipped %s: %v", p.Name, err),
+					Data:    downloadState(p, "failed", err.Error(), done, len(pkgs)),
 				})
 			case err != nil:
 				m.emit(model.Event{
@@ -434,6 +458,7 @@ func (m *Manager) acquire(ctx context.Context, a *Audit, res *deps.Resolution) (
 					Phase:   "acquiring",
 					Percent: percent,
 					Message: fmt.Sprintf("Fetched %s with warnings: %v", p.Name, err),
+					Data:    downloadState(p, "warning", err.Error(), done, len(pkgs)),
 				})
 			default:
 				m.emit(model.Event{
@@ -442,6 +467,7 @@ func (m *Manager) acquire(ctx context.Context, a *Audit, res *deps.Resolution) (
 					Phase:   "acquiring",
 					Percent: percent,
 					Message: fmt.Sprintf("Fetched %s %s", p.Name, p.Version),
+					Data:    downloadState(p, "done", "", done, len(pkgs)),
 				})
 			}
 		}(i, p, dirName)

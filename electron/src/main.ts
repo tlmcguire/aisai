@@ -6,6 +6,7 @@
  * missing, in which case the mock backend takes over).
  */
 
+import '@fontsource-variable/jetbrains-mono';
 import './styles/tokens.css';
 import './styles/app.css';
 
@@ -19,10 +20,21 @@ if (!root) {
   throw new Error('the #app container is missing from index.html');
 }
 
+// The platform decides the window chrome: where the window controls sit and
+// which system font the interface uses.
+const ua = navigator.userAgent;
+document.documentElement.classList.add(
+  /Macintosh|Mac OS X/.test(ua) ? 'platform-mac' : /Windows/.test(ua) ? 'platform-win' : 'platform-linux',
+);
+
 const client = new ApiClient({ bridge: window.aisai });
 const controller = new AppController(client);
 
 const layout = createLayout(controller, root);
+
+// One authored entrance, then the class is removed so later renders are calm.
+root.classList.add('is-booting');
+window.setTimeout(() => root.classList.remove('is-booting'), 1100);
 const errorScreen = createErrorScreen(root, Array.from(root.children) as HTMLElement[]);
 
 let booted = false;

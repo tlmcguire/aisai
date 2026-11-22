@@ -32,17 +32,17 @@ export function severityWeight(severity: Severity): number {
 export function severityColor(severity: Severity): string {
   switch (severity) {
     case 'critical':
-      return '#ff7b72';
+      return '#ff7a6b';
     case 'high':
-      return '#ffa657';
+      return '#ff9f4a';
     case 'medium':
-      return '#d29922';
+      return '#f0c93a';
     case 'low':
-      return '#58a6ff';
+      return '#5fd3c4';
     case 'info':
-      return '#8b949e';
+      return '#8ea5a0';
     default:
-      return '#8b949e';
+      return '#8ea5a0';
   }
 }
 
@@ -50,16 +50,16 @@ export function severityColor(severity: Severity): string {
 export function severityFill(severity: Severity): string {
   switch (severity) {
     case 'critical':
-      return '#402c30';
+      return '#352826';
     case 'high':
-      return '#40342c';
+      return '#352e21';
     case 'medium':
-      return '#383222';
+      return '#33341e';
     case 'low':
-      return '#22344a';
+      return '#1c3634';
     case 'info':
-      return '#2b3138';
+      return '#232f2f';
     default:
-      return '#2b3138';
+      return '#232f2f';
   }
 }

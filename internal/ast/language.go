@@ -5,14 +5,18 @@ import (
 	"strings"
 
 	ts "github.com/tree-sitter/go-tree-sitter"
+	bashgrammar "github.com/tree-sitter/tree-sitter-bash/bindings/go"
 	csgrammar "github.com/tree-sitter/tree-sitter-c-sharp/bindings/go"
 	cgrammar "github.com/tree-sitter/tree-sitter-c/bindings/go"
+	cppgrammar "github.com/tree-sitter/tree-sitter-cpp/bindings/go"
 	gogrammar "github.com/tree-sitter/tree-sitter-go/bindings/go"
 	javagrammar "github.com/tree-sitter/tree-sitter-java/bindings/go"
 	jsgrammar "github.com/tree-sitter/tree-sitter-javascript/bindings/go"
+	phpgrammar "github.com/tree-sitter/tree-sitter-php/bindings/go"
 	pygrammar "github.com/tree-sitter/tree-sitter-python/bindings/go"
 	rubygammar "github.com/tree-sitter/tree-sitter-ruby/bindings/go"
 	rustgrammar "github.com/tree-sitter/tree-sitter-rust/bindings/go"
+	scalagrammar "github.com/tree-sitter/tree-sitter-scala/bindings/go"
 	tsgrammar "github.com/tree-sitter/tree-sitter-typescript/bindings/go"
 )
 
@@ -38,6 +42,14 @@ const (
 	LanguageRuby = "ruby"
 	// LanguageC is the C language.
 	LanguageC = "c"
+	// LanguageCPP is the C++ language.
+	LanguageCPP = "cpp"
+	// LanguagePHP is the PHP language.
+	LanguagePHP = "php"
+	// LanguageBash is the Bash and POSIX shell language.
+	LanguageBash = "bash"
+	// LanguageScala is the Scala language.
+	LanguageScala = "scala"
 )
 
 // docStyle selects how the documentation of a definition is found.
@@ -469,6 +481,108 @@ var languageRegistry = []*Language{
 		doc:       docComment,
 		importNames: func(n Node) []string {
 			return stringImports(n)
+		},
+	},
+	{
+		ID:            LanguageCPP,
+		DisplayName:   "C++",
+		Extensions:    []string{".cc", ".cpp", ".cxx", ".hpp", ".hh", ".hxx"},
+		Grammar:       func() *ts.Language { return ts.NewLanguage(cppgrammar.Language()) },
+		commentKinds:  []string{"comment"},
+		functionLabel: "function",
+		classLabel:    "class",
+		functionKinds: []string{"function_definition", "lambda_expression"},
+		classKinds: []string{
+			"class_specifier",
+			"struct_specifier",
+			"union_specifier",
+			"enum_specifier",
+			"namespace_definition",
+		},
+		importKinds: []string{"preproc_include"},
+		callKinds:   []string{"call_expression", "new_expression"},
+		doc:         docComment,
+		importNames: func(n Node) []string {
+			return stringImports(n)
+		},
+	},
+	{
+		ID:            LanguagePHP,
+		DisplayName:   "PHP",
+		Extensions:    []string{".php", ".phtml", ".php5", ".php7", ".inc"},
+		Grammar:       func() *ts.Language { return ts.NewLanguage(phpgrammar.LanguagePHP()) },
+		commentKinds:  []string{"comment"},
+		functionLabel: "function",
+		classLabel:    "class",
+		functionKinds: []string{
+			"function_definition",
+			"method_declaration",
+			"anonymous_function",
+			"arrow_function",
+		},
+		classKinds: []string{
+			"class_declaration",
+			"interface_declaration",
+			"trait_declaration",
+			"enum_declaration",
+		},
+		importKinds: []string{
+			"namespace_use_declaration",
+			"include_expression",
+			"include_once_expression",
+			"require_expression",
+			"require_once_expression",
+		},
+		callKinds: []string{
+			"function_call_expression",
+			"member_call_expression",
+			"scoped_call_expression",
+			"nullsafe_member_call_expression",
+			"object_creation_expression",
+		},
+		doc: docComment,
+		importNames: func(n Node) []string {
+			if out := stringImports(n); out != nil {
+				return out
+			}
+			return identifierImports(n)
+		},
+	},
+	{
+		ID:            LanguageBash,
+		DisplayName:   "Bash",
+		Extensions:    []string{".sh", ".bash", ".zsh", ".ksh"},
+		Grammar:       func() *ts.Language { return ts.NewLanguage(bashgrammar.Language()) },
+		commentKinds:  []string{"comment"},
+		functionLabel: "function",
+		classLabel:    "",
+		functionKinds: []string{"function_definition"},
+		callKinds:     []string{"command"},
+		doc:           docComment,
+		importNames: func(n Node) []string {
+			return nil
+		},
+	},
+	{
+		ID:            LanguageScala,
+		DisplayName:   "Scala",
+		Extensions:    []string{".scala", ".sc"},
+		Grammar:       func() *ts.Language { return ts.NewLanguage(scalagrammar.Language()) },
+		commentKinds:  []string{"comment", "block_comment"},
+		functionLabel: "def",
+		classLabel:    "class",
+		functionKinds: []string{"function_definition", "function_declaration"},
+		classKinds: []string{
+			"class_definition",
+			"object_definition",
+			"trait_definition",
+			"enum_definition",
+		},
+		importKinds: []string{"import_declaration"},
+		callKinds:   []string{"call_expression", "instance_expression"},
+		doc:         docComment,
+		importNames: func(n Node) []string {
+			return identifierImports(n)
 		},
 	},
 }

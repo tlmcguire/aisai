@@ -1,0 +1,404 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-22T00:47:39.760222+00:00",
+  "title": "Design System: AISAI",
+  "extensions": {
+    "colorMeta": {
+      "signal-lime": {
+        "role": "primary",
+        "displayName": "Signal Lime",
+        "canonical": "#b4f23c",
+        "tonalRamp": [
+          "#182009",
+          "#314210",
+          "#517015",
+          "#79ad15",
+          "#a6ee1b",
+          "#bde967",
+          "#d6edab",
+          "#f0f7e4"
+        ]
+      },
+      "patina-teal": {
+        "role": "secondary",
+        "displayName": "Patina Teal",
+        "canonical": "#5fd3c4",
+        "tonalRamp": [
+          "#0d1c1a",
+          "#193935",
+          "#256058",
+          "#309285",
+          "#40c9b7",
+          "#7ed3c8",
+          "#b7e1dc",
+          "#e7f3f2"
+        ]
+      },
+      "oxide-ink": {
+        "role": "neutral",
+        "displayName": "Oxide Ink",
+        "canonical": "#0a1112",
+        "tonalRamp": [
+          "#111718",
+          "#212f31",
+          "#334d51",
+          "#48737a",
+          "#629ea7",
+          "#93b8be",
+          "#c1d4d7",
+          "#eaeff0"
+        ]
+      },
+      "oxide-surface": {
+        "role": "neutral",
+        "displayName": "Oxide Surface",
+        "canonical": "#0f1819",
+        "tonalRamp": [
+          "#111718",
+          "#222e30",
+          "#354d4f",
+          "#4b7277",
+          "#679da3",
+          "#96b7bb",
+          "#c3d3d5",
+          "#eaeff0"
+        ]
+      },
+      "oxide-raised": {
+        "role": "neutral",
+        "displayName": "Oxide Raised",
+        "canonical": "#152123",
+        "tonalRamp": [
+          "#111718",
+          "#222e30",
+          "#354c4f",
+          "#4b7077",
+          "#679aa3",
+          "#96b6bb",
+          "#c3d3d5",
+          "#eaeff0"
+        ]
+      },
+      "oxide-inset": {
+        "role": "neutral",
+        "displayName": "Oxide Inset",
+        "canonical": "#070c0d",
+        "tonalRamp": [
+          "#111718",
+          "#202e31",
+          "#334d52",
+          "#47727b",
+          "#619da9",
+          "#92b7bf",
+          "#c1d3d7",
+          "#eaeff0"
+        ]
+      },
+      "patina-border": {
+        "role": "neutral",
+        "displayName": "Patina Border",
+        "canonical": "#223336",
+        "tonalRamp": [
+          "#121617",
+          "#222d2f",
+          "#364b4e",
+          "#4d6f75",
+          "#6998a0",
+          "#97b4b9",
+          "#c4d2d4",
+          "#ebeff0"
+        ]
+      },
+      "bone": {
+        "role": "neutral",
+        "displayName": "Bone",
+        "canonical": "#dde8e3",
+        "tonalRamp": [
+          "#121715",
+          "#232e29",
+          "#384c43",
+          "#507262",
+          "#6d9c87",
+          "#9ab7aa",
+          "#c5d3cd",
+          "#ebefed"
+        ]
+      },
+      "lichen": {
+        "role": "neutral",
+        "displayName": "Lichen",
+        "canonical": "#8ea5a0",
+        "tonalRamp": [
+          "#131615",
+          "#262c2b",
+          "#3c4846",
+          "#576b66",
+          "#77928c",
+          "#a0b1ad",
+          "#c8d0ce",
+          "#eceeee"
+        ]
+      },
+      "moss": {
+        "role": "neutral",
+        "displayName": "Moss",
+        "canonical": "#7a9692",
+        "tonalRamp": [
+          "#131615",
+          "#252c2b",
+          "#3c4847",
+          "#576b68",
+          "#76938f",
+          "#a0b1af",
+          "#c8d0cf",
+          "#eceeee"
+        ]
+      },
+      "danger": {
+        "role": "semantic",
+        "displayName": "Danger",
+        "canonical": "#ff6b5e",
+        "tonalRamp": [
+          "#210a08",
+          "#45110c",
+          "#76170e",
+          "#b7180a",
+          "#fd200c",
+          "#f36a5e",
+          "#f1ada7",
+          "#f8e4e2"
+        ]
+      },
+      "warning": {
+        "role": "semantic",
+        "displayName": "Warning",
+        "canonical": "#f0b429",
+        "tonalRamp": [
+          "#1f1909",
+          "#413310",
+          "#6f5415",
+          "#ac7f16",
+          "#edae1c",
+          "#e9c268",
+          "#ecd9ac",
+          "#f7f1e4"
+        ]
+      },
+      "success": {
+        "role": "semantic",
+        "displayName": "Success",
+        "canonical": "#4fd18b",
+        "tonalRamp": [
+          "#0d1c14",
+          "#183928",
+          "#246140",
+          "#2e945d",
+          "#3ecb7f",
+          "#7dd4a5",
+          "#b6e2ca",
+          "#e7f4ed"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The welcome screen question only."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Settings section titles and error screens."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Welcome actions, dialog headings, emphasised list items."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Running text, findings and chat."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Pane headers and form labels, sentence case."
+      },
+      "code": {
+        "displayName": "Code",
+        "purpose": "Code, diffs, AST, paths, versions and numbers."
+      }
+    },
+    "shadows": [
+      {
+        "name": "panel",
+        "value": "0 12px 32px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.3)",
+        "purpose": "Modal windows such as Settings."
+      },
+      {
+        "name": "pop",
+        "value": "0 14px 30px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.35)",
+        "purpose": "Popovers such as the package suggestions."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "The only easing: every transition and entrance."
+      },
+      {
+        "name": "dur-fast",
+        "value": "120ms",
+        "purpose": "Hover, press and colour changes."
+      },
+      {
+        "name": "dur-base",
+        "value": "220ms",
+        "purpose": "Panels, tabs, rows entering, pane resizes from settings."
+      },
+      {
+        "name": "dur-slow",
+        "value": "520ms",
+        "purpose": "The one launch entrance and the welcome screen."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact",
+        "value": "1024px"
+      },
+      {
+        "name": "standard",
+        "value": "1180px"
+      },
+      {
+        "name": "fluid-root",
+        "value": "clamp(15px, 13.4px + 0.16vw, 22px)"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one main action of an area: Scan, Ask, Use this server.",
+      "html": "<button class=\"ds-btn-primary\">Scan</button>",
+      "css": ".ds-btn-primary{background:#b4f23c;color:#0a1112;border:1px solid #b4f23c;border-radius:6px;height:28px;padding:4px 10px;font:600 13px system-ui, -apple-system, 'Segoe UI', sans-serif;cursor:default;transition:background 120ms cubic-bezier(.16,1,.3,1),transform 120ms cubic-bezier(.16,1,.3,1)}.ds-btn-primary:hover{background:#c8ff5a;border-color:#c8ff5a}.ds-btn-primary:active{transform:translateY(1px)}.ds-btn-primary:focus-visible{outline:2px solid #b4f23c;outline-offset:2px}"
+    },
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Default secondary action.",
+      "html": "<button class=\"ds-btn\">Open folder…</button>",
+      "css": ".ds-btn{background:#152123;color:#dde8e3;border:1px solid #223336;border-radius:6px;height:28px;padding:4px 10px;font:400 13px system-ui, -apple-system, 'Segoe UI', sans-serif;cursor:default;transition:background 120ms cubic-bezier(.16,1,.3,1),border-color 120ms}.ds-btn:hover{background:#1b2a2d;border-color:#35494c}.ds-btn:active{transform:translateY(1px)}.ds-btn:focus-visible{outline:2px solid #b4f23c;outline-offset:2px}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Recessed field with a lime caret.",
+      "html": "<input class=\"ds-input\" placeholder=\"Filter files\" />",
+      "css": ".ds-input{background:#070c0d;color:#dde8e3;border:1px solid #223336;border-radius:6px;height:28px;padding:4px 8px;font:400 13px system-ui, -apple-system, 'Segoe UI', sans-serif;caret-color:#b4f23c}.ds-input::placeholder{color:#7a9692}.ds-input:focus-visible{outline:2px solid #b4f23c;outline-offset:2px}"
+    },
+    {
+      "name": "Severity Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Filter toggle; pressed takes its severity border over a 16% tint.",
+      "html": "<button class=\"ds-chip\" aria-pressed=\"false\">Medium</button><button class=\"ds-chip ds-chip-high\" aria-pressed=\"true\">High</button>",
+      "css": ".ds-chip{background:#152123;color:#8ea5a0;border:1px solid #35494c;border-radius:4px;padding:2px 8px;font:400 11px system-ui, -apple-system, 'Segoe UI', sans-serif;margin-right:4px;cursor:default}.ds-chip:hover{color:#dde8e3;border-color:#b4f23c}.ds-chip-high[aria-pressed=true]{background:#352e21;border-color:#ff9f4a;color:#ff9f4a}"
+    },
+    {
+      "name": "Tabs",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Main pane tabs with a sliding lime underline.",
+      "html": "<div class=\"ds-tabs\"><button class=\"ds-tab\" aria-selected=\"true\">Code</button><button class=\"ds-tab\">AST</button><button class=\"ds-tab\">Diff</button></div>",
+      "css": ".ds-tabs{display:flex;gap:2px;background:#0f1819;border-bottom:1px solid #223336;padding:0 8px}.ds-tab{background:transparent;border:none;border-bottom:2px solid transparent;color:#8ea5a0;font:600 13px system-ui, -apple-system, 'Segoe UI', sans-serif;padding:8px 12px;cursor:default}.ds-tab:hover{background:#1b2a2d;color:#dde8e3}.ds-tab[aria-selected=true]{color:#dde8e3;background:#0a1112;border-bottom-color:#b4f23c}"
+    },
+    {
+      "name": "Finding Card",
+      "kind": "card",
+      "refersTo": "finding-card",
+      "description": "One finding in the rail: severity badge, CWE, message, location.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-head\"><span class=\"ds-badge ds-sev-high\">High</span><span class=\"ds-badge\">CWE-78</span></div><div class=\"ds-card-msg\">a shell command is built from a non-literal value</div><div class=\"ds-card-meta\">flask/security.py:42</div></div>",
+      "css": ".ds-card{background:#152123;border:1px solid #223336;border-radius:6px;padding:8px 12px;font:400 13px system-ui, -apple-system, 'Segoe UI', sans-serif;color:#dde8e3;max-width:320px;transition:transform 120ms cubic-bezier(.16,1,.3,1),border-color 120ms}.ds-card:hover{transform:translateX(2px);border-color:#35494c}.ds-card-head{display:flex;gap:4px;margin-bottom:4px}.ds-badge{display:inline-flex;padding:1px 7px;border-radius:999px;font:600 11px system-ui, -apple-system, 'Segoe UI', sans-serif;background:#152123;border:1px solid #35494c;color:#8ea5a0}.ds-sev-high{color:#ff9f4a;border-color:#ff9f4a;background:#352e21}.ds-card-meta{color:#8ea5a0;font:400 11px 'JetBrains Mono Variable', ui-monospace, Menlo, monospace;margin-top:4px}"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "custom",
+      "refersTo": "segment",
+      "description": "Mutually exclusive choice, such as the model server type.",
+      "html": "<div class=\"ds-seg\"><button class=\"ds-segment\" aria-checked=\"true\">Ollama</button><button class=\"ds-segment\">vLLM</button><button class=\"ds-segment\">llama.cpp</button></div>",
+      "css": ".ds-seg{display:inline-flex;gap:2px;padding:2px;border-radius:6px;background:#070c0d;border:1px solid #223336}.ds-segment{background:transparent;border:none;color:#8ea5a0;padding:5px 12px;border-radius:4px;font:400 13px system-ui, -apple-system, 'Segoe UI', sans-serif;cursor:default}.ds-segment:hover{background:#1b2a2d;color:#dde8e3}.ds-segment[aria-checked=true]{background:#152123;color:#dde8e3;box-shadow:0 1px 2px rgb(0 0 0/40%),inset 0 0 0 1px #35494c}"
+    },
+    {
+      "name": "File Tree Row",
+      "kind": "custom",
+      "refersTo": "tree-row",
+      "description": "Tree row with indent guide, language tag and finding count.",
+      "html": "<div class=\"ds-tree\"><div class=\"ds-row\" style=\"--d:1\"><span class=\"ds-tag\">py</span><span class=\"ds-name\">security.py</span><span class=\"ds-count\">3</span></div><div class=\"ds-row ds-sel\" style=\"--d:1\"><span class=\"ds-tag\">py</span><span class=\"ds-name\">sessions.py</span></div></div>",
+      "css": ".ds-tree{background:#0a1112;padding:4px;width:260px}.ds-row{position:relative;display:flex;align-items:center;gap:6px;height:26px;padding:0 6px 0 calc(var(--d)*15px + 18px);border-radius:6px;font:400 13px system-ui, -apple-system, 'Segoe UI', sans-serif;color:#dde8e3}.ds-row::before{content:'';position:absolute;left:10px;top:0;bottom:0;width:1px;background:#223336}.ds-row:hover{background:#1b2a2d}.ds-sel{background:#1d3a38}.ds-tag{font:400 10px 'JetBrains Mono Variable', ui-monospace, Menlo, monospace;color:#6fd8ec;background:rgb(111 216 236/13%);padding:0 3px;border-radius:3px;min-width:24px;text-align:center}.ds-name{flex:1}.ds-count{font:400 11px system-ui, -apple-system, 'Segoe UI', sans-serif;color:#ff9f4a;border:1px solid currentColor;border-radius:999px;padding:0 6px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Verdigris",
+    "overview": "Verdigris is the green patina that forms on copper: quiet, aged, and long-lasting. The interface is that material: a dark, oxidised-green ground with bone-coloured text and a single bright signal. It is built for a security engineer reading unfamiliar code for hours in a dim room, so it is **precise** (exact alignment, tabular numbers, one control height) and **forensic** (evidence first, every claim pinned to a file and a line, serious without drama). Nothing on screen competes with the code.\n\nThe app is an operating tool, not a showcase. Controls look and behave like the host operating system: the system font, native window chrome, the arrow cursor, and familiar patterns such as segmented controls, sidebar preferences and indent-guided trees. The brand lives in the details: the oxide undertone in every neutral, the lime that marks what you can act on, and the syntax colours that make the AST read like the code it describes.\n\nDensity is high but legible. Panes sit edge to edge, separated by 1px borders rather than gutters, and every pane can be resized. The whole interface scales smoothly with the window and with a user-set interface size, from a laptop to a 4K monitor.",
+    "keyCharacteristics": [
+      "An oxidised green-black ground; no neutral grey anywhere.",
+      "One signal colour (lime) reserved for action and selection.",
+      "The system font for the interface; JetBrains Mono only for code, paths and data.",
+      "Flat tonal layers with 1px borders; shadows only on things that float.",
+      "Restrained, purposeful motion with exponential ease-out, all of it disabled under reduced motion.",
+      "Native window chrome on macOS, Windows and Linux."
+    ],
+    "rules": [
+      {
+        "name": "The One Signal Rule",
+        "body": "Signal Lime marks only what the user can act on now, or what is selected. If two lime elements compete on one screen, one of them is wrong.",
+        "section": "colors"
+      },
+      {
+        "name": "The No Grey Rule",
+        "body": "Every neutral carries the oxide undertone. A neutral grey (equal red, green and blue) is a regression.",
+        "section": "colors"
+      },
+      {
+        "name": "The Measured Contrast Rule",
+        "body": "Every text pair is at least 4.5:1 and recorded with its measured ratio in `electron/src/styles/tokens.css`. A new pair is not done until its ratio is in that table.",
+        "section": "colors"
+      },
+      {
+        "name": "The Code Is Mono Rule",
+        "body": "Mono appears only on content a developer would paste into a terminal or editor: code, paths, versions, rule IDs, model names and keyboard keys.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Shouting Rule",
+        "body": "No uppercase tracked labels and no eyebrow text above headings. A heading carries its own weight.",
+        "section": "typography"
+      },
+      {
+        "name": "The Shadows Float Rule",
+        "body": "A shadow means \"this is above the page\". Cards, panes and rows at rest have none. Every shadow has an offset and a soft blur; a zero-offset glow is not part of the system.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** reserve Signal Lime for the primary action, the focus ring and the current selection.",
+      "**Do** give every neutral the oxide undertone, and record each new text pair's measured contrast in `tokens.css`.",
+      "**Do** set code, paths, versions and numbers in JetBrains Mono with tabular figures.",
+      "**Do** separate panes with 1px borders and let the user resize every one of them.",
+      "**Do** use exponential ease-out (`cubic-bezier(0.16, 1, 0.3, 1)`, 120 / 220 / 520ms) and respect reduced motion.",
+      "**Do** update lists by key so existing rows keep their element, focus and hover; only genuinely new items animate."
+    ],
+    "donts": [
+      "**Don't** use neutral greys, or the GitHub dark palette this system replaced.",
+      "**Don't** use uppercase tracked labels, eyebrow text, or monospace as a \"technical\" costume.",
+      "**Don't** add shadows to cards, panes or rows at rest, or use zero-offset glows.",
+      "**Don't** mark severity with a thick coloured side border; use the badge and the severity tint.",
+      "**Don't** use emoji or Unicode glyphs as icons in new work; draw them as SVG or CSS strokes.",
+      "**Don't** rebuild a whole list on every store update; that caused the flicker this system was cleaned of."
+    ]
+  }
+}

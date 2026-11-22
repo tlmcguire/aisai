@@ -332,6 +332,37 @@ export interface ModelSelection {
 }
 
 /** Mirrors model.Event. */
+/** The provider families the settings can configure. */
+export type ProviderKind =
+  | 'ollama'
+  | 'vllm'
+  | 'llamacpp'
+  | 'lmstudio'
+  | 'openai'
+  | 'anthropic'
+  | 'gemini'
+  | 'openrouter'
+  | 'groq'
+  | 'mistral';
+
+/** The request body of POST /api/providers and /api/providers/test. */
+export interface ProviderRequest {
+  kind: ProviderKind;
+  url: string;
+  model?: string;
+  apiKey?: string;
+}
+
+/** The payload of a per-package download event (Event.data.download). */
+export interface DownloadEvent {
+  package: string;
+  version: string;
+  state: 'downloading' | 'done' | 'warning' | 'failed';
+  detail?: string;
+  done: number;
+  total: number;
+}
+
 export interface Event {
   type: EventType;
   auditId?: string;

@@ -168,6 +168,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/config", s.handleConfig)
 	mux.HandleFunc("GET /api/providers", s.handleProviders)
 	mux.HandleFunc("POST /api/providers/test", s.handleProviderTest)
+	mux.HandleFunc("POST /api/providers", s.handleSetProvider)
 
 	// The model picker: list the installed models, choose them, and
 	// release them from memory.
@@ -303,20 +304,63 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// providerProbeTimeout bounds the health probe behind the provider list. A
+// backend that is down must not hold the settings dialog for seconds.
+const providerProbeTimeout = 1500 * time.Millisecond
+
 func (s *Server) providerInfos(ctx context.Context) []model.ProviderInfo {
 	if s.llm == nil {
 		return []model.ProviderInfo{}
 	}
-	info := model.ProviderInfo{ID: s.llm.ID(), Kind: s.llm.Kind()}
-	if err := s.llm.Health(ctx); err != nil {
+	ctx, cancel := context.WithTimeout(ctx, providerProbeTimeout)
+	defer cancel()
+	return []model.ProviderInfo{probeProvider(ctx, s.llm)}
+}
+
+// probeProvider checks one provider and lists its models.
+func probeProvider(ctx context.Context, p llm.Provider) model.ProviderInfo {
+	info := model.ProviderInfo{ID: p.ID(), Kind: p.Kind()}
+	if u, ok := p.(interface{ URL() string }); ok {
+		info.URL = u.URL()
+	}
+	if err := p.Health(ctx); err != nil {
 		info.Error = err.Error()
 	} else {
 		info.OK = true
-		if models, err := s.llm.Models(ctx); err == nil {
+		if models, err := p.Models(ctx); err == nil {
 			info.Models = models
 		}
 	}
-	return []model.ProviderInfo{info}
+	return info
+}
+
+// providerRequest describes a backend the app wants to use or test.
+type providerRequest struct {
+	ID     string `json:"id"`
+	Kind   string `json:"kind"`
+	URL    string `json:"url"`
+	Model  string `json:"model"`
+	APIKey string `json:"apiKey"`
+}
+
+// build turns a provider request into a client.
+func (s *Server) buildProvider(req providerRequest) llm.Provider {
+	if req.Kind == "" || req.Kind == llm.KindOllama {
+		return llm.NewOllama(llm.Options{
+			URL: req.URL, Model: req.Model, NumCtx: s.models.NumCtx(),
+			KeepAlive: s.models.KeepAlive(), Models: s.models, Timeout: 180 * time.Second,
+		})
+	}
+	key := req.APIKey
+	// A saved key is reused when the app switches back to the same service
+	// without typing it again.
+	if key == "" && req.Kind == s.cfg.ProviderKind {
+		key = s.cfg.BYOKAPIKey
+	}
+	return llm.NewOpenAICompat(llm.Options{
+		URL: req.URL, Model: req.Model, APIKey: key, Headers: llm.HostedHeaders(req.Kind, key),
+		NumCtx: s.models.NumCtx(), Models: s.models, Timeout: 180 * time.Second,
+	})
 }
 
 func (s *Server) handleProviders(w http.ResponseWriter, r *http.Request) {
@@ -324,11 +368,7 @@ func (s *Server) handleProviders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleProviderTest(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ID    string `json:"id"`
-		URL   string `json:"url"`
-		Model string `json:"model"`
-	}
+	var req providerRequest
 	if !decodeBody(w, r, &req) {
 		return
 	}
@@ -336,18 +376,83 @@ func (s *Server) handleProviderTest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "bad_request", "url is required")
 		return
 	}
-	probe := llm.NewOllama(llm.Options{URL: req.URL, Model: req.Model, NumCtx: s.cfg.NumCtx})
-	info := model.ProviderInfo{ID: "ollama", Kind: "ollama", URL: req.URL}
-	if err := probe.Health(r.Context()); err != nil {
-		info.Error = err.Error()
-	} else {
-		info.OK = true
-		if models, err := probe.Models(r.Context()); err == nil {
-			info.Models = models
-		}
+	if req.Kind == "" {
+		req.Kind = llm.KindOllama
 	}
+	if !llm.IsProviderKind(req.Kind) {
+		writeError(w, http.StatusBadRequest, "bad_request", "unknown provider kind "+req.Kind)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	info := probeProvider(ctx, llm.NewSwitchable(s.buildProvider(req), req.Kind, req.URL))
 	// The renderer reads the result from a "provider" key, so the envelope
 	// is part of the contract.
+	writeJSON(w, http.StatusOK, map[string]any{"provider": info})
+}
+
+// handleSetProvider switches the backend that scans and chat use, and
+// writes the choice to the configuration file so it survives a restart.
+func (s *Server) handleSetProvider(w http.ResponseWriter, r *http.Request) {
+	var req providerRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	if req.Kind == "" {
+		req.Kind = llm.KindOllama
+	}
+	if !llm.IsProviderKind(req.Kind) {
+		writeError(w, http.StatusBadRequest, "bad_request", "unknown provider kind "+req.Kind)
+		return
+	}
+	if strings.TrimSpace(req.URL) == "" {
+		writeError(w, http.StatusBadRequest, "bad_request", "url is required")
+		return
+	}
+	sw, ok := s.llm.(*llm.Switchable)
+	if !ok || s.cfg.DisableLLM {
+		writeError(w, http.StatusServiceUnavailable, "disabled", "LLM features are disabled by configuration")
+		return
+	}
+	hasSavedKey := req.Kind == s.cfg.ProviderKind && s.cfg.BYOKAPIKey != ""
+	if llm.IsHostedKind(req.Kind) && req.APIKey == "" && !hasSavedKey {
+		writeError(w, http.StatusBadRequest, "bad_request", "an API key is required for "+req.Kind)
+		return
+	}
+	sw.Set(s.buildProvider(req), req.Kind, req.URL)
+	if req.Model != "" {
+		s.models.Set(req.Model, req.Model, s.models.Embed())
+	}
+
+	previousKind := s.cfg.ProviderKind
+	s.cfg.ProviderKind = req.Kind
+	if req.Kind == llm.KindOllama {
+		s.cfg.OllamaURLs = []string{req.URL}
+	} else {
+		s.cfg.BYOKBaseURL = req.URL
+		s.cfg.BYOKModel = req.Model
+		if req.APIKey != "" {
+			// Kept in memory only and never written to the config file. The
+			// desktop app stores it in the OS keychain and passes it back
+			// through AISAI_BYOK_API_KEY on the next launch.
+			s.cfg.BYOKAPIKey = req.APIKey
+		} else if req.Kind != previousKind {
+			s.cfg.BYOKAPIKey = ""
+		}
+	}
+	saveErr := ""
+	if s.cfg.Path() != "" {
+		if err := s.cfg.Save(); err != nil {
+			saveErr = err.Error()
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	info := probeProvider(ctx, s.llm)
+	if saveErr != "" && info.Error == "" {
+		info.Error = "applied, but not saved: " + saveErr
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"provider": info})
 }
 

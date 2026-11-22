@@ -335,6 +335,8 @@ func TestEveryRegisteredToolIsWellFormed(t *testing.T) {
 		"scan_package", "get_dependency_graph", "list_files", "get_source",
 		"get_ast", "run_sast", "run_llm_scan", "list_findings", "get_finding",
 		"propose_fix", "apply_patch", "export_report", "search_code", "ask_codebase",
+		"list_audits", "select_audit", "set_finding_state", "delete_sources",
+		"list_languages", "list_rules",
 	}
 	for _, name := range want {
 		if !seen[name] {
@@ -395,5 +397,28 @@ func TestGetSourcePaginates(t *testing.T) {
 		"audit_id":   tt.auditID,
 	}); err == nil {
 		t.Fatal("a range past the end of the file must be refused")
+	}
+}
+
+func TestManagementTools(t *testing.T) {
+	tt := newTestToolset(t)
+
+	out, err := tt.call(t, "list_audits", map[string]any{})
+	if err != nil || !strings.Contains(out, tt.auditID) {
+		t.Fatalf("list_audits = %q, %v", out, err)
+	}
+	if _, err = tt.call(t, "select_audit", map[string]any{"audit_id": tt.auditID}); err != nil {
+		t.Fatalf("select_audit: %v", err)
+	}
+	out, err = tt.call(t, "list_languages", map[string]any{})
+	if err != nil || !strings.Contains(out, "PHP") || !strings.Contains(out, "Scala") {
+		t.Fatalf("list_languages = %q, %v", out, err)
+	}
+	out, err = tt.call(t, "list_rules", map[string]any{})
+	if err != nil || !strings.Contains(out, "CWE-78") {
+		t.Fatalf("list_rules = %q, %v", out, err)
+	}
+	if _, err = tt.call(t, "set_finding_state", map[string]any{"finding_id": "x", "state": "bogus"}); err == nil {
+		t.Fatal("set_finding_state accepted a bogus state")
 	}
 }
