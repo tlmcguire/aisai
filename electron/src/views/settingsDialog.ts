@@ -10,7 +10,8 @@ import type { AppController } from '../app';
 import type { UpdateStatus } from '../api/bridge';
 import type { Audit, Config, ModelInfo, ModelState, ProviderInfo, ProviderKind } from '../api/types';
 import { formatBytes } from '../lib/format';
-import { t, tn, type MessageKey } from '../lib/i18n';
+import { t, tn, useLocaleStore, type MessageKey } from '../lib/i18n';
+import { icon } from '../lib/icons';
 import { useAuditStore } from '../state/audit';
 import { useChatStore } from '../state/chat';
 import { renderAccessibility, renderEditorAppearance } from './accessibilitySettings';
@@ -113,7 +114,7 @@ export function providerLabel(kind: string): string {
   return SERVER_KINDS.find((entry) => entry.kind === kind)?.label ?? kind;
 }
 
-const SECTIONS: Array<{ id: SettingsSection; label: () => string }> = [
+export const SECTIONS: Array<{ id: SettingsSection; label: () => string }> = [
   { id: 'server', label: () => t('settings.navSectionServer') },
   { id: 'models', label: () => t('settings.navSectionModels') },
   { id: 'sources', label: () => t('settings.navSectionSources') },
@@ -124,6 +125,371 @@ const SECTIONS: Array<{ id: SettingsSection; label: () => string }> = [
   { id: 'mcp', label: () => t('settings.navSectionMcp') },
   { id: 'about', label: () => t('settings.navSectionAbout') },
 ];
+
+/** The display label of a settings section. */
+export function sectionName(section: SettingsSection): string {
+  const found = SECTIONS.find((entry) => entry.id === section);
+  return found ? found.label() : section;
+}
+
+export interface SettingSearchItem {
+  id?: string;
+  section: SettingsSection;
+  titleKey: MessageKey;
+  hintKey?: MessageKey;
+  keywords: string[];
+}
+
+export const SEARCHABLE_SETTINGS: readonly SettingSearchItem[] = [
+  // Server
+  {
+    id: 'server-kinds',
+    section: 'server',
+    titleKey: 'settings.serverType',
+    hintKey: 'settings.serverLede',
+    keywords: ['ollama', 'vllm', 'llamacpp', 'llama.cpp', 'lm studio', 'openai', 'anthropic', 'gemini', 'openrouter', 'groq', 'mistral', 'claude', 'gpt', 'provider', 'backend', 'hosted', 'local'],
+  },
+  {
+    id: 'server-url',
+    section: 'server',
+    titleKey: 'settings.serverAddress',
+    keywords: ['url', 'endpoint', 'address', 'host', 'port', 'http', 'localhost'],
+  },
+  {
+    id: 'server-key',
+    section: 'server',
+    titleKey: 'settings.serverApiKey',
+    hintKey: 'settings.keyPlaceholderSaved',
+    keywords: ['api key', 'token', 'secret', 'password', 'keychain', 'auth', 'bearer'],
+  },
+  {
+    id: 'server-model',
+    section: 'server',
+    titleKey: 'settings.serverModel',
+    keywords: ['chat model', 'default model', 'llm', 'model name'],
+  },
+  {
+    id: 'model-keep-alive',
+    section: 'server',
+    titleKey: 'settings.modelKeepAliveLabel',
+    hintKey: 'settings.modelKeepAliveAria',
+    keywords: ['keep alive', 'timeout', 'unload', 'idle', 'memory', 'persist', 'keepalive'],
+  },
+
+  // Models
+  {
+    id: 'models-list',
+    section: 'models',
+    titleKey: 'settings.modelsTitle',
+    hintKey: 'settings.modelsLede',
+    keywords: ['models', 'chat model', 'scan model', 'embed model', 'context', 'parameters', 'quantization', 'weights', 'size', 'disk', 'switch model'],
+  },
+  {
+    id: 'models-table',
+    section: 'models',
+    titleKey: 'settings.modelsInstalled',
+    hintKey: 'settings.modelsLede',
+    keywords: ['installed models', 'table', 'parameters', 'quantization', 'size'],
+  },
+
+  // Sources
+  {
+    id: 'sources-list',
+    section: 'sources',
+    titleKey: 'settings.sourcesTitle',
+    hintKey: 'settings.sourcesEmpty',
+    keywords: ['sources', 'audited', 'downloaded', 'cache', 'sandbox', 'delete sources', 'clean cache', 'packages', 'dependencies'],
+  },
+  {
+    id: 'sources-open-folder',
+    section: 'sources',
+    titleKey: 'settings.sourcesOpenFolder',
+    hintKey: 'settings.sourcesTitle',
+    keywords: ['open folder', 'local folder', 'directory', 'audit local'],
+  },
+
+  // Appearance
+  {
+    id: 'pref-theme',
+    section: 'appearance',
+    titleKey: 'settings.themeLabel',
+    hintKey: 'settings.appearanceLede',
+    keywords: ['theme', 'dark', 'light', 'system', 'mode', 'color scheme', 'verdigris'],
+  },
+  {
+    id: 'pref-accent',
+    section: 'appearance',
+    titleKey: 'settings.accentColour',
+    hintKey: 'settings.appearanceLede',
+    keywords: ['accent', 'color', 'teal', 'lime', 'coral', 'violet', 'amber', 'sky', 'swatch', 'tint', 'ground'],
+  },
+  {
+    id: 'pref-language',
+    section: 'appearance',
+    titleKey: 'settings.language',
+    hintKey: 'settings.languageSystem',
+    keywords: ['language', 'locale', 'translation', 'speed', 'english', 'deutsch', 'german', 'español', 'spanish', 'français', 'french', 'japanese', 'nihongo', 'sprache', 'idioma', 'langue', '言語'],
+  },
+  {
+    id: 'pref-editor-theme',
+    section: 'appearance',
+    titleKey: 'settings.editorThemeLabel',
+    hintKey: 'settings.editorThemeMatchApp',
+    keywords: ['editor theme', 'syntax highlighting', 'code colors', 'dark', 'light'],
+  },
+  {
+    id: 'pref-editor-size',
+    section: 'appearance',
+    titleKey: 'settings.editorFontSize',
+    hintKey: 'settings.editorSizeUnderAppearance',
+    keywords: ['font size', 'text size', 'code size', 'editor size', 'pixels', 'px'],
+  },
+  {
+    id: 'pref-editor-spacing',
+    section: 'appearance',
+    titleKey: 'settings.editorLineSpacing',
+    keywords: ['line spacing', 'line height', 'compact', 'normal', 'relaxed', 'leading'],
+  },
+  {
+    id: 'pref-minimap',
+    section: 'appearance',
+    titleKey: 'settings.showMinimap',
+    hintKey: 'settings.showMinimapHint',
+    keywords: ['minimap', 'code map', 'overview', 'outline', 'scroll preview'],
+  },
+  {
+    id: 'pref-completion',
+    section: 'appearance',
+    titleKey: 'settings.completionLabel',
+    hintKey: 'settings.completionHint',
+    keywords: ['completion', 'inline completion', 'autocomplete', 'ghost text', 'copilot', 'ai suggestion'],
+  },
+  {
+    id: 'pref-web-search',
+    section: 'appearance',
+    titleKey: 'settings.webSearchLabel',
+    hintKey: 'settings.webSearchHint',
+    keywords: ['web search', 'internet', 'browse', 'cve', 'advisories', 'docs', 'online'],
+  },
+  {
+    id: 'pref-accept-fixed',
+    section: 'appearance',
+    titleKey: 'settings.acceptFixLabel',
+    hintKey: 'settings.acceptFixHint',
+    keywords: ['accept fix', 'mark fixed', 'findings', 'resolved', 'auto triage', 'patches'],
+  },
+
+  // Accessibility
+  {
+    id: 'pref-ui-scale',
+    section: 'accessibility',
+    titleKey: 'settings.interfaceSize',
+    hintKey: 'settings.layoutInterfaceSize',
+    keywords: ['interface size', 'ui scale', 'zoom', 'magnification', 'text size', 'percent'],
+  },
+  {
+    id: 'pref-contrast',
+    section: 'accessibility',
+    titleKey: 'settings.higherContrast',
+    hintKey: 'settings.higherContrastHint',
+    keywords: ['contrast', 'high contrast', 'wcag', 'visibility', 'borders'],
+  },
+  {
+    id: 'pref-colourblind',
+    section: 'accessibility',
+    titleKey: 'settings.colourBlindSeverity',
+    hintKey: 'settings.colourBlindSeverityHint',
+    keywords: ['colour blind', 'colorblind', 'deuteranopia', 'protanopia', 'severity colors', 'daltonism'],
+  },
+  {
+    id: 'pref-focus',
+    section: 'accessibility',
+    titleKey: 'settings.strongFocus',
+    hintKey: 'settings.strongFocusHint',
+    keywords: ['focus ring', 'strong focus', 'keyboard focus', 'outline', 'focus indicator'],
+  },
+  {
+    id: 'pref-links',
+    section: 'accessibility',
+    titleKey: 'settings.underlineLinks',
+    hintKey: 'settings.underlineLinksHint',
+    keywords: ['underline links', 'links', 'hyperlinks', 'accessible links'],
+  },
+  {
+    id: 'pref-spacing',
+    section: 'accessibility',
+    titleKey: 'settings.readableSpacing',
+    hintKey: 'settings.readableSpacingHint',
+    keywords: ['readable spacing', 'dyslexia', 'line length', 'reading', 'letter spacing'],
+  },
+  {
+    id: 'pref-motion',
+    section: 'accessibility',
+    titleKey: 'settings.animations',
+    hintKey: 'settings.reduceMotionHint',
+    keywords: ['animations', 'reduce motion', 'typewriter', 'sliding panels', 'motion', 'transitions'],
+  },
+  {
+    id: 'pref-blink',
+    section: 'accessibility',
+    titleKey: 'settings.blinkingCursor',
+    hintKey: 'settings.blinkingCursorHint',
+    keywords: ['blinking cursor', 'steady caret', 'terminal cursor', 'cursor blink'],
+  },
+  {
+    id: 'pref-reset-accessibility',
+    section: 'accessibility',
+    titleKey: 'settings.resetAccessibility',
+    hintKey: 'settings.accessibilityDefaults',
+    keywords: ['reset accessibility', 'defaults', 'restore'],
+  },
+
+  // Keyboard
+  {
+    id: 'keys-filter',
+    section: 'keyboard',
+    titleKey: 'settings.navSectionKeyboard',
+    hintKey: 'settings.keysFilterPlaceholder',
+    keywords: ['keyboard shortcuts', 'shortcuts', 'keybindings', 'hotkeys', 'remap', 'keys', 'cmd', 'ctrl', 'alt', 'shift'],
+  },
+  {
+    id: 'keys-reset-all',
+    section: 'keyboard',
+    titleKey: 'settings.keysResetAll',
+    keywords: ['reset shortcuts', 'restore keybindings', 'default keys'],
+  },
+
+  // Layout
+  {
+    id: 'layout-presets',
+    section: 'layout',
+    titleKey: 'settings.layoutTitle',
+    hintKey: 'settings.layoutLede',
+    keywords: ['layout presets', 'wide code', 'big graph', 'chat focus', 'panes arrangement'],
+  },
+  {
+    id: 'graph-width',
+    section: 'layout',
+    titleKey: 'settings.layoutLeftColumn',
+    hintKey: 'settings.layoutDefaults',
+    keywords: ['left column', 'graph width', 'dependency tree width', 'sidebar size'],
+  },
+  {
+    id: 'files-share',
+    section: 'layout',
+    titleKey: 'settings.layoutFileTreeShare',
+    hintKey: 'settings.layoutDefaults',
+    keywords: ['file tree share', 'files height', 'tree split', 'left split'],
+  },
+  {
+    id: 'rail-width',
+    section: 'layout',
+    titleKey: 'settings.layoutFindingsRail',
+    hintKey: 'settings.layoutDefaults',
+    keywords: ['findings rail', 'rail width', 'right column', 'issues panel'],
+  },
+  {
+    id: 'chat-dock',
+    section: 'layout',
+    titleKey: 'settings.chatDock',
+    keywords: ['chat dock', 'chat below', 'chat right', 'chat position', 'docking'],
+  },
+  {
+    id: 'chat-height',
+    section: 'layout',
+    titleKey: 'settings.layoutChatHeight',
+    hintKey: 'settings.layoutDefaults',
+    keywords: ['chat height', 'chat size', 'chat panel height'],
+  },
+  {
+    id: 'chat-width',
+    section: 'layout',
+    titleKey: 'settings.layoutChatWidth',
+    hintKey: 'settings.layoutDefaults',
+    keywords: ['chat width', 'chat panel width'],
+  },
+  {
+    id: 'layout-reset-btn',
+    section: 'layout',
+    titleKey: 'settings.resetToDefaults',
+    hintKey: 'settings.layoutDefaults',
+    keywords: ['reset layout', 'default layout', 'reset panes', 'restore window size'],
+  },
+
+  // MCP
+  {
+    id: 'mcp-claude-code',
+    section: 'mcp',
+    titleKey: 'settings.navSectionMcp',
+    hintKey: 'settings.mcpLede',
+    keywords: ['claude code', 'mcp add', 'mcp servers', 'model context protocol', 'terminal'],
+  },
+  {
+    id: 'mcp-claude-desktop',
+    section: 'mcp',
+    titleKey: 'settings.navSectionMcp',
+    hintKey: 'settings.mcpLede',
+    keywords: ['claude desktop', 'claude_desktop_config.json', 'desktop app'],
+  },
+  {
+    id: 'mcp-cursor',
+    section: 'mcp',
+    titleKey: 'settings.navSectionMcp',
+    hintKey: 'settings.mcpLede',
+    keywords: ['cursor', '.cursor/mcp.json', 'ide mcp'],
+  },
+  {
+    id: 'mcp-tools-list',
+    section: 'mcp',
+    titleKey: 'settings.mcpToolCount',
+    hintKey: 'settings.mcpHint',
+    keywords: ['mcp tools', 'list_rules', 'list_languages', 'audit_package', 'read_file', 'grep_code'],
+  },
+
+  // About
+  {
+    id: 'about-version-info',
+    section: 'about',
+    titleKey: 'settings.aboutTitle',
+    hintKey: 'settings.aboutAppVersion',
+    keywords: ['version', 'build', 'commit', 'about aisai', 'license', 'platform'],
+  },
+  {
+    id: 'about-update-check',
+    section: 'about',
+    titleKey: 'settings.updateCheck',
+    hintKey: 'settings.updateUpToDate',
+    keywords: ['check for updates', 'download update', 'upgrade', 'new version'],
+  },
+];
+
+export interface SearchMatch {
+  item: SettingSearchItem;
+  title: string;
+  hint: string;
+  sectionLabel: string;
+}
+
+/** Finds settings matching any words in the query. */
+export function searchSettings(query: string, items: readonly SettingSearchItem[] = SEARCHABLE_SETTINGS): SearchMatch[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const words = q.split(/\s+/).filter(Boolean);
+  const results: SearchMatch[] = [];
+
+  for (const item of items) {
+    const title = t(item.titleKey);
+    const hint = item.hintKey ? t(item.hintKey) : '';
+    const secLabel = sectionName(item.section);
+    const corpus = `${title} ${hint} ${secLabel} ${item.keywords.join(' ')}`.toLowerCase();
+
+    if (words.every((w) => corpus.includes(w))) {
+      results.push({ item, title, hint, sectionLabel: secLabel });
+    }
+  }
+
+  return results;
+}
 
 /** Turn a transport error into something a person can act on. */
 function friendlyError(error: string, url?: string): string {
@@ -189,19 +555,166 @@ export function createSettingsDialog(
   let loading = { providers: false, config: false, models: false };
   let modelStatus = '';
 
-  const navButtons = SECTIONS.map((section) =>
-    h(
+  let searchQuery = '';
+  let searchSection: SettingsSection | 'all' = 'all';
+
+  const searchInput = h('input', {
+    type: 'search',
+    class: 'pref-search-input',
+    placeholder: t('settings.searchPlaceholder'),
+    'aria-label': t('settings.searchAria'),
+  });
+  const searchClear = h(
+    'button',
+    {
+      class: 'pref-search-clear',
+      type: 'button',
+      'aria-label': t('settings.searchClear'),
+      hidden: true,
+    },
+    icon('x'),
+  );
+  const searchBox = h(
+    'div',
+    { class: 'pref-search' },
+    h('span', { class: 'pref-search-icon' }, icon('search')),
+    searchInput,
+    searchClear,
+  );
+
+  const searchResultsLabel = h('span', { class: 'pref-nav-label', text: t('settings.searchResultsTitle') });
+  const searchResultsBadge = h('span', { class: 'pref-nav-badge' });
+  const searchResultsBtn = h(
+    'button',
+    {
+      class: 'pref-nav-item pref-nav-search-all',
+      type: 'button',
+      'data-section': 'search',
+      hidden: true,
+      onclick: () => {
+        searchSection = 'all';
+        renderSection();
+      },
+    },
+    searchResultsLabel,
+    searchResultsBadge,
+  );
+
+  const navButtons = SECTIONS.map((section) => {
+    const labelSpan = h('span', { class: 'pref-nav-label', text: section.label() });
+    const badgeSpan = h('span', { class: 'pref-nav-badge', hidden: true });
+    return h(
       'button',
       {
         class: 'pref-nav-item',
         type: 'button',
         'data-section': section.id,
-        onclick: () => useUiStore.getState().setSettingsSection(section.id),
+        onclick: () => {
+          if (searchQuery) {
+            searchSection = section.id;
+          }
+          useUiStore.getState().setSettingsSection(section.id);
+          renderSection();
+        },
       },
-      section.label(),
-    ),
+      labelSpan,
+      badgeSpan,
+    );
+  });
+  nav.append(
+    h('div', { class: 'pref-nav-title', text: t('settings.navTitle') }),
+    searchBox,
+    searchResultsBtn,
+    ...navButtons,
   );
-  nav.append(h('div', { class: 'pref-nav-title', text: t('settings.navTitle') }), ...navButtons);
+
+  const clearSearch = (): void => {
+    searchInput.value = '';
+    searchQuery = '';
+    searchSection = 'all';
+    searchClear.hidden = true;
+    searchResultsBtn.hidden = true;
+    for (const button of navButtons) {
+      button.classList.remove('is-dimmed');
+      const badge = button.querySelector('.pref-nav-badge') as HTMLElement | null;
+      if (badge) {
+        badge.hidden = true;
+        badge.textContent = '';
+      }
+    }
+    renderSection();
+  };
+
+  const updateSearch = (): void => {
+    const q = searchInput.value.trim();
+    searchQuery = q;
+    searchClear.hidden = q.length === 0;
+
+    if (!q) {
+      clearSearch();
+      return;
+    }
+
+    const matches = searchSettings(q, SEARCHABLE_SETTINGS);
+    const countBySection = new Map<SettingsSection, number>();
+    for (const match of matches) {
+      countBySection.set(match.item.section, (countBySection.get(match.item.section) ?? 0) + 1);
+    }
+
+    searchResultsBtn.hidden = false;
+    searchResultsBadge.textContent = String(matches.length);
+
+    for (const button of navButtons) {
+      const secId = button.dataset.section as SettingsSection;
+      const count = countBySection.get(secId) ?? 0;
+      const badge = button.querySelector('.pref-nav-badge') as HTMLElement | null;
+      if (badge) {
+        badge.hidden = count === 0;
+        badge.textContent = count > 0 ? String(count) : '';
+      }
+      if (count === 0) {
+        button.classList.add('is-dimmed');
+      } else {
+        button.classList.remove('is-dimmed');
+      }
+    }
+
+    renderSection();
+  };
+
+  searchInput.addEventListener('input', () => {
+    searchSection = 'all';
+    updateSearch();
+  });
+  searchClear.addEventListener('click', () => {
+    clearSearch();
+    searchInput.focus();
+  });
+
+  dialog.addEventListener('keydown', (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+      event.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+      return;
+    }
+    if (
+      event.key === '/' &&
+      document.activeElement !== searchInput &&
+      !(document.activeElement instanceof HTMLInputElement) &&
+      !(document.activeElement instanceof HTMLTextAreaElement)
+    ) {
+      event.preventDefault();
+      searchInput.focus();
+      return;
+    }
+    if (event.key === 'Escape' && document.activeElement === searchInput && searchInput.value.length > 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      clearSearch();
+      return;
+    }
+  });
 
   /* ---------------- model server ---------------- */
 
@@ -1030,11 +1543,85 @@ export function createSettingsDialog(
 
   /* ---------------- shell ---------------- */
 
+  const focusAndHighlight = (id: string): void => {
+    window.setTimeout(() => {
+      const el = pane.querySelector(`#${CSS.escape(id)}`) as HTMLElement | null;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const targetToHighlight = el.closest('.pref-check, .pref-form, .pref-group, .kind-groups, .preset-grid, .field') ?? el;
+        targetToHighlight.classList.add('is-highlighted');
+        window.setTimeout(() => targetToHighlight.classList.remove('is-highlighted'), 2200);
+        if (typeof (el as HTMLElement).focus === 'function' && el.tagName !== 'DIV') {
+          el.focus();
+        }
+      }
+    }, 60);
+  };
+
+  const renderSearchResultsView = (results: SearchMatch[]): HTMLElement => {
+    if (results.length === 0) {
+      return h(
+        'section',
+        { class: 'pref-section pref-search-results' },
+        h('h2', { class: 'pref-title', text: t('settings.searchResultsTitle') }),
+        h('p', { class: 'pref-lede', text: t('settings.searchNoMatches', { query: searchQuery }) }),
+      );
+    }
+
+    const list = h('div', { class: 'pref-search-list', role: 'list' });
+    for (const res of results) {
+      const itemBtn = h(
+        'button',
+        {
+          class: 'pref-search-item',
+          type: 'button',
+          role: 'listitem',
+          onclick: () => {
+            searchSection = res.item.section;
+            useUiStore.getState().setSettingsSection(res.item.section);
+            renderSection();
+            if (res.item.id) {
+              focusAndHighlight(res.item.id);
+            }
+          },
+        },
+        h(
+          'div',
+          { class: 'pref-search-item-header' },
+          h('span', { class: 'pref-search-section-badge', text: res.sectionLabel }),
+          h('span', { class: 'pref-search-item-title', text: res.title }),
+        ),
+        res.hint ? h('p', { class: 'pref-search-item-hint', text: res.hint }) : null,
+        h('span', { class: 'pref-search-item-action', text: t('settings.searchJumpHint', { section: res.sectionLabel }) }),
+      );
+      list.append(itemBtn);
+    }
+
+    return h(
+      'section',
+      { class: 'pref-section pref-search-results' },
+      h('h2', { class: 'pref-title', text: t('settings.searchResultsTitle') }),
+      h('p', { class: 'pref-lede', text: tn('settings.searchResultsCount', results.length) }),
+      list,
+    );
+  };
+
   const renderSection = (): void => {
     const section = useUiStore.getState().settingsSection;
+    const inSearchAll = searchQuery.length > 0 && searchSection === 'all';
+
+    searchResultsBtn.setAttribute('aria-current', String(inSearchAll));
     for (const button of navButtons) {
-      button.setAttribute('aria-current', String(button.dataset.section === section));
+      button.setAttribute('aria-current', String(!inSearchAll && button.dataset.section === section));
     }
+
+    if (inSearchAll) {
+      pane.dataset.section = 'search';
+      const results = searchSettings(searchQuery, SEARCHABLE_SETTINGS);
+      pane.replaceChildren(renderSearchResultsView(results));
+      return;
+    }
+
     const scroll = pane.scrollTop;
     const sameSection = pane.dataset.section === section;
     pane.dataset.section = section;
@@ -1067,6 +1654,42 @@ export function createSettingsDialog(
       default:
         content = renderServer();
     }
+
+    if (searchQuery.length > 0) {
+      const banner = h(
+        'div',
+        { class: 'pref-search-banner' },
+        h('span', { text: t('settings.searchJumpHint', { section: sectionName(section) }) }),
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'pref-search-banner-btn',
+            onclick: () => {
+              searchSection = 'all';
+              renderSection();
+            },
+          },
+          t('settings.searchResultsTitle'),
+        ),
+      );
+      content.prepend(banner);
+
+      const sectionMatches = searchSettings(searchQuery, SEARCHABLE_SETTINGS.filter((item) => item.section === section));
+      window.setTimeout(() => {
+        for (const match of sectionMatches) {
+          if (match.item.id) {
+            const el = pane.querySelector(`#${CSS.escape(match.item.id)}`);
+            if (el) {
+              const target = el.closest('.pref-check, .pref-form, .pref-group, .kind-groups, .preset-grid, .field') ?? el;
+              target.classList.add('is-highlighted');
+              window.setTimeout(() => target.classList.remove('is-highlighted'), 2200);
+            }
+          }
+        }
+      }, 50);
+    }
+
     // Keep focus and scroll when a section refreshes in place.
     const focusedId = (document.activeElement as HTMLElement | null)?.id;
     pane.replaceChildren(content);
@@ -1105,6 +1728,7 @@ export function createSettingsDialog(
 
   const unsubscribe = useUiStore.subscribe((state, previous) => {
     if (state.settingsOpen && !previous.settingsOpen) {
+      clearSearch();
       renderSection();
       if (!dialog.open) dialog.showModal();
       refresh();
@@ -1116,6 +1740,19 @@ export function createSettingsDialog(
   const unsubscribeAudits = useAuditStore.subscribe((state, previous) => {
     if (state.audits !== previous.audits && dialog.open && useUiStore.getState().settingsSection === 'sources') {
       renderSection();
+    }
+  });
+  const unsubscribeTranslating = useLocaleStore.subscribe((state) => {
+    dialog.classList.toggle('is-translating', state.translating);
+  });
+  const unsubscribeLocale = useLocaleStore.subscribe((state, previous) => {
+    if (state.locale !== previous.locale && dialog.open) {
+      searchInput.placeholder = t('settings.searchPlaceholder');
+      searchInput.setAttribute('aria-label', t('settings.searchAria'));
+      searchClear.setAttribute('aria-label', t('settings.searchClear'));
+      if (searchQuery.length > 0) {
+        updateSearch();
+      }
     }
   });
 
@@ -1137,6 +1774,8 @@ export function createSettingsDialog(
       unsubscribe();
       unsubscribeAudits();
       unsubscribeUpdate();
+      unsubscribeLocale();
+      unsubscribeTranslating();
     },
   };
 }
