@@ -27,7 +27,7 @@ import (
 // is considered "not stamped" and is resolved from the build information.
 const (
 	// DefaultVersion is the version of an unstamped build.
-	DefaultVersion = "0.4.0-dev"
+	DefaultVersion = "0.5.0-dev"
 	// UnknownCommit is the commit of an unstamped build.
 	UnknownCommit = "unknown"
 	// UnknownDate is the build date of an unstamped build.

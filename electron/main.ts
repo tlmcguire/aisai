@@ -13,11 +13,22 @@ import path from 'node:path';
 import { writeFile } from 'node:fs/promises';
 
 import { app, BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron';
-import { autoUpdater } from 'electron-updater';
+import { autoUpdater, type UpdateInfo } from 'electron-updater';
+import { spawn } from 'node:child_process';
 
 import type { BackendStatus, ClientMessage, HttpMethod, HttpResponse, UpdateStatus } from './src/api/bridge';
 import type { Event } from './src/api/types';
 import { FolderApprovals } from './src/main-process/folders';
+import {
+  bundlePath,
+  canReplaceAt,
+  needsCustomUpdate,
+  pickZip,
+  prepareUpdate,
+  releaseFileUrl,
+  startSwap,
+  type ReleaseFile,
+} from './src/main-process/macUpdate';
 import { activeSecret, canStoreSecrets, forgetSecret, hasSecret, readSecret, saveSecret, setActiveProvider } from './src/main-process/secrets';
 import { backendRequest } from './src/main-process/http';
 import { defaultSocketPath, findSidecar } from './src/main-process/paths';
@@ -650,15 +661,79 @@ function publishUpdate(status: UpdateStatus): void {
  * is installed when the app quits, or at once from the "Restart to update"
  * button; the app never restarts by itself.
  *
- * electron-updater verifies the code signature of a downloaded macOS app and
- * the publisher name of a Windows installer, and refuses a mismatch. macOS
- * cannot swap in an unsigned app, so an unsigned build reports a `manual`
- * update that opens the release page instead.
+ * On Windows and Linux electron-updater installs the update. On macOS it does
+ * too for a Developer ID build; an ad-hoc signed build (what the release
+ * publishes today) cannot be updated by Squirrel.Mac, so AISAI downloads,
+ * checks and swaps the app itself (src/main-process/macUpdate.ts). Only when
+ * that is impossible (the app runs from a disk image or a read-only folder)
+ * is a `manual` update shown, which opens the release page.
  */
+/** The repository the releases come from. */
+const RELEASE_OWNER = 'tlmcguire';
+const RELEASE_REPO = 'aisai';
+const BUNDLE_ID = 'dev.aisai.app';
+
+/** Set on a macOS build without a Developer ID: AISAI installs its own updates. */
+let macSelfUpdate = false;
+/** The unpacked new app, once a macOS self-update is ready. */
+let preparedApp: string | null = null;
+
+/** Downloads and checks a macOS update for a build Squirrel.Mac cannot update. */
+async function prepareMacUpdate(info: UpdateInfo): Promise<void> {
+  const bundle = bundlePath(app.getPath('exe'));
+  const where = bundle ? canReplaceAt(bundle) : { ok: false, reason: 'AISAI is not running from an app bundle.' };
+  if (!bundle || !where.ok) {
+    publishUpdate({ state: 'manual', version: info.version, url: RELEASES_URL, message: where.reason });
+    return;
+  }
+  const file = pickZip(info.files as ReleaseFile[], process.arch);
+  if (!file) {
+    publishUpdate({ state: 'manual', version: info.version, url: RELEASES_URL, message: 'The release has no app for this Mac.' });
+    return;
+  }
+  const feed = process.env.AISAI_UPDATE_FEED_URL?.trim();
+  const url = feed ? new URL(file.url, feed.endsWith('/') ? feed : `${feed}/`).toString() : releaseFileUrl(RELEASE_OWNER, RELEASE_REPO, info.version, file.url);
+  publishUpdate({ state: 'downloading', version: info.version, percent: 0 });
+  try {
+    preparedApp = await prepareUpdate({
+      url,
+      sha512: file.sha512,
+      bundleId: BUNDLE_ID,
+      onProgress: (percent) => publishUpdate({ state: 'downloading', version: info.version, percent }),
+    });
+    publishUpdate({ state: 'ready', version: info.version });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[aisai] update:', message);
+    publishUpdate({ state: 'manual', version: info.version, url: RELEASES_URL, message: `The update could not be prepared: ${message}` });
+  }
+}
+
+/** Swaps in the prepared macOS update and restarts. */
+async function installMacUpdate(): Promise<void> {
+  const bundle = bundlePath(app.getPath('exe'));
+  if (!bundle || !preparedApp) return;
+  try {
+    await startSwap(preparedApp, bundle, (script) => {
+      spawn('/bin/sh', [script], { detached: true, stdio: 'ignore' }).unref();
+    });
+    app.quit();
+  } catch (error) {
+    publishUpdate({
+      state: 'manual',
+      version: updateStatus.version,
+      url: RELEASES_URL,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 function configureAutoUpdate(): void {
   ipcMain.handle('aisai:update:check', () => checkForUpdate());
   ipcMain.handle('aisai:update:install', () => {
-    if (updateStatus.state === 'ready') autoUpdater.quitAndInstall();
+    if (updateStatus.state !== 'ready') return;
+    if (macSelfUpdate) void installMacUpdate();
+    else autoUpdater.quitAndInstall();
   });
   ipcMain.handle('aisai:update:page', () => shell.openExternal(updateStatus.url ?? RELEASES_URL));
 
@@ -672,9 +747,13 @@ function configureAutoUpdate(): void {
 
   autoUpdater.on('checking-for-update', () => publishUpdate({ state: 'checking' }));
   autoUpdater.on('update-not-available', () => publishUpdate({ state: 'idle' }));
-  autoUpdater.on('update-available', (info) =>
-    publishUpdate({ state: 'downloading', version: info.version, percent: 0 }),
-  );
+  autoUpdater.on('update-available', (info) => {
+    if (macSelfUpdate) {
+      if (preparedApp === null) void prepareMacUpdate(info);
+      return;
+    }
+    publishUpdate({ state: 'downloading', version: info.version, percent: 0 });
+  });
   autoUpdater.on('download-progress', (progress) =>
     publishUpdate({ state: 'downloading', version: updateStatus.version, percent: Math.round(progress.percent) }),
   );
@@ -695,7 +774,19 @@ function configureAutoUpdate(): void {
     }
   });
 
-  void checkForUpdate();
+  // A macOS build without a Developer ID cannot be updated by Squirrel.Mac,
+  // so AISAI only lets electron-updater check, and installs the update itself.
+  const bundle = process.platform === 'darwin' ? bundlePath(app.getPath('exe')) : null;
+  void (bundle ? needsCustomUpdate(bundle) : Promise.resolve(false))
+    .catch(() => false)
+    .then((custom) => {
+      macSelfUpdate = custom;
+      if (custom) {
+        autoUpdater.autoDownload = false;
+        autoUpdater.autoInstallOnAppQuit = false;
+      }
+      void checkForUpdate();
+    });
   setInterval(() => void checkForUpdate(), UPDATE_INTERVAL_MS).unref();
 }
 
@@ -706,6 +797,8 @@ async function checkForUpdate(): Promise<void> {
   }
   // Never interrupt a download that is already under way.
   if (updateStatus.state === 'downloading' || updateStatus.state === 'ready') return;
+  // A failed macOS self-update is offered again on the next check.
+  if (updateStatus.state === 'manual' && macSelfUpdate) preparedApp = null;
   try {
     await autoUpdater.checkForUpdates();
   } catch (error) {
