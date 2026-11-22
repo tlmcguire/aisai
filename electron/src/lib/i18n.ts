@@ -488,9 +488,23 @@ function writeText(node: Node, text: string): void {
 /** How many waves have been started; the last one owns the flag. */
 let wave = 0;
 
+/** Whether a node sits inside an open modal dialog on screen. */
+function isInsideOpenDialog(node: Node): boolean {
+  const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  return Boolean(element && typeof element.closest === 'function' && element.closest('dialog[open]'));
+}
+
 /** Where two elements stand on the screen, so that the wave can follow. */
 function domOrder(a: Node, b: Node): number {
   if (a === b) return 0;
+  // If a dialog is open, elements inside the active dialog are in the foreground
+  // where the user is looking (e.g. during a language switch in Settings), so the
+  // wave starts there first.
+  const aInDialog = isInsideOpenDialog(a);
+  const bInDialog = isInsideOpenDialog(b);
+  if (aInDialog && !bInDialog) return -1;
+  if (!aInDialog && bInDialog) return 1;
+
   const position = a.compareDocumentPosition(b);
   if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
   if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1;

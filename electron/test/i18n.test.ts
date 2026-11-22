@@ -188,4 +188,27 @@ describe('a language change', () => {
     await promise;
     expect(onScreen.textContent).toBe('Wird untersucht');
   });
+
+  it('animates elements inside an open dialog before elements in the background', async () => {
+    allowMotion();
+    useLocaleStore.getState().setPreference('en');
+
+    const backgroundLabel = document.createElement('span');
+    backgroundLabel.textContent = t('toolbar.inspecting');
+    document.body.append(backgroundLabel);
+
+    const dialog = document.createElement('dialog');
+    dialog.setAttribute('open', '');
+    const dialogLabel = document.createElement('span');
+    dialogLabel.textContent = t('settings.appearanceTitle');
+    dialog.append(dialogLabel);
+    document.body.append(dialog);
+
+    showOnly(dialogLabel);
+
+    useLocaleStore.getState().setPreference('de');
+    const promise = relocalize();
+    await promise;
+    expect(dialogLabel.textContent).toBe('Darstellung');
+  });
 });

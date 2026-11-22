@@ -13,15 +13,15 @@
  */
 
 /** How many elements are typing at the same time. */
-const WAVE = 6;
+const WAVE = 8;
 /** How long the wave takes over the elements on screen, in milliseconds. */
-const BUDGET = 600;
+const BUDGET = 120;
 /** The shortest time an element spends typing, in milliseconds. */
-const MIN_MS = 80;
+const MIN_MS = 20;
 /** The longest time an element spends typing, in milliseconds. */
-const MAX_MS = 500;
+const MAX_MS = 60;
 /** Above this many elements the wave would cost more than it is worth. */
-const LIMIT = 400;
+const LIMIT = 300;
 
 /** One element that shows text while it is being typed out. */
 export interface TypeTarget {
@@ -92,7 +92,7 @@ export function typewrite(targets: TypeTarget[]): Promise<void> {
           return;
         }
         // Long texts need a moment of their own, but the wave keeps moving.
-        const duration = Math.min(MAX_MS, Math.max(MIN_MS, spacing * WAVE, target.text.length * 6));
+        const duration = Math.min(MAX_MS, Math.max(MIN_MS, spacing * WAVE, target.text.length * 0.5));
         const progress = Math.min(1, local / duration);
         const count = Math.max(1, Math.round(target.text.length * progress));
         if (count !== written[index]) {
@@ -110,6 +110,6 @@ export function typewrite(targets: TypeTarget[]): Promise<void> {
     frame = requestAnimationFrame(step);
     // A window that is not on screen does not get frames; the text has to be
     // there all the same.
-    watch = setTimeout(finish, BUDGET + MAX_MS + 2000);
+    watch = setTimeout(finish, BUDGET + MAX_MS + 500);
   });
 }
