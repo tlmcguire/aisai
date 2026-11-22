@@ -57,8 +57,12 @@ export type EventType =
   | 'chat.step'
   | 'chat.done'
   | 'chat.error'
+  | 'advisories.ready'
   | 'terminal.data'
-  | 'terminal.exit';
+  | 'terminal.exit'
+  | 'debug.event'
+  | 'debug.output'
+  | 'debug.exit';
 
 /** Mirrors model.PURL — canonical form `pkg:pypi/<name>@<version>`. */
 export type PURL = string;
@@ -108,6 +112,14 @@ export interface Advisory {
   cwe?: string[];
   fixedIn?: string[];
   url?: string;
+  /** The package the advisory affects. */
+  package?: PURL;
+  /**
+   * The chain of package names from the audited project to the affected one,
+   * starting with a direct dependency. One name means a direct dependency;
+   * more means a transitive one, and the first name is the one to update.
+   */
+  via?: string[];
 }
 
 /** Mirrors model.Package. */
@@ -137,6 +149,8 @@ export interface GraphNode {
   maxSeverity: Severity;
   findingCount: number;
   vulnCount: number;
+  /** Vulnerable packages somewhere below this one (not counting itself). */
+  transitiveVulns?: number;
 }
 
 /** Mirrors model.GraphEdge — source depends on target. */
@@ -224,6 +238,10 @@ export interface Audit {
   sandboxBytes: number;
   /** Whether the downloaded sources were deleted. */
   sourcesDeleted: boolean;
+  /** A local folder was larger than the copy limits, so only part of it is audited. */
+  truncated?: boolean;
+  /** Nested repositories (worktrees, submodules) left out of a local folder's audit. */
+  skippedRepos?: string[];
 }
 
 /** The package indexes an audit can start from. */
@@ -311,6 +329,8 @@ export interface Config {
   numCtx: number;
   /** How long Ollama keeps a model in memory after the last request. */
   keepAlive?: string;
+  /** Whether the assistant may search the web. */
+  webSearch?: boolean;
 }
 
 /** Mirrors model.ModelInfo — one model installed on the Ollama server. */
@@ -374,6 +394,8 @@ export interface DownloadEvent {
   detail?: string;
   done: number;
   total: number;
+  /** Size of the downloaded archive, once it is fetched. */
+  bytes?: number;
 }
 
 export interface Event {

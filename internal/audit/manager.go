@@ -123,6 +123,15 @@ type Audit struct {
 	sandboxBytes int64
 	// sourcesDeleted reports that the downloaded sources were deleted.
 	sourcesDeleted bool
+	// advisoriesChecked is how many packages the last advisory lookup queried.
+	advisoriesChecked int
+	// advisoriesRunning is true while a lookup is in flight.
+	advisoriesRunning bool
+	// truncated reports that a local folder was larger than the copy limits
+	// (20,000 files or 256 MB), so only part of it is audited.
+	truncated bool
+	// skippedRepos are the nested repositories left out of a local folder.
+	skippedRepos []string
 
 	// findingCount is the number of findings the last scan stored.
 	findingCount int
@@ -257,6 +266,24 @@ func (m *Manager) Run(ctx context.Context, id string) error {
 	if a == nil {
 		return findings.ErrNotFound
 	}
+
+	// Refuse a nearly full disk up front, and explain a disk that fills up
+	// half way, instead of failing with a bare write error.
+	if err := checkDiskSpace(a.Root); err != nil {
+		a.fail(err)
+		return err
+	}
+	err := m.run(ctx, a)
+	if explained := explainDiskFull(err, a.Root); explained != err {
+		_ = os.RemoveAll(sandboxDir(a.Root))
+		a.fail(explained)
+		return explained
+	}
+	return err
+}
+
+// run is Run after the checks.
+func (m *Manager) run(ctx context.Context, a *Audit) error {
 
 	if a.source == sourceLocal {
 		return m.runLocal(ctx, a)
@@ -396,8 +423,8 @@ func (m *Manager) runGit(ctx context.Context, a *Audit) error {
 // runLocal copies a project folder into the workspace, parses it and makes the
 // audit ready.
 //
-// A local audit has no dependency graph and no downloads: the graph is a
-// single node for the project itself.
+// A local audit downloads nothing: its graph is the project plus the
+// dependencies its manifests declare, unresolved.
 func (m *Manager) runLocal(ctx context.Context, a *Audit) error {
 	a.setStatus(model.AuditAcquiring, "acquiring", 0.1, "Copying the project")
 
@@ -433,16 +460,26 @@ func (m *Manager) runLocal(ctx context.Context, a *Audit) error {
 
 	purl := model.PURL("pkg:generic/" + strings.ToLower(dirName))
 	a.mu.Lock()
-	a.packages = []model.Package{{
+	// The graph is the project and its dependencies. A lockfile gives the whole
+	// resolved tree with exact versions, transitive dependencies included; with
+	// none, the graph is only what the manifests declare, one level deep.
+	declared, _ := readLocalDeps(a.sourceDir)
+	rootPkg := model.Package{
 		PURL:      purl,
 		Name:      a.Package,
 		Version:   "local",
 		Ecosystem: "local",
 		Direct:    true,
-	}}
-	a.edges = nil
+	}
+	if pkgs, edges, ok := lockedGraph(rootPkg, readLockfiles(a.sourceDir, declared)); ok {
+		a.packages, a.edges = pkgs, edges
+	} else {
+		a.packages, a.edges = localGraph(rootPkg, declared)
+	}
 	a.pkgByDir = map[string]model.PURL{dirName: purl}
 	a.sandboxBytes = sandboxSize(a.Root)
+	a.truncated = res.Truncated
+	a.skippedRepos = res.NestedRepos
 	a.mu.Unlock()
 
 	return m.finishRun(ctx, a, files)
@@ -528,7 +565,7 @@ func (m *Manager) finishRun(ctx context.Context, a *Audit, files []*ast.File) er
 const acquireDownloads = 4
 
 // downloadState is the payload of a per-package download event.
-func downloadState(p model.Package, state, detail string, done, total int) map[string]any {
+func downloadState(p model.Package, state, detail string, done, total int, bytes int64) map[string]any {
 	return map[string]any{
 		"download": map[string]any{
 			"package": p.Name,
@@ -537,6 +574,7 @@ func downloadState(p model.Package, state, detail string, done, total int) map[s
 			"detail":  detail,
 			"done":    done,
 			"total":   total,
+			"bytes":   bytes,
 		},
 	}
 }
@@ -545,6 +583,12 @@ func downloadState(p model.Package, state, detail string, done, total int) map[s
 func (m *Manager) acquire(ctx context.Context, a *Audit, res *deps.Resolution) ([]*ast.File, error) {
 	pkgs := append([]model.Package(nil), res.Packages...)
 	sort.Slice(pkgs, func(i, j int) bool { return pkgs[i].Name < pkgs[j].Name })
+
+	// A full disk stops every download at once: carrying on would skip each
+	// remaining package with the same error and leave a broken audit.
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
+	var diskErr error
 
 	type fetched struct {
 		files []*ast.File
@@ -581,10 +625,18 @@ func (m *Manager) acquire(ctx context.Context, a *Audit, res *deps.Resolution) (
 				AuditID: a.ID,
 				Phase:   "acquiring",
 				Message: fmt.Sprintf("Downloading %s %s", p.Name, p.Version),
-				Data:    downloadState(p, "downloading", "", 0, len(pkgs)),
+				Data:    downloadState(p, "downloading", "", 0, len(pkgs), 0),
 			})
 
-			files, err := m.fetchPackage(ctx, a, p, dirName)
+			files, size, err := m.fetchPackage(ctx, a, p, dirName)
+			if err != nil && isNoSpace(err) {
+				mu.Lock()
+				if diskErr == nil {
+					diskErr = err
+				}
+				mu.Unlock()
+				stop()
+			}
 
 			mu.Lock()
 			completed++
@@ -605,7 +657,7 @@ func (m *Manager) acquire(ctx context.Context, a *Audit, res *deps.Resolution) (
 					Phase:   "acquiring",
 					Percent: percent,
 					Message: fmt.Sprintf("Skipped %s: %v", p.Name, err),
-					Data:    downloadState(p, "failed", err.Error(), done, len(pkgs)),
+					Data:    downloadState(p, "failed", err.Error(), done, len(pkgs), size),
 				})
 			case err != nil:
 				m.emit(model.Event{
@@ -614,7 +666,7 @@ func (m *Manager) acquire(ctx context.Context, a *Audit, res *deps.Resolution) (
 					Phase:   "acquiring",
 					Percent: percent,
 					Message: fmt.Sprintf("Fetched %s with warnings: %v", p.Name, err),
-					Data:    downloadState(p, "warning", err.Error(), done, len(pkgs)),
+					Data:    downloadState(p, "warning", err.Error(), done, len(pkgs), size),
 				})
 			default:
 				m.emit(model.Event{
@@ -623,7 +675,7 @@ func (m *Manager) acquire(ctx context.Context, a *Audit, res *deps.Resolution) (
 					Phase:   "acquiring",
 					Percent: percent,
 					Message: fmt.Sprintf("Fetched %s %s", p.Name, p.Version),
-					Data:    downloadState(p, "done", "", done, len(pkgs)),
+					Data:    downloadState(p, "done", "", done, len(pkgs), size),
 				})
 			}
 		}(i, p, dirName)
@@ -632,6 +684,10 @@ func (m *Manager) acquire(ctx context.Context, a *Audit, res *deps.Resolution) (
 
 	// The scratch space of the downloads is not needed any more.
 	_ = os.RemoveAll(downloadDir(a.Root))
+
+	if diskErr != nil {
+		return nil, explainDiskFull(diskErr, a.Root)
+	}
 
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -656,14 +712,14 @@ func (m *Manager) acquire(ctx context.Context, a *Audit, res *deps.Resolution) (
 // deleted as soon as it has been extracted, so the sandbox only ever holds
 // source files. The extracted files are hardened before they are parsed:
 // nothing that came out of an archive is allowed to be executable.
-func (m *Manager) fetchPackage(ctx context.Context, a *Audit, p model.Package, dirName string) ([]*ast.File, error) {
+func (m *Manager) fetchPackage(ctx context.Context, a *Audit, p model.Package, dirName string) ([]*ast.File, int64, error) {
 	dest := filepath.Join(sandboxDir(a.Root), dirName)
 	if err := os.MkdirAll(dest, 0o755); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	scratch := filepath.Join(downloadDir(a.Root), dirName)
 	if err := os.MkdirAll(scratch, 0o700); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer os.RemoveAll(scratch)
 
@@ -673,28 +729,32 @@ func (m *Manager) fetchPackage(ctx context.Context, a *Audit, p model.Package, d
 	}
 	reg, err := m.registry(eco)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	tarball, _, err := reg.Download(ctx, p.Name, p.Version, scratch)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+	var size int64
+	if info, statErr := os.Stat(tarball); statErr == nil {
+		size = info.Size()
 	}
 	if err := extractTarball(tarball, dest); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	// A source distribution wraps everything in a directory named after the
 	// project; the file tree is easier to read without it.
 	if err := flattenSingleRoot(dest); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if err := hardenSandbox(dest); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	parsed, err := parseTree(dest, a.Root, a.ID)
 	if err != nil {
-		return parsed, err
+		return parsed, size, err
 	}
-	return parsed, nil
+	return parsed, size, nil
 }
 
 // Scan runs the SAST engine over the audit's parsed files and stores the
@@ -837,6 +897,20 @@ func (m *Manager) Graph(ctx context.Context, id string) (*model.Graph, error) {
 			node.MaxSeverity = model.MaxSeverity(node.MaxSeverity, s)
 		}
 		nodes = append(nodes, node)
+	}
+	// Count the vulnerable packages below each package, so a dependency that
+	// brings one in shows it even when it is itself clean.
+	vulnerable := make([]model.PURL, 0)
+	for _, p := range pkgs {
+		if len(p.Vulnerabilities) > 0 {
+			vulnerable = append(vulnerable, p.PURL)
+		}
+	}
+	if len(vulnerable) > 0 {
+		below := transitiveVulnCounts(edges, vulnerable)
+		for i := range nodes {
+			nodes[i].TransitiveVulns = below[nodes[i].ID]
+		}
 	}
 	sort.Slice(nodes, func(i, j int) bool { return nodes[i].Name < nodes[j].Name })
 
@@ -1126,6 +1200,8 @@ func (a *Audit) snapshot() *model.Audit {
 
 		SandboxBytes:   a.sandboxBytes,
 		SourcesDeleted: a.sourcesDeleted,
+		Truncated:      a.truncated,
+		SkippedRepos:   append([]string(nil), a.skippedRepos...),
 	}
 }
 
@@ -1296,4 +1372,45 @@ func newAuditID() (string, error) {
 		return "", err
 	}
 	return "a" + hex.EncodeToString(buf), nil
+}
+
+// ErrNotLocal is returned when a debugger is asked for on code that was not
+// opened from a folder on this computer.
+var ErrNotLocal = errors.New("the debugger runs code, so it is only offered for project folders you opened yourself, not for downloaded packages")
+
+// DebugTarget is where a local project can be run under the debugger.
+type DebugTarget struct {
+	// Root is the audit workspace; every path the renderer sends is
+	// relative to it.
+	Root string
+	// ProjectDir is the copy of the project inside the workspace. The program
+	// runs here, so the code that runs is the code the editor shows.
+	ProjectDir string
+	// SourceDir is the original folder. Only its virtual environment is
+	// used, to find the project's own interpreter.
+	SourceDir string
+}
+
+// DebugTarget returns where the project of a local audit can be debugged. It
+// refuses any audit that is not a local folder: a downloaded package is
+// untrusted and is never run.
+func (m *Manager) DebugTarget(id string) (DebugTarget, error) {
+	m.mu.RLock()
+	a := m.audits[id]
+	m.mu.RUnlock()
+	if a == nil {
+		return DebugTarget{}, findings.ErrNotFound
+	}
+	if a.source != sourceLocal || a.sourceDir == "" {
+		return DebugTarget{}, ErrNotLocal
+	}
+	snap := a.snapshot()
+	if snap.SourcesDeleted {
+		return DebugTarget{}, errors.New("the copy of the project was deleted; open the folder again to debug it")
+	}
+	return DebugTarget{
+		Root:       a.Root,
+		ProjectDir: filepath.Join(sandboxDir(a.Root), safeDirName(a.Package, "")),
+		SourceDir:  a.sourceDir,
+	}, nil
 }

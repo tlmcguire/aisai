@@ -56,6 +56,19 @@ export interface UpdateStatus {
   url?: string;
 }
 
+/** What a click on an application menu item asks the window to do. */
+export type MenuCommand =
+  | 'open-folder'
+  | 'settings'
+  | 'about'
+  | 'save'
+  | 'undo'
+  | 'redo'
+  | 'export-pdf'
+  | 'export-html'
+  | 'shortcuts'
+  | 'tutorials';
+
 export interface AisaiBridge {
   /** Subscribe to updater status changes. Returns an unsubscribe function. */
   onUpdateStatus(cb: (status: UpdateStatus) => void): () => void;
@@ -65,6 +78,18 @@ export interface AisaiBridge {
   installUpdate(): Promise<void>;
   /** Open the release page in the browser. */
   openReleasePage(): Promise<void>;
+  /** Subscribe to native menu commands (File > Open Folder, Settings, About). */
+  onMenuCommand(cb: (command: MenuCommand) => void): () => void;
+  /** Shows the user's key bindings in the application menu (accelerators by shortcut id). */
+  setMenuShortcuts(shortcuts: Record<string, string>): Promise<void>;
+  /** Tells the application menu which language to draw itself in. */
+  setLocale(locale: string): void;
+  /** Open a web page in the system browser. Only http and https addresses. */
+  openExternal(url: string): Promise<void>;
+  /** Renders the HTML report as a PDF and saves it where the user picks. */
+  exportPdf(html: string, name: string): Promise<{ saved: boolean; path?: string; bytes?: number }>;
+  /** Shows a PDF saved by exportPdf in the file manager. */
+  showInFolder(file: string): Promise<void>;
   /** Current transport mode. */
   getMode(): 'live' | 'mock';
   /** Current backend status snapshot. */
@@ -101,6 +126,7 @@ export interface AisaiBridge {
 }
 
 declare global {
+  const __APP_VERSION__: string;
   interface Window {
     aisai: AisaiBridge;
   }

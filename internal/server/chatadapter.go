@@ -33,7 +33,12 @@ func (a *chatAdapter) Ask(ctx context.Context, req ChatRequest, emit func(token 
 	}
 	if req.OnStep != nil {
 		creq.OnStep = func(st chat.Step) {
-			req.OnStep(ChatStep{Kind: st.Kind, Think: st.Think, ID: st.ID, Name: st.Name, Args: st.Args, Output: st.Output, Error: st.Error})
+			req.OnStep(ChatStep{Kind: st.Kind, Think: st.Think, ID: st.ID, Name: st.Name, Args: st.Args, Output: st.Output, Error: st.Error, Summary: st.Summary, Approved: st.Approved})
+		}
+	}
+	if req.Approve != nil {
+		creq.Approve = func(ctx context.Context, ar chat.ApprovalRequest) (bool, error) {
+			return req.Approve(ctx, ar.ID)
 		}
 	}
 	res, err := a.chat.Ask(ctx, creq, emit)

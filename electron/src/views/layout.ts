@@ -1,9 +1,23 @@
+/**
+ * The window's layout: toolbar, status and download strips, the three panes
+ * (dependencies, main, findings) in the user's order, the terminal and the
+ * chat, and the dividers between them.
+ *
+ * Divider drags are throttled to one update per animation frame
+ * (rafThrottle), and transitions are switched off while the window itself
+ * is being resized, so nothing wobbles. Sizes are stored in reference
+ * pixels and applied in rem, so the whole interface scales with the
+ * Interface size setting. It also installs the shortcuts and tutorials and
+ * routes application menu commands.
+ */
+
 import type { AppController } from '../app';
 import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { formatBytes } from '../lib/format';
+import { LOCALES, plainText, t, tn, useLocaleStore, type MessageKey } from '../lib/i18n';
 import { useAuditStore } from '../state/audit';
-import { DEFAULT_LAYOUT, PANE_LABELS, useUiStore, type MainTab, type PaneId } from '../state/ui';
+import { DEFAULT_LAYOUT, paneName, useUiStore, type MainTab, type PaneId } from '../state/ui';
 import { createAstView } from './astView';
 import { createChatPanel } from './chatPanel';
 import { createCodeView } from './codeView';
@@ -11,15 +25,18 @@ import { createDiffView } from './diffView';
 import { createFileTree } from './fileTree';
 import { createFindingsRail } from './findingsRail';
 import { createGraphView } from './graphView';
+import { createGraphWindow } from './graphWindow';
 import { createSettingsDialog } from './settingsDialog';
+import { progressStats } from '../lib/progress';
 import { createTerminalPanel } from './terminalPanel';
 import { installShortcuts } from './shortcuts';
+import { installTutorials } from './tutorials';
 import { createToolbar } from './toolbar';
 
-const TABS: Array<{ id: MainTab; label: string }> = [
-  { id: 'code', label: 'Code' },
-  { id: 'ast', label: 'AST' },
-  { id: 'diff', label: 'Diff' },
+const TABS: Array<{ id: MainTab; label: () => string }> = [
+  { id: 'code', label: () => t('layout.tabCode') },
+  { id: 'ast', label: () => t('layout.tabAst') },
+  { id: 'diff', label: () => t('layout.tabDiff') },
 ];
 
 export interface Layout {
@@ -27,6 +44,32 @@ export interface Layout {
 }
 
 /** The factor between the reference 16px and the current root font size. */
+/**
+ * Runs a pointer handler at most once a frame, with the latest event. A drag
+ * then moves the layout in step with the display instead of in bursts.
+ */
+function rafThrottle<T>(fn: (arg: T) => void): (arg: T) => void {
+  let pending: T | null = null;
+  let frame = 0;
+  return (arg: T) => {
+    pending = arg;
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      if (pending !== null) fn(pending);
+    });
+  };
+}
+
+// While the window itself is being resized, the size transitions are off:
+// easing behind a moving window edge is what makes the layout wobble.
+let windowResizeTimer = 0;
+window.addEventListener('resize', () => {
+  document.body.classList.add('is-window-resizing');
+  window.clearTimeout(windowResizeTimer);
+  windowResizeTimer = window.setTimeout(() => document.body.classList.remove('is-window-resizing'), 180);
+});
+
 const uiScale = (): number => parseFloat(getComputedStyle(document.documentElement).fontSize) / 16;
 
 export function createLayout(controller: AppController, root: HTMLElement): Layout {
@@ -36,23 +79,54 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
 
   /* ---------------- status strip ---------------- */
   const statusText = h('span', { class: 'legend-item', text: '' });
+  const statsText = h('span', { class: 'legend-item progress-stats', text: '' });
   const phaseLabel = h('span', { class: 'progress-phase', text: '' });
   const fill = h('div', { class: 'progress-fill', style: 'width:0%' });
   const track = h('div', { class: 'progress-track', role: 'progressbar' }, fill);
-  const cancelButton = h('button', { class: 'tiny', type: 'button' }, 'Hide');
+  const cancelButton = h('button', { class: 'tiny', type: 'button' }, t('layout.hide'));
   const downloadsToggle = h(
     'button',
     { class: 'tiny ghost downloads-toggle', type: 'button', 'aria-expanded': 'true', hidden: true },
     '',
   );
-  const downloadList = h('ol', { class: 'download-list', 'aria-label': 'Package downloads' });
+  const downloadList = h('ol', { class: 'download-list', 'aria-label': t('layout.packageDownloads') });
+  // A failed audit or scan says so, in words, until it is dismissed. A full
+  // disk gets a button to the place where space can be freed.
+  const errorText = h('span', { class: 'error-banner-text' });
+  const errorAction = h('button', { class: 'tiny', type: 'button', hidden: true }, t('layout.freeUpSpace'));
+  const errorDismiss = h('button', { class: 'tiny ghost', type: 'button', 'aria-label': t('layout.dismissMessage') }, t('layout.dismiss'));
+  const errorBanner = h('div', { class: 'error-banner', role: 'alert', hidden: true }, errorText, h('span', { class: 'grow' }), errorAction, errorDismiss);
+  errorDismiss.addEventListener('click', () => useAuditStore.getState().setError(null));
+  errorAction.addEventListener('click', () => {
+    useUiStore.getState().setSettingsSection('sources');
+    useUiStore.getState().setSettingsOpen(true);
+  });
   const downloadPanel = h('div', { class: 'download-panel', hidden: true }, downloadList);
+  // The interface is put into another language without being built again,
+  // and that takes a moment. The line says so, or a user who changed the
+  // language thinks the app has hung.
+  const languageStatusText = h('span', { class: 'language-status-text', text: '' });
+  const languageStatus = h(
+    'div',
+    { class: 'language-status', role: 'status', hidden: true },
+    h('span', { class: 'spinner', 'aria-hidden': 'true' }),
+    languageStatusText,
+  );
+  useLocaleStore.subscribe((state) => {
+    languageStatus.hidden = !state.translating;
+    if (!state.translating) return;
+    const name = LOCALES.find((entry) => entry.id === state.locale)?.name ?? state.locale;
+    // The language is named in its own language, and the line is already in
+    // the new one: the app has switched, and says what it is switching to.
+    languageStatusText.textContent = plainText(t('layout.switchingLanguage', { language: name }));
+  });
   const statusStrip = h(
     'div',
     { class: 'status-strip', hidden: true, role: 'status' },
     phaseLabel,
     track,
     statusText,
+    statsText,
     h('span', { class: 'grow' }),
     downloadsToggle,
     cancelButton,
@@ -66,11 +140,13 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
 
   // One row per package, reused across events so the list never flashes.
   const downloadRows = new Map<string, HTMLElement>();
-  const STATE_LABEL: Record<string, string> = {
-    downloading: 'downloading',
-    done: 'fetched',
-    warning: 'fetched with warnings',
-    failed: 'skipped',
+  // The keys, not the text: the label is made when the row is drawn, so
+  // that it speaks the language that is in effect at that moment.
+  const STATE_LABEL: Record<string, MessageKey> = {
+    downloading: 'layout.stateDownloading',
+    done: 'layout.stateFetched',
+    warning: 'layout.stateFetchedWithWarnings',
+    failed: 'layout.stateSkipped',
   };
   const renderDownloads = (): void => {
     const audit = useAuditStore.getState();
@@ -78,8 +154,9 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     const running = audit.busy === 'audit' && audit.progressVisible;
     const finished = entries.filter((e) => e.state !== 'downloading').length;
     downloadsToggle.hidden = entries.length === 0;
+    const total = Math.max(audit.downloadTotal, entries.length);
     downloadsToggle.replaceChildren(
-      `${finished}/${Math.max(audit.downloadTotal, entries.length)} packages`,
+      tn('layout.downloadProgress', total, { done: finished }),
       icon(downloadsOpen ? 'chevron-up' : 'chevron-down'),
     );
     downloadPanel.hidden = !running || !downloadsOpen || entries.length === 0;
@@ -107,7 +184,10 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       row.title = entry.detail;
       (row.children[1] as HTMLElement).textContent = entry.package;
       (row.children[2] as HTMLElement).textContent = entry.version;
-      (row.children[3] as HTMLElement).textContent = entry.detail && entry.state !== 'done' ? `${STATE_LABEL[entry.state]}: ${entry.detail}` : STATE_LABEL[entry.state];
+      (row.children[2] as HTMLElement).textContent = entry.bytes ? `${entry.version} · ${formatBytes(entry.bytes)}` : entry.version;
+      const stateLabel = t(STATE_LABEL[entry.state]);
+      (row.children[3] as HTMLElement).textContent =
+        entry.detail && entry.state !== 'done' ? t('layout.stateDetail', { state: stateLabel, detail: entry.detail }) : stateLabel;
     }
   };
 
@@ -118,11 +198,11 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   });
 
   /* ---------------- panes ---------------- */
-  const graphPane = h('section', { class: 'pane pane-graph', 'aria-label': 'Dependency graph' });
+  const graphPane = h('section', { class: 'pane pane-graph', 'aria-label': t('layout.dependencyGraph') });
   const graphHeader = h(
     'div',
     { class: 'pane-header' },
-    h('span', { text: 'Dependencies' }),
+    h('span', { text: t('layout.dependencies') }),
     h('span', { class: 'grow' }),
   );
   const graphBody = h('div', { class: 'pane-body graph-section' });
@@ -132,13 +212,13 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const sourcesBadge = h('span', { class: 'badge neutral', text: '' });
   const deleteSourcesButton = h(
     'button',
-    { class: 'tiny', type: 'button', title: 'Delete the downloaded sources of this audit' },
-    'Delete sources',
+    { class: 'tiny', type: 'button', title: t('layout.deleteSourcesTitle') },
+    t('layout.deleteSources'),
   );
   const filesHeader = h(
     'div',
     { class: 'pane-header' },
-    h('span', { text: 'Files' }),
+    h('span', { text: t('layout.files') }),
     sourcesBadge,
     h('span', { class: 'grow' }),
     deleteSourcesButton,
@@ -151,7 +231,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     role: 'separator',
     tabindex: '0',
     'aria-orientation': 'horizontal',
-    'aria-label': 'Resize the dependency graph and the file tree',
+    'aria-label': t('layout.resizeGraphAndFiles'),
   });
   graphPane.append(filesResizer, filesPane);
 
@@ -160,7 +240,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const codePanel = h('div', { class: 'tab-panel', role: 'tabpanel' });
   const astPanel = h('div', { class: 'tab-panel', role: 'tabpanel', hidden: true });
   const diffPanel = h('div', { class: 'tab-panel', role: 'tabpanel', hidden: true });
-  const mainPane = h('section', { class: 'pane pane-main', 'aria-label': 'Code, AST and diff' });
+  const mainPane = h('section', { class: 'pane pane-main', 'aria-label': t('layout.codeAstDiff') });
   mainPane.append(tabBar, codePanel, astPanel, diffPanel);
 
   const tabButtons = TABS.map((tab) =>
@@ -173,7 +253,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
         'aria-selected': String(tab.id === 'code'),
         onclick: () => useUiStore.getState().setActiveTab(tab.id),
       },
-      tab.label,
+      tab.label(),
     ),
   );
   const indicator = h('span', { class: 'tab-indicator', 'aria-hidden': 'true' });
@@ -190,11 +270,11 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   resizeObserver.observe(tabBar);
 
   /* ---------------- findings rail ---------------- */
-  const railPane = h('section', { class: 'pane pane-rail', 'aria-label': 'Findings' });
+  const railPane = h('section', { class: 'pane pane-rail', 'aria-label': t('layout.findings') });
   const railHeader = h(
     'div',
     { class: 'pane-header' },
-    h('span', { text: 'Findings' }),
+    h('span', { text: t('layout.findings') }),
     h('span', { class: 'grow' }),
   );
   const railBody = h('div', { class: 'pane-body rail-body' });
@@ -210,7 +290,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     const grip = h('span', {
       class: 'pane-grip',
       draggable: 'true',
-      title: `Drag to move “${PANE_LABELS[id]}”`,
+      title: t('layout.dragPane', { pane: paneName(id) }),
       'aria-hidden': 'true',
       text: '⋮⋮',
     });
@@ -230,11 +310,11 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
         class: 'ghost tiny pane-move',
         type: 'button',
         title: label,
-        'aria-label': `${label}: ${PANE_LABELS[id]}`,
+        'aria-label': t('layout.movePane', { action: label, pane: paneName(id) }),
         text,
         onclick: () => useUiStore.getState().nudgePane(id, delta),
       });
-    return h('span', { class: 'pane-tools' }, grip, arrow('Move left', '‹', -1), arrow('Move right', '›', 1));
+    return h('span', { class: 'pane-tools' }, grip, arrow(t('layout.moveLeft'), '‹', -1), arrow(t('layout.moveRight'), '›', 1));
   };
   graphHeader.append(paneTools('deps'));
   railHeader.append(paneTools('findings'));
@@ -271,29 +351,136 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   }
 
   /* ---------------- chat ---------------- */
-  const chatPanel = h('section', { class: 'chat-panel', 'aria-label': 'Chat' });
+  const chatPanel = h('section', { class: 'chat-panel', 'aria-label': t('layout.chat') });
 
   const chatResizer = h('div', {
     class: 'resizer resizer-row resizer-chat',
     role: 'separator',
     tabindex: '0',
     'aria-orientation': 'horizontal',
-    'aria-label': 'Resize the chat panel',
+    'aria-label': t('layout.resizeChat'),
   });
 
   // The terminal sits under the panes and above the chat, like an editor's.
-  const terminalPanel = h('section', { class: 'terminal-panel', 'aria-label': 'Terminal', hidden: true });
+  const terminalPanel = h('section', { class: 'terminal-panel', 'aria-label': t('layout.terminal'), hidden: true });
   const terminalResizer = h('div', {
     class: 'resizer resizer-row',
     role: 'separator',
     tabindex: '0',
     'aria-orientation': 'horizontal',
-    'aria-label': 'Resize the terminal',
+    'aria-label': t('layout.resizeTerminal'),
     hidden: true,
   });
+  /**
+   * A grab handle on a divider: a pill to drag, with two arrows that step the
+   * panel bigger or smaller.
+   *
+   * The chat's handle stands in the chat bar instead of on the divider, so a
+   * pill no longer floats over the bar and covers its controls; it is given a
+   * bar to live in and a way to drag the pane, and it does its own work.
+   *
+   * The whole pill is a drag target. A press anywhere on it — the dots, an
+   * arrow, the space between them — starts a drag of the divider, because the
+   * arrows used to swallow the press, which left the handle looking grabbable
+   * while only the invisible strip beside it really dragged. An arrow the
+   * pointer never moves still steps the panel, so the handle can be hit at
+   * any point: press and drag to resize, press and release on an arrow to
+   * step. Dragging anywhere on the divider works too; the pill makes it
+   * obvious, and the arrows help when a drag is hard (a trackpad, a tremor).
+   *
+   * The step is decided on pointerup rather than on click, because the
+   * divider captures the pointer as soon as it is pressed, and that
+   * suppresses the click the arrows would otherwise have listened for.
+   */
+  const grabHandle = (
+    resizer: HTMLElement,
+    name: string,
+    step: (bigger: boolean) => void,
+    bar?: { host: HTMLElement; drag: (clientX: number, clientY: number) => void },
+  ): (() => void) => {
+    const bigger = h('button', { class: 'grab-arrow', type: 'button', tabindex: '-1' });
+    const smaller = h('button', { class: 'grab-arrow', type: 'button', tabindex: '-1' });
+    const pill = h('span', { class: 'grab-handle' }, bigger, h('span', { class: 'grab-dots', 'aria-hidden': 'true' }), smaller);
+    // What the press started on, and whether it turned into a drag.
+    let downOn: HTMLElement | null = null;
+    let dragged = false;
+    const stepOnRelease = (): void => {
+      if (!dragged) {
+        // The press may have landed on the arrow's icon rather than the
+        // button itself, so ask the button that owns it.
+        const arrow = downOn?.closest('.grab-arrow');
+        if (arrow === bigger) step(true);
+        else if (arrow === smaller) step(false);
+      }
+      downOn = null;
+      dragged = false;
+    };
+    for (const button of [bigger, smaller]) {
+      // A double click on an arrow must not reset the divider.
+      button.addEventListener('dblclick', (event) => event.stopPropagation());
+    }
+    if (bar) {
+      // The handle stands in the bar rather than on the divider, so it keeps
+      // track of the press itself and drags the pane with it.
+      pill.classList.add('is-bar');
+      pill.addEventListener('pointerdown', (event) => {
+        event.preventDefault();
+        downOn = event.target as HTMLElement;
+        dragged = false;
+        const origin = { x: event.clientX, y: event.clientY };
+        const sideways = useUiStore.getState().chatDock === 'right';
+        document.body.classList.add('is-resizing');
+        if (!sideways) document.body.classList.add('is-resizing-row');
+        const onMove = rafThrottle((move: PointerEvent): void => {
+          if (Math.abs(move.clientX - origin.x) + Math.abs(move.clientY - origin.y) > 4) dragged = true;
+          bar.drag(move.clientX, move.clientY);
+        });
+        const onUp = (): void => {
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          document.body.classList.remove('is-resizing', 'is-resizing-row');
+          stepOnRelease();
+        };
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      });
+      // The handle goes to the front of the bar, where a grip belongs.
+      bar.host.prepend(pill);
+    } else {
+      resizer.addEventListener('pointerdown', (event) => {
+        downOn = event.target as HTMLElement;
+        dragged = false;
+        const origin = { x: event.clientX, y: event.clientY };
+        const onMove = (move: PointerEvent): void => {
+          if (Math.abs(move.clientX - origin.x) + Math.abs(move.clientY - origin.y) > 4) dragged = true;
+        };
+        resizer.addEventListener('pointermove', onMove);
+        resizer.addEventListener('pointerup', () => resizer.removeEventListener('pointermove', onMove), { once: true });
+      });
+      resizer.addEventListener('pointerup', stepOnRelease);
+      resizer.append(pill);
+    }
+    /** Points the arrows the way the panel grows: up, or left when docked at the side. */
+    const sync = (sideways = false): void => {
+      const label = name === 'chat' ? t('layout.chat') : t('layout.terminal');
+      bigger.replaceChildren(icon(sideways ? 'chevron-left' : 'chevron-up'));
+      smaller.replaceChildren(icon(sideways ? 'chevron-right' : 'chevron-down'));
+      bigger.title = t('layout.makeBigger', { name: label });
+      smaller.title = t('layout.makeSmaller', { name: label });
+      pill.classList.toggle('is-sideways', sideways);
+    };
+    sync();
+    return () => sync(useUiStore.getState().chatDock === 'right' && name === 'chat');
+  };
+  const STEP = 80;
+  grabHandle(terminalResizer, 'terminal', (grow) => {
+    const ui = useUiStore.getState();
+    ui.setTerminalHeight(ui.terminalHeight + (grow ? STEP : -STEP));
+  });
+
   const stack = h('div', { class: 'stack' }, shell, terminalResizer, terminalPanel);
   const workspace = h('div', { class: 'workspace' }, stack, chatResizer, chatPanel);
-  root.append(toolbar, statusStrip, downloadPanel, workspace);
+  root.append(toolbar, errorBanner, languageStatus, statusStrip, downloadPanel, workspace);
 
   /* ---------------- views ---------------- */
   const graphView = createGraphView(controller, graphBody);
@@ -303,9 +490,59 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const diffView = createDiffView(controller, diffPanel);
   const findingsRail = createFindingsRail(controller, railBody);
   const chat = createChatPanel(controller, chatPanel);
+  // The chat's grab handle stands in the chat bar rather than on the divider:
+  // a pill floating over the bar covered the controls of the bar.
+  const resizeChat = (clientX: number, clientY: number): void => {
+    const ui = useUiStore.getState();
+    if (ui.chatDock === 'right') ui.setChatWidth((workspace.getBoundingClientRect().right - clientX) / uiScale());
+    else ui.setChatHeight((root.getBoundingClientRect().bottom - clientY) / uiScale());
+  };
+  const syncChatHandle = grabHandle(
+    chatResizer,
+    'chat',
+    (grow) => {
+      const ui = useUiStore.getState();
+      if (ui.chatDock === 'right') ui.setChatWidth(ui.chatWidth + (grow ? STEP : -STEP));
+      else ui.setChatHeight(ui.chatHeight + (grow ? STEP : -STEP));
+    },
+    { host: chat.header, drag: resizeChat },
+  );
+  syncChatHandle();
+  useUiStore.subscribe((state, previous) => {
+    if (state.chatDock !== previous.chatDock) syncChatHandle();
+  });
   const terminal = createTerminalPanel(controller, terminalPanel);
   const removeShortcuts = installShortcuts(controller, root);
+  const removeTutorials = installTutorials(root);
   const settings = createSettingsDialog(controller, root);
+  // The expanded graph window: the same graphs, with room to breathe.
+  const graphWindow = createGraphWindow(controller, root);
+  // Application menu items; Save, Undo, Redo and Keyboard Shortcuts are
+  // handled with the shortcuts (views/shortcuts.ts).
+  const removeMenu = window.aisai.onMenuCommand((command) => {
+    const ui = useUiStore.getState();
+    switch (command) {
+      case 'open-folder':
+        void controller.chooseFolder();
+        break;
+      case 'about':
+        ui.setSettingsSection('about');
+        ui.setSettingsOpen(true);
+        break;
+      case 'settings':
+        ui.setSettingsOpen(true);
+        break;
+      case 'export-pdf':
+      case 'export-html':
+        window.dispatchEvent(new CustomEvent('aisai:export-report', { detail: command === 'export-pdf' ? 'pdf' : 'html' }));
+        break;
+      case 'tutorials':
+        window.dispatchEvent(new Event('aisai:tutorials'));
+        break;
+      default:
+        break;
+    }
+  });
 
   /* ---------------- wiring ---------------- */
   /* ---------------- deleting the downloaded sources ---------------- */
@@ -321,14 +558,14 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     deleteArmed = false;
     if (deleteTimer) clearTimeout(deleteTimer);
     deleteTimer = null;
-    deleteSourcesButton.textContent = 'Delete sources';
+    deleteSourcesButton.textContent = t('layout.deleteSources');
     deleteSourcesButton.classList.remove('is-armed');
   };
 
   deleteSourcesButton.addEventListener('click', () => {
     if (!deleteArmed) {
       deleteArmed = true;
-      deleteSourcesButton.textContent = 'Confirm delete';
+      deleteSourcesButton.textContent = t('layout.confirmDelete');
       deleteSourcesButton.classList.add('is-armed');
       if (deleteTimer) clearTimeout(deleteTimer);
       deleteTimer = setTimeout(disarmDelete, 5000);
@@ -408,6 +645,28 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     }
   });
 
+  // Download and scan statistics: counts, size, speed, elapsed time and an
+  // estimate of the time left. Refreshed every second while a job runs.
+  const renderStats = (): void => {
+    const state = useAuditStore.getState();
+    if (!state.progressVisible || state.busy === null) {
+      statsText.textContent = '';
+      return;
+    }
+    const entries = Object.values(state.downloads);
+    statsText.textContent = progressStats({
+      now: Date.now(),
+      startedAt: state.jobStartedAt || Date.now(),
+      phaseStartedAt: state.phaseStartedAt || Date.now(),
+      phaseStartPercent: state.phaseStartPercent,
+      percent: state.percent,
+      downloadsDone: entries.filter((e) => e.state !== 'downloading').length,
+      downloadsTotal: state.phase === 'acquiring' ? Math.max(state.downloadTotal, entries.length) : 0,
+      downloadedBytes: entries.reduce((sum, e) => sum + (e.bytes ?? 0), 0),
+    });
+  };
+  const statsTimer = window.setInterval(renderStats, 1000);
+
   const unsubscribeAudit = useAuditStore.subscribe((state, previous) => {
     if (
       state.downloads !== previous.downloads ||
@@ -418,7 +677,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     }
     const audit = state.current;
     const deleted = audit?.sourcesDeleted ?? false;
-    sourcesBadge.textContent = deleted ? 'sources deleted' : formatBytes(audit?.sandboxBytes ?? 0);
+    sourcesBadge.textContent = deleted ? t('layout.sourcesDeleted') : formatBytes(audit?.sandboxBytes ?? 0);
     sourcesBadge.classList.toggle('badge', true);
     sourcesBadge.classList.toggle('neutral', !deleted);
     sourcesBadge.classList.toggle('warn', deleted);
@@ -427,13 +686,17 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
 
     const visible = state.progressVisible && state.busy !== null;
     statusStrip.hidden = !visible;
-    phaseLabel.textContent = state.phase ? `Phase: ${state.phase}` : '';
+    errorBanner.hidden = !state.error;
+    errorText.textContent = state.error ?? '';
+    errorAction.hidden = !/disk (space|is full)/i.test(state.error ?? '');
+    phaseLabel.textContent = state.phase ? t('layout.phase', { phase: state.phase }) : '';
     statusText.textContent = state.message ?? '';
     const percent = Math.max(0, Math.min(1, state.percent));
     fill.style.width = `${Math.round(percent * 100)}%`;
     track.setAttribute('aria-valuenow', String(Math.round(percent * 100)));
     track.setAttribute('aria-valuemin', '0');
     track.setAttribute('aria-valuemax', '100');
+    renderStats();
   });
 
   const attachRowResizer = (
@@ -445,7 +708,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       event.preventDefault();
       resizer.setPointerCapture(event.pointerId);
       document.body.classList.add('is-resizing', 'is-resizing-row');
-      const onMove = (move: PointerEvent): void => compute(move.clientY);
+      const onMove = rafThrottle((move: PointerEvent): void => compute(move.clientY));
       const onUp = (): void => {
         document.body.classList.remove('is-resizing', 'is-resizing-row');
         resizer.removeEventListener('pointermove', onMove);
@@ -487,7 +750,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       role: 'separator',
       tabindex: '0',
       'aria-orientation': 'vertical',
-      'aria-label': `Resize ${PANE_LABELS[controlled]}`,
+      'aria-label': t('layout.resizePane', { pane: paneName(controlled) }),
     });
     const control = PANE_WIDTH[controlled];
     resizer.addEventListener('pointerdown', (event) => {
@@ -495,9 +758,9 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       resizer.setPointerCapture(event.pointerId);
       document.body.classList.add('is-resizing');
       const rect = paneEls[controlled].getBoundingClientRect();
-      const onMove = (move: PointerEvent): void => {
+      const onMove = rafThrottle((move: PointerEvent): void => {
         control.set((growsRight ? move.clientX - rect.left : rect.right - move.clientX) / uiScale());
-      };
+      });
       const onUp = (): void => {
         document.body.classList.remove('is-resizing');
         resizer.removeEventListener('pointermove', onMove);
@@ -525,14 +788,14 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     const dockRight = useUiStore.getState().chatDock === 'right';
     document.body.classList.add('is-resizing');
     if (!dockRight) document.body.classList.add('is-resizing-row');
-    const onMove = (move: PointerEvent): void => {
+    const onMove = rafThrottle((move: PointerEvent): void => {
       const ui = useUiStore.getState();
       if (ui.chatDock === 'right') {
         ui.setChatWidth((workspace.getBoundingClientRect().right - move.clientX) / uiScale());
       } else {
         ui.setChatHeight((root.getBoundingClientRect().bottom - move.clientY) / uiScale());
       }
-    };
+    });
     const onUp = (): void => {
       document.body.classList.remove('is-resizing', 'is-resizing-row');
       chatResizer.removeEventListener('pointermove', onMove);
@@ -599,7 +862,11 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       chat.dispose();
       terminal.dispose();
       removeShortcuts();
+      removeTutorials();
+      window.clearInterval(statsTimer);
+      removeMenu();
       settings.dispose();
+      graphWindow.dispose();
     },
   };
 }

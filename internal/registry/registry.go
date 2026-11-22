@@ -118,6 +118,11 @@ func Normalize(id string) string {
 
 // OSVEcosystem is the name the OSV database uses for an ecosystem.
 func OSVEcosystem(id string) string {
+	// Go modules are not one of the registries AISAI downloads from, but a
+	// local project's go.mod lists them and OSV knows them as "Go".
+	if strings.EqualFold(id, "go") {
+		return "Go"
+	}
 	switch Normalize(id) {
 	case NPM:
 		return "npm"

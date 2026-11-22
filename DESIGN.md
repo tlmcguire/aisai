@@ -173,7 +173,7 @@ Density is high but legible. Panes sit edge to edge, separated by 1px borders ra
 
 ## Colors
 
-A cool, oxidised palette: the neutrals carry a green undertone, one lime signal marks action, and a patina teal supports it.
+A cool, oxidised palette: the neutrals carry a green undertone, one lime signal marks action, and a patina teal supports it. The accent is the one colour the user picks, and the ground follows it: the surfaces, the borders and the text are re-tinted to its hue, so the app reads as one colour family rather than a green app with a blue button.
 
 ### Primary
 - **Signal Lime** (`signal-lime`): the one action colour. It fills primary buttons (Scan, Ask, Use this server) and draws the focus ring, the selected-tab indicator, the active resizer and the flagged leaf of the logo. **Signal Lime Strong** is its hover state, and **Signal Lime Soft** tints pressed chips and filter toggles.
@@ -188,9 +188,11 @@ A cool, oxidised palette: the neutrals carry a green undertone, one lime signal 
 - **Oxide Inset** (`oxide-inset`): text fields, code blocks and the code view, recessed below the surface.
 - **Oxide Hover / Oxide Selected**: row hover and the selected row, file or Settings section.
 - **Patina Border / Patina Border Strong**: 1px pane dividers and control outlines; the strong variant for chips and the edges of floating windows.
-- **Bone** (`bone`): primary text, 15.18:1 on Oxide Ink.
-- **Lichen** (`lichen`): secondary text, labels and pane headers (6.3:1 or better on every surface).
-- **Moss** (`moss`): tertiary text, line numbers and hints (5.19:1 on Oxide Raised).
+- **Bone** (`bone`): primary text, 15.14:1 on Oxide Ink.
+- **Lichen** (`lichen`): secondary text, labels and pane headers (6.2:1 or better on every surface).
+- **Moss** (`moss`): tertiary text, line numbers and hints (5.1:1 on Oxide Raised).
+
+The neutrals are the ground, and the ground is re-tinted to the hue of the accent: picking the blue accent gives a blue-inked app, not a green one with blue buttons. Lime keeps the house Verdigris ink it was designed on. The severity, syntax and status colours are meanings, not decoration, and they never move.
 
 ### Semantic
 - **Severity**: critical (`sev-critical`), high (`sev-high`), medium (`sev-medium`), low (`sev-low`), info (`sev-info`). Each is used as text, or as a border over its own 16% tint, and never as a large fill.
@@ -202,6 +204,8 @@ A cool, oxidised palette: the neutrals carry a green undertone, one lime signal 
 **The One Signal Rule.** Signal Lime marks only what the user can act on now, or what is selected. If two lime elements compete on one screen, one of them is wrong.
 
 **The No Grey Rule.** Every neutral carries the oxide undertone. A neutral grey (equal red, green and blue) is a regression.
+
+**The Tint Rule.** The ground carries the hue of the accent. Change the accent and the surfaces, the borders and the text change with it; the palette may not keep the colour of the accent it was set to. The tint is applied by `electron/src/lib/tint.ts`, and it may not cost the palette its contrast.
 
 **The Measured Contrast Rule.** Every text pair is at least 4.5:1 and recorded with its measured ratio in `electron/src/styles/tokens.css`. A new pair is not done until its ratio is in that table.
 
@@ -231,9 +235,10 @@ The root size is fluid, `clamp(15px, 13.4px + 0.16vw, 22px)`, multiplied by the 
 
 The window is a single column: a toolbar that doubles as the title bar, an optional status strip and download tracker, the three-pane shell, and the chat panel.
 
+- **Strips:** between the toolbar and the panes sit the status strip, the download tracker and the line that says the interface is being put into another language. Each one is a quiet band of the column and appears only while it has something to say.
 - **Three panes:** the left column holds the dependency graph above the file tree, the centre holds the Code, AST and Diff tabs, and the right rail holds the findings.
 - **Sizes:** the defaults are a left column of 300px, a right rail of 340px, a chat panel of 220px, and a file tree taking 42% of the left column. Each is stored in reference pixels and applied in rem, so sizes scale with the interface.
-- **Resizing:** every pane edge is a 5px drag handle that responds to the pointer and to the arrow keys. Double-clicking a handle resets that pane. Sizes set from the Layout settings glide into place; dragging follows the pointer with no transition.
+- **Resizing:** every pane edge is a 5px drag handle that responds to the pointer and to the arrow keys. Double-clicking a handle resets that pane. The chat is the exception: its handle stands at the front of the chat bar, a grip you drag and two arrows that step the panel, so nothing floats over the bar and covers it. Sizes set from the Layout settings glide into place; dragging follows the pointer with no transition.
 - **Spacing:** a 4px-based rhythm (0.25 / 0.5 / 0.75 / 1 / 1.5rem). Related controls are packed tightly; panes are separated by borders, never by gutters.
 - **Window chrome:** the toolbar is the window's drag region. On macOS it leaves 5.25rem on the left for the inset traffic lights; on Windows and Linux it leaves room on the right for the controls overlay.
 - **Minimum size:** the window opens at 1440×900 and can shrink to 960×600 without horizontal scrolling.
@@ -285,7 +290,7 @@ Native and restrained.
 
 ### Trees (signature)
 The file tree and the AST share one grammar: indent guides, stroke-drawn arrows, a 1.6rem row height and roving keyboard focus (arrow keys, Home, End, and type-to-jump in the file tree).
-- **File tree:** files carry a small mono language tag (Patina Teal when the language is scanned, Moss when it isn't). Folders carry a teal folder icon and a finding count in their worst severity's colour. Filter matches are highlighted with a Signal Lime tint.
+- **File tree:** files carry the logo of their language — the mark an editor shows, in the colours of that language — dimmed when AISAI cannot scan the language; the header of an open file carries the same mark. Folders carry a teal folder icon and a finding count in their worst severity's colour. Filter matches are highlighted with a Signal Lime tint.
 - **AST:** each node type is a chip in its syntax colour, and its line range is set in tabular numbers. Rows stagger in only when a new tree loads, never when a node is toggled.
 
 ### Download tracker (signature)
@@ -293,6 +298,8 @@ A strip under the status bar lists each package as it downloads: a spinner while
 
 ### Icons
 Drawn as SVG on a 16-unit grid: a 1.5 stroke, round caps and joins, in the current text colour, sized 1em so they sit on the text baseline. The set lives in `electron/src/lib/icons.ts` (gear, chevrons, sort arrows). A new icon is added there in the same stroke, never as a Unicode character. The settings gear turns 45° on hover; no other icon moves.
+
+The language logos are the one exception: they are the file icons of the Material Icon Theme for Visual Studio Code, in `electron/src/assets/langicons`, kept in the colours and the drawing of their own language rather than redrawn on our grid, because a logo people already know is worth more than one that matches the house style. A file of a language with no mark keeps the plain mono tag.
 
 ### The mark
 The letter A drawn as a syntax tree: a Bone root node and branches, a Patina Teal crossbar edge, and one Signal Lime flagged leaf. While a job runs, the leaf pulses; the mark is the progress indicator.

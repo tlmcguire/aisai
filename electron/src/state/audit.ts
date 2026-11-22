@@ -8,6 +8,8 @@ export interface DownloadEntry {
   version: string;
   state: 'downloading' | 'done' | 'warning' | 'failed';
   detail: string;
+  /** Size of the downloaded archive in bytes, once known. */
+  bytes?: number;
   /** Order of arrival, so the list does not reshuffle while it fills. */
   order: number;
 }
@@ -23,6 +25,10 @@ export interface AuditState {
   error: string | null;
   /** Live progress of the running job. */
   phase: string;
+  /** When the running job and its current phase began, for the ETA. */
+  jobStartedAt: number;
+  phaseStartedAt: number;
+  phaseStartPercent: number;
   percent: number;
   message: string;
   progressVisible: boolean;
@@ -57,6 +63,9 @@ export const useAuditStore = create<AuditState>((set) => ({
   loading: false,
   error: null,
   phase: '',
+  jobStartedAt: 0,
+  phaseStartedAt: 0,
+  phaseStartPercent: 0,
   percent: 0,
   message: '',
   progressVisible: false,
@@ -66,8 +75,22 @@ export const useAuditStore = create<AuditState>((set) => ({
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
   setProgress: (phase, percent, message) =>
-    set({ phase, percent, message, progressVisible: true }),
-  setProgressVisible: (progressVisible) => set({ progressVisible }),
+    set((state) => {
+      const now = Date.now();
+      // A new job (the strip was hidden) or a new phase restarts the clocks.
+      const newJob = !state.progressVisible || !state.jobStartedAt;
+      const newPhase = newJob || phase !== state.phase;
+      return {
+        phase,
+        percent,
+        message,
+        progressVisible: true,
+        jobStartedAt: newJob ? now : state.jobStartedAt,
+        phaseStartedAt: newPhase ? now : state.phaseStartedAt,
+        phaseStartPercent: newPhase ? percent : state.phaseStartPercent,
+      };
+    }),
+  setProgressVisible: (progressVisible) => set(progressVisible ? { progressVisible } : { progressVisible, jobStartedAt: 0 }),
   setBusy: (busy) => set({ busy }),
   reset: () =>
     set({

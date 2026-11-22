@@ -159,19 +159,28 @@ type Advisory struct {
 	// Package is the PURL of the package the advisory affects. It is empty
 	// in a flat list that is not scoped to an audit.
 	Package PURL `json:"package,omitempty"`
+	// Via is the shortest chain of packages from the audited project to the
+	// affected one, by name, starting with a direct dependency and ending
+	// with the affected package. One name means the project depends on it
+	// directly; more means it is a transitive dependency, and the chain
+	// says which direct dependency to update.
+	Via []string `json:"via,omitempty"`
 }
 
 // Package is one node of the dependency graph.
 type Package struct {
-	PURL            PURL       `json:"purl"`
-	Name            string     `json:"name"`
-	Version         string     `json:"version"`
-	Ecosystem       string     `json:"ecosystem"`
-	Direct          bool       `json:"direct"`
-	LocalPath       string     `json:"localPath,omitempty"`
-	Summary         string     `json:"summary,omitempty"`
-	License         string     `json:"license,omitempty"`
-	Homepage        string     `json:"homepage,omitempty"`
+	PURL      PURL   `json:"purl"`
+	Name      string `json:"name"`
+	Version   string `json:"version"`
+	Ecosystem string `json:"ecosystem"`
+	Direct    bool   `json:"direct"`
+	LocalPath string `json:"localPath,omitempty"`
+	Summary   string `json:"summary,omitempty"`
+	License   string `json:"license,omitempty"`
+	Homepage  string `json:"homepage,omitempty"`
+	// Source is where a locked package comes from: "registry", "git" or
+	// "path". Only a registry package can be looked up in an advisory database.
+	Source          string     `json:"source,omitempty"`
 	Vulnerabilities []Advisory `json:"vulnerabilities,omitempty"`
 	MaxSeverity     Severity   `json:"maxSeverity"`
 }
@@ -188,6 +197,10 @@ type GraphNode struct {
 	MaxSeverity  Severity `json:"maxSeverity"`
 	FindingCount int      `json:"findingCount"`
 	VulnCount    int      `json:"vulnCount"`
+	// TransitiveVulns counts the vulnerable packages somewhere below this
+	// one in the graph (not counting itself), so a direct dependency that
+	// brings in a vulnerable package shows it.
+	TransitiveVulns int `json:"transitiveVulns,omitempty"`
 }
 
 // GraphEdge is a dependency relationship from dependent to dependency.
@@ -324,6 +337,12 @@ type Audit struct {
 	SandboxBytes int64 `json:"sandboxBytes"`
 	// SourcesDeleted reports that the downloaded sources were deleted.
 	SourcesDeleted bool `json:"sourcesDeleted"`
+	// Truncated reports that a local folder exceeded the copy limits, so the
+	// audit covers only part of it.
+	Truncated bool `json:"truncated,omitempty"`
+	// SkippedRepos lists nested repositories (worktrees, submodules, copies)
+	// that were left out of a local folder's audit.
+	SkippedRepos []string `json:"skippedRepos,omitempty"`
 }
 
 // PackageLookup is the result of resolving a package name on the index.
@@ -509,8 +528,15 @@ const (
 	// Data["data"]); EventTerminalExit reports that its shell ended.
 	EventTerminalData = "terminal.data"
 	EventTerminalExit = "terminal.exit"
-	EventChatDone     = "chat.done"
-	EventChatError    = "chat.error"
+	// EventDebugEvent carries a debugger event (Data is the event: stopped,
+	// continued, scope, evaluated, breakpoints); EventDebugOutput carries
+	// what the program printed (Data["stream"], Data["text"]); EventDebugExit
+	// reports that the program ended (Data["code"]). JobID is the session.
+	EventDebugEvent  = "debug.event"
+	EventDebugOutput = "debug.output"
+	EventDebugExit   = "debug.exit"
+	EventChatDone    = "chat.done"
+	EventChatError   = "chat.error"
 )
 
 // RelPath normalizes a path to be relative and slash-separated, so that

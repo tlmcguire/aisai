@@ -337,7 +337,7 @@ func (p *OllamaProvider) ChatTools(ctx context.Context, req ChatRequest) (<-chan
 	if resp.StatusCode != http.StatusOK {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		resp.Body.Close()
-		return nil, fmt.Errorf("ollama: chat: %s: %s", resp.Status, strings.TrimSpace(string(msg)))
+		return nil, toolsError("ollama", resp.StatusCode, resp.Status, string(msg))
 	}
 
 	events := make(chan ToolEvent, 64)
@@ -546,8 +546,21 @@ func (p *OllamaProvider) Health(ctx context.Context) error {
 }
 
 // SupportsThink reports whether the given model advertises reasoning
-// ("thinking") support. It is discovered with POST /api/show.
+// ("thinking" among the capabilities /api/show lists).
 func (p *OllamaProvider) SupportsThink(ctx context.Context, model string) (bool, error) {
+	return p.hasCapability(ctx, model, "thinking")
+}
+
+// SupportsTools reports whether the given model can call tools ("tools"
+// among its capabilities). A model without it cannot search the web or read
+// files during a chat, and Ollama refuses a request that offers it tools.
+// See https://github.com/ollama/ollama/blob/main/docs/api.md#show-model-information
+func (p *OllamaProvider) SupportsTools(ctx context.Context, model string) (bool, error) {
+	return p.hasCapability(ctx, model, "tools")
+}
+
+// hasCapability asks /api/show for a model's capabilities.
+func (p *OllamaProvider) hasCapability(ctx context.Context, model, capability string) (bool, error) {
 	if model == "" {
 		model = p.opts.chatModel()
 	}
@@ -565,15 +578,12 @@ func (p *OllamaProvider) SupportsThink(ctx context.Context, model string) (bool,
 	}
 	var obj struct {
 		Capabilities []string `json:"capabilities"`
-		Details      struct {
-			Family string `json:"family"`
-		} `json:"details"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&obj); err != nil {
 		return false, fmt.Errorf("ollama: decode show response: %w", err)
 	}
 	for _, c := range obj.Capabilities {
-		if strings.EqualFold(c, "thinking") {
+		if strings.EqualFold(c, capability) {
 			return true, nil
 		}
 	}

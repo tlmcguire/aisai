@@ -6,9 +6,20 @@
  * The editor knows nothing about the backend. The code view gives it callbacks
  * for the things that need one (completion, ask, fix, change, save), so this
  * file stays a plain widget.
+ *
+ * CodeMirror 6 is built from small pieces, and most of this file is made of
+ * three kinds (https://codemirror.net/docs/guide/):
+ *   - StateField: a value kept in the editor state and updated by each
+ *     transaction (the findings, the breakpoints, the paused line).
+ *   - StateEffect: a message a transaction carries to change a field
+ *     ("set these breakpoints"), since the state itself is immutable.
+ *   - Decorations and gutter markers: what a field draws (a line background,
+ *     a dot in the margin), provided to the view from the field.
+ * A ViewPlugin draws the minimap, and Compartments let the language, the
+ * read-only flag and the user's key bindings change without a new editor.
  */
 
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { defaultKeymap, history, indentWithTab, redo, undo } from '@codemirror/commands';
 import { cpp } from '@codemirror/lang-cpp';
 import { go } from '@codemirror/lang-go';
 import { java } from '@codemirror/lang-java';
@@ -22,6 +33,7 @@ import {
   EditorState,
   Prec,
   StateEffect,
+  RangeSet,
   StateField,
   type Extension,
   type Range,
@@ -29,7 +41,9 @@ import {
 import {
   Decoration,
   EditorView,
+  hoverTooltip,
   GutterMarker,
+  ViewPlugin,
   WidgetType,
   drawSelection,
   gutter,
@@ -46,11 +60,16 @@ import { tags } from '@lezer/highlight';
 
 import type { CodeSelection, Finding, Severity } from '../api/types';
 import { h } from '../lib/dom';
+import { t } from '../lib/i18n';
+import { icon, type IconName } from '../lib/icons';
+import { keysFor, toCodeMirror, useKeybindingStore } from '../lib/keybindings';
+import { isMac } from '../lib/shortcuts';
 import { severityColor } from '../lib/severity';
 
 /** What the selection toolbar can do. The code view implements them. */
 export interface SelectionActions {
   ask: (selection: CodeSelection) => void;
+  explain: (selection: CodeSelection) => void;
   fix: (selection: CodeSelection) => void;
   change: (selection: CodeSelection) => void;
 }
@@ -61,6 +80,12 @@ export interface EditorHooks {
   actions: SelectionActions;
   onDirty: (dirty: boolean) => void;
   onSave: () => void;
+  /** ⌘K / Ctrl+K: open the inline chat on the selection or the current line. */
+  onInlineChat?: () => void;
+  /** The breakpoint lines changed: a click in the gutter, or an edit moved them. */
+  onBreakpoints?: (lines: number[]) => void;
+  /** The value of a variable while the debugger is paused, for hover; null if unknown. */
+  debugValue?: (name: string) => { value: string; type: string } | null;
 }
 
 export interface CodeEditor {
@@ -72,14 +97,33 @@ export interface CodeEditor {
   isDirty: () => boolean;
   /** Declares the current text to be what is on disk. */
   markSaved: () => void;
-  /** Replaces a range, as an edit the user can undo. */
+  /** Replaces a range, as an edit the user can undo. It types itself in and is briefly highlighted. */
   replace: (from: number, to: number, text: string) => void;
+  /**
+   * Shows a new version of the open file (a fix that was applied) by typing
+   * the changed part in place. Returns false when the change is too large to
+   * animate, so the caller replaces the document instead.
+   */
+  showChange: (text: string) => boolean;
   selection: () => (CodeSelection & { from: number; to: number }) | null;
   /** Text around the selection, for the model's context. */
   around: (from: number, to: number) => { before: string; after: string };
   reveal: (line: number) => void;
   /** Lets completion run only when a model can answer. */
   setCompletionEnabled: (enabled: boolean) => void;
+  /** Undo and redo in the open file, for the menu and focus outside the editor. */
+  undo: () => boolean;
+  redo: () => boolean;
+  /** The line the cursor is on (1-based). */
+  cursorLine: () => number;
+  /** Selects a whole line (1-based). */
+  selectLine: (line: number) => void;
+  /** Shows these breakpoint lines (1-based). */
+  setBreakpoints: (lines: number[]) => void;
+  /** Marks the line the debugger is paused on, or clears it with null. */
+  setPausedLine: (line: number | null) => void;
+  /** Shows variable values at the end of the paused line ("a = 1  b = 'x'"). */
+  setInlineValues: (line: number | null, text: string) => void;
   focus: () => void;
   destroy: () => void;
 }
@@ -128,19 +172,21 @@ function languageExtension(language: string, path: string): Extension {
 
 const theme = EditorView.theme(
   {
-    '&': { height: '100%', backgroundColor: 'var(--bg-base)', color: 'var(--fg)' },
-    '.cm-scroller': { fontFamily: 'var(--font-mono)', fontSize: '13px', lineHeight: '20px', overflow: 'auto' },
+    // Colours and sizes come from the editor theme and the accessibility
+    // settings, as CSS variables set by state/prefs.ts.
+    '&': { height: '100%', backgroundColor: 'var(--code-bg, var(--bg-base))', color: 'var(--code-fg, var(--fg))' },
+    '.cm-scroller': { fontFamily: 'var(--font-mono)', fontSize: 'var(--code-font-size, 13px)', lineHeight: 'var(--code-line-height, 1.55)', overflow: 'auto' },
     '.cm-content': { caretColor: 'var(--accent)', padding: '0' },
-    '.cm-gutters': { backgroundColor: 'var(--bg-base)', color: 'var(--fg-muted)', border: 'none' },
+    '.cm-gutters': { backgroundColor: 'var(--code-bg, var(--bg-base))', color: 'var(--code-gutter, var(--fg-muted))', border: 'none' },
     '.cm-lineNumbers .cm-gutterElement': { padding: '0 8px 0 12px', minWidth: '3.2em' },
     '.cm-activeLine': { backgroundColor: 'color-mix(in srgb, var(--accent) 6%, transparent)' },
-    '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--fg)' },
+    '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--code-fg, var(--fg))' },
     '&.cm-focused': { outline: 'none' },
     '&.cm-focused .cm-cursor': { borderLeftColor: 'var(--accent)' },
     '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
       backgroundColor: 'color-mix(in srgb, var(--accent) 28%, transparent) !important',
     },
-    '.cm-ghost': { color: 'var(--fg-muted)', opacity: '0.75', fontStyle: 'italic', whiteSpace: 'pre' },
+    '.cm-ghost': { color: 'var(--code-comment, var(--fg-muted))', opacity: '0.75', fontStyle: 'italic', whiteSpace: 'pre' },
     '.cm-finding-line': { backgroundColor: 'color-mix(in srgb, var(--sev-high, #e5484d) 14%, transparent)' },
     '.cm-finding-gutter': { width: '6px' },
     '.cm-tooltip': { border: 'none', backgroundColor: 'transparent' },
@@ -148,15 +194,20 @@ const theme = EditorView.theme(
   { dark: true },
 );
 
+/**
+ * Syntax colours, as CSS variables so the editor theme can change them
+ * without rebuilding the editor (state/prefs.ts sets them). The tags are
+ * Lezer's highlighting tags: https://lezer.codemirror.net/docs/ref/#highlight.tags
+ */
 const highlight = HighlightStyle.define([
-  { tag: [tags.keyword, tags.modifier, tags.controlKeyword], color: '#c792ea' },
-  { tag: [tags.string, tags.special(tags.string)], color: '#c3e88d' },
-  { tag: [tags.number, tags.bool, tags.null], color: '#f78c6c' },
-  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: '#6b8a88', fontStyle: 'italic' },
-  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: '#82aaff' },
-  { tag: [tags.className, tags.typeName], color: '#ffcb6b' },
-  { tag: [tags.operator, tags.punctuation], color: '#89ddff' },
-  { tag: [tags.propertyName, tags.attributeName], color: '#b2ccd6' },
+  { tag: [tags.keyword, tags.modifier, tags.controlKeyword], color: 'var(--code-keyword)' },
+  { tag: [tags.string, tags.special(tags.string)], color: 'var(--code-string)' },
+  { tag: [tags.number, tags.bool, tags.null], color: 'var(--code-number)' },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: 'var(--code-comment)', fontStyle: 'italic' },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: 'var(--code-function)' },
+  { tag: [tags.className, tags.typeName], color: 'var(--code-type)' },
+  { tag: [tags.operator, tags.punctuation], color: 'var(--code-operator)' },
+  { tag: [tags.propertyName, tags.attributeName], color: 'var(--code-property)' },
 ]);
 
 /* ---------------- findings ---------------- */
@@ -201,7 +252,7 @@ const findingDecorations = StateField.define<DecorationSet>({
     const ranges: Range<Decoration>[] = [];
     for (const [line] of lines) {
       if (line < 1 || line > tr.state.doc.lines) continue;
-      ranges.push(Decoration.line({ class: 'cm-finding-line', attributes: { title: 'A finding is reported on this line' } }).range(tr.state.doc.line(line).from));
+      ranges.push(Decoration.line({ class: 'cm-finding-line', attributes: { title: t('editor.findingOnLine') } }).range(tr.state.doc.line(line).from));
     }
     return Decoration.set(ranges, true);
   },
@@ -231,6 +282,138 @@ const findingGutter = gutter({
     return severity ? new FindingMarker(severity) : null;
   },
   lineMarkerChange: (update) => update.transactions.some((tr) => tr.effects.some((e) => e.is(setFindingsEffect))) || update.docChanged,
+});
+
+
+/* ---------------- breakpoints and the paused line ---------------- */
+
+class BreakpointMarker extends GutterMarker {
+  override toDOM(): HTMLElement {
+    return h('span', { class: 'cm-breakpoint', 'aria-label': t('editor.breakpoint') });
+  }
+}
+const breakpointMarker = new BreakpointMarker();
+
+/** Replaces every breakpoint (from the debug store). */
+const setBreakpointsEffect = StateEffect.define<number[]>();
+/** Turns the breakpoint on one line (a document position) on or off. */
+const toggleBreakpointEffect = StateEffect.define<number>();
+
+/** The breakpoints, kept as positions so they move with the code above them. */
+const breakpointField = StateField.define<RangeSet<GutterMarker>>({
+  create: () => RangeSet.empty,
+  update(value, tr) {
+    let set = value.map(tr.changes);
+    for (const effect of tr.effects) {
+      if (effect.is(setBreakpointsEffect)) {
+        const doc = tr.state.doc;
+        const ranges = effect.value
+          .filter((line) => line >= 1 && line <= doc.lines)
+          .sort((a, b) => a - b)
+          .map((line) => breakpointMarker.range(doc.line(line).from));
+        set = RangeSet.of(ranges, true);
+      } else if (effect.is(toggleBreakpointEffect)) {
+        const pos = effect.value;
+        let had = false;
+        set.between(pos, pos, () => {
+          had = true;
+        });
+        set = had
+          ? set.update({ filter: (from) => from !== pos })
+          : set.update({ add: [breakpointMarker.range(pos)] });
+      }
+    }
+    return set;
+  },
+});
+
+function breakpointLines(state: EditorState): number[] {
+  const lines = new Set<number>();
+  const cursor = state.field(breakpointField).iter();
+  for (; cursor.value; cursor.next()) lines.add(state.doc.lineAt(cursor.from).number);
+  return Array.from(lines).sort((a, b) => a - b);
+}
+
+const breakpointGutter = gutter({
+  class: 'cm-breakpoint-gutter',
+  markers: (view) => view.state.field(breakpointField),
+  initialSpacer: () => breakpointMarker,
+  domEventHandlers: {
+    mousedown(view, line) {
+      view.dispatch({ effects: toggleBreakpointEffect.of(line.from) });
+      return true;
+    },
+  },
+});
+
+const setPausedEffect = StateEffect.define<number | null>();
+
+class PausedMarker extends GutterMarker {
+  override toDOM(): HTMLElement {
+    return h('span', { class: 'cm-paused-arrow', 'aria-label': t('editor.pausedHere') });
+  }
+}
+const pausedMarker = new PausedMarker();
+
+/** The line the debugger is paused on, as a line decoration and a gutter arrow. */
+const pausedField = StateField.define<{ line: number | null; deco: DecorationSet; marks: RangeSet<GutterMarker> }>({
+  create: () => ({ line: null, deco: Decoration.none, marks: RangeSet.empty }),
+  update(value, tr) {
+    let line = value.line;
+    let changed = false;
+    for (const effect of tr.effects) {
+      if (effect.is(setPausedEffect)) {
+        line = effect.value;
+        changed = true;
+      }
+    }
+    if (!changed) {
+      return tr.docChanged ? { line, deco: value.deco.map(tr.changes), marks: value.marks.map(tr.changes) } : value;
+    }
+    if (line === null || line < 1 || line > tr.state.doc.lines) return { line: null, deco: Decoration.none, marks: RangeSet.empty };
+    const from = tr.state.doc.line(line).from;
+    return {
+      line,
+      deco: Decoration.set([Decoration.line({ class: 'cm-paused-line' }).range(from)]),
+      marks: RangeSet.of([pausedMarker.range(from)]),
+    };
+  },
+  provide: (field) => EditorView.decorations.from(field, (v) => v.deco),
+});
+
+/* Values of the variables used on the paused line, drawn after its text. */
+const setInlineValuesEffect = StateEffect.define<{ line: number; text: string } | null>();
+
+class InlineValuesWidget extends WidgetType {
+  constructor(private readonly text: string) {
+    super();
+  }
+  override eq(other: InlineValuesWidget): boolean {
+    return other.text === this.text;
+  }
+  override toDOM(): HTMLElement {
+    return h('span', { class: 'cm-inline-values', text: this.text, 'aria-label': t('editor.inlineValues', { values: this.text }) });
+  }
+}
+
+const inlineValuesField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (!effect.is(setInlineValuesEffect)) continue;
+      const v = effect.value;
+      if (!v || !v.text || v.line < 1 || v.line > tr.state.doc.lines) return Decoration.none;
+      const end = tr.state.doc.line(v.line).to;
+      return Decoration.set([Decoration.widget({ widget: new InlineValuesWidget(v.text), side: 1 }).range(end)]);
+    }
+    return tr.docChanged ? Decoration.none : value;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
+const pausedGutter = gutter({
+  class: 'cm-paused-gutter',
+  markers: (view) => view.state.field(pausedField).marks,
 });
 
 /* ---------------- ghost text ---------------- */
@@ -289,14 +472,17 @@ function selectionTooltip(actions: () => SelectionActions, describe: (view: Edit
             const selection = describe(view);
             if (selection) run(actions())(selection);
           };
-          const button = (label: string, title: string, onClick: () => void): HTMLElement =>
-            h('button', { class: 'tiny', type: 'button', title, onmousedown: (e: Event) => e.preventDefault(), onclick: onClick }, label);
+          // mousedown is cancelled so the click does not drop the selection.
+          const button = (name: IconName, label: string, title: string, onClick: () => void): HTMLElement =>
+            h('button', { class: 'tiny selection-action', type: 'button', title, onmousedown: (e: Event) => e.preventDefault(), onclick: onClick }, icon(name), label);
           const dom = h(
             'div',
-            { class: 'selection-toolbar', role: 'toolbar', 'aria-label': 'Selection actions' },
-            button('Ask in chat', 'Ask the chat about this code', pick((a) => a.ask)),
-            button('Fix', 'Ask the model to fix this code', pick((a) => a.fix)),
-            button('Change…', 'Ask the model to change this code', pick((a) => a.change)),
+            { class: 'selection-toolbar', role: 'toolbar', 'aria-label': t('editor.selectionActions') },
+            button('pencil', t('editor.change'), t('editor.changeHint', { shortcut: isMac() ? '⌘K' : 'Ctrl+K' }), pick((a) => a.change)),
+            button('tool', t('editor.fix'), t('editor.fixHint'), pick((a) => a.fix)),
+            h('span', { class: 'selection-sep', 'aria-hidden': 'true' }),
+            button('info', t('editor.explain'), t('editor.explainHint'), pick((a) => a.explain)),
+            button('chat', t('editor.ask'), t('editor.askHint'), pick((a) => a.ask)),
           );
           return { dom };
         },
@@ -306,6 +492,207 @@ function selectionTooltip(actions: () => SelectionActions, describe: (view: Edit
   });
   return field;
 }
+
+/* ---------------- typing in the model's changes ---------------- */
+
+/**
+ * A change made by the model is applied at once (one undo step), but it is
+ * revealed like a typewriter: the part not yet "typed" is hidden, then the
+ * changed lines glow briefly. This field holds both ranges.
+ */
+interface RevealState {
+  /** The part of the change not shown yet. */
+  hidden: { from: number; to: number } | null;
+  /** The lines to highlight. */
+  flash: { from: number; to: number } | null;
+}
+const setRevealEffect = StateEffect.define<RevealState>();
+const hiddenMark = Decoration.mark({ class: 'cm-ai-pending' });
+const flashLine = Decoration.line({ class: 'cm-ai-flash' });
+const revealField = StateField.define<RevealState>({
+  create: () => ({ hidden: null, flash: null }),
+  update(value, tr) {
+    for (const effect of tr.effects) if (effect.is(setRevealEffect)) return effect.value;
+    if (!tr.docChanged) return value;
+    const map = (r: { from: number; to: number } | null) =>
+      r ? { from: tr.changes.mapPos(r.from, 1), to: tr.changes.mapPos(r.to, -1) } : null;
+    return { hidden: map(value.hidden), flash: map(value.flash) };
+  },
+});
+
+/** The decorations of the reveal, computed against the document. */
+const revealDecorations = EditorView.decorations.compute([revealField], (state) => {
+  const { hidden, flash } = state.field(revealField);
+  const ranges: Range<Decoration>[] = [];
+  if (flash) {
+    const first = state.doc.lineAt(Math.min(flash.from, state.doc.length)).number;
+    const last = state.doc.lineAt(Math.min(Math.max(flash.from, flash.to), state.doc.length)).number;
+    for (let n = first; n <= last && n - first < 400; n++) ranges.push(flashLine.range(state.doc.line(n).from));
+  }
+  if (hidden && hidden.to > hidden.from) ranges.push(hiddenMark.range(hidden.from, Math.min(hidden.to, state.doc.length)));
+  return Decoration.set(ranges, true);
+});
+
+/** Reveal [from, to) like typing, then glow the lines for a moment. */
+function typeIn(view: EditorView, from: number, to: number): void {
+  const length = to - from;
+  // The system setting, or the app's own under Settings › Accessibility.
+  const reduce = document.documentElement.dataset.motion === 'reduce';
+  const flashAfter = (): void => {
+    view.dispatch({ effects: setRevealEffect.of({ hidden: null, flash: { from, to } }) });
+    window.setTimeout(() => {
+      if (view.state.field(revealField).flash) view.dispatch({ effects: setRevealEffect.of({ hidden: null, flash: null }) });
+    }, 1800);
+  };
+  if (length <= 0 || reduce) {
+    flashAfter();
+    return;
+  }
+  // About 120 characters a frame at most, and never longer than a second.
+  const duration = Math.min(1000, Math.max(250, length * 6));
+  const start = performance.now();
+  const step = (now: number): void => {
+    const t = Math.min(1, (now - start) / duration);
+    const shown = from + Math.round(length * (1 - Math.pow(1 - t, 2)));
+    if (t >= 1) {
+      flashAfter();
+      return;
+    }
+    view.dispatch({ effects: setRevealEffect.of({ hidden: { from: shown, to }, flash: null }) });
+    requestAnimationFrame(step);
+  };
+  view.dispatch({ effects: setRevealEffect.of({ hidden: { from, to }, flash: null }) });
+  requestAnimationFrame(step);
+}
+
+/* ---------------- the minimap ---------------- */
+
+/** Width of the minimap in CSS pixels, and the height of one line in it. */
+const MINIMAP_WIDTH = 84;
+const MINIMAP_LINE = 2;
+
+/**
+ * A scaled-down picture of the whole file beside the editor: each line is a
+ * strip as long as its text, lines with findings are tinted by severity, and
+ * the visible part is outlined. Click or drag to scroll.
+ */
+const minimap = ViewPlugin.fromClass(
+  class {
+    private readonly canvas = document.createElement('canvas');
+    private readonly view: EditorView;
+    private frame = 0;
+    private dragging = false;
+
+    constructor(view: EditorView) {
+      this.view = view;
+      this.canvas.className = 'cm-minimap';
+      this.canvas.setAttribute('aria-hidden', 'true');
+      view.dom.append(this.canvas);
+      view.dom.classList.add('has-minimap');
+      this.canvas.addEventListener('pointerdown', (event) => {
+        this.dragging = true;
+        this.canvas.setPointerCapture(event.pointerId);
+        this.scrollTo(event);
+      });
+      this.canvas.addEventListener('pointermove', (event) => this.dragging && this.scrollTo(event));
+      this.canvas.addEventListener('pointerup', () => (this.dragging = false));
+      view.scrollDOM.addEventListener('scroll', this.schedule);
+      this.schedule();
+    }
+
+    update(update: ViewUpdate): void {
+      if (update.docChanged || update.viewportChanged || update.geometryChanged || update.transactions.length) this.schedule();
+    }
+
+    destroy(): void {
+      cancelAnimationFrame(this.frame);
+      this.view.scrollDOM.removeEventListener('scroll', this.schedule);
+      this.view.dom.classList.remove('has-minimap');
+      this.canvas.remove();
+    }
+
+    private readonly schedule = (): void => {
+      cancelAnimationFrame(this.frame);
+      this.frame = requestAnimationFrame(() => this.draw());
+    };
+
+    /** The canvas offset, in minimap pixels, that keeps the viewport in sight. */
+    private offset(totalHeight: number, height: number): number {
+      const { scrollDOM } = this.view;
+      if (totalHeight <= height) return 0;
+      const ratio = scrollDOM.scrollTop / Math.max(1, scrollDOM.scrollHeight - scrollDOM.clientHeight);
+      return ratio * (totalHeight - height);
+    }
+
+    private scrollTo(event: PointerEvent): void {
+      const { scrollDOM, state } = this.view;
+      const rect = this.canvas.getBoundingClientRect();
+      const total = state.doc.lines * MINIMAP_LINE;
+      const y = event.clientY - rect.top + this.offset(total, rect.height);
+      const fraction = Math.min(1, Math.max(0, y / Math.max(1, total)));
+      scrollDOM.scrollTop = fraction * scrollDOM.scrollHeight - scrollDOM.clientHeight / 2;
+    }
+
+    private draw(): void {
+      const { state, scrollDOM } = this.view;
+      const dpr = window.devicePixelRatio || 1;
+      const width = MINIMAP_WIDTH;
+      const height = this.canvas.clientHeight;
+      if (!height) return;
+      this.canvas.width = Math.round(width * dpr);
+      this.canvas.height = Math.round(height * dpr);
+      const ctx = this.canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.scale(dpr, dpr);
+
+      const css = getComputedStyle(this.view.dom);
+      const ink = css.getPropertyValue('--code-fg').trim() || css.getPropertyValue('--fg-muted').trim() || '#8ea5a0';
+      const accent = css.getPropertyValue('--accent').trim() || '#b4f23c';
+      const sevColor: Record<string, string> = {
+        critical: css.getPropertyValue('--sev-critical').trim() || '#ff7a6b',
+        high: css.getPropertyValue('--sev-high').trim() || '#ff9f4a',
+        medium: css.getPropertyValue('--sev-medium').trim() || '#f0c93a',
+        low: css.getPropertyValue('--sev-low').trim() || '#5fd3c4',
+        info: css.getPropertyValue('--sev-info').trim() || '#8ea5a0',
+      };
+      const byLine = state.field(findingsField).byLine;
+
+      const total = state.doc.lines * MINIMAP_LINE;
+      const offset = this.offset(total, height);
+      const first = Math.max(1, Math.floor(offset / MINIMAP_LINE));
+      const last = Math.min(state.doc.lines, Math.ceil((offset + height) / MINIMAP_LINE));
+      const charW = (width - 8) / 100;
+      for (let n = first; n <= last; n++) {
+        const line = state.doc.line(n);
+        const y = (n - 1) * MINIMAP_LINE - offset;
+        const text = line.text;
+        const indent = text.length - text.trimStart().length;
+        const len = Math.min(100 - indent, text.trimEnd().length - indent);
+        const severity = byLine.get(n);
+        if (severity) {
+          ctx.globalAlpha = 0.25;
+          ctx.fillStyle = sevColor[severity] ?? accent;
+          ctx.fillRect(0, y, width, MINIMAP_LINE);
+        }
+        if (len > 0) {
+          ctx.globalAlpha = severity ? 0.95 : 0.55;
+          ctx.fillStyle = severity ? sevColor[severity] ?? accent : ink;
+          ctx.fillRect(4 + Math.min(indent, 40) * charW, y, Math.max(1, len * charW), Math.max(1, MINIMAP_LINE - 0.5));
+        }
+      }
+
+      // The part of the file on screen.
+      const viewTop = (scrollDOM.scrollTop / Math.max(1, scrollDOM.scrollHeight)) * total - offset;
+      const viewHeight = Math.max(8, (scrollDOM.clientHeight / Math.max(1, scrollDOM.scrollHeight)) * total);
+      ctx.globalAlpha = 0.14;
+      ctx.fillStyle = accent;
+      ctx.fillRect(0, viewTop, width, viewHeight);
+      ctx.globalAlpha = 0.7;
+      ctx.strokeStyle = accent;
+      ctx.strokeRect(0.5, viewTop + 0.5, width - 1, viewHeight - 1);
+    }
+  },
+);
 
 /* ---------------- the editor ---------------- */
 
@@ -324,6 +711,33 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
 
   const language = new Compartment();
   const readOnly = new Compartment();
+  /** The keys the user can rebind: save, undo, redo, breakpoint. */
+  const userKeys = new Compartment();
+
+  /** Builds the rebindable part of the keymap from the user's bindings. */
+  const boundKeymap = (): Extension => {
+    const bindings: { key: string; run: (v: EditorView) => boolean; preventDefault?: boolean }[] = [];
+    const add = (id: string, defaults: string, run: (v: EditorView) => boolean): void => {
+      const key = toCodeMirror(keysFor(id, defaults));
+      if (key) bindings.push({ key, run, preventDefault: true });
+    };
+    add('file.save', 'Mod+S', () => {
+      hooks.onSave();
+      return true;
+    });
+    add('edit.undo', 'Mod+Z', undo);
+    add('edit.redo', isMac() ? 'Mod+Shift+Z' : 'Mod+Y', redo);
+    add('editor.inlineChat', 'Mod+K', () => {
+      if (!hooks.onInlineChat) return false;
+      hooks.onInlineChat();
+      return true;
+    });
+    add('editor.breakpoint', 'F9', (v) => {
+      v.dispatch({ effects: toggleBreakpointEffect.of(v.state.doc.lineAt(v.state.selection.main.head).from) });
+      return true;
+    });
+    return Prec.high(keymap.of(bindings));
+  };
 
   const describeSelection = (view: EditorView): CodeSelection | null => {
     const range = view.state.selection.main;
@@ -386,7 +800,19 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
   const extensions: Extension[] = [
         theme,
         syntaxHighlighting(highlight),
-        lineNumbers(),
+        breakpointGutter,
+        pausedGutter,
+        // A click on a line number also sets or removes a breakpoint: the
+        // margin to its left is narrow to aim at.
+        lineNumbers({
+          domEventHandlers: {
+            mousedown(view, line, event) {
+              if ((event as MouseEvent).button !== 0) return false;
+              view.dispatch({ effects: toggleBreakpointEffect.of(line.from) });
+              return true;
+            },
+          },
+        }),
         findingGutter,
         highlightActiveLine(),
         highlightActiveLineGutter(),
@@ -399,11 +825,40 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
         readOnly.of(EditorState.readOnly.of(true)),
         findingsField,
         findingDecorations,
+        breakpointField,
+        pausedField,
+        inlineValuesField,
+        // While paused, hovering a name shows its value. CodeMirror's hover
+        // tooltips: https://codemirror.net/docs/ref/#view.hoverTooltip
+        hoverTooltip((view, pos) => {
+          if (!hooks.debugValue) return null;
+          const word = view.state.wordAt(pos);
+          if (!word) return null;
+          const name = view.state.sliceDoc(word.from, word.to);
+          const found = hooks.debugValue(name);
+          if (!found) return null;
+          return {
+            pos: word.from,
+            end: word.to,
+            above: true,
+            create: () => ({
+              dom: h('div', { class: 'cm-debug-hover' },
+                h('span', { class: 'cm-debug-hover-name', text: name }),
+                h('span', { class: 'cm-debug-hover-type', text: found.type }),
+                h('pre', { class: 'cm-debug-hover-value', text: found.value }),
+              ),
+            }),
+          };
+        }),
+        revealField,
+        revealDecorations,
+        minimap,
         ghostField,
         selectionTooltip(() => hooks.actions, describeSelection),
         Prec.highest(
           keymap.of([
             { key: 'Tab', run: acceptGhost },
+
             {
               key: 'Escape',
               run: (v) => {
@@ -413,18 +868,20 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
                 return true;
               },
             },
-            {
-              key: 'Mod-s',
-              preventDefault: true,
-              run: () => {
-                hooks.onSave();
-                return true;
-              },
-            },
+
           ]),
         ),
-        keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+        userKeys.of(boundKeymap()),
+        keymap.of([...defaultKeymap, indentWithTab]),
         EditorView.updateListener.of((update: ViewUpdate) => {
+          // Breakpoints the user set or an edit moved are reported; the ones
+          // the debug store sent are not echoed back.
+          const external = update.transactions.some((tr) => tr.effects.some((e) => e.is(setBreakpointsEffect)));
+          if (!external && hooks.onBreakpoints && update.startState.field(breakpointField) !== update.state.field(breakpointField)) {
+            const before = breakpointLines(update.startState);
+            const after = breakpointLines(update.state);
+            if (before.join(',') !== after.join(',')) hooks.onBreakpoints(after);
+          }
           if (update.docChanged) {
             const nowDirty = update.state.doc.toString() !== savedText;
             if (nowDirty !== dirty) {
@@ -444,6 +901,10 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
   ];
 
   const view = new EditorView({ parent: host, state: EditorState.create({ doc: '', extensions }) });
+  // A binding changed in Settings applies to the open editor at once.
+  const offBindings = useKeybindingStore.subscribe(() => {
+    view.dispatch({ effects: userKeys.reconfigure(boundKeymap()) });
+  });
 
   // Lets a script (the smoke test, a future keyboard command) select whole lines.
   host.addEventListener('aisai:select-lines', (event) => {
@@ -469,6 +930,7 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
         effects: [
           language.reconfigure(languageExtension(lang, path)),
           readOnly.reconfigure(EditorState.readOnly.of(locked)),
+          userKeys.reconfigure(boundKeymap()),
         ],
       });
     },
@@ -481,8 +943,32 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
       dirty = false;
       hooks.onDirty(false);
     },
-    replace: (from, to, text) =>
-      view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length }, userEvent: 'input.replace' }),
+    replace: (from, to, text) => {
+      view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length }, userEvent: 'input.replace' });
+      typeIn(view, from, from + text.length);
+    },
+    showChange: (text) => {
+      const old = view.state.doc.toString();
+      if (old === text) return true;
+      let start = 0;
+      const max = Math.min(old.length, text.length);
+      while (start < max && old.charCodeAt(start) === text.charCodeAt(start)) start++;
+      let endOld = old.length;
+      let endNew = text.length;
+      while (endOld > start && endNew > start && old.charCodeAt(endOld - 1) === text.charCodeAt(endNew - 1)) {
+        endOld--;
+        endNew--;
+      }
+      const inserted = text.slice(start, endNew);
+      // A rewrite of most of the file is just loaded; typing it in would be slow.
+      if (inserted.length > 20000) return false;
+      view.dispatch({ changes: { from: start, to: endOld, insert: inserted }, effects: EditorView.scrollIntoView(start, { y: 'center' }) });
+      savedText = view.state.doc.toString();
+      dirty = false;
+      hooks.onDirty(false);
+      typeIn(view, start, start + inserted.length);
+      return true;
+    },
     selection: () => {
       const described = describeSelection(view);
       if (!described) return null;
@@ -508,8 +994,32 @@ export function createCodeEditor(host: HTMLElement, hooks: EditorHooks): CodeEdi
         if (view.state.field(ghostField)) view.dispatch({ effects: setGhostEffect.of(null) });
       }
     },
+    setBreakpoints: (lines) => {
+      if (breakpointLines(view.state).join(',') === [...lines].sort((a, b) => a - b).join(',')) return;
+      view.dispatch({ effects: setBreakpointsEffect.of(lines) });
+    },
+    setInlineValues: (line, text) => {
+      view.dispatch({ effects: setInlineValuesEffect.of(line === null ? null : { line, text }) });
+    },
+    setPausedLine: (line) => {
+      if (view.state.field(pausedField).line === line) return;
+      const effects: StateEffect<unknown>[] = [setPausedEffect.of(line)];
+      if (line !== null && line >= 1 && line <= view.state.doc.lines) {
+        effects.push(EditorView.scrollIntoView(view.state.doc.line(line).from, { y: 'nearest', yMargin: 80 }));
+      }
+      view.dispatch({ effects });
+    },
+    undo: () => undo(view),
+    redo: () => redo(view),
+    cursorLine: () => view.state.doc.lineAt(view.state.selection.main.head).number,
+    selectLine: (line) => {
+      const n = Math.max(1, Math.min(view.state.doc.lines, line));
+      const l = view.state.doc.line(n);
+      view.dispatch({ selection: { anchor: l.from, head: l.to } });
+    },
     focus: () => view.focus(),
     destroy: () => {
+      offBindings();
       cancelCompletion();
       view.destroy();
     },

@@ -1,9 +1,24 @@
+/**
+ * The AST tab: the syntax tree of the open file, from the backend's
+ * tree-sitter parse (https://tree-sitter.github.io/tree-sitter/).
+ *
+ * It has two views: an indented outline, where rows with findings are
+ * marked and a click jumps to the code, and a graph drawn with vis-network
+ * (https://visjs.github.io/vis-network/docs/network/), limited to a depth
+ * the user picks because whole-file trees get large. The graph exports to
+ * PNG (the canvas) and SVG (rebuilt from node positions).
+ */
+
 import type { AppController } from '../app';
-import type { ASTNode, Finding } from '../api/types';
+import type { AST, ASTNode, Finding } from '../api/types';
 import { h } from '../lib/dom';
+import { joinMessages, t, tn } from '../lib/i18n';
 import { icon } from '../lib/icons';
+import { AST_CAP_MAX, AST_CAP_STEP, useAstStore, type AstMode } from '../state/ast';
 import { useFindingsStore } from '../state/findings';
+import { useUiStore } from '../state/ui';
 import { useWorkspaceStore } from '../state/workspace';
+import { download, exportPng } from './graphView';
 import { loadVis, type VisDataSet, type VisEdgeData, type VisNetwork, type VisNodeData } from '../lib/vis';
 
 interface TreeNode {
@@ -31,6 +46,116 @@ function covers(findings: Finding[], line: number): boolean {
   return findings.some((finding) => line >= finding.startLine && line <= finding.endLine);
 }
 
+const esc = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** An SVG of the syntax tree graph, drawn from the live node positions. */
+export function exportAstSvg(network: VisNetwork, nodes: VisNodeData[], edges: VisEdgeData[]): string | null {
+  const positions = network.getPositions(nodes.map((n) => n.id)) as Record<string, { x: number; y: number }>;
+  const placed = nodes.filter((n) => positions[n.id]);
+  if (!placed.length) return null;
+  const size = (n: VisNodeData): { w: number; h: number } => {
+    const lines = (n.label ?? '').split('\n');
+    return { w: Math.min(150, Math.max(...lines.map((l) => l.length)) * 6.6 + 16), h: lines.length * 14 + 10 };
+  };
+  const pad = 40;
+  const minX = Math.min(...placed.map((n) => positions[n.id].x - size(n).w / 2)) - pad;
+  const maxX = Math.max(...placed.map((n) => positions[n.id].x + size(n).w / 2)) + pad;
+  const minY = Math.min(...placed.map((n) => positions[n.id].y - size(n).h / 2)) - pad;
+  const maxY = Math.max(...placed.map((n) => positions[n.id].y + size(n).h / 2)) + pad;
+  const parts = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(maxX - minX)}" height="${Math.round(maxY - minY)}" viewBox="${minX} ${minY} ${maxX - minX} ${maxY - minY}">`,
+    `<rect x="${minX}" y="${minY}" width="${maxX - minX}" height="${maxY - minY}" fill="#0a1112"/>`,
+  ];
+  for (const e of edges) {
+    const f = positions[e.from];
+    const t = positions[e.to];
+    if (f && t) parts.push(`<line x1="${f.x}" y1="${f.y}" x2="${t.x}" y2="${t.y}" stroke="#35494c"/>`);
+  }
+  for (const n of placed) {
+    const p = positions[n.id];
+    const { w, h } = size(n);
+    const c = (typeof n.color === 'object' ? n.color : undefined) as { background?: string; border?: string } | undefined;
+    parts.push(`<rect x="${p.x - w / 2}" y="${p.y - h / 2}" width="${w}" height="${h}" rx="3" fill="${c?.background ?? '#1b2b2e'}" stroke="${c?.border ?? '#35494c'}"/>`);
+    (n.label ?? '').split('\n').forEach((line, i, all) => {
+      const y = p.y - h / 2 + 5 + 14 * i + 10 - (all.length === 1 ? 0 : 0);
+      parts.push(`<text x="${p.x}" y="${y}" fill="#dde8e3" font-family="monospace" font-size="11" text-anchor="middle">${esc(line.slice(0, 24))}</text>`);
+    });
+  }
+  parts.push('</svg>');
+  return parts.join('\n');
+}
+
+/**
+ * The syntax tree as a node-link diagram: the nodes up to the depth limit,
+ * the links between them, and the ones that were left out.
+ *
+ * The expanded window draws the same tree, so both use this.
+ */
+export interface AstGraphData {
+  nodes: VisNodeData[];
+  edges: VisEdgeData[];
+  /** The nodes deeper than the limit, which are not drawn. */
+  tooDeep: number;
+  /** The nodes past the drawing cap, which are not drawn. */
+  overCap: number;
+}
+
+export function astGraphData(
+  ast: AST,
+  findings: Finding[],
+  depthLimit: number,
+  cap: number,
+): AstGraphData {
+  const byId = new Map(ast.nodes.map((node) => [node.id, node]));
+  const depthOf = (node: ASTNode): number => {
+    let depth = 1;
+    for (let parent = node.parentId ? byId.get(node.parentId) : undefined; parent; parent = parent.parentId ? byId.get(parent.parentId) : undefined) {
+      depth += 1;
+      if (depth > 200) break;
+    }
+    return depth;
+  };
+  const shown: ASTNode[] = [];
+  let tooDeep = 0;
+  let overCap = 0;
+  for (const node of ast.nodes) {
+    if (depthOf(node) > depthLimit) tooDeep += 1;
+    else if (shown.length >= cap) overCap += 1;
+    else shown.push(node);
+  }
+  const ids = new Set(shown.map((node) => node.id));
+  const nodes: VisNodeData[] = shown.map((node) => {
+    const bad = covers(findings, node.startLine);
+    return {
+      id: node.id,
+      label: node.label && node.label !== node.type ? `${node.type}\n${node.label}` : node.type,
+      title: t('ast.nodeTooltip', { type: node.type, from: node.startLine, to: node.endLine }),
+      shape: 'box',
+      widthConstraint: { maximum: 150 },
+      // Hover and selection keep the dark fill, so the light label stays
+      // legible (vis-network's default is a pale blue).
+      color: bad
+        ? { background: '#5a2a2e', border: '#e5484d', hover: { background: '#6e3338', border: '#ff7a7e' }, highlight: { background: '#6e3338', border: '#ff7a7e' } }
+        : { background: '#1b2b2e', border: '#35494c', hover: { background: '#27403f', border: '#6fb5a8' }, highlight: { background: '#27403f', border: '#6fb5a8' } },
+      font: { color: '#dde8e3', size: 11, face: 'JetBrains Mono Variable, monospace', multi: true },
+    };
+  });
+  const edges: VisEdgeData[] = shown
+    .filter((node) => node.parentId && ids.has(node.parentId))
+    .map((node) => ({ from: node.parentId as string, to: node.id }));
+  return { nodes, edges, tooDeep, overCap };
+}
+
+/** The options the syntax tree graph is drawn with. */
+export function astNetworkOptions(): Record<string, unknown> {
+  return {
+    layout: { hierarchical: { enabled: true, direction: 'LR', sortMethod: 'directed', levelSeparation: 190, nodeSpacing: 46 } },
+    physics: { enabled: false },
+    edges: { color: { color: '#35494c' }, smooth: { type: 'cubicBezier' }, arrows: { to: { enabled: true, scaleFactor: 0.5 } } },
+    interaction: { hover: true, tooltipDelay: 120, keyboard: false },
+  };
+}
+
 export interface AstView {
   element: HTMLElement;
   dispose: () => void;
@@ -44,47 +169,50 @@ export function createAstView(controller: AppController, container: HTMLElement)
   const graphWrap = h('div', { class: 'ast-graph', hidden: true });
   const graphNote = h('div', { class: 'ast-graph-note', role: 'status', hidden: true });
   graphWrap.append(graphNote);
-  const graphCanvas = h('div', { class: 'graph-canvas ast-graph-canvas', role: 'img', 'aria-label': 'Syntax tree graph' });
+  const graphCanvas = h('div', { class: 'graph-canvas ast-graph-canvas', role: 'img', 'aria-label': t('ast.graphLabel') });
   graphWrap.append(graphCanvas);
   container.append(toolbar, body, graphWrap);
 
   /** 'tree' is the collapsible list; 'graph' draws the nodes and their parent links. */
-  let mode: 'tree' | 'graph' = 'tree';
-  /** The most nodes the graph draws; a syntax tree of a big file has thousands. */
-  const GRAPH_NODE_CAP = 500;
+  const currentMode = (): AstMode => useAstStore.getState().mode;
+  /**
+   * The most nodes the graph draws; a syntax tree of a big file has thousands,
+   * and vis-network slows down well before the tens of thousands. The cap
+   * starts low and the note under the graph offers to raise it in steps.
+   */
   let network: VisNetwork | null = null;
+  let lastGraphNodes: VisNodeData[] = [];
+  let lastGraphEdges: VisEdgeData[] = [];
   let graphNodes: VisDataSet<VisNodeData> | null = null;
   let graphEdges: VisDataSet<VisEdgeData> | null = null;
   let graphAst: unknown = null;
   let graphDepth = -1;
+  let graphCap = -1;
   // A pane that is resized or moved gets its graph fitted again.
   const graphObserver = new ResizeObserver(() => {
-    if (mode === 'graph') network?.fit({ animation: false });
+    if (currentMode() === 'graph') network?.fit({ animation: false });
   });
   graphObserver.observe(graphCanvas);
 
-  let depthLimit = 4;
   let collapsed = new Set<string>();
 
   const depthSelect = h(
     'select',
     {
-      'aria-label': 'Maximum AST depth to show',
+      'aria-label': t('ast.maxDepthLabel'),
       onchange: (event: Event) => {
         const value = (event.target as HTMLSelectElement).value;
-        depthLimit = value === 'all' ? Number.POSITIVE_INFINITY : Number(value);
-        render();
-        if (mode === 'graph') renderGraph();
+        useAstStore.getState().setDepthLimit(value === 'all' ? Number.POSITIVE_INFINITY : Number(value));
       },
     },
     ...[1, 2, 3, 4, 6, 8].map((depth) =>
-      h('option', { value: String(depth), selected: depth === depthLimit }, `depth ≤ ${depth}`),
+      h('option', { value: String(depth), selected: depth === useAstStore.getState().depthLimit }, t('ast.depthOption', { depth })),
     ),
-    h('option', { value: 'all' }, 'all depths'),
+    h('option', { value: 'all' }, t('ast.allDepths')),
   );
 
-  const expandAll = h('button', { class: 'tiny', type: 'button' }, 'Expand all');
-  const collapseAll = h('button', { class: 'tiny', type: 'button' }, 'Collapse all');
+  const expandAll = h('button', { class: 'tiny', type: 'button' }, t('ast.expandAll'));
+  const collapseAll = h('button', { class: 'tiny', type: 'button' }, t('ast.collapseAll'));
 
   expandAll.addEventListener('click', () => {
     collapsed = new Set();
@@ -97,38 +225,76 @@ export function createAstView(controller: AppController, container: HTMLElement)
     render();
   });
 
-  const modeToggle = h('div', { class: 'segmented', role: 'group', 'aria-label': 'How to show the syntax tree' });
+  const modeToggle = h('div', { class: 'segmented', role: 'group', 'aria-label': t('ast.viewModeLabel') });
   const modeButtons = (['tree', 'graph'] as const).map((id) =>
     h(
       'button',
       {
         class: 'tiny',
         type: 'button',
-        'aria-pressed': String(id === mode),
+        'aria-pressed': String(id === currentMode()),
         onclick: () => setMode(id),
       },
-      id === 'tree' ? 'Tree' : 'Graph',
+      id === 'tree' ? t('ast.treeView') : t('ast.graphView'),
     ),
   );
   modeToggle.append(...modeButtons);
 
-  const setMode = (next: 'tree' | 'graph'): void => {
-    mode = next;
+  const setMode = (next: AstMode): void => {
+    useAstStore.getState().setMode(next);
+  };
+
+  /** Shows the parts of the view that belong to the current mode. */
+  const applyMode = (): void => {
+    const next = currentMode();
     modeButtons.forEach((button, index) => button.setAttribute('aria-pressed', String((index === 0) === (next === 'tree'))));
     body.hidden = next !== 'tree';
     graphWrap.hidden = next !== 'graph';
     expandAll.hidden = collapseAll.hidden = next !== 'tree';
-    if (next === 'graph') renderGraph();
+    exportPngButton.hidden = exportSvgButton.hidden = next !== 'graph';
+    expandGraphButton.hidden = next !== 'graph';
   };
+
+  const exportPngButton = h('button', { class: 'tiny', type: 'button', title: t('ast.exportPng') }, 'PNG');
+  const exportSvgButton = h('button', { class: 'tiny', type: 'button', title: t('ast.exportSvg') }, 'SVG');
+  exportPngButton.hidden = exportSvgButton.hidden = true;
+  const baseName = (): string => (useWorkspaceStore.getState().ast?.path ?? 'file').split('/').pop() ?? 'file';
+  exportPngButton.addEventListener('click', () => {
+    const href = exportPng(graphCanvas);
+    if (href) download(`aisai-ast-${baseName()}.png`, href);
+  });
+  exportSvgButton.addEventListener('click', () => {
+    if (!network) return;
+    const svg = exportAstSvg(network, lastGraphNodes, lastGraphEdges);
+    if (!svg) return;
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    download(`aisai-ast-${baseName()}.svg`, url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+  const expandGraphButton = h(
+    'button',
+    {
+      class: 'tiny icon-button',
+      type: 'button',
+      title: t('ast.expandTitle'),
+      'aria-label': t('ast.expand'),
+      onclick: () => useUiStore.getState().setExpandedGraph('ast'),
+    },
+    icon('expand'),
+  );
 
   const languageBadge = h('span', { class: 'badge neutral', text: '', hidden: true });
 
   toolbar.append(
     modeToggle,
-    h('span', { class: 'legend-item', text: 'Depth:' }),
+    h('span', { class: 'legend-item', text: t('ast.depth') }),
     depthSelect,
     expandAll,
     collapseAll,
+    exportPngButton,
+    exportSvgButton,
+    expandGraphButton,
     h('span', { class: 'grow' }),
     languageBadge,
   );
@@ -200,6 +366,7 @@ export function createAstView(controller: AppController, container: HTMLElement)
   const render = (): void => {
     const state = useWorkspaceStore.getState();
     const ast = state.ast;
+    const depthLimit = useAstStore.getState().depthLimit;
 
     toolbar.hidden = !ast;
     languageBadge.hidden = !ast?.language;
@@ -210,12 +377,8 @@ export function createAstView(controller: AppController, container: HTMLElement)
         h(
           'div',
           { class: 'empty-state' },
-          h('h3', { text: 'No syntax tree loaded' }),
-          h('p', {
-            text:
-              'Open a source file and its syntax tree appears here as a collapsible tree. ' +
-              'Click any node to jump to the matching source line.',
-          }),
+          h('h3', { text: t('ast.noTree') }),
+          h('p', { text: t('ast.noTreeHint') }),
         ),
       );
       return;
@@ -258,7 +421,7 @@ export function createAstView(controller: AppController, container: HTMLElement)
             class: 'twisty',
             type: 'button',
             tabindex: '-1',
-            'aria-label': `${isOpen ? 'Collapse' : 'Expand'} ${node.label}`,
+            'aria-label': isOpen ? t('ast.collapseNode', { label: node.label }) : t('ast.expandNode', { label: node.label }),
             onclick: (event: Event) => {
               event.stopPropagation();
               if (!visible) {
@@ -283,7 +446,7 @@ export function createAstView(controller: AppController, container: HTMLElement)
           'data-id': node.id,
           'aria-level': String(depth),
           'aria-expanded': expandable ? String(isOpen && visible) : undefined,
-          title: hasFinding ? 'A finding is reported on this node' : undefined,
+          title: hasFinding ? t('ast.findingOnNode') : undefined,
           style: `--depth:${depth - 1};--i:${index}`,
           onclick: open,
           ondblclick: () => {
@@ -309,7 +472,8 @@ export function createAstView(controller: AppController, container: HTMLElement)
         // Most inner nodes are labelled with their own type; say it once.
         h('span', { class: 'label', text: node.label === node.type ? '' : node.label }),
         expandable && (!isOpen || !visible)
-          ? h('span', { class: 'kids', title: `${children.length} hidden child node(s)` }, String(children.length), icon('chevron-right'))
+          ? h('span', { class: 'kids', title: t('ast.hiddenChildren', { count: children.length }) },
+              String(children.length), icon('chevron-right'))
           : null,
         h('span', { class: 'lines', text: `${node.startLine}–${node.endLine}` }),
       );
@@ -340,62 +504,46 @@ export function createAstView(controller: AppController, container: HTMLElement)
       graphAst = null;
       return;
     }
-    if (graphAst === ast && graphDepth === depthLimit && network) return;
+    const depthLimit = useAstStore.getState().depthLimit;
+    const graphNodeCap = useAstStore.getState().nodeCap;
+    if (graphAst === ast && graphDepth === depthLimit && graphCap === graphNodeCap && network) return;
     graphAst = ast;
     graphDepth = depthLimit;
+    graphCap = graphNodeCap;
 
     const byId = new Map(ast.nodes.map((node) => [node.id, node]));
-    const depthOf = (node: ASTNode): number => {
-      let depth = 1;
-      for (let parent = node.parentId ? byId.get(node.parentId) : undefined; parent; parent = parent.parentId ? byId.get(parent.parentId) : undefined) {
-        depth += 1;
-        if (depth > 200) break;
-      }
-      return depth;
-    };
     const findings = useFindingsStore.getState().findings.filter((finding) => finding.file === ast.path);
-    const shown: ASTNode[] = [];
-    let omitted = 0;
-    for (const node of ast.nodes) {
-      if (depthOf(node) > depthLimit || shown.length >= GRAPH_NODE_CAP) omitted += 1;
-      else shown.push(node);
-    }
-    const ids = new Set(shown.map((node) => node.id));
-    const nodes: VisNodeData[] = shown.map((node) => {
-      const bad = covers(findings, node.startLine);
-      return {
-        id: node.id,
-        label: node.label && node.label !== node.type ? `${node.type}\n${node.label}` : node.type,
-        title: `${node.type} · lines ${node.startLine}–${node.endLine}`,
-        shape: 'box',
-        widthConstraint: { maximum: 150 },
-        color: bad
-          ? { background: '#5a2a2e', border: '#e5484d' }
-          : { background: '#1b2b2e', border: '#35494c' },
-        font: { color: '#dde8e3', size: 11, face: 'JetBrains Mono Variable, monospace', multi: true },
-      };
-    });
-    const edges: VisEdgeData[] = shown
-      .filter((node) => node.parentId && ids.has(node.parentId))
-      .map((node) => ({ from: node.parentId as string, to: node.id }));
+    const { nodes, edges, tooDeep, overCap } = astGraphData(ast, findings, depthLimit, graphNodeCap);
 
-    graphNote.hidden = omitted === 0;
-    graphNote.textContent = `${omitted} deeper or surplus node(s) are not drawn. Lower the depth or use the tree.`;
+    lastGraphNodes = nodes;
+    lastGraphEdges = edges;
+    graphNote.hidden = tooDeep + overCap === 0;
+    const parts: string[] = [];
+    if (tooDeep) parts.push(tn('ast.nodesDeeperThanLimit', tooDeep));
+    if (overCap) parts.push(t('ast.beyondDrawingLimit', { count: overCap, cap: graphNodeCap }));
+    const more = h('button', { class: 'tiny', type: 'button' }, t('ast.drawMore', { count: Math.min(AST_CAP_STEP, AST_CAP_MAX - graphNodeCap) }));
+    more.addEventListener('click', () => {
+      useAstStore.getState().raiseCap();
+      graphAst = null; // force a redraw
+      renderGraph();
+    });
+    graphNote.replaceChildren(
+      t('ast.notDrawn', { parts: joinMessages(parts, t('ast.listSeparator')) }),
+      ' ',
+      ...(overCap && graphNodeCap < AST_CAP_MAX ? [more, ' '] : []),
+      ...(tooDeep ? [t('ast.raiseDepth'), ' '] : []),
+      ...(overCap && graphNodeCap >= AST_CAP_MAX ? [t('ast.treeShowsEveryNode')] : []),
+    );
 
     void loadVis()
       .then(() => {
-        if (mode !== 'graph' || graphAst !== ast || !window.vis) return;
+        if (currentMode() !== 'graph' || graphAst !== ast || !window.vis) return;
         network?.destroy();
         graphNodes = new window.vis.DataSet<VisNodeData>(nodes);
         graphEdges = new window.vis.DataSet<VisEdgeData>(edges);
         // Own network and own DataSets: the dependency graph keeps the
         // shared globals, and this view must not take them over.
-        network = new window.vis.Network(graphCanvas, { nodes: graphNodes, edges: graphEdges }, {
-          layout: { hierarchical: { enabled: true, direction: 'LR', sortMethod: 'directed', levelSeparation: 190, nodeSpacing: 46 } },
-          physics: { enabled: false },
-          edges: { color: { color: '#35494c' }, smooth: { type: 'cubicBezier' }, arrows: { to: { enabled: true, scaleFactor: 0.5 } } },
-          interaction: { hover: true, tooltipDelay: 120, keyboard: false },
-        });
+        network = new window.vis.Network(graphCanvas, { nodes: graphNodes, edges: graphEdges }, astNetworkOptions());
         network.on('click', (params) => {
           const id = (params as { nodes?: string[] }).nodes?.[0];
           const node = id ? byId.get(id) : undefined;
@@ -406,14 +554,31 @@ export function createAstView(controller: AppController, container: HTMLElement)
       })
       .catch((err: unknown) => {
         graphNote.hidden = false;
-        graphNote.textContent = `The graph could not be drawn: ${err instanceof Error ? err.message : String(err)}`;
+        graphNote.textContent = t('ast.drawFailed', { message: err instanceof Error ? err.message : String(err) });
       });
   };
 
   const unsubscribe = useWorkspaceStore.subscribe((state, previous) => {
     if (state.ast !== previous.ast) {
       render();
-      if (mode === 'graph') renderGraph();
+      if (currentMode() === 'graph') renderGraph();
+    }
+  });
+
+  // The mode, the depth and the drawing limit are shared with the expanded
+  // window, so both show the same tree.
+  const unsubscribeAst = useAstStore.subscribe((state, previous) => {
+    if (state.mode !== previous.mode) {
+      applyMode();
+      if (state.mode === 'graph') renderGraph();
+    }
+    if (state.depthLimit !== previous.depthLimit) {
+      depthSelect.value = state.depthLimit === Number.POSITIVE_INFINITY ? 'all' : String(state.depthLimit);
+      render();
+      if (currentMode() === 'graph') renderGraph();
+    }
+    if (state.nodeCap !== previous.nodeCap) {
+      if (currentMode() === 'graph') renderGraph();
     }
   });
 
@@ -423,12 +588,14 @@ export function createAstView(controller: AppController, container: HTMLElement)
     }
   });
 
+  applyMode();
   render();
 
   return {
     element: container,
     dispose: () => {
       unsubscribe();
+      unsubscribeAst();
       unsubscribeFindings();
       graphObserver.disconnect();
       network?.destroy();

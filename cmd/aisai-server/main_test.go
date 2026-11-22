@@ -3,12 +3,17 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/tlmcguire/aisai/internal/config"
 	"github.com/tlmcguire/aisai/internal/version"
 )
 
@@ -124,5 +129,72 @@ func TestEmitListeningReportsTheTCPFallback(t *testing.T) {
 	}
 	if payload["address"] != "127.0.0.1:54321" {
 		t.Errorf("address = %v", payload["address"])
+	}
+}
+
+// TestListenTakesItsOwnSocketWhenThePathIsTaken covers two copies of AISAI
+// on one machine.
+//
+// The socket path is shared, so the second copy finds it taken. It must take
+// a socket of its own: the first copy is still serving, and taking its path
+// would leave it unable to answer.
+func TestListenTakesItsOwnSocketWhenThePathIsTaken(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the server uses a loopback port on Windows")
+	}
+	// The socket path has to stay short: the system limits it to about a
+	// hundred bytes, and the temporary directory can be long.
+	path := filepath.Join(os.TempDir(), fmt.Sprintf("aisai-taken-%d.sock", os.Getpid()))
+	t.Cleanup(func() { _ = os.Remove(path) })
+
+	other, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatalf("listen on %s: %v", path, err)
+	}
+	defer other.Close()
+
+	addr, listener, err := listen(&config.Config{SocketPath: path})
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+	if addr == path {
+		t.Fatalf("the server took %s, which another instance is serving", path)
+	}
+
+	// The first copy must still answer on its own path.
+	conn, err := net.DialTimeout("unix", path, time.Second)
+	if err != nil {
+		t.Fatalf("the first instance lost its socket: %v", err)
+	}
+	conn.Close()
+}
+
+// TestListenTakesOverAStaleSocket covers the socket of a run that crashed.
+//
+// Nobody answers on it, so the server may take it over instead of asking the
+// person to clean up a file they never knew about.
+func TestListenTakesOverAStaleSocket(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the server uses a loopback port on Windows")
+	}
+	path := filepath.Join(os.TempDir(), fmt.Sprintf("aisai-stale-%d.sock", os.Getpid()))
+	t.Cleanup(func() { _ = os.Remove(path) })
+
+	stale, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatalf("listen on %s: %v", path, err)
+	}
+	// Leave the file behind, the way a crashed run would.
+	stale.(*net.UnixListener).SetUnlinkOnClose(false)
+	stale.Close()
+
+	addr, listener, err := listen(&config.Config{SocketPath: path})
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+	if addr != path {
+		t.Fatalf("address = %q, want the free socket %q", addr, path)
 	}
 }

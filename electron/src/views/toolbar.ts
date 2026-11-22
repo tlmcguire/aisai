@@ -1,8 +1,18 @@
+/**
+ * The toolbar, which is also the window's title bar: the package picker,
+ * Pull, Open folder, the two scans, the chip naming the project being
+ * inspected, and at the right edge (always in view) the update notice, the
+ * model server status, the terminal and Settings. It wraps onto a second row
+ * in a narrow window instead of hiding anything. Dropping a folder on the
+ * window audits it.
+ */
+
 import type { AppController } from '../app';
 import type { UpdateStatus } from '../api/bridge';
 import type { ProviderInfo } from '../api/types';
 import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
+import { joinMessages, t, tn } from '../lib/i18n';
 import { brandMark } from '../lib/logo';
 import { isMac } from '../lib/shortcuts';
 import { useAuditStore } from '../state/audit';
@@ -40,21 +50,35 @@ export function createToolbar(controller: AppController, container: HTMLElement)
   const picker = createPackagePicker(controller);
   const brand = h('div', { class: 'brand' }, brandMark(), h('span', { class: 'brand-name', text: 'aisai' }));
 
-  const scanButton = button('Pull', 'primary');
-  scanButton.title = 'Download a package, or clone a repository, into this audit. It does not scan.';
-  const folderButton = button('Open folder…');
-  folderButton.title = `Inspect a project folder on this computer (${isMac() ? '⌘O' : 'Ctrl+O'}, or drop a folder on the window)`;
-  const staticButton = button('Static scan');
-  staticButton.title = 'Run the static rules over the pulled code';
-  staticButton.setAttribute('aria-keyshortcuts', isMac() ? 'Meta+Shift+S' : 'Control+Shift+S');
-  const llmButton = button('LLM scan');
-  llmButton.title = 'Ask the model to review the pulled code';
+  // The project being inspected, always visible: name, version and where it came from.
+  const projectLabel = h('span', { class: 'project-label', text: t('toolbar.inspecting') });
+  const projectName = h('strong', { class: 'project-name', text: '' });
+  const projectMeta = h('span', { class: 'project-meta', text: '' });
+  const projectChip = h('div', { class: 'project-chip', hidden: true, role: 'status', 'aria-live': 'polite' }, projectLabel, projectName, projectMeta);
+  projectChip.addEventListener('click', () => {
+    if (projectChip.classList.contains('is-deleted')) document.getElementById('package-input')?.focus();
+  });
 
-  const providerChip = h('span', { class: 'provider-chips' }, h('span', { class: 'badge neutral', text: 'checking provider…' }));
-  const mockBadge = h('span', { class: 'badge mock', text: 'MOCK DATA', hidden: true });
+  const scanButton = button(t('toolbar.pull'), 'primary');
+  scanButton.title = t('toolbar.pullTitle');
+  // data-tour marks the controls the tutorials point at (views/tutorials.ts).
+  scanButton.dataset.tour = 'pull';
+  const folderButton = button(t('toolbar.openFolder'));
+  folderButton.dataset.tour = 'open-folder';
+  folderButton.title = t('toolbar.openFolderTitle', { shortcut: isMac() ? '⌘O' : 'Ctrl+O' });
+  const staticButton = button(t('toolbar.staticScan'));
+  staticButton.title = t('toolbar.staticScanTitle');
+  staticButton.dataset.tour = 'static-scan';
+  staticButton.setAttribute('aria-keyshortcuts', isMac() ? 'Meta+Shift+S' : 'Control+Shift+S');
+  const llmButton = button(t('toolbar.llmScan'));
+  llmButton.title = t('toolbar.llmScanTitle');
+  llmButton.dataset.tour = 'llm-scan';
+
+  const providerChip = h('span', { class: 'provider-chips' }, h('span', { class: 'badge neutral', text: t('toolbar.checkingProvider') }));
+  const mockBadge = h('span', { class: 'badge mock', text: t('toolbar.mockData'), hidden: true });
   const terminalButton = h(
     'button',
-    { class: 'ghost icon', type: 'button', title: 'Terminal (Ctrl+`)', 'aria-label': 'Terminal', 'aria-pressed': 'false' },
+    { class: 'ghost icon', type: 'button', title: t('toolbar.terminalTitle'), 'aria-label': t('toolbar.terminal'), 'aria-pressed': 'false' },
     icon('terminal'),
   );
   terminalButton.addEventListener('click', () => {
@@ -63,9 +87,11 @@ export function createToolbar(controller: AppController, container: HTMLElement)
   });
   const settingsButton = h(
     'button',
-    { class: 'ghost icon', type: 'button', title: `Settings (${isMac() ? '⌘,' : 'Ctrl+,'})`, 'aria-label': 'Settings' },
+    { class: 'ghost icon', type: 'button', title: t('toolbar.settingsTitle', { shortcut: isMac() ? '⌘,' : 'Ctrl+,' }), 'aria-label': t('toolbar.settings') },
     icon('gear'),
   );
+  settingsButton.dataset.tour = 'settings';
+  terminalButton.dataset.tour = 'terminal';
 
   // The self-updater: shown only while there is something to say.
   const updateButton = h('button', { class: 'tiny update-button', type: 'button', hidden: true });
@@ -77,16 +103,16 @@ export function createToolbar(controller: AppController, container: HTMLElement)
   const unsubscribeUpdate = window.aisai.onUpdateStatus((status) => {
     updateState = status;
     const label: Partial<Record<UpdateStatus['state'], string>> = {
-      downloading: `Downloading update ${status.version ?? ''} ${status.percent ?? 0}%`,
-      ready: `Restart to update to ${status.version ?? 'the new version'}`,
-      manual: `Update ${status.version ?? ''} available: download`,
+      downloading: t('toolbar.updateDownloading', { version: status.version ?? '', percent: status.percent ?? 0 }),
+      ready: t('toolbar.updateReady', { version: status.version ?? t('toolbar.theNewVersion') }),
+      manual: t('toolbar.updateManual', { version: status.version ?? '' }),
     };
     const text = label[status.state];
     updateButton.hidden = !text;
     updateButton.textContent = text ?? '';
     updateButton.disabled = status.state === 'downloading';
     updateButton.classList.toggle('primary', status.state === 'ready');
-    updateButton.title = status.message ?? 'AISAI updates itself in the background';
+    updateButton.title = status.message ?? t('toolbar.updateBackgroundTitle');
   });
 
   picker.onScan((packageName, version, ecosystem) => {
@@ -146,7 +172,7 @@ export function createToolbar(controller: AppController, container: HTMLElement)
         if (folder) {
           void controller.startFolderAudit(folder);
         } else {
-          useAuditStore.getState().setError('Drop a project folder, not a file.');
+          useAuditStore.getState().setError(t('toolbar.dropFolderNotFile'));
         }
       })
       .catch((err: unknown) => {
@@ -161,19 +187,12 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     useUiStore.getState().setSettingsOpen(true);
   });
 
+  // Two groups: the controls, which wrap onto a second row when the window is
+  // narrow, and the status and settings buttons, which always stay in view at
+  // the right edge.
   container.append(
-    brand,
-    picker.element,
-    scanButton,
-    folderButton,
-    staticButton,
-    llmButton,
-    h('div', { class: 'toolbar-spacer' }),
-    updateButton,
-    mockBadge,
-    providerChip,
-    terminalButton,
-    settingsButton,
+    h('div', { class: 'toolbar-main' }, brand, picker.element, scanButton, folderButton, staticButton, llmButton, projectChip),
+    h('div', { class: 'toolbar-end' }, updateButton, mockBadge, providerChip, terminalButton, settingsButton),
   );
 
   const refreshProviders = async (): Promise<void> => {
@@ -182,7 +201,48 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     void controller.refreshChatModel(providers);
   };
 
+  const showProject = (audit: ReturnType<typeof useAuditStore.getState>['current']): void => {
+    projectChip.hidden = !audit;
+    if (!audit) return;
+    const from =
+      audit.source === 'local'
+        ? t('toolbar.sourceFolder')
+        : audit.source === 'git' || audit.source === 'repo'
+          ? t('toolbar.sourceRepository')
+          : ({ npm: 'npm', cargo: 'crates.io', pypi: 'PyPI' } as Record<string, string>)[audit.ecosystem ?? ''] ?? 'PyPI';
+    // Deleted sources leave nothing to inspect: say so and point to the way back.
+    projectChip.classList.toggle('is-deleted', Boolean(audit.sourcesDeleted));
+    projectLabel.textContent = audit.sourcesDeleted ? t('toolbar.sourcesDeleted') : t('toolbar.inspecting');
+    if (audit.sourcesDeleted) {
+      projectName.textContent = audit.package;
+      projectMeta.textContent = t('toolbar.pullAgainToStart');
+      projectChip.title = t('toolbar.sourcesDeletedTitle', { package: audit.package });
+      return;
+    }
+    projectName.textContent = audit.package;
+    const nested = audit.skippedRepos?.length ?? 0;
+    projectMeta.textContent = joinMessages(
+      [
+        audit.version && audit.version !== 'local' ? `v${audit.version}` : '',
+        from,
+        audit.truncated ? t('toolbar.partialCopy') : '',
+        nested ? tn('toolbar.nestedReposSkipped', nested) : '',
+      ].filter(Boolean),
+      t('toolbar.dotSeparator'),
+    );
+    projectChip.classList.toggle('is-partial', Boolean(audit.truncated) || nested > 0);
+    const title = audit.version
+      ? t('toolbar.projectTitleWithVersion', { package: audit.package, version: audit.version, source: from })
+      : t('toolbar.projectTitle', { package: audit.package, source: from });
+    const parts = [title];
+    if (audit.fileCount) parts.push(tn('toolbar.projectFiles', audit.fileCount));
+    if (audit.truncated) parts.push(t('toolbar.projectTruncated'));
+    if (nested) parts.push(t('toolbar.projectNested', { repos: audit.skippedRepos?.join(', ') ?? '' }));
+    projectChip.title = joinMessages(parts, t('toolbar.dotSeparator'));
+  };
+
   const unsubscribeAudit = useAuditStore.subscribe((state) => {
+    showProject(state.current);
     brand.classList.toggle('is-busy', state.busy !== null);
     setBusy(scanButton, state.busy === 'audit');
     folderButton.disabled = state.busy === 'audit';
@@ -192,10 +252,12 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     setBusy(llmButton, state.busy === 'scan:llm');
     staticButton.disabled = !ready || state.busy !== null;
     llmButton.disabled = !ready || state.busy !== null;
-    const why = ready ? '' : 'Pull a package or open a folder first';
-    staticButton.title = why || 'Run the static rules over the pulled code';
-    llmButton.title = why || 'Ask the model to review the pulled code';
+    const why = ready ? '' : t('toolbar.pullFirst');
+    staticButton.title = why || t('toolbar.staticScanTitle');
+    llmButton.title = why || t('toolbar.llmScanTitle');
   });
+
+  showProject(useAuditStore.getState().current);
 
   const unsubscribeUi = useUiStore.subscribe((state, previous) => {
     if (state.providersStamp !== previous.providersStamp) void refreshProviders();
@@ -235,17 +297,20 @@ export function createToolbar(controller: AppController, container: HTMLElement)
 
 function providerChips(providers: ProviderInfo[]): Node[] {
   if (!providers.length) {
-    return [h('span', { class: 'badge provider-badge is-bad', role: 'button', tabindex: '0', title: 'Choose a model server', onclick: () => {
+    return [h('span', { class: 'badge provider-badge is-bad', role: 'button', tabindex: '0', title: t('toolbar.chooseModelServer'), onclick: () => {
       useUiStore.getState().setSettingsSection('server');
       useUiStore.getState().setSettingsOpen(true);
-    } }, h('span', { class: 'status-dot', 'aria-hidden': 'true' }), 'No model server')];
+    } }, h('span', { class: 'status-dot', 'aria-hidden': 'true' }), t('toolbar.noModelServer'))];
   }
   return providers.map((provider) =>
     h(
       'span',
       {
         class: `badge provider-badge ${provider.ok ? 'is-ok' : 'is-bad'}`,
-        title: (provider.error ?? `${provider.id} (${provider.kind})`) + ' · click to configure',
+        title: joinMessages(
+          [provider.error ?? `${provider.id} (${provider.kind})`, t('toolbar.clickToConfigure')],
+          t('toolbar.dotSeparator'),
+        ),
         role: 'button',
         tabindex: '0',
         onclick: () => {
@@ -254,7 +319,7 @@ function providerChips(providers: ProviderInfo[]): Node[] {
         },
       },
       h('span', { class: 'status-dot', 'aria-hidden': 'true' }),
-      `${providerLabel(provider.kind)}${provider.ok ? '' : ' offline'}`,
+      provider.ok ? providerLabel(provider.kind) : t('toolbar.providerOffline', { provider: providerLabel(provider.kind) }),
     ),
   );
 }

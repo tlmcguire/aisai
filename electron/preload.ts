@@ -3,7 +3,10 @@
  *
  * Runs in a sandboxed, context-isolated world. It exposes exactly one object,
  * `window.aisai`, and nothing else. The renderer never sees the socket path,
- * the filesystem, or any credential.
+ * the filesystem, or any credential. contextBridge copies values across the
+ * isolation boundary instead of sharing objects
+ * (https://www.electronjs.org/docs/latest/tutorial/context-isolation), and the
+ * exact list of members is checked by test/security.test.ts.
  */
 
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
@@ -14,6 +17,7 @@ import type {
   ClientMessage,
   HttpMethod,
   HttpResponse,
+  MenuCommand,
   UpdateStatus,
 } from './src/api/bridge';
 import type { Event } from './src/api/types';
@@ -64,7 +68,18 @@ ipcRenderer.on('aisai:update', (_event, payload: UpdateStatus) => {
   for (const listener of Array.from(updateListeners)) listener(payload);
 });
 
+const menuListeners = new Set<(command: MenuCommand) => void>();
+ipcRenderer.on('aisai:menu', (_event, command: MenuCommand) => {
+  for (const listener of Array.from(menuListeners)) listener(command);
+});
+
 const bridge: AisaiBridge = {
+  onMenuCommand: (cb) => {
+    menuListeners.add(cb);
+    return () => {
+      menuListeners.delete(cb);
+    };
+  },
   onUpdateStatus: (cb) => {
     updateListeners.add(cb);
     cb(updateStatus);
@@ -75,6 +90,14 @@ const bridge: AisaiBridge = {
   checkForUpdates: () => ipcRenderer.invoke('aisai:update:check') as Promise<void>,
   installUpdate: () => ipcRenderer.invoke('aisai:update:install') as Promise<void>,
   openReleasePage: () => ipcRenderer.invoke('aisai:update:page') as Promise<void>,
+  openExternal: (url: string) => ipcRenderer.invoke('aisai:open-external', url) as Promise<void>,
+  exportPdf: (html: string, name: string) =>
+    ipcRenderer.invoke('aisai:export-pdf', html, name) as Promise<{ saved: boolean; path?: string; bytes?: number }>,
+  showInFolder: (file: string) => ipcRenderer.invoke('aisai:show-in-folder', file) as Promise<void>,
+  setMenuShortcuts: (shortcuts: Record<string, string>) => ipcRenderer.invoke('aisai:menu-shortcuts', shortcuts) as Promise<void>,
+  setLocale: (locale: string) => {
+    ipcRenderer.send('aisai:locale', locale);
+  },
   getMode: () => currentStatus.mode,
   getStatus: () => currentStatus,
   http: (method: HttpMethod, path: string, body?: unknown): Promise<HttpResponse> =>

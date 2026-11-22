@@ -1,15 +1,21 @@
 import { create } from 'zustand';
 
 import type { CodeSelection } from '../api/types';
+import { t } from '../lib/i18n';
 
 /** One tool the model ran while answering. */
 export interface ToolStep {
   id: string;
   name: string;
   args: Record<string, unknown>;
-  status: 'running' | 'done' | 'error';
+  /** 'waiting' while the user is asked to allow the call. */
+  status: 'running' | 'done' | 'error' | 'waiting';
   output?: string;
   error?: string;
+  /** What the call will do, shown when it needs approval. */
+  summary?: string;
+  /** "expired": nobody answered in time, which counts as a refusal but is not the user's choice. */
+  approval?: 'pending' | 'approved' | 'denied' | 'expired';
 }
 
 export interface ChatMessage {
@@ -26,6 +32,14 @@ export interface ChatMessage {
   /** When the turn started, for the elapsed time of the status line. */
   startedAt?: number;
   steps?: ToolStep[];
+  /** Why the turn failed, when it did. The answer text is kept apart from it. */
+  error?: string;
+  /** True while older turns are being summarised to fit the context. */
+  compacting?: boolean;
+  /** A note that the history was compacted for this turn. */
+  compacted?: string;
+  /** Something the user should know about this answer (it was given without tools, …). */
+  notice?: string;
 }
 
 /** A conversation about one audit. */
@@ -50,13 +64,23 @@ export interface ChatModelInfo {
   available: boolean;
   /** Why chat is limited, shown to the user when it is not available. */
   reason: string;
+  /**
+   * Whether the model can call tools: "no" means it cannot search the web,
+   * open files or run commands; "unknown" when the server cannot tell.
+   */
+  tools?: 'yes' | 'no' | 'unknown';
+  /** Web search is switched on in Settings. */
+  webSearch?: boolean;
 }
 
 export const NO_CHAT_MODEL: ChatModelInfo = {
   name: '',
   provider: '',
   available: false,
-  reason: 'Checking for a model…',
+  // A getter, so the text follows the language the interface is in.
+  get reason(): string {
+    return t('chat.checkingModel');
+  },
 };
 
 const STORAGE_PREFIX = 'aisai.chat.v2:';
@@ -139,6 +163,12 @@ export interface ChatState {
   upsertStep: (jobId: string, step: ToolStep) => void;
   finishAssistant: (jobId: string, citations: string[], chunksUsed: string[]) => void;
   failAssistant: (jobId: string, error: string) => void;
+  addNotice: (jobId: string, text: string) => void;
+  setCompacting: (jobId: string, compacting: boolean, note?: string) => void;
+  /** Remove a message and everything after it (to edit or retry from there). */
+  truncateFrom: (messageId: string) => void;
+  /** Start a new thread with the conversation up to and including a message. */
+  forkFrom: (messageId: string) => string | null;
   /** Stop waiting for the running turn. */
   stop: () => void;
   clear: () => void;
@@ -207,7 +237,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const now = Date.now();
     const thread: ChatThread = {
       id: nextId('thread'),
-      title: 'New chat',
+      title: t('chat.newChat'),
       autoTitle: true,
       archived: false,
       createdAt: now,
@@ -339,8 +369,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messages: mapStreaming(thread.messages, (m) => {
           const steps = (m.steps ?? []).slice();
           const at = steps.findIndex((s) => s.id === step.id);
-          if (at >= 0) steps[at] = { ...steps[at], ...step, args: step.args ?? steps[at].args };
-          else steps.push(step);
+          if (at >= 0) {
+            // A later report only adds to what is known: it never blanks the
+            // name, the arguments or the approval summary.
+            const prev = steps[at];
+            steps[at] = {
+              ...prev,
+              ...step,
+              name: step.name || prev.name,
+              args: step.args && Object.keys(step.args).length ? step.args : prev.args,
+              summary: step.summary ?? prev.summary,
+              // A timeout is followed by a plain "denied" result; the timeout is the more useful story.
+              approval: prev.approval === 'expired' ? 'expired' : (step.approval ?? prev.approval),
+            };
+          } else steps.push(step);
           return { ...m, steps };
         }),
       }));
@@ -376,12 +418,67 @@ export const useChatStore = create<ChatState>((set, get) => ({
           messages: mapStreaming(thread.messages, (m) => ({
             ...m,
             streaming: false,
-            content: m.content || `The assistant could not answer: ${error}`,
+            error,
+            compacting: false,
+            steps: m.steps?.map((s) => (s.status === 'running' || s.status === 'waiting' ? { ...s, status: 'error' as const } : s)),
           })),
         }),
         { busy: false, error, jobId: null },
       );
     }),
+
+  addNotice: (jobId, text) =>
+    set((state) => {
+      if (state.jobId !== jobId) return state;
+      return withActive(state, (thread) => ({
+        ...thread,
+        messages: mapStreaming(thread.messages, (m) => ({ ...m, notice: text })),
+      }));
+    }),
+
+  setCompacting: (jobId, compacting, note) =>
+    set((state) => {
+      if (state.jobId !== jobId) return state;
+      return withActive(state, (thread) => ({
+        ...thread,
+        messages: mapStreaming(thread.messages, (m) => ({ ...m, compacting, compacted: note ?? m.compacted })),
+      }));
+    }),
+
+  truncateFrom: (messageId) =>
+    set((state) =>
+      withActive(
+        state,
+        (thread) => {
+          const at = thread.messages.findIndex((m) => m.id === messageId);
+          return at < 0 ? thread : { ...thread, messages: thread.messages.slice(0, at) };
+        },
+        { busy: false, jobId: null, error: null },
+      ),
+    ),
+
+  forkFrom: (messageId) => {
+    const source = get().activeThread();
+    if (!source) return null;
+    const at = source.messages.findIndex((m) => m.id === messageId);
+    if (at < 0) return null;
+    const now = Date.now();
+    const thread: ChatThread = {
+      id: nextId('thread'),
+      title: `${source.title} (branch)`,
+      autoTitle: false,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+      messages: source.messages.slice(0, at + 1).map((m) => ({ ...m, id: nextId(m.role), streaming: false })),
+    };
+    set((state) => {
+      const threads = [thread, ...state.threads];
+      save(state.auditId, threads, thread.id);
+      return { threads, activeId: thread.id, messages: thread.messages, busy: false, error: null, jobId: null };
+    });
+    return thread.id;
+  },
 
   stop: () =>
     set((state) =>

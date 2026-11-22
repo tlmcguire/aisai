@@ -1,17 +1,31 @@
+/**
+ * The findings rail: every finding of the audit as a card, with search,
+ * severity chips, CWE, tool and state filters, sorting, and triage actions
+ * (confirm, suppress until a date, mark fixed, propose a fix). Its bottom
+ * row exports the report as PDF or HTML; File › Export Report and its
+ * shortcut arrive here as aisai:export-report events.
+ */
+
 import type { AppController } from '../app';
 import { SEVERITIES, type Finding, type FindingState, type Severity } from '../api/types';
 import { h } from '../lib/dom';
+import { t } from '../lib/i18n';
+import { setBusy } from './toolbar';
+import { confirmDialog } from './confirm';
 import { icon } from '../lib/icons';
 import { severityClass, severityLabel, severityWeight } from '../lib/severity';
 import { useFindingsStore, type FindingSortKey } from '../state/findings';
 
-const SORT_KEYS: Array<{ key: FindingSortKey; label: string }> = [
-  { key: 'severity', label: 'Severity' },
-  { key: 'confidence', label: 'Confidence' },
-  { key: 'cwe', label: 'CWE' },
-  { key: 'file', label: 'File' },
-  { key: 'tool', label: 'Tool' },
-];
+/** The sort keys, with their labels in the current language. */
+function sortKeys(): Array<{ key: FindingSortKey; label: string }> {
+  return [
+    { key: 'severity', label: t('findings.sortSeverity') },
+    { key: 'confidence', label: t('findings.sortConfidence') },
+    { key: 'cwe', label: t('findings.sortCwe') },
+    { key: 'file', label: t('findings.sortFile') },
+    { key: 'tool', label: t('findings.sortTool') },
+  ];
+}
 
 function defaultExpiry(): string {
   const date = new Date();
@@ -27,8 +41,8 @@ export interface FindingsRail {
 export function createFindingsRail(controller: AppController, container: HTMLElement): FindingsRail {
   const searchInput = h('input', {
     type: 'search',
-    placeholder: 'Filter findings…',
-    'aria-label': 'Search findings',
+    placeholder: t('findings.filterPlaceholder'),
+    'aria-label': t('findings.searchLabel'),
   });
 
   const severityChips = SEVERITIES.map((severity) =>
@@ -38,6 +52,9 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
         class: `chip ${severityClass(severity)}`,
         type: 'button',
         'aria-pressed': 'false',
+        // The severity is a value, so it travels in the markup rather than
+        // in the label, which is translated.
+        dataset: { severity },
         onclick: () => useFindingsStore.getState().toggleSeverity(severity),
       },
       severityLabel(severity),
@@ -46,29 +63,29 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
 
   const cweSelect = h(
     'select',
-    { 'aria-label': 'Filter by CWE', onchange: () => onSelectChange(cweSelect, 'cwe') },
-    h('option', { value: '' }, 'All CWEs'),
+    { 'aria-label': t('findings.filterByCwe'), onchange: () => onSelectChange(cweSelect, 'cwe') },
+    h('option', { value: '' }, t('findings.allCwes')),
   );
   const toolSelect = h(
     'select',
-    { 'aria-label': 'Filter by tool', onchange: () => onSelectChange(toolSelect, 'tool') },
-    h('option', { value: '' }, 'All tools'),
+    { 'aria-label': t('findings.filterByTool'), onchange: () => onSelectChange(toolSelect, 'tool') },
+    h('option', { value: '' }, t('findings.allTools')),
   );
   const stateSelect = h(
     'select',
-    { 'aria-label': 'Filter by triage state', onchange: () => onSelectChange(stateSelect, 'state') },
-    h('option', { value: '' }, 'Any state'),
-    h('option', { value: 'open' }, 'Open'),
-    h('option', { value: 'confirmed' }, 'Confirmed'),
-    h('option', { value: 'suppressed' }, 'Suppressed'),
-    h('option', { value: 'fixed' }, 'Fixed'),
+    { 'aria-label': t('findings.filterByState'), onchange: () => onSelectChange(stateSelect, 'state') },
+    h('option', { value: '' }, t('findings.anyState')),
+    h('option', { value: 'open' }, t('findings.stateOpen')),
+    h('option', { value: 'confirmed' }, t('findings.stateConfirmed')),
+    h('option', { value: 'suppressed' }, t('findings.stateSuppressed')),
+    h('option', { value: 'fixed' }, t('findings.stateFixed')),
   );
 
   const expiryInput = h('input', {
     type: 'date',
-    'aria-label': 'Suppress until date',
+    'aria-label': t('findings.suppressUntilDateLabel'),
     value: defaultExpiry(),
-    title: 'Expiry date used when suppressing a finding',
+    title: t('findings.expiryDateTitle'),
   });
 
   const showSuppressed = h('input', {
@@ -80,8 +97,8 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
   const sortRow = h(
     'div',
     { class: 'sort-row' },
-    h('span', { text: 'Sort:' }),
-    ...SORT_KEYS.map(({ key, label }) =>
+    h('span', { text: t('findings.sortLabel') }),
+    ...sortKeys().map(({ key, label }) =>
       h(
         'button',
         {
@@ -97,25 +114,66 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
   );
 
   const list = h('ul', { class: 'finding-list' });
+  // The report, as a PDF to share or as the HTML page it is printed from.
+  const pdfButton = h('button', { class: 'tiny', type: 'button', title: t('findings.exportPdfTitle') }, h('span', { class: 'btn-label', text: 'PDF' }));
+  const htmlButton = h('button', { class: 'tiny', type: 'button', title: t('findings.exportHtmlTitle') }, h('span', { class: 'btn-label', text: 'HTML' }));
+  const exportStatus = h('span', { class: 'export-status', role: 'status', 'aria-live': 'polite' });
+  const runExport = async (format: 'pdf' | 'html', button: HTMLButtonElement): Promise<void> => {
+    setBusy(button, true);
+    exportStatus.className = 'export-status';
+    exportStatus.textContent = format === 'pdf' ? t('findings.makingPdf') : '';
+    const result = await controller.exportReport(format);
+    setBusy(button, false);
+    if (result.error) {
+      exportStatus.className = 'export-status is-error';
+      exportStatus.textContent = t('findings.exportFailed', { error: result.error });
+      return;
+    }
+    if (!result.saved || !result.path) {
+      exportStatus.textContent = '';
+      return;
+    }
+    const saved = result.path;
+    exportStatus.replaceChildren(
+      t('findings.savedFile', { name: saved.split(/[\\/]/).pop() ?? t('findings.thePdf') }),
+      h('button', { class: 'link-button', type: 'button', text: t('findings.show'), onclick: () => void window.aisai.showInFolder(saved) }),
+    );
+  };
+  // File › Export Report and its shortcut arrive here, so they share the status line.
+  window.addEventListener('aisai:export-report', async (event) => {
+    const format = (event as CustomEvent<'pdf' | 'html'>).detail === 'html' ? 'html' : 'pdf';
+    if (!useFindingsStore.getState().findings.length) {
+      const ok = await confirmDialog(t('findings.exportEmptyConfirm'), { confirmLabel: t('findings.exportAnyway'), cancelLabel: t('findings.cancel') });
+      if (!ok) return;
+    }
+    void runExport(format, format === 'pdf' ? pdfButton : htmlButton);
+  });
+  pdfButton.addEventListener('click', () => void runExport('pdf', pdfButton));
+  htmlButton.addEventListener('click', () => void runExport('html', htmlButton));
+  const reportRow = h('div', { class: 'row export-row' }, h('span', { class: 'export-label', text: t('findings.exportReport') }), pdfButton, htmlButton, exportStatus);
 
   const controls = h(
     'div',
     { class: 'rail-controls' },
     h('div', { class: 'row' }, searchInput),
-    h('div', { class: 'row' }, ...severityChips),
+    // The graph pane has its own severity row; the label tells the two apart.
+    h('div', { class: 'row' }, h('span', { class: 'row-label', text: t('findings.filterLabel') }), ...severityChips),
     h('div', { class: 'row' }, cweSelect, toolSelect, stateSelect),
     h(
       'div',
       { class: 'row' },
-      h('label', { for: 'show-suppressed', text: 'Show suppressed' }),
+      h('label', { for: 'show-suppressed', text: t('findings.showSuppressed') }),
       showSuppressed,
-      h('span', { text: 'Suppress until' }),
+      h('span', { text: t('findings.suppressUntil') }),
       expiryInput,
     ),
     sortRow,
+    reportRow,
   );
 
   const body = h('div', { class: 'pane-body' }, list);
+  container.dataset.tour = 'findings';
+  reportRow.dataset.tour = 'export';
   container.append(controls, body);
 
   function onSelectChange(select: HTMLSelectElement, kind: 'cwe' | 'tool' | 'state'): void {
@@ -196,7 +254,7 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
             void controller.setFindingState(finding.id, 'confirmed');
           },
         },
-        'Confirm',
+        t('findings.confirm'),
       ),
       h(
         'button',
@@ -213,7 +271,7 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
             );
           },
         },
-        'Suppress',
+        t('findings.suppress'),
       ),
       h(
         'button',
@@ -225,7 +283,7 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
             void controller.setFindingState(finding.id, 'fixed');
           },
         },
-        'Mark fixed',
+        t('findings.markFixed'),
       ),
       h(
         'button',
@@ -237,7 +295,7 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
             void controller.proposeFix(finding.id);
           },
         },
-        'Propose fix',
+        t('findings.proposeFix'),
       ),
     );
 
@@ -245,14 +303,16 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
       'div',
       { class: 'meta' },
       h('span', { text: `${finding.file}:${finding.startLine}` }),
-      h('span', { text: `tool: ${finding.tool}` }),
-      h('span', { text: `rule: ${finding.rule}` }),
-      finding.reachability ? h('span', { text: finding.reachability }) : null,
+      h('span', { text: t('findings.toolLabel', { tool: finding.tool }) }),
+      h('span', { text: t('findings.ruleLabel', { rule: finding.rule }) }),
+      finding.reachability
+        ? h('span', { text: t(`findings.reachability.${finding.reachability}`) })
+        : null,
       finding.state !== 'open'
         ? h('span', {
             text:
               finding.state === 'suppressed' && finding.suppressedUntil
-                ? `suppressed until ${finding.suppressedUntil.slice(0, 10)}`
+                ? t('findings.suppressedUntil', { date: finding.suppressedUntil.slice(0, 10) })
                 : finding.state,
           })
         : null,
@@ -260,7 +320,7 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
 
     const confidence = h(
       'span',
-      { class: 'confidence-bar', title: `Confidence ${(finding.confidence * 100).toFixed(0)}%` },
+      { class: 'confidence-bar', title: t('findings.confidenceTitle', { confidence: (finding.confidence * 100).toFixed(0) }) },
       h('span', { class: 'confidence-track' },
         h('span', {
           class: 'confidence-fill',
@@ -276,7 +336,7 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
         class: `finding-card ${severityClass(finding.severity)}${selected ? ' selected' : ''}`,
         tabindex: '0',
         role: 'button',
-        'aria-label': `${severityLabel(finding.severity)} finding in ${finding.file} line ${finding.startLine}`,
+        'aria-label': t('findings.cardLabel', { severity: severityLabel(finding.severity), file: finding.file, line: finding.startLine }),
         onclick: () => {
           useFindingsStore.getState().select(finding.id);
           void controller.openFile(finding.file, finding.startLine);
@@ -314,11 +374,11 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
     // Filter dropdown options reflect what is actually present.
     const cwes = Array.from(new Set(state.findings.map((f) => f.cwe).filter((c): c is string => !!c)));
     const tools = Array.from(new Set(state.findings.map((f) => f.tool)));
-    syncOptions(cweSelect, cwes, 'All CWEs');
-    syncOptions(toolSelect, tools, 'All tools');
+    syncOptions(cweSelect, cwes, t('findings.allCwes'));
+    syncOptions(toolSelect, tools, t('findings.allTools'));
 
     for (const chip of severityChips) {
-      const severity = chip.textContent?.toLowerCase() as Severity | undefined;
+      const severity = chip.dataset.severity as Severity | undefined;
       chip.setAttribute(
         'aria-pressed',
         String(severity ? state.severities.includes(severity) : false),
@@ -335,7 +395,7 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
       if (slot && slot.dataset.dir !== want) {
         slot.dataset.dir = want;
         slot.replaceChildren(
-          want ? icon(want === 'up' ? 'arrow-up' : 'arrow-down', want === 'up' ? 'ascending' : 'descending') : '',
+          want ? icon(want === 'up' ? 'arrow-up' : 'arrow-down', want === 'up' ? t('findings.sortAscending') : t('findings.sortDescending')) : '',
         );
       }
     }
@@ -348,12 +408,8 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
         h(
           'li',
           { class: 'empty-state' },
-          h('h3', { text: 'No findings yet' }),
-          h('p', {
-            text:
-              'Pull a package from the toolbar, then run a Static scan or an LLM scan to analyse the downloaded ' +
-              'workspace. Findings appear here with severity, confidence, CWE and triage actions.',
-          }),
+          h('h3', { text: t('findings.emptyTitle') }),
+          h('p', { text: t('findings.emptyDescription') }),
         ),
       );
       return;
@@ -367,10 +423,8 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
         h(
           'li',
           { class: 'empty-state' },
-          h('h3', { text: 'Nothing matches these filters' }),
-          h('p', {
-            text: 'Clear the search box or the severity/CWE filters to see the rest of the findings.',
-          }),
+          h('h3', { text: t('findings.filteredTitle') }),
+          h('p', { text: t('findings.filteredDescription') }),
         ),
       );
       return;

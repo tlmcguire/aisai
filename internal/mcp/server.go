@@ -30,7 +30,7 @@ const ProtocolVersion = "2024-11-05"
 const ServerName = "aisai"
 
 // ServerVersion is the server version reported to clients.
-var ServerVersion = "0.5.0"
+var ServerVersion = "0.6.0"
 
 // Tool is one callable tool.
 type Tool struct {

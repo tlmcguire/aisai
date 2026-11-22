@@ -81,6 +81,12 @@ type Result struct {
 	Skipped int
 	// Truncated reports that a limit stopped the copy early.
 	Truncated bool
+	// NestedRepos lists the folders inside the project that are repositories
+	// of their own (a git worktree, a submodule, a checked-out copy). They are
+	// separate projects, often full copies of this one, so they are left out
+	// instead of being audited as if they were part of it. The paths are
+	// relative to the project and slash-separated.
+	NestedRepos []string
 }
 
 // Validate resolves a folder chosen by the user into a clean absolute path.
@@ -172,6 +178,14 @@ func Snapshot(ctx context.Context, src, dst string, keep func(name string) bool,
 			}
 			name := d.Name()
 			if strings.HasPrefix(name, ".") || skippedDirs[name] {
+				return fs.SkipDir
+			}
+			// A folder with its own .git is a nested repository: a linked
+			// worktree has a .git file, a clone or submodule a .git folder.
+			if _, gerr := os.Lstat(filepath.Join(path, ".git")); gerr == nil {
+				if rel, rerr := filepath.Rel(src, path); rerr == nil {
+					res.NestedRepos = append(res.NestedRepos, filepath.ToSlash(rel))
+				}
 				return fs.SkipDir
 			}
 			// Never copy the audit workspace into itself: a folder that is

@@ -1,7 +1,11 @@
 /**
  * API keys for hosted model services, kept in the operating system's
  * credential store through Electron's safeStorage (the macOS Keychain, the
- * Windows DPAPI, libsecret on Linux).
+ * Windows DPAPI, libsecret on Linux; https://www.electronjs.org/docs/latest/api/safe-storage).
+ *
+ * On macOS, the first use of safeStorage asks for the "AISAI Safe Storage"
+ * Keychain item, which may show a password prompt. That is why nothing here
+ * touches it until a key has actually been saved.
  *
  * The renderer can hand a key to the main process and ask whether one is
  * saved, but it can never read a saved key back. The main process adds a
@@ -87,6 +91,9 @@ export function setActiveProvider(kind: string): void {
 
 /** The key of the active provider, for the backend's environment. */
 export function activeSecret(): string | null {
-  const active = load().active;
-  return active ? readSecret(active) : null;
+  const data = load();
+  // Reading the keychain at launch makes macOS ask for permission to use
+  // "AISAI Safe Storage", so do not touch it unless a key is actually saved.
+  if (!data.active || !data.keys[data.active]) return null;
+  return readSecret(data.active);
 }

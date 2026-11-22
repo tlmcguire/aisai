@@ -1,13 +1,19 @@
 import type { Severity } from '../api/types';
+import { t } from './i18n';
 
 /** CSS class suffix for a severity, e.g. `sev-critical`. */
 export function severityClass(severity: Severity): string {
   return `sev-${severity}`;
 }
 
-/** Human readable severity label. */
+/**
+ * Human readable severity label, in the language of the interface.
+ *
+ * The severity itself is a value from the backend and stays as it is; only
+ * the word shown to a person is translated.
+ */
 export function severityLabel(severity: Severity): string {
-  return severity.charAt(0).toUpperCase() + severity.slice(1);
+  return t(`severity.${severity}`);
 }
 
 /** Numeric weight, mirroring model.severityRank (higher is worse). */

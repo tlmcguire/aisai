@@ -179,3 +179,36 @@ func TestScanJobReportsItsEnd(t *testing.T) {
 		t.Errorf("close all terminals: %d", rec.Code)
 	}
 }
+
+// A local folder that holds a nested repository (a worktree, a copy) reports
+// it as skipped, so the audit is not silently several times its real size.
+func TestLocalAuditReportsSkippedNestedRepositories(t *testing.T) {
+	h := newEditorServer(t, nil)
+	project := filepath.Join(t.TempDir(), "demo")
+	_ = os.MkdirAll(filepath.Join(project, "copy"), 0o755)
+	_ = os.WriteFile(filepath.Join(project, "app.py"), []byte("x = 1\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(project, "copy", "app.py"), []byte("x = 1\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(project, "copy", ".git"), []byte("gitdir: /elsewhere"), 0o644)
+
+	_, body := do(t, h, http.MethodPost, "/api/audits", `{"path":`+strconv.Quote(project)+`}`)
+	id, _ := body["audit"].(map[string]any)["id"].(string)
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		_, got := do(t, h, http.MethodGet, "/api/audits/"+id, "")
+		cur, _ := got["audit"].(map[string]any)
+		if cur["status"] == "ready" {
+			skipped, _ := cur["skippedRepos"].([]any)
+			if len(skipped) != 1 || skipped[0] != "copy" {
+				t.Fatalf("skippedRepos = %v, want [copy]", cur["skippedRepos"])
+			}
+			if cur["fileCount"] != float64(1) {
+				t.Errorf("fileCount = %v, want 1 (only app.py)", cur["fileCount"])
+			}
+			return
+		}
+		if cur["status"] == "failed" || time.Now().After(deadline) {
+			t.Fatalf("audit not ready: %v", cur)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}

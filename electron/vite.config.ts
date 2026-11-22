@@ -1,4 +1,8 @@
+import { readFileSync } from 'node:fs';
+
 import { defineConfig } from 'vitest/config';
+
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
 /**
  * Renderer build only. The Electron main/preload processes are bundled by
@@ -9,6 +13,7 @@ export default defineConfig({
   root: '.',
   // Relative base so the built bundle can be loaded over file:// in production.
   base: './',
+  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   build: {
     outDir: 'dist/renderer',
     emptyOutDir: true,

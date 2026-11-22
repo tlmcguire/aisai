@@ -22,6 +22,7 @@ import (
 
 	"github.com/tlmcguire/aisai/internal/audit"
 	"github.com/tlmcguire/aisai/internal/config"
+	"github.com/tlmcguire/aisai/internal/debug"
 	"github.com/tlmcguire/aisai/internal/findings"
 	"github.com/tlmcguire/aisai/internal/gitsrc"
 	"github.com/tlmcguire/aisai/internal/index"
@@ -47,6 +48,7 @@ type Server struct {
 	models        *llm.Models
 	index         IndexStore
 	chat          ChatEngine
+	approvals     approvalBook
 	chatFactory   ChatFactory
 	patches       PatchApplier
 	pypi          *pypi.Client
@@ -54,6 +56,8 @@ type Server struct {
 	terminals     *terminal.Manager
 	jobs          sync.Map // job id -> jobStatus
 	terminalsOnce sync.Once
+	debugger      *debug.Manager
+	debuggerOnce  sync.Once
 	started       time.Time
 }
 
@@ -84,6 +88,8 @@ type ChatRequest struct {
 	Selection *ChatSelection
 	// OnStep, when set, receives the model's thinking and tool calls.
 	OnStep func(ChatStep)
+	// Approve asks the user whether the tool call with this step id may run.
+	Approve func(ctx context.Context, stepID string) (bool, error)
 }
 
 // ChatStep is one thing the model did besides writing the answer.
@@ -95,6 +101,9 @@ type ChatStep struct {
 	Args   map[string]any `json:"args,omitempty"`
 	Output string         `json:"output,omitempty"`
 	Error  string         `json:"error,omitempty"`
+	// Summary describes a call that awaits approval; Approved is the answer.
+	Summary  string `json:"summary,omitempty"`
+	Approved bool   `json:"approved,omitempty"`
 }
 
 // ChatSelection is a piece of code selected in the editor.
@@ -201,6 +210,7 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/config", s.handleConfig)
+	mux.HandleFunc("POST /api/config/web-search", s.handleSetWebSearch)
 	mux.HandleFunc("GET /api/providers", s.handleProviders)
 	mux.HandleFunc("POST /api/providers/test", s.handleProviderTest)
 	mux.HandleFunc("POST /api/providers", s.handleSetProvider)
@@ -253,8 +263,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/terminals/{id}", s.handleCloseTerminal)
 	mux.HandleFunc("DELETE /api/terminals", s.handleCloseAllTerminals)
 
+	mux.HandleFunc("POST /api/debug", s.handleStartDebug)
+	mux.HandleFunc("POST /api/debug/{id}/command", s.handleDebugCommand)
+	mux.HandleFunc("DELETE /api/debug/{id}", s.handleStopDebug)
+
 	mux.HandleFunc("POST /api/chat", s.handleChat)
 	mux.HandleFunc("POST /api/chat/title", s.handleChatTitle)
+	mux.HandleFunc("POST /api/chat/approvals/{id}", s.handleChatApproval)
+	mux.HandleFunc("GET /api/chat/capabilities", s.handleChatCapabilities)
 
 	mux.HandleFunc("GET /api/audits/{id}/export", s.handleExport)
 
@@ -346,6 +362,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			"numCtx":      s.models.NumCtx(),
 			"keepAlive":   s.models.KeepAlive(),
 			"disableLlm":  redacted.DisableLLM,
+			"webSearch":   redacted.WebSearch,
 			"byokBaseUrl": redacted.BYOKBaseURL,
 			"byokModel":   redacted.BYOKModel,
 		},
@@ -734,9 +751,17 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 			err  error
 			list []model.Finding
 		)
-		if engine == "llm" {
+		switch {
+		case engine == "llm":
 			list, err = s.manager.ScanLLM(ctx, id, req.Path)
-		} else {
+		case strings.TrimSpace(req.Path) != "":
+			// One file: re-parse it, run the rules and replace its findings.
+			var res *audit.RescanResult
+			if res, err = s.manager.RescanFile(ctx, id, req.Path); err == nil {
+				// Only the count matters to the job: the findings arrive as events.
+				list = make([]model.Finding, len(res.Introduced)+res.Unchanged)
+			}
+		default:
 			list, err = s.manager.Scan(ctx, id)
 		}
 		// The end of a scan is announced and remembered, so the app can stop
@@ -747,7 +772,7 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.jobs.Store(jobID, jobStatus{State: "done", Findings: len(list)})
-		s.hub.Broadcast(model.Event{Type: model.EventScanDone, AuditID: id, JobID: jobID, Data: map[string]any{"findings": len(list), "engine": engine}})
+		s.hub.Broadcast(model.Event{Type: model.EventScanDone, AuditID: id, JobID: jobID, Data: map[string]any{"findings": len(list), "engine": engine, "path": req.Path}})
 	}()
 }
 
@@ -1067,6 +1092,14 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 			OnStep: func(st ChatStep) {
 				s.hub.Broadcast(model.Event{Type: model.EventChatStep, JobID: jobID, Data: st})
 			},
+			Approve: func(ctx context.Context, stepID string) (bool, error) {
+				ok, timedOut, err := s.approvals.wait(ctx, jobID+"/"+stepID)
+				if timedOut {
+					// Nobody answered: say so, instead of letting it look like a refusal.
+					s.hub.Broadcast(model.Event{Type: model.EventChatStep, JobID: jobID, Data: ChatStep{Kind: "approval_timeout", ID: stepID}})
+				}
+				return ok, err
+			},
 		}, func(token string) {
 			s.hub.Broadcast(model.Event{Type: model.EventChatToken, JobID: jobID, Data: map[string]any{"delta": token}})
 		})
@@ -1094,21 +1127,56 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleFetchAdvisories(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Offline bool `json:"offline"`
+		// Background answers at once and runs the lookup on its own; the
+		// app is told by an advisories.ready event. A project with hundreds
+		// of locked packages takes a while to look up.
+		Background bool `json:"background"`
 	}
 	if r.ContentLength != 0 {
 		if !decodeBody(w, r, &req) {
 			return
 		}
 	}
+	id := r.PathValue("id")
 
-	advisories, err := s.manager.FetchAdvisories(r.Context(), r.PathValue("id"), true)
+	if req.Background {
+		if _, _, err := s.manager.AdvisoryState(id); err != nil {
+			fail(w, err)
+			return
+		}
+		// A lookup already in flight is not started twice.
+		if s.manager.AdvisoriesRunning(id) {
+			writeJSON(w, http.StatusAccepted, map[string]any{"started": false, "running": true, "mode": s.manager.AdvisoryMode()})
+			return
+		}
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+			defer cancel()
+			list, err := s.manager.FetchAdvisories(ctx, id, true)
+			if err != nil {
+				s.hub.Broadcast(model.Event{Type: model.EventAdvisories, AuditID: id, Error: err.Error()})
+				return
+			}
+			s.hub.Broadcast(model.Event{Type: model.EventAdvisories, AuditID: id, Data: map[string]any{"count": len(list), "mode": s.manager.AdvisoryMode()}})
+		}()
+		writeJSON(w, http.StatusAccepted, map[string]any{"started": true, "mode": s.manager.AdvisoryMode()})
+		return
+	}
+
+	advisories, err := s.manager.FetchAdvisories(r.Context(), id, true)
 	if err != nil {
 		fail(w, err)
 		return
 	}
+	if advisories == nil {
+		advisories = []model.Advisory{}
+	}
+	fetched, checked, _ := s.manager.AdvisoryState(id)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"advisories": advisories,
 		"mode":       s.manager.AdvisoryMode(),
+		"fetched":    fetched,
+		"checked":    checked,
 	})
 }
 
@@ -1123,9 +1191,13 @@ func (s *Server) handleListAdvisories(w http.ResponseWriter, r *http.Request) {
 	if advisories == nil {
 		advisories = []model.Advisory{}
 	}
+	fetched, checked, _ := s.manager.AdvisoryState(id)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"advisories": advisories,
 		"mode":       s.manager.AdvisoryMode(),
+		"fetched":    fetched,
+		"checked":    checked,
+		"running":    s.manager.AdvisoriesRunning(id),
 	})
 }
 
@@ -1174,6 +1246,25 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fmt.Sprintf("aisai-%s.json", id)))
 		w.Write(data)
+	case "html":
+		opts := findings.ReportOptions{AuditID: id, ToolVersion: version.Short()}
+		if snap, err := s.manager.Snapshot(id); err == nil {
+			opts.Package = snap.Package
+			opts.Version = snap.Version
+		}
+		// The dependencies' known vulnerabilities, when they were looked up.
+		if fetched, checked, err := s.manager.AdvisoryState(id); err == nil && fetched {
+			opts.AdvisoriesChecked = checked
+			opts.Advisories, _ = s.manager.Advisories(id)
+		}
+		data, err := findings.WriteHTMLReport(list, opts)
+		if err != nil {
+			fail(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fmt.Sprintf("aisai-%s-report.html", id)))
+		w.Write(data)
 	case "cyclonedx", "spdx":
 		data, ext, contentType, err := s.writeSBOM(r, id, format, list)
 		if err != nil {
@@ -1184,7 +1275,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fmt.Sprintf("aisai-%s.%s", id, ext)))
 		w.Write(data)
 	default:
-		writeError(w, http.StatusBadRequest, "bad_request", "format must be sarif, cyclonedx, spdx or json")
+		writeError(w, http.StatusBadRequest, "bad_request", "format must be html, sarif, cyclonedx, spdx or json")
 	}
 }
 

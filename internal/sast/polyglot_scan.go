@@ -61,8 +61,10 @@ var languageRuleTable = []Rule{
 // LanguageRules returns the rules that only apply to languages other than
 // Python. The returned slice is a copy.
 func LanguageRules() []Rule {
-	out := make([]Rule, len(languageRuleTable))
-	copy(out, languageRuleTable)
+	out := make([]Rule, 0, len(languageRuleTable)+len(taintRuleTable)+len(rustRuleTable))
+	out = append(out, languageRuleTable...)
+	out = append(out, taintRuleTable...)
+	out = append(out, rustRuleTable...)
 	return out
 }
 
@@ -73,6 +75,16 @@ func patternRuleByID(id string) (Rule, bool) {
 		return r, true
 	}
 	for _, r := range languageRuleTable {
+		if r.ID == id {
+			return r, true
+		}
+	}
+	for _, r := range taintRuleTable {
+		if r.ID == id {
+			return r, true
+		}
+	}
+	for _, r := range rustRuleTable {
 		if r.ID == id {
 			return r, true
 		}
@@ -134,5 +146,31 @@ func scanPatterns(f *ast.File) []model.Finding {
 		}
 		out = append(out, finding)
 	}
+	// The taint analysis and the Rust unsafe-code rules read the syntax tree
+	// themselves; their findings are merged in, one per rule and line.
+	out = mergeFindings(out, scanTaint(f))
+	if lang.ID == ast.LanguageRust {
+		out = mergeFindings(out, scanRustUnsafe(f))
+	}
 	return out
+}
+
+// mergeFindings appends the findings of extra that are not already in base,
+// comparing them by identity (file, line, CWE and rule).
+func mergeFindings(base, extra []model.Finding) []model.Finding {
+	if len(extra) == 0 {
+		return base
+	}
+	seen := make(map[string]bool, len(base))
+	for _, f := range base {
+		seen[f.ID] = true
+	}
+	for _, f := range extra {
+		if seen[f.ID] {
+			continue
+		}
+		seen[f.ID] = true
+		base = append(base, f)
+	}
+	return base
 }

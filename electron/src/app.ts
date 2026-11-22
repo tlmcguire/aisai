@@ -39,9 +39,12 @@ import type {
   ProviderRequest,
   UnloadResponse,
 } from './api/types';
+import { t } from './lib/i18n';
 import { useAuditStore } from './state/audit';
 import { useChatStore } from './state/chat';
 import { terminalBus, useTerminalStore } from './state/terminal';
+import { useDebugStore, type DebugFrame, type DebugVariable } from './state/debug';
+import { useAdvisoryStore } from './state/advisories';
 import { useFindingsStore } from './state/findings';
 import { useGraphStore } from './state/graph';
 import { useUiStore } from './state/ui';
@@ -73,12 +76,15 @@ export class AppController {
 
   async bootstrap(): Promise<void> {
     this.unsubscribe = this.client.onEvent((event) => this.onEvent(event));
+    this.unsubscribeDebug = this.watchDebugger();
     await this.reloadAudits();
   }
 
   dispose(): void {
     this.unsubscribe?.();
     this.unsubscribe = null;
+    this.unsubscribeDebug?.();
+    this.unsubscribeDebug = null;
   }
 
   private async reloadAudits(): Promise<void> {
@@ -101,6 +107,7 @@ export class AppController {
   /** Load everything that belongs to one audit. */
   async selectAudit(id: string): Promise<void> {
     this.auditId = id;
+    useAdvisoryStore.getState().reset();
     useChatStore.getState().setAudit(id);
     const auditStore = useAuditStore.getState();
     try {
@@ -109,7 +116,7 @@ export class AppController {
     } catch (err) {
       auditStore.setError(messageOf(err));
     }
-    await Promise.all([this.loadGraph(), this.loadFiles(), this.loadFindings()]);
+    await Promise.all([this.loadGraph(), this.loadFiles(), this.loadFindings(), this.loadAdvisories()]);
   }
 
   async loadGraph(): Promise<void> {
@@ -204,7 +211,7 @@ export class AppController {
     auditStore.setError(null);
     auditStore.clearDownloads();
     auditStore.setBusy('audit');
-    auditStore.setProgress('queued', 0, `Starting the audit of ${label}`);
+    auditStore.setProgress('queued', 0, t('app.auditStarting', { label }));
     try {
       const response = await this.client.request<AuditResponse>('POST', '/api/audits', body);
       auditStore.setCurrent(response.audit);
@@ -248,13 +255,13 @@ export class AppController {
           if (!audit || now.busy !== 'audit' || this.auditId !== id) return;
           if (audit.status === 'ready') {
             window.clearInterval(timer);
-            now.setProgress('complete', 1, 'Audit complete');
+            now.setProgress('complete', 1, t('app.auditComplete'));
             now.setProgressVisible(false);
             now.setBusy(null);
             void this.selectAudit(id);
           } else if (audit.status === 'failed') {
             window.clearInterval(timer);
-            now.setError(audit.error || 'The audit failed.');
+            now.setError(audit.error || t('app.auditFailed'));
             now.setProgressVisible(false);
             now.setBusy(null);
           }
@@ -266,17 +273,24 @@ export class AppController {
   }
 
   /** Run a scan (sast or llm) over the current audit. */
-  async runScan(engine: 'sast' | 'llm'): Promise<void> {
+  /**
+   * Runs a scan of the whole audit, or of one file when `path` is given
+   * (workspace-relative). A one-file static scan re-parses the file and
+   * replaces its findings; a one-file LLM scan reviews only that file.
+   */
+  async runScan(engine: 'sast' | 'llm', path?: string): Promise<void> {
     if (!this.auditId) return;
     const auditStore = useAuditStore.getState();
     auditStore.setError(null);
     auditStore.setBusy(`scan:${engine}`);
-    auditStore.setProgress(`${engine} scan`, 0, 'Starting the scan');
+    const file = path ? path.split('/').pop() ?? '' : '';
+    const phase = path ? t('app.scanPhaseOfFile', { engine, file }) : t('app.scanPhase', { engine });
+    auditStore.setProgress(phase, 0, path ? t('app.scanningFile', { path }) : t('app.scanStarting'));
     try {
       const response = await this.client.request<JobResponse>(
         'POST',
         `/api/audits/${this.auditId}/scan`,
-        engine === 'llm' ? { engine } : { engine: 'sast' },
+        { engine, ...(path ? { path } : {}) },
       );
       // The scan runs in the backend after the request returns. The job stays
       // busy until scan.done or scan.error arrives, with polling as a safety net.
@@ -298,7 +312,7 @@ export class AppController {
     this.scanJob = null;
     const store = useAuditStore.getState();
     if (error) store.setError(error);
-    store.setProgress('complete', 1, error ? 'The scan failed' : 'Scan complete');
+    store.setProgress('complete', 1, error ? t('app.scanFailed') : t('app.scanComplete'));
     store.setProgressVisible(false);
     store.setBusy(null);
     void Promise.all([this.loadFindings(), this.loadFiles(), this.loadGraph()]);
@@ -314,7 +328,7 @@ export class AppController {
         .request<{ job: { state: string; error?: string } }>('GET', `/api/audits/${auditId}/jobs/${jobId}`)
         .then((response) => {
           if (response.job.state === 'done') this.finishScan(jobId);
-          else if (response.job.state === 'failed') this.finishScan(jobId, response.job.error ?? 'The scan failed.');
+          else if (response.job.state === 'failed') this.finishScan(jobId, response.job.error ?? t('app.scanFailedError'));
         })
         .catch(() => {
           /* the next tick tries again */
@@ -353,7 +367,7 @@ export class AppController {
         `/api/audits/${this.auditId}/file`,
         { path, content },
       );
-      if (response.error) auditStore.setError(`Saved, but the re-scan failed: ${response.error}`);
+      if (response.error) auditStore.setError(t('app.savedButRescanFailed', { error: response.error }));
       await Promise.all([this.loadFindings(), this.loadFiles(), this.loadAst(path)]);
       // The open copy becomes what was saved, with the findings of the
       // re-scan: Discard then goes back to the saved text, not the old one.
@@ -398,7 +412,7 @@ export class AppController {
     startLine: number;
     endLine: number;
   }): Promise<string> {
-    if (!this.auditId) throw new Error('Open an audit first.');
+    if (!this.auditId) throw new Error(t('app.openAuditFirst'));
     const response = await this.client.request<{ replacement: string }>(
       'POST',
       `/api/audits/${this.auditId}/edit-selection`,
@@ -479,6 +493,10 @@ export class AppController {
         `/api/audits/${this.auditId}/apply-patch`,
         { path, unified: patch.unified },
       );
+      // Accepting a fix marks its finding fixed, unless the preference is off.
+      if (response.applied && patch.findingId && useUiStore.getState().acceptMarksFixed) {
+        await this.setFindingState(patch.findingId, 'fixed');
+      }
       await this.loadFindings();
       // The open file must show the patched text, or a later save from the
       // editor would silently undo the fix.
@@ -489,6 +507,34 @@ export class AppController {
       return null;
     } finally {
       auditStore.setBusy(null);
+    }
+  }
+
+  /** Download the findings as a themed, self-contained HTML report. */
+  /**
+   * Exports the findings report. HTML is downloaded as it is; PDF is printed
+   * from the same report by the main process and saved where the user picks.
+   */
+  async exportReport(format: 'html' | 'pdf' = 'html'): Promise<{ saved: boolean; path?: string; error?: string }> {
+    if (!this.auditId) return { saved: false, error: t('app.openAuditFirst') };
+    const name = useAuditStore.getState().current?.package ?? this.auditId;
+    try {
+      const html = await this.client.requestText('GET', `/api/audits/${this.auditId}/export?format=html`);
+      if (format === 'pdf') {
+        const result = await window.aisai.exportPdf(html, name);
+        return { saved: result.saved, path: result.path };
+      }
+      const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `aisai-${name}-report.html`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return { saved: true };
+    } catch (err) {
+      return { saved: false, error: messageOf(err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '') };
     }
   }
 
@@ -527,14 +573,26 @@ export class AppController {
     const usable = list.filter((provider) => provider.ok);
     const provider = usable[0];
     let reason = '';
-    if (!list.length) reason = 'No model server is configured.';
-    else if (!usable.length) reason = 'The model server is not reachable.';
-    else if (!name) reason = 'No chat model is selected.';
+    if (!list.length) reason = t('app.noModelServerConfigured');
+    else if (!usable.length) reason = t('app.modelServerUnreachable');
+    else if (!name) reason = t('app.noChatModelSelected');
+    // Whether the model can use tools decides if web search and file reading work.
+    let tools: 'yes' | 'no' | 'unknown' = 'unknown';
+    if (!reason) {
+      try {
+        const caps = await this.client.request<{ tools?: 'yes' | 'no' | 'unknown' }>('GET', '/api/chat/capabilities');
+        tools = caps.tools ?? 'unknown';
+      } catch {
+        /* an older backend: the chat finds out when it asks */
+      }
+    }
     useChatStore.getState().setModel({
       name,
       provider: provider?.kind ?? list[0]?.kind ?? '',
       available: reason === '',
       reason,
+      tools,
+      webSearch: Boolean(config?.webSearch),
     });
   }
 
@@ -543,6 +601,254 @@ export class AppController {
   /* ---------------------------------------------------------------- */
 
   /** Keystrokes are sent in order: each one waits for the one before it. */
+  /* ---------------- debugger ---------------- */
+
+  private unsubscribeDebug: (() => void) | null = null;
+  private debugSeq = 0;
+
+  /**
+   * Keeps the debugger in step with the app: breakpoints set while the
+   * program runs reach it, and switching to another audit stops the program
+   * and forgets the breakpoints of the old one.
+   */
+  private watchDebugger(): () => void {
+    const offAudit = useAuditStore.subscribe((state) => {
+      const id = state.current?.id ?? null;
+      const debug = useDebugStore.getState();
+      if (debug.auditId === id) return;
+      if (debug.sessionId && debug.status !== 'exited') void this.stopDebug();
+      debug.setAudit(id);
+    });
+    const offBreakpoints = useDebugStore.subscribe((state, previous) => {
+      if (state.breakpoints === previous.breakpoints || !state.sessionId) return;
+      if (state.status === 'idle' || state.status === 'exited') return;
+      const files = new Set([...Object.keys(state.breakpoints), ...Object.keys(previous.breakpoints)]);
+      for (const file of files) {
+        const now = state.breakpoints[file] ?? [];
+        const before = previous.breakpoints[file] ?? [];
+        if (now.join(',') === before.join(',')) continue;
+        this.debugSend({ cmd: 'setBreakpoints', file, lines: now });
+      }
+    });
+    return () => {
+      offAudit();
+      offBreakpoints();
+    };
+  }
+
+  /** Whether the current audit can be debugged: a folder the user opened. */
+  canDebug(): boolean {
+    const audit = useAuditStore.getState().current;
+    return Boolean(audit && audit.source === 'local' && audit.status === 'ready' && !audit.sourcesDeleted);
+  }
+
+  /** Runs a Python file of the local project under the debugger. */
+  async startDebug(program: string, stopOnEntry = false, breakpoints?: Record<string, number[]>): Promise<void> {
+    if (!this.auditId) return;
+    const debug = useDebugStore.getState();
+    if (debug.sessionId && (debug.status === 'running' || debug.status === 'paused' || debug.status === 'starting')) {
+      await this.stopDebug();
+    }
+    useUiStore.getState().setBottomView('debug');
+    useUiStore.getState().setTerminalOpen(true);
+    debug.starting(program);
+    debug.print({ kind: 'info', text: t('app.debugStarting', { program }) });
+    try {
+      const response = await this.client.request<{ id: string; python: string; version?: string; program: string }>('POST', '/api/debug', {
+        auditId: this.auditId,
+        program,
+        breakpoints: { ...useDebugStore.getState().breakpoints, ...(breakpoints ?? {}) },
+        stopOnEntry,
+      });
+      const now = useDebugStore.getState();
+      // The program may already have ended (its exit event came first).
+      if (now.status === 'exited' && now.sessionId === response.id) return;
+      now.started(response.id, response.version ? t('app.pythonVersion', { version: response.version }) : response.python);
+      const running = response.version
+        ? t('app.debugRunningWithVersion', { python: response.python, version: response.version })
+        : t('app.debugRunning', { python: response.python });
+      now.print({ kind: 'info', text: running });
+    } catch (err) {
+      useDebugStore.getState().failed(messageOf(err));
+    }
+  }
+
+  /** Breakpoints to put back once a run-to-cursor has stopped. */
+  private runToCursorRestore: { file: string; lines: number[] } | null = null;
+
+  /**
+   * Runs (or continues) to a line: a breakpoint is set there for one stop
+   * only, and the breakpoints of that file are put back when the program
+   * stops anywhere, so the user's own breakpoints still win if they come first.
+   */
+  async runToCursor(file: string, line: number): Promise<void> {
+    const debug = useDebugStore.getState();
+    const own = debug.breakpoints[file] ?? [];
+    const withTemp = own.includes(line) ? own : [...own, line].sort((a, b) => a - b);
+    if (debug.status === 'paused') {
+      if (!own.includes(line)) {
+        this.runToCursorRestore = { file, lines: own };
+        this.debugSend({ cmd: 'setBreakpoints', file, lines: withTemp });
+      }
+      this.debugSend({ cmd: 'continue' });
+      return;
+    }
+    if (debug.status === 'running' || debug.status === 'starting') return;
+    if (!useDebugStore.getState().consented) {
+      // The first run still needs the user's go-ahead in the panel.
+      useUiStore.getState().setBottomView('debug');
+      useUiStore.getState().setTerminalOpen(true);
+      window.dispatchEvent(new Event('aisai:debug-start'));
+      return;
+    }
+    if (!own.includes(line)) this.runToCursorRestore = { file, lines: own };
+    await this.startDebug(file, false, { [file]: withTemp });
+  }
+
+  async restartDebug(): Promise<void> {
+    const program = useDebugStore.getState().program;
+    if (program) await this.startDebug(program);
+  }
+
+  async stopDebug(): Promise<void> {
+    const id = useDebugStore.getState().sessionId;
+    if (!id) return;
+    try {
+      await this.client.request('DELETE', `/api/debug/${id}`);
+    } catch {
+      /* it may have ended on its own */
+    }
+  }
+
+  /** Continue, step, or pause the debugged program. */
+  debugCommand(cmd: 'continue' | 'next' | 'step' | 'out' | 'pause'): void {
+    const debug = useDebugStore.getState();
+    if (cmd === 'pause' ? debug.status !== 'running' : debug.status !== 'paused') return;
+    this.debugSend({ cmd });
+  }
+
+  /** Shows the variables of another frame of the stack, and its code. */
+  debugSelectFrame(index: number): void {
+    const debug = useDebugStore.getState();
+    const frame = debug.frames[index];
+    if (!frame || debug.status !== 'paused') return;
+    useDebugStore.setState({ frame: index });
+    this.debugSend({ cmd: 'frame', frame: index });
+    if (!frame.external) void this.showDebugLine(frame);
+  }
+
+  /** Evaluates an expression in the selected frame; the answer is printed in the console. */
+  debugEvaluate(expression: string): void {
+    const debug = useDebugStore.getState();
+    const text = expression.trim();
+    if (!text) return;
+    debug.print({ kind: 'input', text });
+    if (debug.status !== 'paused') {
+      debug.print({ kind: 'error', text: t('app.pauseToEvaluate') });
+      return;
+    }
+    this.debugSeq += 1;
+    this.debugSend({ cmd: 'evaluate', expression: text, frame: debug.frame, seq: this.debugSeq });
+  }
+
+  private debugSend(command: Record<string, unknown>): void {
+    const id = useDebugStore.getState().sessionId;
+    if (!id) return;
+    void this.client.request('POST', `/api/debug/${id}/command`, command).catch((err: unknown) => {
+      useDebugStore.getState().print({ kind: 'error', text: messageOf(err) });
+    });
+  }
+
+  /** Opens the file of a frame at its line, unless it is already shown. */
+  private async showDebugLine(frame: DebugFrame): Promise<void> {
+    const file = useWorkspaceStore.getState().file;
+    if (file?.path === frame.file) {
+      useUiStore.getState().setActiveTab('code');
+      return;
+    }
+    await this.openFile(frame.file, frame.line);
+  }
+
+  private onDebugEvent(sessionId: string, type: string, data: Record<string, unknown>): void {
+    const debug = useDebugStore.getState();
+    // Events of the session being started arrive before its id is known.
+    if (debug.sessionId && debug.sessionId !== sessionId) return;
+    if (!debug.sessionId) {
+      if (debug.status !== 'starting') return;
+      useDebugStore.setState({ sessionId });
+    }
+    if (type === 'debug.output') {
+      const stream = data.stream === 'stderr' ? 'stderr' : 'stdout';
+      debug.print({ kind: stream, text: String(data.text ?? '') });
+      return;
+    }
+    if (type === 'debug.exit') {
+      this.runToCursorRestore = null;
+      const code = typeof data.code === 'number' ? data.code : 0;
+      debug.exited(code);
+      useDebugStore.getState().print({ kind: 'info', text: t('app.programExited', { code }) });
+      return;
+    }
+    switch (data.event) {
+      case 'stopped': {
+        const frames = (data.frames as DebugFrame[] | undefined) ?? [];
+        // A run-to-cursor is over: its one-off breakpoint goes away.
+        if (this.runToCursorRestore) {
+          const { file, lines } = this.runToCursorRestore;
+          this.runToCursorRestore = null;
+          this.debugSend({ cmd: 'setBreakpoints', file, lines: useDebugStore.getState().breakpoints[file] ?? lines });
+        }
+        if (debug.status === 'starting') useDebugStore.setState({ status: 'running' });
+        useDebugStore.getState().stopped({
+          reason: String(data.reason ?? ''),
+          description: String(data.description ?? ''),
+          frames,
+          frame: typeof data.frame === 'number' ? data.frame : 0,
+          locals: data.locals as DebugVariable[] | undefined,
+          globals: data.globals as DebugVariable[] | undefined,
+        });
+        if (data.reason === 'exception' && data.description) {
+          useDebugStore.getState().print({
+            kind: 'error',
+            text: t('app.stoppedOnException', { description: String(data.description) }),
+          });
+        }
+        // The first frame in the project's own code is the one to show.
+        const shown = frames.findIndex((f) => !f.external);
+        if (shown > 0) this.debugSelectFrame(shown);
+        else if (shown === 0) void this.showDebugLine(frames[0]);
+        useUiStore.getState().setBottomView('debug');
+        useUiStore.getState().setTerminalOpen(true);
+        break;
+      }
+      case 'continued':
+        debug.continued();
+        break;
+      case 'scope':
+        debug.scope(
+          typeof data.frame === 'number' ? data.frame : 0,
+          (data.locals as DebugVariable[] | undefined) ?? [],
+          (data.globals as DebugVariable[] | undefined) ?? [],
+        );
+        break;
+      case 'evaluated':
+        if (data.error) debug.print({ kind: 'error', text: String(data.error) });
+        else debug.print({ kind: 'result', text: String(data.value ?? '') });
+        break;
+      case 'breakpoints': {
+        // A breakpoint the debugger could not set (a line past the end) is dropped.
+        if (typeof data.file === 'string' && !data.external && Array.isArray(data.lines)) {
+          const asked = debug.breakpoints[data.file] ?? [];
+          const set = (data.lines as number[]).filter((n) => asked.includes(n));
+          if (set.length !== asked.length) debug.setBreakpoints(data.file, set);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
   private terminalQueue: Promise<unknown> = Promise.resolve();
   private terminalsReset = false;
 
@@ -562,7 +868,7 @@ export class AppController {
       });
       const used = terminals.sessions.length + 1;
       const folder = response.cwd.split(/[\\/]/).filter(Boolean).pop() ?? 'shell';
-      terminals.add({ id: response.id, title: `${folder} (${used})`, cwd: response.cwd });
+      terminals.add({ id: response.id, title: t('app.terminalTitle', { folder, n: used }), cwd: response.cwd });
       return response.id;
     } catch (err) {
       terminals.setError(messageOf(err));
@@ -609,10 +915,12 @@ export class AppController {
     const selection = chat.selection;
     // The thread so far is the conversation the model continues.
     // Failed and stopped turns are not part of the conversation.
+    // Long conversations are sent whole (up to a bound): the backend
+    // summarises the older turns when they no longer fit.
     const history = chat.messages
-      .filter((m) => m.content && !m.streaming)
+      .filter((m) => m.content && !m.streaming && !m.error)
       .filter((m) => !(m.role === 'assistant' && (m.content.startsWith('The assistant could not answer:') || m.content === 'Stopped.')))
-      .slice(-8)
+      .slice(-40)
       .map((m) => ({ role: m.role, content: m.content }));
     chat.pushUser(
       selection ? `${question}\n[${selection.file}:${selection.startLine}-${selection.endLine}]` : question,
@@ -628,6 +936,52 @@ export class AppController {
       chat.startAssistant(response.jobId);
     } catch (err) {
       chat.failAssistant('', messageOf(err));
+    }
+  }
+
+  /** Replace a question with an edited one and ask again from there. */
+  async editAndResend(messageId: string, text: string): Promise<void> {
+    const chat = useChatStore.getState();
+    if (chat.busy || !text.trim()) return;
+    chat.truncateFrom(messageId);
+    await this.ask(text.trim());
+  }
+
+  /** Ask the question behind a failed or unhelpful answer again. */
+  async retry(assistantId: string): Promise<void> {
+    const chat = useChatStore.getState();
+    if (chat.busy) return;
+    const messages = chat.messages;
+    const at = messages.findIndex((m) => m.id === assistantId);
+    const question = [...messages.slice(0, at)].reverse().find((m) => m.role === 'user');
+    if (!question) return;
+    chat.truncateFrom(question.id);
+    // The selection reference appended to the question is display only.
+    await this.ask(question.content.replace(/\n\[[^\]]+:\d+-\d+\]$/, ''));
+  }
+
+  /** Allow or refuse a tool call the model is waiting on. */
+  async answerApproval(stepId: string, approved: boolean): Promise<void> {
+    const chat = useChatStore.getState();
+    const jobId = chat.jobId;
+    if (!jobId) return;
+    chat.upsertStep(jobId, { id: stepId, name: '', args: {}, status: approved ? 'running' : 'error', approval: approved ? 'approved' : 'denied' });
+    try {
+      await this.client.request('POST', `/api/chat/approvals/${encodeURIComponent(stepId)}`, { jobId, approved });
+    } catch (err) {
+      chat.upsertStep(jobId, { id: stepId, name: '', args: {}, status: 'error', error: messageOf(err) });
+    }
+  }
+
+  /** Switch the assistant's web access on or off. */
+  async setWebSearch(enabled: boolean): Promise<boolean> {
+    try {
+      const response = await this.client.request<{ enabled: boolean }>('POST', '/api/config/web-search', { enabled });
+      void this.refreshChatModel();
+      return response.enabled;
+    } catch (err) {
+      useChatStore.setState({ error: messageOf(err) });
+      return !enabled;
     }
   }
 
@@ -754,6 +1108,8 @@ export class AppController {
   async setModels(selection: ModelSelection): Promise<ModelState | null> {
     try {
       const response = await this.client.request<ModelsResponse>('POST', '/api/models', selection);
+      // A new chat model may differ in what it can do (tools, web search).
+      void this.refreshChatModel();
       return {
         models: response.models ?? [],
         chatModel: response.chatModel,
@@ -834,6 +1190,82 @@ export class AppController {
     }
   }
 
+  /** Reads the advisories already looked up for this audit (no network). */
+  async loadAdvisories(): Promise<void> {
+    if (!this.auditId) return;
+    const id = this.auditId;
+    try {
+      const response = await this.client.request<{ advisories: Advisory[]; fetched?: boolean; checked?: number; running?: boolean }>(
+        'GET',
+        `/api/audits/${id}/advisories`,
+      );
+      if (this.auditId !== id) return;
+      const store = useAdvisoryStore.getState();
+      if (response.running) {
+        // A lookup is in flight (started earlier, or from another window).
+        if (store.status !== 'checking') store.setChecking();
+        this.pollAdvisories(id);
+        return;
+      }
+      store.setList(response.advisories ?? [], response.checked ?? 0, Boolean(response.fetched));
+    } catch {
+      /* the list stays as it was */
+    }
+  }
+
+  /**
+   * Looks the dependencies up in the advisory database. This sends their
+   * names and versions to osv.dev, so for a local project it only happens
+   * when the person asks. The lookup runs in the backend; the result arrives
+   * as an advisories.ready event.
+   */
+  async checkDependencies(): Promise<void> {
+    if (!this.auditId) return;
+    const store = useAdvisoryStore.getState();
+    store.setChecking();
+    try {
+      await this.client.request('POST', `/api/audits/${this.auditId}/advisories`, { background: true });
+      // The advisories.ready event ends the wait; polling covers a missed one.
+      this.pollAdvisories(this.auditId);
+    } catch (err) {
+      store.setError(messageOf(err));
+    }
+  }
+
+  private advisoryPoll: ReturnType<typeof setInterval> | null = null;
+
+  /** Asks every few seconds whether the lookup has finished, until it has. */
+  private pollAdvisories(id: string): void {
+    if (this.advisoryPoll) return;
+    const started = Date.now();
+    this.advisoryPoll = setInterval(() => {
+      const stop = (): void => {
+        if (this.advisoryPoll) clearInterval(this.advisoryPoll);
+        this.advisoryPoll = null;
+      };
+      if (this.auditId !== id || useAdvisoryStore.getState().status !== 'checking') {
+        stop();
+        return;
+      }
+      if (Date.now() - started > 15 * 60 * 1000) {
+        stop();
+        useAdvisoryStore.getState().setError(t('app.advisoryLookupTimeout'));
+        return;
+      }
+      void this.client
+        .request<{ advisories: Advisory[]; fetched?: boolean; checked?: number; running?: boolean }>('GET', `/api/audits/${id}/advisories`)
+        .then((response) => {
+          if (response.running || this.auditId !== id) return;
+          stop();
+          useAdvisoryStore.getState().setList(response.advisories ?? [], response.checked ?? 0, Boolean(response.fetched));
+          void this.loadGraph();
+        })
+        .catch(() => {
+          /* the next tick tries again */
+        });
+    }, 3000);
+  }
+
   async fetchAdvisories(): Promise<Advisory[]> {
     if (!this.auditId) return [];
     try {
@@ -900,6 +1332,7 @@ export class AppController {
               version: download.version,
               state: download.state,
               detail: download.detail ?? '',
+              bytes: download.bytes,
             },
             download.total,
           );
@@ -911,7 +1344,7 @@ export class AppController {
         break;
       }
       case 'audit.done': {
-        auditStore.setProgress('complete', 1, 'Audit complete');
+        auditStore.setProgress('complete', 1, t('app.auditComplete'));
         auditStore.setProgressVisible(false);
         auditStore.setBusy(null);
         if (event.auditId && event.auditId !== this.auditId) {
@@ -920,8 +1353,18 @@ export class AppController {
         void this.selectAudit(this.auditId ?? '');
         break;
       }
+      case 'advisories.ready': {
+        if (event.auditId && event.auditId !== this.auditId) break;
+        if (event.error) {
+          useAdvisoryStore.getState().setError(event.error);
+          break;
+        }
+        // The counts on the graph and the list both changed.
+        void Promise.all([this.loadAdvisories(), this.loadGraph()]);
+        break;
+      }
       case 'audit.error': {
-        auditStore.setError(event.error ?? 'The audit failed.');
+        auditStore.setError(event.error ?? t('app.auditFailed'));
         auditStore.setProgressVisible(false);
         auditStore.setBusy(null);
         break;
@@ -931,7 +1374,7 @@ export class AppController {
         break;
       }
       case 'scan.error': {
-        if (event.jobId) this.finishScan(event.jobId, event.error ?? 'The scan failed.');
+        if (event.jobId) this.finishScan(event.jobId, event.error ?? t('app.scanFailedError'));
         break;
       }
       case 'scan.progress': {
@@ -965,6 +1408,12 @@ export class AppController {
         }
         break;
       }
+      case 'debug.event':
+      case 'debug.output':
+      case 'debug.exit': {
+        if (event.jobId) this.onDebugEvent(event.jobId, event.type, (event.data as Record<string, unknown> | undefined) ?? {});
+        break;
+      }
       case 'terminal.exit': {
         const data = event.data as { code?: number } | undefined;
         if (event.jobId) useTerminalStore.getState().markExited(event.jobId, data?.code ?? 0);
@@ -972,16 +1421,32 @@ export class AppController {
       }
       case 'chat.step': {
         const step = event.data as
-          | { kind: string; think?: string; id?: string; name?: string; args?: Record<string, unknown>; output?: string; error?: string }
+          | { kind: string; think?: string; id?: string; name?: string; args?: Record<string, unknown>; output?: string; error?: string; summary?: string; approved?: boolean }
           | undefined;
         if (!event.jobId || !step) break;
         if (step.kind === 'thinking' && step.think) chat.appendThinking(event.jobId, step.think);
+        else if (step.kind === 'compacting') chat.setCompacting(event.jobId, true);
+        else if (step.kind === 'notice' && step.output) chat.addNotice(event.jobId, step.output);
+        else if (step.kind === 'compacted') {
+          const compacted = step.error
+            ? t('app.conversationNotSummarised', { error: step.error })
+            : step.output
+              ? t('app.conversationCompacted', { summary: step.output })
+              : t('app.conversationCompactedFallback');
+          chat.setCompacting(event.jobId, false, compacted);
+        } else if (step.kind === 'approval' && step.id) {
+          chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? t('app.toolName'), args: step.args ?? {}, status: 'waiting', summary: step.summary, approval: 'pending' });
+        } else if (step.kind === 'approval_timeout' && step.id) {
+          chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? t('app.toolName'), args: {}, status: 'error', approval: 'expired' });
+        } else if (step.kind === 'approval_result' && step.id) {
+          chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? t('app.toolName'), args: {}, status: step.approved ? 'running' : 'error', approval: step.approved ? 'approved' : 'denied' });
+        }
         else if (step.kind === 'tool' && step.id) {
-          chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? 'tool', args: step.args ?? {}, status: 'running' });
+          chat.upsertStep(event.jobId, { id: step.id, name: step.name ?? t('app.toolName'), args: step.args ?? {}, status: 'running' });
         } else if (step.kind === 'tool_result' && step.id) {
           chat.upsertStep(event.jobId, {
             id: step.id,
-            name: step.name ?? 'tool',
+            name: step.name ?? t('app.toolName'),
             args: {},
             status: step.error ? 'error' : 'done',
             output: step.output,
@@ -1009,7 +1474,7 @@ export class AppController {
       }
       case 'chat.error': {
         if (event.jobId) {
-          chat.failAssistant(event.jobId, event.error ?? 'The chat request failed.');
+          chat.failAssistant(event.jobId, event.error ?? t('app.chatRequestFailed'));
         }
         break;
       }
