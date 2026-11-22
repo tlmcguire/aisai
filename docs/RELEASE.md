@@ -318,20 +318,27 @@ from the files in `electron/resources`:
 | `icon.ico` | Windows, with the 16, 32, 48, 64, 128 and 256 pixel sizes |
 | `icons/<size>x<size>.png` | Linux, where electron-builder reads the sizes out of the directory name |
 
-The icon is built from the colours of the interface (see
-`electron/src/styles/tokens.css`), so the app and the icon stay
-recognisable as the same thing. The sources live in `electron/out`,
-which is not tracked; the packaged formats are tracked, because the
-release needs them on every runner.
+The icon is the AISAI mark: the letter A drawn as a syntax tree, with one
+flagged leaf in the signal colour. It uses the colours of the "Verdigris"
+theme (see `electron/src/styles/tokens.css`). The vector sources are
+tracked in `electron/resources/brand/`: `icon.svg` (the app icon tile) and
+`logo-mark.svg` (the bare mark). The toolbar draws the same mark from
+`electron/src/lib/logo.ts`.
 
-Changing the icon means regenerating the formats, not only the PNG:
+Changing the icon means regenerating every format from `icon.svg`
+(needs `rsvg-convert` and ImageMagick):
 
 ```bash
-cd electron
-magick ../out/aisai-icon-transparent.png -resize 1024x1024 -strip PNG32:resources/icon.png
-magick resources/icon.png -define icon:auto-resize=256,128,64,48,32,16 -strip resources/icon.ico
-iconutil -c iconset resources/icon.png
-iconutil -c icns resources/icon.iconset -o resources/icon.icns
+cd electron/resources
+rsvg-convert -w 1024 -h 1024 brand/icon.svg -o icon.png
+for n in 16 32 48 64 128 256 512; do rsvg-convert -w $n -h $n brand/icon.svg -o icons/${n}x${n}.png; done
+magick icon.png -define icon:auto-resize=256,128,64,48,32,16 -strip icon.ico
+mkdir -p icon.iconset
+for n in 16 32 128 256 512; do
+  rsvg-convert -w $n -h $n brand/icon.svg -o icon.iconset/icon_${n}x${n}.png
+  rsvg-convert -w $((n*2)) -h $((n*2)) brand/icon.svg -o icon.iconset/icon_${n}x${n}@2x.png
+done
+iconutil -c icns icon.iconset -o icon.icns && rm -rf icon.iconset
 ```
 
 ### The sidecar, and where the app looks for it

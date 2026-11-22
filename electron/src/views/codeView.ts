@@ -2,7 +2,9 @@ import type { AppController } from '../app';
 import type { Finding } from '../api/types';
 import { h } from '../lib/dom';
 import { severityClass, severityColor } from '../lib/severity';
+import { useAuditStore } from '../state/audit';
 import { useFindingsStore } from '../state/findings';
+import { brandMark } from '../lib/logo';
 import { useWorkspaceStore } from '../state/workspace';
 
 const LINE_HEIGHT = 20;
@@ -13,18 +15,79 @@ export interface CodeView {
   dispose: () => void;
 }
 
-export function createCodeView(_controller: AppController, container: HTMLElement): CodeView {
+export function createCodeView(controller: AppController, container: HTMLElement): CodeView {
   const header = h('div', { class: 'file-header' }, h('span', { text: 'No file open' }));
   const scroll = h('div', { class: 'code-scroll', tabindex: '0' });
   const lines = h('div', { class: 'code-lines' });
   scroll.append(lines);
   container.append(header, scroll);
 
+  // What the DOM currently shows. A render whose inputs match is skipped, so
+  // scrolling inside the same window and unrelated store ticks never rebuild
+  // (and therefore never flash) the lines.
+  let shownKey = '';
+  let shownHeader = '';
+
+  /** The first screen: two ways in, and the audits already on disk. */
+  const welcome = (): HTMLElement => {
+    const scanPackage = h('button', { class: 'welcome-action primary-action', type: 'button' },
+      h('span', { class: 'welcome-action-title', text: 'Audit a PyPI package' }),
+      h('span', { class: 'welcome-action-text', text: 'Resolve its dependencies, download every source archive and scan it.' }),
+    );
+    scanPackage.addEventListener('click', () => document.getElementById('package-input')?.focus());
+    const openFolder = h('button', { class: 'welcome-action', type: 'button' },
+      h('span', { class: 'welcome-action-title', text: 'Open a local project' }),
+      h('span', { class: 'welcome-action-text', text: 'Scan a folder on this computer. Any of 14 languages. Or drop it on the window.' }),
+    );
+    openFolder.addEventListener('click', () => void controller.chooseFolder());
+    const recent = useAuditStore.getState().audits.slice(0, 6);
+    return h(
+      'div',
+      { class: 'welcome' },
+      h('div', { class: 'welcome-mark' }, brandMark()),
+      h('h1', { class: 'welcome-title', text: 'What should we look at?' }),
+      h('div', { class: 'welcome-actions' }, scanPackage, openFolder),
+      h('p', { class: 'welcome-keys' },
+        h('kbd', { text: navigator.userAgent.includes('Mac') ? '⌘O' : 'Ctrl+O' }), ' opens a folder · ',
+        h('kbd', { text: 'Enter' }), ' in the package field starts a scan',
+      ),
+      recent.length
+        ? h('div', { class: 'welcome-recent' },
+            h('h2', { text: 'Recent audits' }),
+            h('ul', {}, ...recent.map((audit) =>
+              h('li', {},
+                h('button', { class: 'welcome-recent-item', type: 'button', onclick: () => void controller.selectAudit(audit.id) },
+                  h('span', { class: 'source-name', text: audit.package }),
+                  audit.version ? h('span', { class: 'source-version', text: audit.version }) : null,
+                  h('span', { class: 'grow' }),
+                  h('span', { class: 'muted', text: `${audit.findingCount ?? 0} findings` }),
+                ),
+              ),
+            )),
+          )
+        : null,
+    );
+  };
+
   const render = (): void => {
     const state = useWorkspaceStore.getState();
     const file = state.file;
 
+    const audits = useAuditStore.getState().audits;
+    if (!file && !useAuditStore.getState().current) {
+      const key = `welcome|${audits.map((a) => a.id).join(',')}`;
+      if (shownKey === key) return;
+      shownKey = key;
+      shownHeader = '';
+      header.replaceChildren(h('span', { text: 'Start' }));
+      lines.replaceChildren(welcome());
+      return;
+    }
+
     if (!file) {
+      if (shownKey === 'none') return;
+      shownKey = 'none';
+      shownHeader = '';
       header.replaceChildren(h('span', { text: 'No file open' }));
       lines.replaceChildren(
         h(
@@ -49,14 +112,18 @@ export function createCodeView(_controller: AppController, container: HTMLElemen
       ),
     ];
 
-    header.replaceChildren(
+    const headerKey = `${file.path}|${findings.length}`;
+    if (headerKey !== shownHeader) {
+      shownHeader = headerKey;
+      header.replaceChildren(
       h('span', { text: file.path }),
       h('span', { class: 'badge neutral', text: file.language || 'text' }),
       h('span', {
         class: `badge ${findings.length ? 'bad' : 'ok'}`,
         text: findings.length ? `${findings.length} finding(s)` : 'no findings',
       }),
-    );
+      );
+    }
 
     const byLine = new Map<number, Finding[]>();
     for (const finding of findings) {
@@ -69,6 +136,10 @@ export function createCodeView(_controller: AppController, container: HTMLElemen
     const viewHeight = scroll.clientHeight || 600;
     const start = Math.max(0, Math.floor(scroll.scrollTop / LINE_HEIGHT) - OVERSCAN);
     const end = Math.min(total, start + Math.ceil(viewHeight / LINE_HEIGHT) + OVERSCAN * 2);
+
+    const key = `${file.path}|${start}|${end}|${total}|${findings.map((f) => f.id).join(',')}`;
+    if (key === shownKey) return;
+    shownKey = key;
 
     const fragment = document.createDocumentFragment();
     if (start > 0) {
@@ -117,7 +188,18 @@ export function createCodeView(_controller: AppController, container: HTMLElemen
     }
   };
 
-  scroll.addEventListener('scroll', () => render());
+  let frame = 0;
+  scroll.addEventListener(
+    'scroll',
+    () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        render();
+      });
+    },
+    { passive: true },
+  );
 
   const unsubscribe = useWorkspaceStore.subscribe((state, previous) => {
     if (state.file !== previous.file) {
@@ -135,6 +217,10 @@ export function createCodeView(_controller: AppController, container: HTMLElemen
     }
   });
 
+  const unsubscribeAudit = useAuditStore.subscribe((state, previous) => {
+    if (state.current !== previous.current || state.audits !== previous.audits) render();
+  });
+
   render();
 
   return {
@@ -142,6 +228,7 @@ export function createCodeView(_controller: AppController, container: HTMLElemen
     dispose: () => {
       unsubscribe();
       unsubscribeFindings();
+      unsubscribeAudit();
     },
   };
 }

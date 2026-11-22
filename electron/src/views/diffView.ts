@@ -219,7 +219,10 @@ export function createDiffView(controller: AppController, container: HTMLElement
     }
   });
 
-  const unsubscribeAudit = useAuditStore.subscribe(() => render());
+  // Progress ticks arrive many times a second; only a change of job matters.
+  const unsubscribeAudit = useAuditStore.subscribe((state, previous) => {
+    if (state.busy !== previous.busy || state.current !== previous.current) render();
+  });
 
   render();
 

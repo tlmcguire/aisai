@@ -59,6 +59,8 @@ export interface PackagePicker {
   onScan(handler: (packageName: string, version: string) => void): void;
   /** Focuses the package field. */
   focus(): void;
+  /** Focuses the field and explains that a package name is needed. */
+  promptForName(): void;
   /** Releases the listeners and timers. */
   dispose(): void;
 }
@@ -277,11 +279,22 @@ export function createPackagePicker(controller: AppController): PackagePicker {
     renderSuggestions(items.slice(0, MAX_SUGGESTIONS));
   };
 
+  // An empty Scan used to only move the focus, which read as a dead button.
+  // Now it says what is missing and nudges the field.
+  const promptForName = (): void => {
+    input.focus();
+    setStatus('Type a package name, then Scan');
+    input.classList.remove('is-invalid');
+    void input.offsetWidth;
+    input.classList.add('is-invalid');
+  };
+
+  input.addEventListener('animationend', () => input.classList.remove('is-invalid'));
+
   const submit = (): void => {
     const name = input.value.trim();
     if (!name) {
-      input.focus();
-      setStatus('', 'enter a package name');
+      promptForName();
       return;
     }
     closeList();
@@ -343,6 +356,7 @@ export function createPackagePicker(controller: AppController): PackagePicker {
       scanHandler = handler;
     },
     focus: () => input.focus(),
+    promptForName,
     dispose: () => {
       if (lookupTimer) clearTimeout(lookupTimer);
       lookupTimer = null;

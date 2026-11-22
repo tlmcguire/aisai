@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>AISAI app icon</title>
+  <defs>
+    <linearGradient id="ink" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#17302f"/>
+      <stop offset="1" stop-color="#071011"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="0.35" stop-color="#ffffff" stop-opacity="0.02"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="drop" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="188" fill="url(#ink)" filter="url(#drop)"/>
+  <rect x="101.5" y="101.5" width="821" height="821" rx="186.5" fill="none" stroke="url(#rim)" stroke-width="3"/>
+  <!-- the A is a syntax tree: a root, two branches, one flagged leaf -->
+  <g stroke-linecap="round" fill="none">
+    <path d="M512 318 L350 724" stroke="#e6efe9" stroke-width="58"/>
+    <path d="M512 318 L674 724" stroke="#e6efe9" stroke-width="58"/>
+    <path d="M410 582 H614" stroke="#5fd3c4" stroke-width="30"/>
+  </g>
+  <circle cx="512" cy="318" r="56" fill="#e6efe9"/>
+  <circle cx="512" cy="318" r="20" fill="#0b1819"/>
+  <circle cx="350" cy="724" r="44" fill="#e6efe9"/>
+  <circle cx="674" cy="724" r="44" fill="#b4f23c"/>
+  <circle cx="674" cy="724" r="74" fill="none" stroke="#b4f23c" stroke-width="12"/>
+</svg>

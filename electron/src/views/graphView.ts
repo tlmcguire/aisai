@@ -32,7 +32,7 @@ function visNode(node: GraphNode): VisNodeData {
     shape: node.direct ? 'diamond' : 'dot',
     color: nodeColor(node),
     borderWidth: node.direct ? 2 : 1,
-    font: { color: '#e6edf3', size: 11, face: 'monospace', multi: true },
+    font: { color: '#dde8e3', size: 11, face: 'JetBrains Mono Variable, monospace', multi: true },
   };
 }
 
@@ -41,7 +41,7 @@ function visEdge(from: string, to: string): VisEdgeData {
     id: `${from}->${to}`,
     from,
     to,
-    color: { color: '#484f58', highlight: '#58a6ff', hover: '#58a6ff' },
+    color: { color: '#35494c', highlight: '#5fd3c4', hover: '#5fd3c4' },
     width: 1,
     arrows: 'to',
     smooth: { type: 'continuous' },
@@ -72,7 +72,7 @@ function exportPng(container: HTMLElement): string | null {
   output.height = canvas.height;
   const context = output.getContext('2d');
   if (!context) return null;
-  context.fillStyle = '#0d1117';
+  context.fillStyle = '#0a1112';
   context.fillRect(0, 0, output.width, output.height);
   context.drawImage(canvas, 0, 0);
   return output.toDataURL('image/png');
@@ -110,8 +110,8 @@ function exportSvg(
 
   const parts: string[] = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width)}" height="${Math.round(height)}" viewBox="${minX} ${minY} ${width} ${height}">`,
-    '<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#8b949e"/></marker></defs>',
-    '<rect x="-100000" y="-100000" width="200000" height="200000" fill="#0d1117"/>',
+    '<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#8ea5a0"/></marker></defs>',
+    '<rect x="-100000" y="-100000" width="200000" height="200000" fill="#0a1112"/>',
   ];
 
   for (const edge of edges) {
@@ -119,7 +119,7 @@ function exportSvg(
     const to = positions[edge.target];
     if (!from || !to) continue;
     parts.push(
-      `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" stroke="#484f58" stroke-width="1" marker-end="url(#arrow)"/>`,
+      `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" stroke="#35494c" stroke-width="1" marker-end="url(#arrow)"/>`,
     );
   }
 
@@ -129,8 +129,8 @@ function exportSvg(
     const radius = node.direct ? 11 : 7;
     parts.push(
       `<circle cx="${point.x}" cy="${point.y}" r="${radius}" fill="${severityFill(node.maxSeverity)}" stroke="${severityColor(node.maxSeverity)}" stroke-width="${node.direct ? 2 : 1}"/>`,
-      `<text x="${point.x}" y="${point.y - radius - 5}" fill="#e6edf3" font-family="monospace" font-size="11" text-anchor="middle">${node.name}</text>`,
-      `<text x="${point.x}" y="${point.y - radius - 16}" fill="#9198a1" font-family="monospace" font-size="10" text-anchor="middle">v${node.version}</text>`,
+      `<text x="${point.x}" y="${point.y - radius - 5}" fill="#dde8e3" font-family="monospace" font-size="11" text-anchor="middle">${node.name}</text>`,
+      `<text x="${point.x}" y="${point.y - radius - 16}" fill="#8ea5a0" font-family="monospace" font-size="10" text-anchor="middle">v${node.version}</text>`,
     );
   }
 
@@ -202,31 +202,31 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
     h(
       'span',
       { class: 'legend-item' },
-      h('span', { class: 'legend-swatch', style: 'background:#ff7b72' }),
+      h('span', { class: 'legend-swatch', style: 'background:#ff7a6b' }),
       'critical',
     ),
     h(
       'span',
       { class: 'legend-item' },
-      h('span', { class: 'legend-swatch', style: 'background:#ffa657' }),
+      h('span', { class: 'legend-swatch', style: 'background:#ff9f4a' }),
       'high',
     ),
     h(
       'span',
       { class: 'legend-item' },
-      h('span', { class: 'legend-swatch', style: 'background:#d29922' }),
+      h('span', { class: 'legend-swatch', style: 'background:#f0c93a' }),
       'medium',
     ),
     h(
       'span',
       { class: 'legend-item' },
-      h('span', { class: 'legend-swatch', style: 'background:#58a6ff' }),
+      h('span', { class: 'legend-swatch', style: 'background:#5fd3c4' }),
       'low',
     ),
     h(
       'span',
       { class: 'legend-item' },
-      h('span', { class: 'legend-swatch', style: 'background:#8b949e' }),
+      h('span', { class: 'legend-swatch', style: 'background:#8ea5a0' }),
       'info',
     ),
     h('span', { class: 'legend-item', text: '◆ direct dependency' }),
@@ -407,15 +407,15 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
           // The labels do not scale with the zoom: a graph that is fitted
           // into a narrow pane would otherwise shrink its labels until
           // they cannot be read.
-          scaling: { label: { enabled: false } },
           nodes: {
+            scaling: { label: { enabled: false } },
             shape: 'dot',
-            font: { color: '#e6edf3', size: 11, face: 'monospace', multi: true },
+            font: { color: '#dde8e3', size: 11, face: 'JetBrains Mono Variable, monospace', multi: true },
             margin: { top: 6, right: 10, bottom: 6, left: 10 },
             borderWidth: 1,
           },
           edges: {
-            color: { color: '#484f58' },
+            color: { color: '#35494c' },
             smooth: { type: 'continuous' },
             arrows: { to: { enabled: true, scaleFactor: 0.6 } },
           },

@@ -18,6 +18,7 @@ import { autoUpdater } from 'electron-updater';
 import type { BackendStatus, ClientMessage, HttpMethod, HttpResponse } from './src/api/bridge';
 import type { Event } from './src/api/types';
 import { FolderApprovals } from './src/main-process/folders';
+import { activeSecret, canStoreSecrets, forgetSecret, hasSecret, readSecret, saveSecret, setActiveProvider } from './src/main-process/secrets';
 import { backendRequest } from './src/main-process/http';
 import { defaultSocketPath, findSidecar } from './src/main-process/paths';
 import { startSidecar, type SidecarHandle } from './src/main-process/sidecar';
@@ -165,11 +166,18 @@ function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
-    minWidth: 1024,
-    minHeight: 640,
+    minWidth: 960,
+    minHeight: 600,
     show: false,
-    backgroundColor: '#0e1116',
+    backgroundColor: '#0a1112',
     title: 'AISAI',
+    // Native window chrome: the toolbar is the title bar. macOS keeps its
+    // traffic lights inset in the toolbar; Windows and Linux draw their
+    // window controls over the right end of it.
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
+    ...(process.platform === 'darwin'
+      ? { trafficLightPosition: { x: 16, y: 17 } }
+      : { titleBarOverlay: { color: '#0f1819', symbolColor: '#dde8e3', height: 48 } }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -243,6 +251,11 @@ async function startBackend(): Promise<void> {
     mode: 'live',
     message: `Starting the AISAI backend (${found.origin})…`,
   });
+
+  // The API key of a hosted model service lives in the OS keychain; the
+  // backend reads it from its environment and never writes it to disk.
+  const savedKey = activeSecret();
+  if (savedKey && !process.env.AISAI_BYOK_API_KEY) process.env.AISAI_BYOK_API_KEY = savedKey;
 
   try {
     sidecar = await startSidecar({
@@ -396,12 +409,28 @@ function registerIpc(): void {
       return error;
     }
 
+    // Provider requests: a typed key is stored in the keychain, and a request
+    // without one is completed with the saved key. The renderer never reads
+    // a saved key.
+    const providerPath = apiPath === '/api/providers' || apiPath === '/api/providers/test';
+    let outgoing = body;
+    let providerKind = '';
+    if (method === 'POST' && providerPath && body && typeof body === 'object') {
+      const request = body as { kind?: unknown; apiKey?: unknown };
+      providerKind = typeof request.kind === 'string' ? request.kind : '';
+      const typed = typeof request.apiKey === 'string' ? request.apiKey.trim() : '';
+      if (!typed && providerKind) {
+        const saved = readSecret(providerKind);
+        if (saved) outgoing = { ...request, apiKey: saved };
+      }
+    }
+
     try {
       const result = await backendRequest({
         ...backendAddress,
         method,
         path: apiPath,
-        body: body ?? undefined,
+        body: outgoing ?? undefined,
         timeoutMs: 120000,
       });
 
@@ -417,6 +446,14 @@ function registerIpc(): void {
 
       const envelope = parsed as { error?: { code?: string; message?: string } } | undefined;
       const ok = result.status >= 200 && result.status < 300;
+
+      // A provider the backend accepted becomes the active one; a key typed
+      // for it is kept in the keychain.
+      if (ok && apiPath === '/api/providers' && providerKind) {
+        const typed = (body as { apiKey?: unknown }).apiKey;
+        if (typeof typed === 'string' && typed.trim()) saveSecret(providerKind, typed.trim());
+        setActiveProvider(providerKind);
+      }
 
       return {
         status: result.status,
@@ -437,6 +474,13 @@ function registerIpc(): void {
         errorMessage: message,
       } satisfies HttpResponse;
     }
+  });
+
+  ipcMain.handle('aisai:secret:has', (_event, kind: unknown) =>
+    typeof kind === 'string' ? { saved: hasSecret(kind), available: canStoreSecrets() } : { saved: false, available: false },
+  );
+  ipcMain.handle('aisai:secret:forget', (_event, kind: unknown) => {
+    if (typeof kind === 'string') forgetSecret(kind);
   });
 
   ipcMain.handle('aisai:folder:choose', async () => {

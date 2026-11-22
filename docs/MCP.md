@@ -1,7 +1,7 @@
 # AISAI MCP Tool Reference
 
 This document is the reference for the AISAI Model Context Protocol server: the transport
-it speaks, the methods it implements, the fourteen tools it registers, and the exact
+it speaks, the methods it implements, the twenty tools it registers, and the exact
 behaviour an agent should expect from each of them. The implementation lives in
 [`internal/mcp/`](../internal/mcp/) and the binary in
 [`cmd/aisai-mcp/`](../cmd/aisai-mcp/). Tool names are contractual — external agents are
@@ -89,7 +89,7 @@ unknown audit "<id>" — call scan_package first
 Both are returned in band, so the model sees the instruction and can recover by calling
 `scan_package`.
 
-## The fourteen tools
+## The twenty tools
 
 | Tool | Purpose | Required arguments |
 |---|---|---|
@@ -337,6 +337,35 @@ The answer is followed by a `Citations:` section listing `file:line (symbol)` fo
 citation. Requires a configured LLM provider and a chat engine; otherwise the
 LLM-disabled error is returned.
 
+### `list_audits`
+
+Lists every audit in the workspace, newest first, with id, project, source,
+status, finding count and the size of its sources. The current audit is
+marked with `*`. No arguments.
+
+### `select_audit`
+
+Makes an existing audit current. `audit_id` (string, **required**).
+
+### `set_finding_state`
+
+Records a triage verdict. `finding_id` and `state` (`open`, `confirmed`,
+`suppressed`, `fixed`) are **required**; `suppressed_until` (YYYY-MM-DD,
+default 30 days out) applies to `suppressed`; `audit_id` is optional.
+
+### `delete_sources`
+
+Deletes the downloaded sources of an audit and reports the space freed.
+Findings, verdicts and reports are kept. `audit_id` is optional.
+
+### `list_languages`
+
+Lists the languages AISAI parses and scans, with their extensions.
+
+### `list_rules`
+
+Lists every static rule with its id, CWE, severity and description.
+
 ---
 
 ## Configuring an agent
@@ -385,7 +414,7 @@ directory with `aisai-server`, both processes see the same audits, findings and 
 
 ## Relationship to the chat tool set
 
-The MCP tool set (fourteen tools) is **not** the same as the chat model's tool set
+The MCP tool set (twenty tools) is **not** the same as the chat model's tool set
 (five tools). The chat model, running inside the app, is given a deliberately read-only
 allowlist: `get_file`, `get_ast`, `search_symbols`, `list_findings`, `get_finding`
 ([`internal/audit/tools.go`](../internal/audit/tools.go)). It cannot write, patch or

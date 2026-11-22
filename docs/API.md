@@ -73,9 +73,22 @@ Returns the effective configuration (`model.Config`). Never includes API keys.
 
 ### `POST /api/providers/test`
 
-Body: `{"id":"ollama","url":"...","model":"..."}`. Returns
+Body: `{"kind":"ollama","url":"...","model":"...","apiKey":"..."}`. `kind` is
+one of `ollama`, `vllm`, `llamacpp`, `lmstudio`, `openai`, `anthropic`,
+`gemini`, `openrouter`, `groq`, `mistral`; it defaults to `ollama`. Every kind
+but `ollama` is reached through its OpenAI-compatible API. Returns
 `{"provider": {"id":"ollama","ok":true,"error":"","models":[...]}}` — a
 `model.ProviderInfo` with `ok` and `error` populated. Never returns the key.
+
+### `POST /api/providers`
+
+Same body as the test. Switches the provider that scans and chat use, without
+a restart, sets the chat and scan model to `model` when one is given, and
+writes `providerKind`, the URL and the model to the config file. The API key
+is kept in memory only; a hosted kind without a key is refused with
+`400 bad_request`. Returns `{"provider": model.ProviderInfo}` probed after the
+switch. `GET /api/providers` probes with a 1.5 s timeout so a server that is
+down answers quickly.
 
 ---
 

@@ -93,6 +93,9 @@ func (p *OpenAIProvider) do(ctx context.Context, method, path string, payload an
 		if p.opts.APIKey != "" {
 			req.Header.Set("Authorization", "Bearer "+p.opts.APIKey)
 		}
+		for k, v := range p.opts.Headers {
+			req.Header.Set(k, v)
+		}
 
 		resp, err := p.client.Do(req)
 		if err != nil {

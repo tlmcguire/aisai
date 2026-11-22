@@ -243,16 +243,28 @@ name, `Arrow Down` walks the suggestions.
 ### Languages
 
 An audit parses every source file it finds, not only the Python ones. AISAI
-understands **Python, JavaScript, TypeScript, TSX, Go, Rust, Java, C#, Ruby
-and C**. The syntax tree, the semantic chunks and the retrieval index are
+understands **Python, JavaScript, TypeScript, TSX, Go, Rust, Java, C#, Ruby,
+C, C++, PHP, Scala and shell scripts (Bash, sh, zsh)**. The syntax tree, the semantic chunks and the retrieval index are
 built for all of them, and the code view names the language of the file.
 
 Python has the full rule set, with taint and scope tracking. The other
 languages get pattern rules for the common sinks: command execution, code
 evaluation, unsafe deserialization, weak hashes and ciphers, SQL built by
 string concatenation, disabled TLS verification, XSS sinks, unsafe C
-functions, format strings and hardcoded secrets. These rules are heuristic
-and do not follow data flow.
+functions, format strings and hardcoded secrets. PHP adds `include` of a
+request value, `unserialize` and `display_errors`; shell scripts add
+`curl | sh`, `eval` of a variable, `curl -k` and `mktemp -u`. C++ and Scala
+reuse the C and Java rules. These rules are heuristic and do not follow data
+flow.
+
+### Model servers
+
+Scans and chat can use a model on this machine (Ollama, vLLM, llama.cpp or
+LM Studio) or a hosted service with your own API key (OpenAI, Anthropic,
+Gemini, OpenRouter, Groq or Mistral). Pick one in **Settings → Model
+server**; the switch takes effect without a restart. API keys are stored in
+the system keychain by the desktop app and are never written to the config
+file.
 
 ### Inspecting a local project
 

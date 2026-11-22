@@ -69,6 +69,14 @@ export interface AisaiBridge {
    * path, or `null` when the dropped item is not a folder.
    */
   folderFromDrop(file: File): Promise<string | null>;
+  /**
+   * Whether an API key for a hosted provider is saved in the OS keychain,
+   * and whether the keychain is usable at all. The key itself is never
+   * returned.
+   */
+  providerKeyStatus(kind: string): Promise<{ saved: boolean; available: boolean }>;
+  /** Remove a saved API key from the keychain. */
+  forgetProviderKey(kind: string): Promise<void>;
 }
 
 declare global {

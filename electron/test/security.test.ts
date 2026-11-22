@@ -40,10 +40,12 @@ const EXPECTED_BRIDGE_MEMBERS = [
   'connectEvents',
   'disconnect',
   'folderFromDrop',
+  'forgetProviderKey',
   'getMode',
   'getStatus',
   'http',
   'onBackendStatus',
+  'providerKeyStatus',
   'send',
 ];
 

@@ -42,3 +42,5 @@ bench/results/
 *.sqlite-journal
 *.sqlite-wal
 coverage.out
+
+.gemini

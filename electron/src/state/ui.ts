@@ -9,7 +9,20 @@ interface PersistedUi {
   railWidth: number;
   chatHeight: number;
   chatOpen: boolean;
+  filesShare: number;
+  uiScale: number;
 }
+
+/** The pane sizes a fresh install starts with, in reference pixels. */
+export const DEFAULT_LAYOUT = {
+  graphWidth: 300,
+  railWidth: 340,
+  chatHeight: 220,
+  filesShare: 0.42,
+  uiScale: 1,
+} as const;
+
+export type SettingsSection = 'server' | 'models' | 'sources' | 'layout' | 'mcp';
 
 function loadPersisted(): Partial<PersistedUi> {
   try {
@@ -29,6 +42,18 @@ export interface UiState {
   railWidth: number;
   chatHeight: number;
   settingsOpen: boolean;
+  settingsSection: SettingsSection;
+  /** Share of the left column given to the file tree (0.15–0.85). */
+  filesShare: number;
+  /** Interface size multiplier (0.85–1.3). */
+  uiScale: number;
+  setSettingsSection: (section: SettingsSection) => void;
+  setFilesShare: (share: number) => void;
+  setUiScale: (scale: number) => void;
+  resetLayout: () => void;
+  /** Bumped when the model server changes, so the toolbar re-reads it. */
+  providersStamp: number;
+  bumpProviders: () => void;
   setActiveTab: (tab: MainTab) => void;
   setChatOpen: (open: boolean) => void;
   setGraphWidth: (width: number) => void;
@@ -40,10 +65,19 @@ export interface UiState {
 export const useUiStore = create<UiState>((set) => ({
   activeTab: 'code',
   chatOpen: persisted.chatOpen ?? true,
-  graphWidth: persisted.graphWidth ?? 300,
-  railWidth: persisted.railWidth ?? 320,
-  chatHeight: persisted.chatHeight ?? 220,
+  graphWidth: persisted.graphWidth ?? DEFAULT_LAYOUT.graphWidth,
+  railWidth: persisted.railWidth ?? DEFAULT_LAYOUT.railWidth,
+  chatHeight: persisted.chatHeight ?? DEFAULT_LAYOUT.chatHeight,
+  filesShare: persisted.filesShare ?? DEFAULT_LAYOUT.filesShare,
+  uiScale: persisted.uiScale ?? DEFAULT_LAYOUT.uiScale,
   settingsOpen: false,
+  settingsSection: 'server',
+  setSettingsSection: (settingsSection) => set({ settingsSection }),
+  setFilesShare: (share) => set({ filesShare: Math.max(0.15, Math.min(0.85, share)) }),
+  setUiScale: (scale) => set({ uiScale: Math.max(0.85, Math.min(1.3, Math.round(scale * 100) / 100)) }),
+  resetLayout: () => set({ ...DEFAULT_LAYOUT }),
+  providersStamp: 0,
+  bumpProviders: () => set((state) => ({ providersStamp: state.providersStamp + 1 })),
   setActiveTab: (tab) => set({ activeTab: tab }),
   setChatOpen: (open) => set({ chatOpen: open }),
   setGraphWidth: (width) => set({ graphWidth: Math.max(180, Math.min(720, width)) }),
@@ -58,6 +92,8 @@ useUiStore.subscribe((state) => {
     railWidth: state.railWidth,
     chatHeight: state.chatHeight,
     chatOpen: state.chatOpen,
+    filesShare: state.filesShare,
+    uiScale: state.uiScale,
   };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));

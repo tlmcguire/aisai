@@ -1,9 +1,12 @@
 import type { AppController } from '../app';
 import type { ProviderInfo } from '../api/types';
 import { h } from '../lib/dom';
+import { icon } from '../lib/icons';
+import { brandMark } from '../lib/logo';
 import { useAuditStore } from '../state/audit';
 import { useUiStore } from '../state/ui';
 import { createPackagePicker } from './packagePicker';
+import { providerLabel } from './settingsDialog';
 
 /** Toggle a button into its busy state (spinner + disabled). */
 export function setBusy(button: HTMLButtonElement, busy: boolean, label?: string): void {
@@ -33,18 +36,19 @@ export interface Toolbar {
 
 export function createToolbar(controller: AppController, container: HTMLElement): Toolbar {
   const picker = createPackagePicker(controller);
+  const brand = h('div', { class: 'brand' }, brandMark(), h('span', { class: 'brand-name', text: 'aisai' }));
 
   const scanButton = button('Scan', 'primary');
   const folderButton = button('Open folder…');
   folderButton.title = 'Inspect a project folder on this computer (Ctrl/Cmd+O, or drop a folder on the window)';
   const llmButton = button('Scan LLM');
 
-  const providerChip = h('span', { class: 'badge neutral', text: 'checking provider…' });
+  const providerChip = h('span', { class: 'provider-chips' }, h('span', { class: 'badge neutral', text: 'checking provider…' }));
   const mockBadge = h('span', { class: 'badge mock', text: 'MOCK DATA', hidden: true });
   const settingsButton = h(
     'button',
     { class: 'ghost icon', type: 'button', title: 'Settings', 'aria-label': 'Settings' },
-    '⚙',
+    icon('gear'),
   );
 
   picker.onScan((packageName, version) => {
@@ -54,7 +58,7 @@ export function createToolbar(controller: AppController, container: HTMLElement)
   scanButton.addEventListener('click', () => {
     const pkg = picker.packageName();
     if (!pkg) {
-      picker.focus();
+      picker.promptForName();
       return;
     }
     void controller.startAudit(pkg, picker.version());
@@ -116,7 +120,7 @@ export function createToolbar(controller: AppController, container: HTMLElement)
   });
 
   container.append(
-    h('div', { class: 'brand', text: 'AISAI' }),
+    brand,
     picker.element,
     scanButton,
     folderButton,
@@ -133,9 +137,14 @@ export function createToolbar(controller: AppController, container: HTMLElement)
   };
 
   const unsubscribeAudit = useAuditStore.subscribe((state) => {
+    brand.classList.toggle('is-busy', state.busy !== null);
     setBusy(scanButton, state.busy === 'audit');
     folderButton.disabled = state.busy === 'audit';
     setBusy(llmButton, state.busy?.startsWith('scan:') ?? false);
+  });
+
+  const unsubscribeUi = useUiStore.subscribe((state, previous) => {
+    if (state.providersStamp !== previous.providersStamp) void refreshProviders();
   });
 
   const unsubscribeBackend = window.aisai.onBackendStatus((status) => {
@@ -154,6 +163,7 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     refreshProviders,
     dispose: () => {
       unsubscribeAudit();
+      unsubscribeUi();
       unsubscribeBackend();
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('dragover', onDragOver);
@@ -167,17 +177,26 @@ export function createToolbar(controller: AppController, container: HTMLElement)
 
 function providerChips(providers: ProviderInfo[]): Node[] {
   if (!providers.length) {
-    return [h('span', { class: 'badge neutral', text: 'no providers configured' })];
+    return [h('span', { class: 'badge provider-badge is-bad', role: 'button', tabindex: '0', title: 'Choose a model server', onclick: () => {
+      useUiStore.getState().setSettingsSection('server');
+      useUiStore.getState().setSettingsOpen(true);
+    } }, h('span', { class: 'status-dot', 'aria-hidden': 'true' }), 'No model server')];
   }
   return providers.map((provider) =>
     h(
       'span',
       {
-        class: `badge ${provider.ok ? 'ok' : 'bad'}`,
-        title: provider.error ?? `${provider.id} (${provider.kind})`,
+        class: `badge provider-badge ${provider.ok ? 'is-ok' : 'is-bad'}`,
+        title: (provider.error ?? `${provider.id} (${provider.kind})`) + ' · click to configure',
+        role: 'button',
+        tabindex: '0',
+        onclick: () => {
+          useUiStore.getState().setSettingsSection('server');
+          useUiStore.getState().setSettingsOpen(true);
+        },
       },
-      provider.ok ? '●' : '○',
-      ` ${provider.id} ${provider.ok ? 'up' : 'down'}`,
+      h('span', { class: 'status-dot', 'aria-hidden': 'true' }),
+      `${providerLabel(provider.kind)}${provider.ok ? '' : ' offline'}`,
     ),
   );
 }

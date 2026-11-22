@@ -28,6 +28,10 @@ func TestParseEachLanguage(t *testing.T) {
 		LanguageJava:       "package demo;\n\nimport java.util.List;\n\nclass Demo {\n  void run() {\n    System.out.println(\"hi\");\n  }\n}\n",
 		LanguageCSharp:     "using System;\n\nnamespace Demo {\n  class Runner {\n    void Run() {\n      Console.WriteLine(\"hi\");\n    }\n  }\n}\n",
 		LanguageRuby:       "require 'json'\n\nclass Runner\n  def run\n    puts 'hi'\n  end\nend\n",
+		LanguageCPP:        "#include <iostream>\n\nint main() {\n  std::cout << \"hi\";\n  return 0;\n}\n",
+		LanguagePHP:        "<?php\nuse Foo\\Bar;\n\nfunction run($x) {\n  return strlen($x);\n}\n",
+		LanguageBash:       "#!/bin/bash\nrun() {\n  echo hi\n}\nrun\n",
+		LanguageScala:      "import scala.util.Try\n\nobject Demo {\n  def run(x: Int): Int = x + 1\n}\n",
 		LanguageC:          "#include <stdio.h>\n\nint main(void) {\n  printf(\"hi\\n\");\n  return 0;\n}\n",
 	}
 
