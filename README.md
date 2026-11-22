@@ -335,6 +335,12 @@ copy.
   **Change…** takes an instruction ("use a constant-time comparison"). Fix and
   Change show the old and new code side by side; nothing reaches the editor until
   you press **Accept**, and undo takes it back.
+- A finding's **Propose fix** opens the **Diff** tab with a patch for it, checked
+  to apply before you can **Apply** it; the file is then re-scanned and the
+  result shows which findings the patch resolved.
+
+  ![A proposed patch for a hard-coded secret in the Diff tab](docs/screenshots/proposed-fix.png)
+
 - Code under audit is untrusted. Every prompt tells the model the file is data,
   and a selection that contains instruction-like text is withheld from the chat
   rather than sent.
