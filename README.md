@@ -131,7 +131,7 @@ The server prints exactly one line of JSON on stdout — the address the
 Electron main process connects to:
 
 ```json
-{"address":"/path/to/.aisai/aisai.sock","transport":"unix","type":"listening","version":"0.4.0-dev"}
+{"address":"/path/to/.aisai/aisai.sock","transport":"unix","type":"listening","version":"0.5.0-dev"}
 ```
 
 Everything else is logged to stderr.
@@ -408,13 +408,24 @@ The graph draws at most 500 nodes and says when it leaves some out.
 
 ### Updates
 
-The installed app updates itself: it checks the project's GitHub releases on
-launch and every six hours, downloads a new version in the background and
-installs it when the app quits, or at once from the **Restart to update**
-button in the toolbar. No reinstall is needed. Windows and Linux (AppImage)
-update in place. macOS only updates a *signed* build; an unsigned build shows
-**Update available: download** and opens the release page instead. Set
-`AISAI_UPDATE_FEED_URL` to point the app at a private feed.
+The installed app updates itself, with no new download from the release page:
+it checks the project's GitHub releases on launch and every six hours,
+downloads the new version in the background, and shows **Restart to update** in
+the toolbar when it is ready (it also installs when you quit).
+
+- **Windows and Linux (AppImage)** update in place through electron-updater.
+- **macOS** builds are ad-hoc signed, which Squirrel.Mac (electron-updater's
+  macOS installer) refuses to update. AISAI does it itself instead: it downloads
+  the zip for your Mac's architecture, checks its SHA-512 against the release's
+  `latest-mac.yml`, unpacks it, checks that the app's code seal is intact and
+  that it is AISAI, then on restart swaps it in and reopens it. The old copy is
+  kept until the new one is in place. For this to work AISAI must run from a
+  folder it can write to, such as **Applications**; run from a disk image or
+  straight from Downloads, it shows **Update available: download** instead.
+- Copies of 0.3.0 and earlier do not have this macOS updater, so on a Mac the
+  move to 0.5.0 is one last manual download.
+
+Set `AISAI_UPDATE_FEED_URL` to point the app at a private feed.
 
 ### Languages
 
@@ -657,8 +668,8 @@ app for all three platforms:
 | Linux (x64 and arm64) | AppImage and deb |
 
 ```bash
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.5.0
+git push origin v0.5.0
 ```
 
 The pipeline builds the Go backend once and hands it to every platform
