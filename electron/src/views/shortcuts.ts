@@ -164,8 +164,17 @@ export function installShortcuts(controller: AppController, root: HTMLElement): 
   const offBindings = useKeybindingStore.subscribe(rebind);
 
   const renderSheet = (): void => {
+    // The name of a group is translated, and every call of t() gives a new
+    // object, so a map keyed by the name itself would make a group of its
+    // own for every shortcut. The text of the name is the same for the whole
+    // group, so the map is keyed by that.
     const groups = new Map<string, Shortcut[]>();
-    for (const s of shortcuts) groups.set(s.group, [...(groups.get(s.group) ?? []), s]);
+    const names = new Map<string, string>();
+    for (const s of shortcuts) {
+      const key = String(s.group);
+      groups.set(key, [...(groups.get(key) ?? []), s]);
+      if (!names.has(key)) names.set(key, s.group);
+    }
     const close = h('button', { class: 'ghost tiny', type: 'button', onclick: () => sheet.close() }, t('shortcuts.close'));
     const customise = h('button', {
       class: 'tiny',
@@ -182,7 +191,7 @@ export function installShortcuts(controller: AppController, root: HTMLElement): 
         h(
           'section',
           { class: 'shortcuts-group' },
-          h('h3', { text: group }),
+          h('h3', { text: names.get(group) ?? group }),
           h('dl', {}, ...list.flatMap((s) => [h('dt', {}, ...keyCaps(s.keys)), h('dd', { text: s.label })])),
         ),
       ),

@@ -365,7 +365,8 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
     'div',
     { class: 'graph-controls' },
     h('div', { class: 'row' }, searchInput),
-    h('div', { class: 'row' }, ...severityChips),
+    // The findings rail has its own severity row; the label tells the two apart.
+    h('div', { class: 'row' }, h('span', { class: 'row-label', text: t('graph.filterLabel') }), ...severityChips),
     whyBox,
     pathResult,
     h(

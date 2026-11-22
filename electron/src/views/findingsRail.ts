@@ -156,7 +156,8 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
     'div',
     { class: 'rail-controls' },
     h('div', { class: 'row' }, searchInput),
-    h('div', { class: 'row' }, ...severityChips),
+    // The graph pane has its own severity row; the label tells the two apart.
+    h('div', { class: 'row' }, h('span', { class: 'row-label', text: t('findings.filterLabel') }), ...severityChips),
     h('div', { class: 'row' }, cweSelect, toolSelect, stateSelect),
     h(
       'div',
@@ -304,7 +305,9 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
       h('span', { text: `${finding.file}:${finding.startLine}` }),
       h('span', { text: t('findings.toolLabel', { tool: finding.tool }) }),
       h('span', { text: t('findings.ruleLabel', { rule: finding.rule }) }),
-      finding.reachability ? h('span', { text: finding.reachability }) : null,
+      finding.reachability
+        ? h('span', { text: t(`findings.reachability.${finding.reachability}`) })
+        : null,
       finding.state !== 'open'
         ? h('span', {
             text:

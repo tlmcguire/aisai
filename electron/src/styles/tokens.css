@@ -93,8 +93,8 @@
      Cantarell/Ubuntu); code is set in JetBrains Mono. */
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', Ubuntu, Cantarell, sans-serif;
   --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  /* The scale follows the root size, so the whole UI scales with the display. */
-  --text-xs: 0.6875rem;
+  /* The scale follows the root size, so the whole UI scales with the display.
+     The smallest step is the label size; anything smaller cannot be read. */
   --text-sm: 0.75rem;
   --text-base: 0.8125rem;
   --text-md: 0.875rem;
