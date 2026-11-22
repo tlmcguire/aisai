@@ -1,9 +1,11 @@
 import type { AppController } from '../app';
+import type { UpdateStatus } from '../api/bridge';
 import type { Audit, Config, ModelInfo, ModelState, ProviderInfo, ProviderKind } from '../api/types';
 import { formatBytes } from '../lib/format';
 import { useAuditStore } from '../state/audit';
 import { h } from '../lib/dom';
-import { DEFAULT_LAYOUT, LAYOUT_PRESETS, PANE_IDS, PANE_LABELS, useUiStore, type SettingsSection } from '../state/ui';
+import { isMac } from '../lib/shortcuts';
+import { ACCENTS, DEFAULT_LAYOUT, LAYOUT_PRESETS, PANE_IDS, PANE_LABELS, useUiStore, type SettingsSection } from '../state/ui';
 
 /** The keep-alive windows the picker offers. */
 const KEEP_ALIVE_OPTIONS: Array<{ value: string; label: string }> = [
@@ -101,8 +103,10 @@ const SECTIONS: Array<{ id: SettingsSection; label: string }> = [
   { id: 'server', label: 'Model server' },
   { id: 'models', label: 'Models' },
   { id: 'sources', label: 'Downloaded sources' },
+  { id: 'appearance', label: 'Appearance' },
   { id: 'layout', label: 'Layout' },
   { id: 'mcp', label: 'MCP' },
+  { id: 'about', label: 'About' },
 ];
 
 /** Turn a transport error into something a person can act on. */
@@ -573,9 +577,12 @@ export function createSettingsDialog(
   /* ---------------- downloaded sources ---------------- */
 
   const armed = new Set<string>();
+  const removedSources = new Set<string>();
 
   const renderSources = (): HTMLElement => {
-    const audits = useAuditStore.getState().audits;
+    // A source that was deleted is no longer a source: drop it at once,
+    // without waiting for the audit list to come back from the backend.
+    const audits = useAuditStore.getState().audits.filter((a) => !a.sourcesDeleted && !removedSources.has(a.id));
     const currentId = useAuditStore.getState().current?.id;
     const total = audits.reduce((sum, a) => sum + (a.sourcesDeleted ? 0 : a.sandboxBytes || 0), 0);
 
@@ -605,7 +612,10 @@ export function createSettingsDialog(
         armed.delete(audit.id);
         del.disabled = true;
         del.textContent = 'Deleting…';
-        void controller.deleteSourcesOf(audit.id).then(() => renderSection());
+        void controller.deleteSourcesOf(audit.id).then((result) => {
+          if (result) removedSources.add(audit.id);
+          renderSection();
+        });
       });
       const open = h('button', { class: 'tiny', type: 'button', disabled: audit.id === currentId || undefined }, audit.id === currentId ? 'Open now' : 'Open');
       open.addEventListener('click', () => {
@@ -653,6 +663,111 @@ export function createSettingsDialog(
             ),
           )
         : h('p', { class: 'pref-hint', text: 'No audits yet. Scan a package or open a folder and it appears here.' }),
+    );
+  };
+
+
+  /* ---------------- appearance and behaviour ---------------- */
+
+  const renderAppearance = (): HTMLElement => {
+    const ui = useUiStore.getState();
+    const themeSelect = h(
+      'select',
+      { id: 'pref-theme', 'aria-label': 'Theme' },
+      h('option', { value: 'dark' }, 'Dark (Verdigris)'),
+      h('option', { value: 'light' }, 'Light'),
+      h('option', { value: 'system' }, 'Match the system'),
+    );
+    themeSelect.value = ui.theme;
+    themeSelect.addEventListener('change', () => useUiStore.getState().setTheme(themeSelect.value as 'dark' | 'light' | 'system'));
+    const swatches = h(
+      'div',
+      { class: 'swatch-row', role: 'group', 'aria-label': 'Accent colour' },
+      ...ACCENTS.map((accent) =>
+        h('button', {
+          type: 'button',
+          class: 'swatch',
+          title: accent.label,
+          'aria-label': accent.label,
+          'aria-pressed': String(ui.accent === accent.id),
+          style: `background:${accent.dark[0]}`,
+          onclick: () => {
+            useUiStore.getState().setAccent(accent.id);
+            renderSection();
+          },
+        }),
+      ),
+    );
+    const check = (id: string, label: string, hint: string, value: boolean, apply: (v: boolean) => void): HTMLElement => {
+      const box = h('input', { type: 'checkbox', id });
+      box.checked = value;
+      box.addEventListener('change', () => apply(box.checked));
+      return h('div', { class: 'pref-check' }, h('label', { for: id }, box, ' ', label), h('p', { class: 'pref-hint', text: hint }));
+    };
+    return h(
+      'section',
+      { class: 'pref-section' },
+      h('h2', { class: 'pref-title', text: 'Appearance' }),
+      h('p', { class: 'pref-lede', text: 'The look of the interface and how fixes and completion behave. Remembered on this computer.' }),
+      h('div', { class: 'pref-form' }, h('label', { for: 'pref-theme', text: 'Theme' }), themeSelect, h('label', { text: 'Accent colour' }), swatches),
+      h('h3', { class: 'pref-subtitle', text: 'Behaviour' }),
+      check('pref-completion', 'Inline completion in the editor', `Ghost text from the chat model as you type. Toggle anywhere with ${isMac() ? '⌘⌥K' : 'Ctrl+Alt+K'}.`, ui.completionEnabled, (v) => useUiStore.getState().setCompletionEnabled(v)),
+      check('pref-web-search', 'Let the assistant search the web', 'Adds web search and page reading to the chat, for advisories, CVEs and library docs. You are asked before the first search of each answer, because the search text leaves your computer.', Boolean(lastConfig?.webSearch), (v) => {
+        void controller.setWebSearch(v).then((enabled) => {
+          if (lastConfig) lastConfig = { ...lastConfig, webSearch: enabled };
+        });
+      }),
+      h('p', { class: 'pref-hint', text: 'The assistant can also run commands in the package workspace. Read-only commands (ls, cat, grep, find…) run at once; anything else asks you first, in the chat.' }),
+      check('pref-accept-fixed', 'Accepting a proposed fix marks the issue fixed', 'Turn this off to keep the finding open until you triage it yourself.', ui.acceptMarksFixed, (v) => useUiStore.getState().setAcceptMarksFixed(v)),
+    );
+  };
+
+  /* ---------------- about ---------------- */
+
+  let updateState: UpdateStatus = { state: 'idle' };
+  const unsubscribeUpdate = window.aisai.onUpdateStatus((status) => {
+    updateState = status;
+    if (dialog.open && useUiStore.getState().settingsSection === 'about') renderSection();
+  });
+
+  const renderAbout = (): HTMLElement => {
+    const backend = window.aisai.getStatus();
+    const busy = updateState.state === 'checking' || updateState.state === 'downloading';
+    const ready = updateState.state === 'ready';
+    const manual = updateState.state === 'manual';
+    const button = h(
+      'button',
+      { type: 'button', class: ready || manual ? 'primary' : '', disabled: busy || undefined },
+      busy
+        ? updateState.state === 'checking' ? 'Checking…' : `Downloading ${updateState.percent ?? 0}%`
+        : ready ? 'Restart to update'
+        : manual ? 'Download update'
+        : 'Check for updates',
+    );
+    button.addEventListener('click', () => {
+      if (ready) void window.aisai.installUpdate();
+      else if (manual) void window.aisai.openReleasePage();
+      else void window.aisai.checkForUpdates();
+    });
+    const note =
+      updateState.state === 'idle' ? 'Up to date, as far as the last check knows.'
+      : updateState.state === 'available' ? `Version ${updateState.version ?? ''} is available.`
+      : updateState.message || (updateState.version ? `Version ${updateState.version}` : '');
+    return h(
+      'section',
+      { class: 'pref-section' },
+      h('h2', { class: 'pref-title', text: 'About aisai' }),
+      h('p', { class: 'pref-lede', text: 'Audit open-source packages and your own projects, and talk to the code.' }),
+      h(
+        'div',
+        { class: 'pref-form' },
+        h('label', { text: 'App version' }),
+        h('div', { text: __APP_VERSION__ }),
+        h('label', { text: 'Backend' }),
+        h('div', { text: backend.version ? `${backend.version} (${backend.mode})` : backend.mode }),
+      ),
+      h('div', { class: 'pref-actions' }, button),
+      h('p', { class: 'pref-hint', text: note }),
     );
   };
 
@@ -873,6 +988,12 @@ export function createSettingsDialog(
       case 'mcp':
         content = renderMcp();
         break;
+      case 'appearance':
+        content = renderAppearance();
+        break;
+      case 'about':
+        content = renderAbout();
+        break;
       default:
         content = renderServer();
     }
@@ -932,6 +1053,7 @@ export function createSettingsDialog(
     dispose: () => {
       unsubscribe();
       unsubscribeAudits();
+      unsubscribeUpdate();
     },
   };
 }

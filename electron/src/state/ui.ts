@@ -66,6 +66,31 @@ export const LAYOUT_PRESETS: readonly LayoutPreset[] = [
   },
 ];
 
+export type ThemeChoice = 'dark' | 'light' | 'system';
+
+/** Accent colours the user can pick: the signal colour of the interface. */
+export const ACCENTS = [
+  { id: 'lime', label: 'Lime', dark: ['#b4f23c', '#c8ff5a', '#232f16'], light: ['#3f6212', '#2f4c0c', '#d5e6bb'] },
+  { id: 'teal', label: 'Teal', dark: ['#5fd3c4', '#8ae9dc', '#17302e'], light: ['#0b5f59', '#094845', '#c4e6e1'] },
+  { id: 'blue', label: 'Blue', dark: ['#6cb2ff', '#9acaff', '#16283d'], light: ['#1e40af', '#172f85', '#cdd9f7'] },
+  { id: 'violet', label: 'Violet', dark: ['#b79cff', '#d0bcff', '#2a2142'], light: ['#5b21b6', '#46188f', '#dccff5'] },
+  { id: 'orange', label: 'Orange', dark: ['#ffa24a', '#ffbb7a', '#38261a'], light: ['#9a3412', '#7a280d', '#f3d4bf'] },
+] as const;
+export type AccentId = (typeof ACCENTS)[number]['id'];
+
+/** Apply the theme and accent to the document. */
+export function applyAppearance(theme: ThemeChoice, accent: AccentId): void {
+  const root = document.documentElement;
+  const light = theme === 'light' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: light)').matches);
+  root.dataset.theme = light ? 'light' : 'dark';
+  const pick = ACCENTS.find((entry) => entry.id === accent) ?? ACCENTS[0];
+  const [base, strong, soft] = light ? pick.light : pick.dark;
+  root.style.setProperty('--accent', base);
+  root.style.setProperty('--accent-strong', strong);
+  root.style.setProperty('--accent-soft', soft);
+  root.style.setProperty('--fg-on-accent', light ? '#ffffff' : '#0a1112');
+}
+
 const STORAGE_KEY = 'aisai.ui.v1';
 
 interface PersistedUi {
@@ -80,6 +105,10 @@ interface PersistedUi {
   chatDock: ChatDock;
   chatWidth: number;
   terminalHeight: number;
+  completionEnabled: boolean;
+  acceptMarksFixed: boolean;
+  theme: ThemeChoice;
+  accent: AccentId;
 }
 
 /** The pane sizes a fresh install starts with, in reference pixels. */
@@ -93,7 +122,7 @@ export const DEFAULT_LAYOUT = {
   uiScale: 1,
 } as const;
 
-export type SettingsSection = 'server' | 'models' | 'sources' | 'layout' | 'mcp';
+export type SettingsSection = 'server' | 'models' | 'sources' | 'layout' | 'mcp' | 'about' | 'appearance';
 
 function loadPersisted(): Partial<PersistedUi> {
   try {
@@ -139,6 +168,19 @@ export interface UiState {
   /** The terminal panel is never open at launch: a shell starts only on request. */
   terminalOpen: boolean;
   terminalHeight: number;
+  /** What the bottom panel shows: the shells or the debugger. */
+  bottomView: BottomView;
+  setBottomView: (view: BottomView) => void;
+  /** Inline model completion in the editor. */
+  theme: ThemeChoice;
+  setTheme: (theme: ThemeChoice) => void;
+  accent: AccentId;
+  setAccent: (accent: AccentId) => void;
+  completionEnabled: boolean;
+  setCompletionEnabled: (enabled: boolean) => void;
+  /** Accepting a proposed fix marks its finding as fixed. */
+  acceptMarksFixed: boolean;
+  setAcceptMarksFixed: (enabled: boolean) => void;
   setTerminalOpen: (open: boolean) => void;
   setTerminalHeight: (height: number) => void;
   /** The id of the preset last applied, or '' once the layout was changed by hand. */
@@ -164,6 +206,8 @@ export interface UiState {
   setSettingsOpen: (open: boolean) => void;
 }
 
+export type BottomView = 'terminal' | 'debug';
+
 export const useUiStore = create<UiState>((set) => ({
   activeTab: 'code',
   chatOpen: persisted.chatOpen ?? true,
@@ -177,6 +221,16 @@ export const useUiStore = create<UiState>((set) => ({
   chatDock: persisted.chatDock === 'right' ? 'right' : 'bottom',
   chatWidth: persisted.chatWidth ?? DEFAULT_LAYOUT.chatWidth,
   terminalOpen: false,
+  bottomView: 'terminal',
+  setBottomView: (bottomView) => set({ bottomView }),
+  theme: persisted.theme ?? 'dark',
+  setTheme: (theme) => set({ theme }),
+  accent: persisted.accent ?? 'lime',
+  setAccent: (accent) => set({ accent }),
+  completionEnabled: persisted.completionEnabled ?? true,
+  setCompletionEnabled: (completionEnabled) => set({ completionEnabled }),
+  acceptMarksFixed: persisted.acceptMarksFixed ?? true,
+  setAcceptMarksFixed: (acceptMarksFixed) => set({ acceptMarksFixed }),
   terminalHeight: persisted.terminalHeight ?? DEFAULT_LAYOUT.terminalHeight,
   setTerminalOpen: (terminalOpen) => set({ terminalOpen }),
   setTerminalHeight: (height) => set({ terminalHeight: Math.max(120, Math.min(720, height)) }),
@@ -246,6 +300,10 @@ useUiStore.subscribe((state) => {
     chatDock: state.chatDock,
     chatWidth: state.chatWidth,
     terminalHeight: state.terminalHeight,
+    completionEnabled: state.completionEnabled,
+    acceptMarksFixed: state.acceptMarksFixed,
+    theme: state.theme,
+    accent: state.accent,
   };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -253,3 +311,17 @@ useUiStore.subscribe((state) => {
     /* private mode / quota — the UI still works, the size is just not remembered */
   }
 });
+
+// Apply the saved look at once, and follow the system when it is chosen.
+applyAppearance(useUiStore.getState().theme, useUiStore.getState().accent);
+useUiStore.subscribe((state, previous) => {
+  if (state.theme !== previous.theme || state.accent !== previous.accent) applyAppearance(state.theme, state.accent);
+});
+try {
+  window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+    const { theme, accent } = useUiStore.getState();
+    if (theme === 'system') applyAppearance(theme, accent);
+  });
+} catch {
+  /* no matchMedia: the theme stays as chosen */
+}

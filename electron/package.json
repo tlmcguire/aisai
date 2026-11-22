@@ -1,5 +1,5 @@
 {
-  "name": "aisai-electron",
+  "name": "aisai",
   "version": "0.5.0",
   "private": true,
   "description": "AISAI Electron frontend (renderer + main/preload) for the Go AISAI backend.",
@@ -175,5 +175,16 @@
     "esbuild@0.28.2": true,
     "fsevents@2.3.3": true,
     "electron-winstaller@5.4.0": true
+  },
+  "overrides": {
+    "app-builder-lib": {
+      "minimatch": "^11.0.1"
+    },
+    "@electron/universal": {
+      "minimatch": "^11.0.1",
+      "dir-compare": {
+        "minimatch": "^3.1.5"
+      }
+    }
   }
 }

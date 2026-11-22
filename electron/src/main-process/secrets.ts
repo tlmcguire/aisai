@@ -87,6 +87,9 @@ export function setActiveProvider(kind: string): void {
 
 /** The key of the active provider, for the backend's environment. */
 export function activeSecret(): string | null {
-  const active = load().active;
-  return active ? readSecret(active) : null;
+  const data = load();
+  // Reading the keychain at launch makes macOS ask for permission to use
+  // "AISAI Safe Storage", so do not touch it unless a key is actually saved.
+  if (!data.active || !data.keys[data.active]) return null;
+  return readSecret(data.active);
 }

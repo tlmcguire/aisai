@@ -41,6 +41,7 @@ import (
 	"github.com/tlmcguire/aisai/internal/scan"
 	"github.com/tlmcguire/aisai/internal/server"
 	"github.com/tlmcguire/aisai/internal/version"
+	"github.com/tlmcguire/aisai/internal/websearch"
 )
 
 func main() {
@@ -205,13 +206,20 @@ func run(socketPath, cfgPath, workspaceOverride string) error {
 	// The chat's tools are scoped to one audit, so a chat engine is built
 	// per request.
 	srv.SetChatFactory(func(auditID string) server.ChatEngine {
-		tools := audit.NewTools(mgr, auditID)
+		var web *websearch.Client
+		if cfg.WebSearch {
+			web = &websearch.Client{}
+		}
+		tools, err := audit.NewChatTools(mgr, auditID, web)
+		if err != nil {
+			return nil
+		}
 		return server.NewChatEngine(chat.New(chat.Deps{
 			Index:      idx,
 			LLM:        provider,
 			Models:     models,
 			NumCtx:     cfg.NumCtx,
-			Tools:      audit.ToolDefinitions(),
+			Tools:      audit.ChatToolDefinitions(web != nil),
 			ToolRunner: tools,
 		}))
 	})
@@ -222,7 +230,8 @@ func run(socketPath, cfgPath, workspaceOverride string) error {
 		return err
 	}
 	defer listener.Close()
-	defer srv.CloseTerminals() // no shell outlives the server
+	defer srv.CloseTerminals()     // no shell outlives the server
+	defer srv.CloseDebugSessions() // nor a debugged program
 
 	// The Electron main process parses this single line.
 	if err := emitListening(addr); err != nil {

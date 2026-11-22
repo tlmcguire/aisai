@@ -4,6 +4,7 @@ import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { useFindingsStore } from '../state/findings';
 import { useWorkspaceStore } from '../state/workspace';
+import { download, exportPng } from './graphView';
 import { loadVis, type VisDataSet, type VisEdgeData, type VisNetwork, type VisNodeData } from '../lib/vis';
 
 interface TreeNode {
@@ -31,6 +32,45 @@ function covers(findings: Finding[], line: number): boolean {
   return findings.some((finding) => line >= finding.startLine && line <= finding.endLine);
 }
 
+const esc = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** An SVG of the syntax tree graph, drawn from the live node positions. */
+function exportAstSvg(network: VisNetwork, nodes: VisNodeData[], edges: VisEdgeData[]): string | null {
+  const positions = network.getPositions(nodes.map((n) => n.id)) as Record<string, { x: number; y: number }>;
+  const placed = nodes.filter((n) => positions[n.id]);
+  if (!placed.length) return null;
+  const size = (n: VisNodeData): { w: number; h: number } => {
+    const lines = (n.label ?? '').split('\n');
+    return { w: Math.min(150, Math.max(...lines.map((l) => l.length)) * 6.6 + 16), h: lines.length * 14 + 10 };
+  };
+  const pad = 40;
+  const minX = Math.min(...placed.map((n) => positions[n.id].x - size(n).w / 2)) - pad;
+  const maxX = Math.max(...placed.map((n) => positions[n.id].x + size(n).w / 2)) + pad;
+  const minY = Math.min(...placed.map((n) => positions[n.id].y - size(n).h / 2)) - pad;
+  const maxY = Math.max(...placed.map((n) => positions[n.id].y + size(n).h / 2)) + pad;
+  const parts = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(maxX - minX)}" height="${Math.round(maxY - minY)}" viewBox="${minX} ${minY} ${maxX - minX} ${maxY - minY}">`,
+    `<rect x="${minX}" y="${minY}" width="${maxX - minX}" height="${maxY - minY}" fill="#0a1112"/>`,
+  ];
+  for (const e of edges) {
+    const f = positions[e.from];
+    const t = positions[e.to];
+    if (f && t) parts.push(`<line x1="${f.x}" y1="${f.y}" x2="${t.x}" y2="${t.y}" stroke="#35494c"/>`);
+  }
+  for (const n of placed) {
+    const p = positions[n.id];
+    const { w, h } = size(n);
+    const c = (typeof n.color === 'object' ? n.color : undefined) as { background?: string; border?: string } | undefined;
+    parts.push(`<rect x="${p.x - w / 2}" y="${p.y - h / 2}" width="${w}" height="${h}" rx="3" fill="${c?.background ?? '#1b2b2e'}" stroke="${c?.border ?? '#35494c'}"/>`);
+    (n.label ?? '').split('\n').forEach((line, i, all) => {
+      const y = p.y - h / 2 + 5 + 14 * i + 10 - (all.length === 1 ? 0 : 0);
+      parts.push(`<text x="${p.x}" y="${y}" fill="#dde8e3" font-family="monospace" font-size="11" text-anchor="middle">${esc(line.slice(0, 24))}</text>`);
+    });
+  }
+  parts.push('</svg>');
+  return parts.join('\n');
+}
+
 export interface AstView {
   element: HTMLElement;
   dispose: () => void;
@@ -53,6 +93,8 @@ export function createAstView(controller: AppController, container: HTMLElement)
   /** The most nodes the graph draws; a syntax tree of a big file has thousands. */
   const GRAPH_NODE_CAP = 500;
   let network: VisNetwork | null = null;
+  let lastGraphNodes: VisNodeData[] = [];
+  let lastGraphEdges: VisEdgeData[] = [];
   let graphNodes: VisDataSet<VisNodeData> | null = null;
   let graphEdges: VisDataSet<VisEdgeData> | null = null;
   let graphAst: unknown = null;
@@ -118,8 +160,26 @@ export function createAstView(controller: AppController, container: HTMLElement)
     body.hidden = next !== 'tree';
     graphWrap.hidden = next !== 'graph';
     expandAll.hidden = collapseAll.hidden = next !== 'tree';
+    exportPngButton.hidden = exportSvgButton.hidden = next !== 'graph';
     if (next === 'graph') renderGraph();
   };
+
+  const exportPngButton = h('button', { class: 'tiny', type: 'button', title: 'Export the syntax tree graph as PNG' }, 'PNG');
+  const exportSvgButton = h('button', { class: 'tiny', type: 'button', title: 'Export the syntax tree graph as SVG' }, 'SVG');
+  exportPngButton.hidden = exportSvgButton.hidden = true;
+  const baseName = (): string => (useWorkspaceStore.getState().ast?.path ?? 'file').split('/').pop() ?? 'file';
+  exportPngButton.addEventListener('click', () => {
+    const href = exportPng(graphCanvas);
+    if (href) download(`aisai-ast-${baseName()}.png`, href);
+  });
+  exportSvgButton.addEventListener('click', () => {
+    if (!network) return;
+    const svg = exportAstSvg(network, lastGraphNodes, lastGraphEdges);
+    if (!svg) return;
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    download(`aisai-ast-${baseName()}.svg`, url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
 
   const languageBadge = h('span', { class: 'badge neutral', text: '', hidden: true });
 
@@ -129,6 +189,8 @@ export function createAstView(controller: AppController, container: HTMLElement)
     depthSelect,
     expandAll,
     collapseAll,
+    exportPngButton,
+    exportSvgButton,
     h('span', { class: 'grow' }),
     languageBadge,
   );
@@ -369,9 +431,11 @@ export function createAstView(controller: AppController, container: HTMLElement)
         title: `${node.type} · lines ${node.startLine}–${node.endLine}`,
         shape: 'box',
         widthConstraint: { maximum: 150 },
+        // Hover and selection keep the dark fill, so the light label stays
+        // legible (vis-network's default is a pale blue).
         color: bad
-          ? { background: '#5a2a2e', border: '#e5484d' }
-          : { background: '#1b2b2e', border: '#35494c' },
+          ? { background: '#5a2a2e', border: '#e5484d', hover: { background: '#6e3338', border: '#ff7a7e' }, highlight: { background: '#6e3338', border: '#ff7a7e' } }
+          : { background: '#1b2b2e', border: '#35494c', hover: { background: '#27403f', border: '#6fb5a8' }, highlight: { background: '#27403f', border: '#6fb5a8' } },
         font: { color: '#dde8e3', size: 11, face: 'JetBrains Mono Variable, monospace', multi: true },
       };
     });
@@ -379,6 +443,8 @@ export function createAstView(controller: AppController, container: HTMLElement)
       .filter((node) => node.parentId && ids.has(node.parentId))
       .map((node) => ({ from: node.parentId as string, to: node.id }));
 
+    lastGraphNodes = nodes;
+    lastGraphEdges = edges;
     graphNote.hidden = omitted === 0;
     graphNote.textContent = `${omitted} deeper or surplus node(s) are not drawn. Lower the depth or use the tree.`;
 

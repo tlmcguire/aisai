@@ -58,7 +58,10 @@ export type EventType =
   | 'chat.done'
   | 'chat.error'
   | 'terminal.data'
-  | 'terminal.exit';
+  | 'terminal.exit'
+  | 'debug.event'
+  | 'debug.output'
+  | 'debug.exit';
 
 /** Mirrors model.PURL — canonical form `pkg:pypi/<name>@<version>`. */
 export type PURL = string;
@@ -311,6 +314,8 @@ export interface Config {
   numCtx: number;
   /** How long Ollama keeps a model in memory after the last request. */
   keepAlive?: string;
+  /** Whether the assistant may search the web. */
+  webSearch?: boolean;
 }
 
 /** Mirrors model.ModelInfo — one model installed on the Ollama server. */
@@ -374,6 +379,8 @@ export interface DownloadEvent {
   detail?: string;
   done: number;
   total: number;
+  /** Size of the downloaded archive, once it is fetched. */
+  bytes?: number;
 }
 
 export interface Event {

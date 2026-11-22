@@ -64,6 +64,16 @@ export class ApiClient {
     return response.body as T;
   }
 
+  /** A request whose answer is a document (a report), returned as text. */
+  async requestText(method: HttpMethod, path: string): Promise<string> {
+    if (this.mode === 'mock') throw new ApiError('Reports need the real backend; demo data cannot export one.', 'unsupported', 501);
+    const response = await this.bridge.http(method, path);
+    if (!response.ok) {
+      throw new ApiError(response.errorMessage ?? `The request failed (HTTP ${response.status}).`, response.errorCode ?? 'internal', response.status);
+    }
+    return response.text ?? '';
+  }
+
   /** Subscribe to server-pushed events. Returns an unsubscribe function. */
   onEvent(handler: (event: Event) => void): () => void {
     const offMock = this.mock.onEvent((event) => {

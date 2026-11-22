@@ -12,6 +12,7 @@ import { createFileTree } from './fileTree';
 import { createFindingsRail } from './findingsRail';
 import { createGraphView } from './graphView';
 import { createSettingsDialog } from './settingsDialog';
+import { progressStats } from '../lib/progress';
 import { createTerminalPanel } from './terminalPanel';
 import { installShortcuts } from './shortcuts';
 import { createToolbar } from './toolbar';
@@ -27,6 +28,32 @@ export interface Layout {
 }
 
 /** The factor between the reference 16px and the current root font size. */
+/**
+ * Runs a pointer handler at most once a frame, with the latest event. A drag
+ * then moves the layout in step with the display instead of in bursts.
+ */
+function rafThrottle<T>(fn: (arg: T) => void): (arg: T) => void {
+  let pending: T | null = null;
+  let frame = 0;
+  return (arg: T) => {
+    pending = arg;
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      if (pending !== null) fn(pending);
+    });
+  };
+}
+
+// While the window itself is being resized, the size transitions are off:
+// easing behind a moving window edge is what makes the layout wobble.
+let windowResizeTimer = 0;
+window.addEventListener('resize', () => {
+  document.body.classList.add('is-window-resizing');
+  window.clearTimeout(windowResizeTimer);
+  windowResizeTimer = window.setTimeout(() => document.body.classList.remove('is-window-resizing'), 180);
+});
+
 const uiScale = (): number => parseFloat(getComputedStyle(document.documentElement).fontSize) / 16;
 
 export function createLayout(controller: AppController, root: HTMLElement): Layout {
@@ -36,6 +63,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
 
   /* ---------------- status strip ---------------- */
   const statusText = h('span', { class: 'legend-item', text: '' });
+  const statsText = h('span', { class: 'legend-item progress-stats', text: '' });
   const phaseLabel = h('span', { class: 'progress-phase', text: '' });
   const fill = h('div', { class: 'progress-fill', style: 'width:0%' });
   const track = h('div', { class: 'progress-track', role: 'progressbar' }, fill);
@@ -46,6 +74,17 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     '',
   );
   const downloadList = h('ol', { class: 'download-list', 'aria-label': 'Package downloads' });
+  // A failed audit or scan says so, in words, until it is dismissed. A full
+  // disk gets a button to the place where space can be freed.
+  const errorText = h('span', { class: 'error-banner-text' });
+  const errorAction = h('button', { class: 'tiny', type: 'button', hidden: true }, 'Free up space');
+  const errorDismiss = h('button', { class: 'tiny ghost', type: 'button', 'aria-label': 'Dismiss this message' }, 'Dismiss');
+  const errorBanner = h('div', { class: 'error-banner', role: 'alert', hidden: true }, errorText, h('span', { class: 'grow' }), errorAction, errorDismiss);
+  errorDismiss.addEventListener('click', () => useAuditStore.getState().setError(null));
+  errorAction.addEventListener('click', () => {
+    useUiStore.getState().setSettingsSection('sources');
+    useUiStore.getState().setSettingsOpen(true);
+  });
   const downloadPanel = h('div', { class: 'download-panel', hidden: true }, downloadList);
   const statusStrip = h(
     'div',
@@ -53,6 +92,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     phaseLabel,
     track,
     statusText,
+    statsText,
     h('span', { class: 'grow' }),
     downloadsToggle,
     cancelButton,
@@ -107,6 +147,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       row.title = entry.detail;
       (row.children[1] as HTMLElement).textContent = entry.package;
       (row.children[2] as HTMLElement).textContent = entry.version;
+      (row.children[2] as HTMLElement).textContent = entry.bytes ? `${entry.version} · ${formatBytes(entry.bytes)}` : entry.version;
       (row.children[3] as HTMLElement).textContent = entry.detail && entry.state !== 'done' ? `${STATE_LABEL[entry.state]}: ${entry.detail}` : STATE_LABEL[entry.state];
     }
   };
@@ -293,7 +334,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   });
   const stack = h('div', { class: 'stack' }, shell, terminalResizer, terminalPanel);
   const workspace = h('div', { class: 'workspace' }, stack, chatResizer, chatPanel);
-  root.append(toolbar, statusStrip, downloadPanel, workspace);
+  root.append(toolbar, errorBanner, statusStrip, downloadPanel, workspace);
 
   /* ---------------- views ---------------- */
   const graphView = createGraphView(controller, graphBody);
@@ -306,6 +347,14 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const terminal = createTerminalPanel(controller, terminalPanel);
   const removeShortcuts = installShortcuts(controller, root);
   const settings = createSettingsDialog(controller, root);
+  const removeMenu = window.aisai.onMenuCommand((command) => {
+    const ui = useUiStore.getState();
+    if (command === 'open-folder') void controller.chooseFolder();
+    else {
+      if (command === 'about') ui.setSettingsSection('about');
+      ui.setSettingsOpen(true);
+    }
+  });
 
   /* ---------------- wiring ---------------- */
   /* ---------------- deleting the downloaded sources ---------------- */
@@ -408,6 +457,28 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     }
   });
 
+  // Download and scan statistics: counts, size, speed, elapsed time and an
+  // estimate of the time left. Refreshed every second while a job runs.
+  const renderStats = (): void => {
+    const state = useAuditStore.getState();
+    if (!state.progressVisible || state.busy === null) {
+      statsText.textContent = '';
+      return;
+    }
+    const entries = Object.values(state.downloads);
+    statsText.textContent = progressStats({
+      now: Date.now(),
+      startedAt: state.jobStartedAt || Date.now(),
+      phaseStartedAt: state.phaseStartedAt || Date.now(),
+      phaseStartPercent: state.phaseStartPercent,
+      percent: state.percent,
+      downloadsDone: entries.filter((e) => e.state !== 'downloading').length,
+      downloadsTotal: state.phase === 'acquiring' ? Math.max(state.downloadTotal, entries.length) : 0,
+      downloadedBytes: entries.reduce((sum, e) => sum + (e.bytes ?? 0), 0),
+    });
+  };
+  const statsTimer = window.setInterval(renderStats, 1000);
+
   const unsubscribeAudit = useAuditStore.subscribe((state, previous) => {
     if (
       state.downloads !== previous.downloads ||
@@ -427,6 +498,9 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
 
     const visible = state.progressVisible && state.busy !== null;
     statusStrip.hidden = !visible;
+    errorBanner.hidden = !state.error;
+    errorText.textContent = state.error ?? '';
+    errorAction.hidden = !/disk (space|is full)/i.test(state.error ?? '');
     phaseLabel.textContent = state.phase ? `Phase: ${state.phase}` : '';
     statusText.textContent = state.message ?? '';
     const percent = Math.max(0, Math.min(1, state.percent));
@@ -434,6 +508,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     track.setAttribute('aria-valuenow', String(Math.round(percent * 100)));
     track.setAttribute('aria-valuemin', '0');
     track.setAttribute('aria-valuemax', '100');
+    renderStats();
   });
 
   const attachRowResizer = (
@@ -445,7 +520,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       event.preventDefault();
       resizer.setPointerCapture(event.pointerId);
       document.body.classList.add('is-resizing', 'is-resizing-row');
-      const onMove = (move: PointerEvent): void => compute(move.clientY);
+      const onMove = rafThrottle((move: PointerEvent): void => compute(move.clientY));
       const onUp = (): void => {
         document.body.classList.remove('is-resizing', 'is-resizing-row');
         resizer.removeEventListener('pointermove', onMove);
@@ -495,9 +570,9 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       resizer.setPointerCapture(event.pointerId);
       document.body.classList.add('is-resizing');
       const rect = paneEls[controlled].getBoundingClientRect();
-      const onMove = (move: PointerEvent): void => {
+      const onMove = rafThrottle((move: PointerEvent): void => {
         control.set((growsRight ? move.clientX - rect.left : rect.right - move.clientX) / uiScale());
-      };
+      });
       const onUp = (): void => {
         document.body.classList.remove('is-resizing');
         resizer.removeEventListener('pointermove', onMove);
@@ -525,14 +600,14 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     const dockRight = useUiStore.getState().chatDock === 'right';
     document.body.classList.add('is-resizing');
     if (!dockRight) document.body.classList.add('is-resizing-row');
-    const onMove = (move: PointerEvent): void => {
+    const onMove = rafThrottle((move: PointerEvent): void => {
       const ui = useUiStore.getState();
       if (ui.chatDock === 'right') {
         ui.setChatWidth((workspace.getBoundingClientRect().right - move.clientX) / uiScale());
       } else {
         ui.setChatHeight((root.getBoundingClientRect().bottom - move.clientY) / uiScale());
       }
-    };
+    });
     const onUp = (): void => {
       document.body.classList.remove('is-resizing', 'is-resizing-row');
       chatResizer.removeEventListener('pointermove', onMove);
@@ -599,6 +674,8 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       chat.dispose();
       terminal.dispose();
       removeShortcuts();
+      window.clearInterval(statsTimer);
+      removeMenu();
       settings.dispose();
     },
   };

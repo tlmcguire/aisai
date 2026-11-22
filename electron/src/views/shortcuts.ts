@@ -17,6 +17,14 @@ export function appShortcuts(controller: AppController, openSheet: () => void): 
     { group: 'General', keys: 'Mod+Shift+/', label: 'Show keyboard shortcuts', inFields: true, run: openSheet },
     { group: 'General', keys: 'Ctrl+`', label: 'Show or hide the terminal', inFields: true, run: () => ui().setTerminalOpen(!ui().terminalOpen) },
 
+    { group: 'Debug', keys: 'F5', label: 'Debug the open Python file, or continue', inFields: true, run: () => window.dispatchEvent(new Event('aisai:debug-start')) },
+    { group: 'Debug', keys: 'Shift+F5', label: 'Stop the program', inFields: true, run: () => void controller.stopDebug() },
+    { group: 'Debug', keys: 'Mod+Shift+F5', label: 'Restart the program', inFields: true, run: () => void controller.restartDebug() },
+    { group: 'Debug', keys: 'F6', label: 'Pause', inFields: true, run: () => controller.debugCommand('pause') },
+    { group: 'Debug', keys: 'F10', label: 'Step over', inFields: true, run: () => controller.debugCommand('next') },
+    { group: 'Debug', keys: 'F11', label: 'Step into', inFields: true, run: () => controller.debugCommand('step') },
+    { group: 'Debug', keys: 'Shift+F11', label: 'Step out', inFields: true, run: () => controller.debugCommand('out') },
+    { group: 'Editor', keys: 'Mod+Alt+K', label: 'Turn inline completion on or off', inFields: true, run: () => ui().setCompletionEnabled(!ui().completionEnabled) },
     { group: 'Audit', keys: 'Mod+L', label: 'Go to the package field (outside the editor)', run: () => document.getElementById('package-input')?.focus() },
     { group: 'Audit', keys: 'Mod+O', label: 'Open a project folder', inFields: true, run: () => void controller.chooseFolder() },
     { group: 'Audit', keys: 'Mod+Shift+S', label: 'Static scan', inFields: true, run: () => canScan() && void controller.runScan('sast') },
@@ -47,6 +55,7 @@ export function appShortcuts(controller: AppController, openSheet: () => void): 
     },
 
     { group: 'Editor', keys: 'Mod+S', label: 'Save the file' },
+    { group: 'Editor', keys: 'F9', label: 'Set or remove a breakpoint on the cursor line' },
     { group: 'Editor', keys: 'Tab', label: 'Accept the suggested completion' },
     { group: 'Editor', keys: 'Escape', label: 'Dismiss the suggestion' },
     { group: 'Editor', keys: 'Mod+Z', label: 'Undo (also takes back an accepted change)' },

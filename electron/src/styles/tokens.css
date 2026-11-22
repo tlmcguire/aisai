@@ -135,3 +135,52 @@ html {
   --ui-scale: 1;
   font-size: calc(clamp(15px, 13.4px + 0.16vw, 22px) * var(--ui-scale));
 }
+
+/* The light theme: the same roles, on paper. Accent colours come from
+   applyAppearance() in src/state/ui.ts. */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg-base: #e8eeec;
+  --bg-surface: #ffffff;
+  --bg-raised: #f3f7f5;
+  --bg-inset: #dde6e3;
+  --bg-hover: #d6e2de;
+  --bg-selected: #bcd8d0;
+  --border: #b3c3be;
+  --border-strong: #7b918a;
+  --fg: #0a1411;
+  --fg-muted: #34473f;
+  --fg-subtle: #42554e;
+  --signal: #0b5f59;
+  --signal-soft: #d3eeea;
+  --success: #11672f;
+  --success-soft: #d7efdf;
+  --warning: #7d4a05;
+  --warning-soft: #f6ecc9;
+  --danger: #a82a21;
+  --danger-soft: #f8dcd9;
+  --sev-critical: #9a1a10;
+  --sev-high: #8f3a05;
+  --sev-medium: #6b5000;
+  --sev-low: #0b5f59;
+  --sev-info: #34473f;
+  --sev-critical-chip: #fadbd8;
+  --sev-high-chip: #fbe6d2;
+  --sev-medium-chip: #f5ecc4;
+  --sev-low-chip: #d3eeea;
+  --sev-info-chip: #e2eae7;
+  --diff-add-bg: #d7efdf;
+  --diff-add-fg: #14532d;
+  --diff-del-bg: #f8dcd9;
+  --diff-del-fg: #7f1d1d;
+  --syn-keyword: #a3124d;
+  --syn-function: #8f4208;
+  --syn-call: #0b5d73;
+  --syn-import: #3f504a;
+  --syn-assign: #6b5000;
+  --syn-branch: #9a1616;
+  --syn-class: #5b21b6;
+  --syn-string: #2f6410;
+  --shadow-panel: 0 12px 32px rgba(20, 40, 35, 0.18), 0 2px 6px rgba(20, 40, 35, 0.12);
+  --shadow-pop: 0 14px 30px rgba(20, 40, 35, 0.2), 0 2px 4px rgba(20, 40, 35, 0.14);
+}

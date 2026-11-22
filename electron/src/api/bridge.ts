@@ -65,6 +65,10 @@ export interface AisaiBridge {
   installUpdate(): Promise<void>;
   /** Open the release page in the browser. */
   openReleasePage(): Promise<void>;
+  /** Subscribe to native menu commands (File > Open Folder, Settings, About). */
+  onMenuCommand(cb: (command: 'open-folder' | 'settings' | 'about') => void): () => void;
+  /** Open a web page in the system browser. Only http and https addresses. */
+  openExternal(url: string): Promise<void>;
   /** Current transport mode. */
   getMode(): 'live' | 'mock';
   /** Current backend status snapshot. */
@@ -101,6 +105,7 @@ export interface AisaiBridge {
 }
 
 declare global {
+  const __APP_VERSION__: string;
   interface Window {
     aisai: AisaiBridge;
   }

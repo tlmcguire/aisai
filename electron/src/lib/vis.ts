@@ -25,7 +25,7 @@ export interface VisNodeData {
   color?: VisColorSet | string;
   hidden?: boolean;
   borderWidth?: number;
-  font?: { color?: string; size?: number; face?: string; multi?: boolean; bold?: boolean };
+  font?: { color?: string; size?: number; face?: string; multi?: boolean; bold?: boolean; strokeWidth?: number; strokeColor?: string };
   value?: number;
   level?: number;
   size?: number;
@@ -67,7 +67,7 @@ export interface VisNetwork {
   selectNodes(ids: string[]): void;
   stabilize(iterations?: number): void;
   focus(id: string, options?: { scale?: number; animation?: boolean }): void;
-  fit(options?: { animation?: boolean }): void;
+  fit(options?: { animation?: boolean | { duration: number; easingFunction: string } }): void;
   redraw(): void;
   destroy(): void;
 }

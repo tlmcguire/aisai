@@ -3,13 +3,89 @@ import type { ChatMessage, ChatThread, ToolStep } from '../state/chat';
 import { h } from '../lib/dom';
 import { icon, type IconName } from '../lib/icons';
 import { useChatStore } from '../state/chat';
-import { useUiStore } from '../state/ui';
+import { DEFAULT_LAYOUT, useUiStore } from '../state/ui';
 import { providerLabel } from './settingsDialog';
 
 const CITATION = /([\w./-]+\.[A-Za-z0-9]+):(\d+)/g;
+/** A web address the model cited, bare or in angle brackets. */
+const WEB_LINK = /<?(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])>?/g;
+
+/** Text with the web addresses in it turned into links that open in the browser. */
+function linkify(text: string): Node[] {
+  const out: Node[] = [];
+  let last = 0;
+  WEB_LINK.lastIndex = 0;
+  for (let m = WEB_LINK.exec(text); m; m = WEB_LINK.exec(text)) {
+    if (m.index > last) out.push(document.createTextNode(text.slice(last, m.index)));
+    const url = m[1];
+    let host = url;
+    try {
+      host = new URL(url).host;
+    } catch {
+      /* shown as written */
+    }
+    out.push(
+      h('button', { class: 'citation web-citation', type: 'button', title: `Open ${url} in your browser`, onclick: () => void window.aisai.openExternal(url) }, icon('globe'), host),
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(document.createTextNode(text.slice(last)));
+  return out;
+}
+
+/** What a tool call does, in words: "Reading src/auth.py". */
+export function stepLabel(step: ToolStep): string {
+  const a = step.args ?? {};
+  const s = (k: string): string => (typeof a[k] === 'string' ? (a[k] as string) : '');
+  switch (step.name) {
+    case 'get_file':
+      return `Read ${s('path')}`;
+    case 'get_ast':
+      return `Read the syntax tree of ${s('path')}`;
+    case 'search_symbols':
+      return `Searched symbols for “${s('query')}”`;
+    case 'list_findings':
+      return 'Listed the findings';
+    case 'get_finding':
+      return `Opened finding ${s('id')}`;
+    case 'run_command':
+      return `Ran ${s('command')}`;
+    case 'web_search':
+      return `Searched the web for “${s('query')}”`;
+    case 'fetch_url':
+      return `Read ${s('url')}`;
+    default:
+      return step.name;
+  }
+}
 
 /** What the status line says while the model has not written anything yet. */
 const IDLE_VERBS = ['Thinking', 'Reading the code', 'Searching the index', 'Working it out'];
+
+/** An error from the model server, in words a person can act on. */
+function friendlyChatError(error: string): string {
+  if (/context|too long|maximum.*tokens|num_ctx/i.test(error)) return 'The conversation is too long for the model. Start a new chat, or raise the context window in Settings › Models.';
+  if (/connection refused|ECONNREFUSED|no such host|dial tcp/i.test(error)) return 'The model server is not reachable. Is it running? Check Settings › Model server.';
+  if (/401|403|api key|unauthori[sz]ed/i.test(error)) return 'The model server refused the API key. Check it in Settings › Model server.';
+  if (/429|rate limit/i.test(error)) return 'The model server is rate limiting requests. Wait a moment and try again.';
+  if (/timeout|deadline exceeded/i.test(error)) return 'The model took too long to answer.';
+  if (/not found|unknown model|pull/i.test(error)) return `The model is not installed on the server (${error}).`;
+  return error;
+}
+
+/** Whether the new message differs from the old only in its answer text. */
+function onlyTextGrew(before: ChatMessage, after: ChatMessage): boolean {
+  return (
+    Boolean(before.streaming) &&
+    Boolean(after.streaming) &&
+    before.thinking === after.thinking &&
+    before.steps === after.steps &&
+    before.chunksUsed === after.chunksUsed &&
+    before.thoughtFor === after.thoughtFor &&
+    Boolean(before.content) === Boolean(after.content) &&
+    after.content.startsWith(before.content)
+  );
+}
 
 function renderContent(controller: AppController, message: ChatMessage): HTMLElement {
   const content = h('div', { class: 'content' });
@@ -20,7 +96,7 @@ function renderContent(controller: AppController, message: ChatMessage): HTMLEle
 
   while (match) {
     if (match.index > lastIndex) {
-      content.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+      content.append(...linkify(text.slice(lastIndex, match.index)));
     }
     const file = match[1];
     const line = Number(match[2]);
@@ -42,15 +118,17 @@ function renderContent(controller: AppController, message: ChatMessage): HTMLEle
     match = CITATION.exec(text);
   }
   if (lastIndex < text.length) {
-    content.appendChild(document.createTextNode(text.slice(lastIndex)));
+    content.append(...linkify(text.slice(lastIndex)));
   }
   return content;
 }
 
 /** The text of the shimmering status line, for a turn that is still going. */
 function statusText(message: ChatMessage): string {
+  if (message.compacting) return 'Compacting the conversation';
+  if (message.steps?.some((step) => step.status === 'waiting')) return 'Waiting for your approval';
   const running = message.steps?.find((step) => step.status === 'running');
-  if (running) return `Running ${running.name}`;
+  if (running) return stepLabel(running).replace(/^Read /, 'Reading ').replace(/^Ran /, 'Running ').replace(/^Searched /, 'Searching ').replace(/^Listed /, 'Listing ').replace(/^Opened /, 'Opening ');
   if (message.content) return 'Writing the answer';
   if (message.thinking) return 'Thinking';
   const seconds = message.startedAt ? Math.floor((Date.now() - message.startedAt) / 1000) : 0;
@@ -66,13 +144,6 @@ function relativeTime(then: number): string {
   return `${Math.round(hours / 24)} d ago`;
 }
 
-function argPreview(args: Record<string, unknown>): string {
-  const first = Object.values(args)[0];
-  if (first === undefined) return '';
-  const text = typeof first === 'string' ? first : JSON.stringify(first);
-  return text.length > 60 ? `${text.slice(0, 60)}…` : text;
-}
-
 export interface ChatPanel {
   element: HTMLElement;
   dispose: () => void;
@@ -80,6 +151,7 @@ export interface ChatPanel {
 
 export function createChatPanel(controller: AppController, container: HTMLElement): ChatPanel {
   const toggle = h('button', { class: 'ghost tiny icon-button', type: 'button' }, icon('chevron-down'));
+  const growButton = h('button', { class: 'ghost tiny icon-button', type: 'button' }, icon('arrow-up'));
   const chunksUsed = h('span', { class: 'chunks-used', text: '' });
   const modelChip = h('span', { class: 'badge neutral chat-model', text: '' });
 
@@ -104,6 +176,7 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
     threadWrap,
     newButton,
     modelChip,
+    growButton,
     toggle,
     h('span', { class: 'grow' }),
     chunksUsed,
@@ -131,6 +204,25 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
     footer.hidden = !open;
     messages.hidden = !open;
   };
+
+  // The up/down arrow makes the panel larger or brings it back to its usual size.
+  const syncGrow = (): void => {
+    const ui = useUiStore.getState();
+    const right = ui.chatDock === 'right';
+    const big = right ? ui.chatWidth >= 560 : ui.chatHeight >= 440;
+    growButton.replaceChildren(icon(big ? 'arrow-down' : 'arrow-up'));
+    const label = big ? 'Shrink the chat panel' : 'Enlarge the chat panel';
+    growButton.title = label;
+    growButton.setAttribute('aria-label', label);
+  };
+  growButton.addEventListener('click', () => {
+    const ui = useUiStore.getState();
+    if (!ui.chatOpen) setOpen(true);
+    if (ui.chatDock === 'right') ui.setChatWidth(ui.chatWidth >= 560 ? DEFAULT_LAYOUT.chatWidth : 600);
+    else ui.setChatHeight(ui.chatHeight >= 440 ? DEFAULT_LAYOUT.chatHeight : 480);
+  });
+  useUiStore.subscribe(syncGrow);
+  syncGrow();
 
   toggle.addEventListener('click', () => {
     setOpen(!useUiStore.getState().chatOpen);
@@ -313,16 +405,42 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
   const stepIcon = (step: ToolStep): Node =>
     step.status === 'running'
       ? h('span', { class: 'spinner', 'aria-label': 'running' })
-      : icon(step.status === 'error' ? 'x' : 'check');
+      : step.status === 'waiting'
+        ? h('span', { class: 'approval-dot', 'aria-label': 'waiting for approval' })
+        : icon(step.status === 'error' ? 'x' : 'check');
+
+  /** A tool call that waits for the user: what it will do, and Allow / Deny. */
+  const buildApproval = (step: ToolStep): HTMLElement => {
+    const allow = h('button', { class: 'primary tiny', type: 'button' }, 'Allow');
+    const deny = h('button', { class: 'tiny', type: 'button' }, 'Deny');
+    allow.addEventListener('click', () => void controller.answerApproval(step.id, true));
+    deny.addEventListener('click', () => void controller.answerApproval(step.id, false));
+    return h(
+      'div',
+      { class: 'chat-approval', role: 'group', 'aria-label': 'Approval needed' },
+      h('div', { class: 'approval-title' }, icon(step.name === 'web_search' || step.name === 'fetch_url' ? 'globe' : 'terminal'), h('strong', { text: 'Allow this?' })),
+      h('p', { class: 'approval-summary', text: step.summary ?? stepLabel(step) }),
+      step.name === 'run_command' && typeof step.args.command === 'string'
+        ? h('pre', { class: 'approval-command', text: step.args.command })
+        : null,
+      h('div', { class: 'approval-actions' }, allow, deny, h('span', { class: 'muted approval-note', text: 'No answer within 2 minutes counts as Deny.' })),
+    );
+  };
 
   const buildSteps = (message: ChatMessage): HTMLElement[] =>
     (message.steps ?? []).map((step) =>
-      block(
+      step.status === 'waiting' && message.streaming
+        ? buildApproval(step)
+        : block(
         `${message.id}:${step.id}`,
         [
           stepIcon(step),
-          h('span', { class: 'tool-name', text: step.name }),
-          h('span', { class: 'tool-arg muted', text: argPreview(step.args) }),
+          h('span', { class: 'tool-name', text: stepLabel(step) }),
+          ...(step.approval === 'denied'
+            ? [h('span', { class: 'badge is-bad', text: 'denied' })]
+            : step.approval === 'approved'
+              ? [h('span', { class: 'badge neutral', text: 'allowed' })]
+              : []),
         ],
         h(
           'div',
@@ -358,17 +476,83 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
           h('span', { class: 'status-elapsed muted' }),
         )
       : null;
+    if (editingId === message.id) return buildEditor(message);
+    const busy = useChatStore.getState().busy;
+    const actions: HTMLElement[] = [];
+    if (!waiting && !busy) {
+      if (message.role === 'user') {
+        actions.push(actionButton('pencil', 'Edit and ask again', () => {
+          editingId = message.id;
+          render(true);
+        }));
+      } else {
+        actions.push(actionButton('branch', 'Branch: continue from here in a new chat', () => {
+          useChatStore.getState().forkFrom(message.id);
+        }));
+        actions.push(actionButton('restore', 'Ask again', () => void controller.retry(message.id)));
+      }
+    }
     return h(
       'div',
-      { class: `chat-message ${message.role}${waiting ? ' is-pending' : ''}`, 'data-id': message.id, 'data-started': String(message.startedAt ?? '') },
-      h('div', { class: 'role', text: message.role }),
+      { class: `chat-message ${message.role}${waiting ? ' is-pending' : ''}${message.error ? ' is-failed' : ''}`, 'data-id': message.id, 'data-started': String(message.startedAt ?? '') },
+      h('div', { class: 'role' }, h('span', { text: message.role }), actions.length ? h('span', { class: 'message-actions' }, ...actions) : null),
+      message.compacted || message.compacting
+        ? h('div', { class: 'chat-compacted muted' }, message.compacting ? h('span', { class: 'spinner', 'aria-hidden': 'true' }) : icon('archive'), message.compacting ? 'Compacting the conversation…' : message.compacted ?? '')
+        : null,
       message.role === 'assistant' ? buildThinking(message) : null,
       ...(message.role === 'assistant' ? buildSteps(message) : []),
       message.content ? renderContent(controller, message) : null,
+      message.error
+        ? h(
+            'div',
+            { class: 'chat-error', role: 'alert' },
+            h('strong', { text: 'The assistant could not answer.' }),
+            h('span', { text: ` ${friendlyChatError(message.error)}` }),
+            h('button', { class: 'tiny', type: 'button', onclick: () => void controller.retry(message.id) }, 'Try again'),
+          )
+        : null,
       status,
       message.chunksUsed && message.chunksUsed.length
         ? h('div', { class: 'chunks-used', text: `chunks used: ${message.chunksUsed.join(', ')}` })
         : null,
+    );
+  };
+
+  /* ---------------- editing a question ---------------- */
+  let editingId: string | null = null;
+
+  const actionButton = (name: IconName, label: string, onClick: () => void): HTMLElement =>
+    h('button', { class: 'ghost tiny icon-button', type: 'button', title: label, 'aria-label': label, onclick: onClick }, icon(name));
+
+  const buildEditor = (message: ChatMessage): HTMLElement => {
+    const field = h('textarea', { class: 'chat-edit', rows: '3', 'aria-label': 'Edit the question' }) as HTMLTextAreaElement;
+    field.value = message.content.replace(/\n\[[^\]]+:\d+-\d+\]$/, '');
+    const send = h('button', { class: 'primary tiny', type: 'button' }, 'Ask again');
+    const cancel = h('button', { class: 'tiny', type: 'button' }, 'Cancel');
+    const done = (): void => {
+      editingId = null;
+      render(true);
+    };
+    send.addEventListener('click', () => {
+      const text = field.value.trim();
+      editingId = null;
+      if (text) void controller.editAndResend(message.id, text);
+      else render(true);
+    });
+    cancel.addEventListener('click', done);
+    field.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        send.click();
+      } else if (event.key === 'Escape') done();
+    });
+    requestAnimationFrame(() => field.focus());
+    return h(
+      'div',
+      { class: 'chat-message user is-editing', 'data-id': message.id },
+      h('div', { class: 'role', text: 'edit · the answers after this question are replaced' }),
+      field,
+      h('div', { class: 'approval-actions' }, send, cancel),
     );
   };
 
@@ -416,8 +600,14 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
   let emptyKey = '';
   let lastThread: string | null = null;
 
-  const render = (): void => {
+  let lastBusy = false;
+  const render = (force = false): void => {
     const state = useChatStore.getState();
+    // The edit / branch / retry buttons depend on whether a turn is running.
+    if (force || state.busy !== lastBusy) {
+      lastBusy = state.busy;
+      for (const entry of rendered.values()) entry.message = { ...entry.message, id: '' } as ChatMessage;
+    }
     const nearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 48;
     const model = state.model;
 
@@ -467,7 +657,17 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
       state.messages.forEach((message, index) => {
         live.add(message.id);
         let entry = rendered.get(message.id);
-        if (!entry || entry.message !== message) {
+        if (entry && entry.message !== message && onlyTextGrew(entry.message, message)) {
+          // A streaming answer only grew: change its text in place. Rebuilding
+          // the whole message on every word made it flicker and replay its
+          // entrance animation.
+          const next = renderContent(controller, message);
+          const current = entry.element.querySelector(':scope > .content');
+          if (current) current.replaceChildren(...Array.from(next.childNodes));
+          else entry.element.querySelector(':scope > .role')?.after(next);
+          entry = { message, element: entry.element };
+          rendered.set(message.id, entry);
+        } else if (!entry || entry.message !== message) {
           const element = buildMessage(message);
           if (entry) entry.element.replaceWith(element);
           entry = { message, element };

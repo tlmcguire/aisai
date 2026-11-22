@@ -12,45 +12,91 @@ import {
   type VisNetwork,
   type VisNodeData,
 } from '../lib/vis';
+import { useAuditStore } from '../state/audit';
+import { useUiStore } from '../state/ui';
 import { findPath, useGraphStore } from '../state/graph';
 
-function nodeColor(node: GraphNode): VisColorSet {
+/** The theme colours, read from the page so the graph follows light and dark. */
+function themeColors(): { fg: string; muted: string; bg: string; raised: string; border: string; borderStrong: string; accent: string } {
+  const css = getComputedStyle(document.documentElement);
+  const v = (name: string, fallback: string): string => css.getPropertyValue(name).trim() || fallback;
   return {
-    background: severityFill(node.maxSeverity),
-    border: severityColor(node.maxSeverity),
-    highlight: { background: severityFill(node.maxSeverity), border: '#ffffff' },
-    hover: { background: severityFill(node.maxSeverity), border: '#ffffff' },
+    fg: v('--fg', '#dde8e3'),
+    muted: v('--fg-muted', '#8ea5a0'),
+    bg: v('--bg-base', '#0a1112'),
+    raised: v('--bg-raised', '#152123'),
+    border: v('--border', '#223336'),
+    borderStrong: v('--border-strong', '#35494c'),
+    accent: v('--accent', '#b4f23c'),
   };
 }
 
+/** Whether a package has anything to report. */
+const hasIssues = (node: GraphNode): boolean => node.findingCount > 0 || node.vulnCount > 0;
+
+function nodeColor(node: GraphNode): VisColorSet {
+  const t = themeColors();
+  // Clean packages are quiet; only the ones with findings or advisories carry colour.
+  const ring = hasIssues(node) ? severityColor(node.maxSeverity) : node.root ? t.accent : t.borderStrong;
+  const fill = hasIssues(node) ? severityFill(node.maxSeverity) : t.raised;
+  return {
+    background: fill,
+    border: ring,
+    highlight: { background: fill, border: t.accent },
+    hover: { background: fill, border: t.accent },
+  };
+}
+
+/** A small card shown on hover. */
+function nodeTooltip(node: GraphNode): HTMLElement {
+  return h(
+    'div',
+    { class: 'graph-tip' },
+    h('strong', { text: node.name }),
+    h('span', { class: 'graph-tip-version', text: node.version }),
+    h('div', { class: 'graph-tip-meta', text: `${node.root ? 'package studied' : node.direct ? 'direct dependency' : 'transitive dependency'}` }),
+    h('div', { class: 'graph-tip-meta', text: `${node.findingCount} finding${node.findingCount === 1 ? '' : 's'} · ${node.vulnCount} advisor${node.vulnCount === 1 ? 'y' : 'ies'}` }),
+  );
+}
+
 function visNode(node: GraphNode): VisNodeData {
+  const t = themeColors();
+  // Size says how much a package matters: the studied one, then direct
+  // dependencies, then by how much was found in it.
+  const size = node.root ? 18 : (node.direct ? 10 : 6) + Math.min(6, node.findingCount + node.vulnCount);
   return {
     id: node.id,
-    label: `${node.name}\nv${node.version}`,
-    title: `${node.name} ${node.version}\n${node.findingCount} findings, ${node.vulnCount} advisories`,
-    // The studied package is a star, its direct dependencies are diamonds.
-    shape: node.root ? 'star' : node.direct ? 'diamond' : 'dot',
-    // An explicit undefined would override vis-network's default size.
-    ...(node.root ? { size: 26 } : {}),
+    label: node.name,
+    title: nodeTooltip(node) as unknown as string,
+    shape: 'dot',
+    size,
     color: nodeColor(node),
-    borderWidth: node.root ? 3 : node.direct ? 2 : 1,
-    font: { color: '#dde8e3', size: 11, face: 'JetBrains Mono Variable, monospace', multi: true },
+    borderWidth: node.root ? 3 : hasIssues(node) ? 2 : 1,
+    font: {
+      color: node.root || hasIssues(node) ? t.fg : t.muted,
+      size: node.root ? 13 : 11,
+      face: 'JetBrains Mono Variable, monospace',
+      bold: node.root,
+      strokeWidth: 4,
+      strokeColor: t.bg,
+    },
   };
 }
 
 function visEdge(from: string, to: string): VisEdgeData {
+  const t = themeColors();
   return {
     id: `${from}->${to}`,
     from,
     to,
-    color: { color: '#35494c', highlight: '#5fd3c4', hover: '#5fd3c4' },
-    width: 1,
+    color: { color: t.borderStrong, highlight: t.accent, hover: t.accent, opacity: 0.55 },
+    width: 0.8,
     arrows: 'to',
-    smooth: { type: 'continuous' },
+    smooth: { type: 'curvedCW', roundness: 0.12 },
   };
 }
 
-function download(filename: string, href: string): void {
+export function download(filename: string, href: string): void {
   const anchor = document.createElement('a');
   anchor.href = href;
   anchor.download = filename;
@@ -66,7 +112,7 @@ function download(filename: string, href: string): void {
  * vis-network 9 has no `canvasToPNG()`; the renderer paints into a real
  * `<canvas>`, so we composite that canvas onto an opaque background.
  */
-function exportPng(container: HTMLElement): string | null {
+export function exportPng(container: HTMLElement): string | null {
   const canvas = container.querySelector('canvas');
   if (!canvas) return null;
   const output = document.createElement('canvas');
@@ -209,38 +255,11 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
   const legend = h(
     'div',
     { class: 'graph-legend' },
-    h(
-      'span',
-      { class: 'legend-item' },
-      h('span', { class: 'legend-swatch', style: 'background:#ff7a6b' }),
-      'critical',
+    ...SEVERITIES.map((severity) =>
+      h('span', { class: 'legend-item' }, h('span', { class: `legend-swatch ${severityClass(severity)}`, style: `background:${severityColor(severity)}` }), severity),
     ),
-    h(
-      'span',
-      { class: 'legend-item' },
-      h('span', { class: 'legend-swatch', style: 'background:#ff9f4a' }),
-      'high',
-    ),
-    h(
-      'span',
-      { class: 'legend-item' },
-      h('span', { class: 'legend-swatch', style: 'background:#f0c93a' }),
-      'medium',
-    ),
-    h(
-      'span',
-      { class: 'legend-item' },
-      h('span', { class: 'legend-swatch', style: 'background:#5fd3c4' }),
-      'low',
-    ),
-    h(
-      'span',
-      { class: 'legend-item' },
-      h('span', { class: 'legend-swatch', style: 'background:#8ea5a0' }),
-      'info',
-    ),
-    h('span', { class: 'legend-item', text: '★ package studied' }),
-    h('span', { class: 'legend-item', text: '◆ direct dependency' }),
+    h('span', { class: 'legend-item' }, h('span', { class: 'legend-swatch is-clean' }), 'nothing found'),
+    h('span', { class: 'legend-item muted', text: 'bigger = studied, direct, or more findings' }),
     cycleBadge,
   );
 
@@ -268,8 +287,8 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
       updates.push({
         id: node.id,
         hidden: !(matchesSearch && matchesSeverity),
-        color: inPath ? nodeColor(node) : 'rgba(200,200,200,0.22)',
-        borderWidth: inPath && hasPath ? 3 : node.root ? 3 : node.direct ? 2 : 1,
+        color: inPath ? nodeColor(node) : 'rgba(140,160,155,0.18)',
+        borderWidth: inPath && hasPath ? 3 : node.root ? 3 : hasIssues(node) ? 2 : 1,
       });
     }
     nodeSet.update(updates);
@@ -297,7 +316,19 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
       );
       return;
     }
-    status.hidden = true;
+    // A folder's graph is only what its manifests declare. Say so, and say
+    // when there is nothing to draw, instead of leaving a lone node unexplained.
+    const local = useAuditStore.getState().current?.source === 'local';
+    status.hidden = !(local && state.nodes.length <= 1);
+    if (!status.hidden) {
+      status.replaceChildren(
+        h('p', {
+          text:
+            'No dependencies found in this folder. The graph reads requirements.txt, pyproject.toml, ' +
+            'package.json, go.mod and Cargo.toml at the top level of the folder; other layouts are not supported yet.',
+        }),
+      );
+    }
 
     const nodes = state.nodes.map(visNode);
     const edges = state.edges.map((edge) => visEdge(edge.source, edge.target));
@@ -315,8 +346,8 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
 
     // The physics layout needs a moment, then the whole graph is fitted into
     // the (small) graph pane.
-    network?.stabilize(200);
-    window.setTimeout(() => network?.fit({ animation: false }), 120);
+    network?.setOptions({ physics: { enabled: true } });
+    network?.stabilize(300);
 
     applyFilters();
 
@@ -393,6 +424,11 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   });
 
+  // Colours come from the theme: redraw when it changes.
+  const unsubscribeTheme = useUiStore.subscribe((state, previous) => {
+    if (state.theme !== previous.theme || state.accent !== previous.accent) requestAnimationFrame(() => renderData());
+  });
+
   const unsubscribe = useGraphStore.subscribe((state, previous) => {
     if (state.nodes !== previous.nodes || state.edges !== previous.edges) {
       renderData();
@@ -421,24 +457,34 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
           nodes: {
             scaling: { label: { enabled: false } },
             shape: 'dot',
-            font: { color: '#dde8e3', size: 11, face: 'JetBrains Mono Variable, monospace', multi: true },
-            margin: { top: 6, right: 10, bottom: 6, left: 10 },
+            font: { size: 11, face: 'JetBrains Mono Variable, monospace' },
             borderWidth: 1,
+            chosen: { label: false },
           },
           edges: {
-            color: { color: '#35494c' },
-            smooth: { type: 'continuous' },
-            arrows: { to: { enabled: true, scaleFactor: 0.6 } },
+            smooth: { type: 'curvedCW', roundness: 0.12 },
+            arrows: { to: { enabled: true, scaleFactor: 0.35 } },
+            selectionWidth: 1.5,
+            hoverWidth: 0.6,
           },
-          interaction: { hover: true, tooltipDelay: 120, navigationButtons: false, keyboard: false },
+          interaction: { hover: true, tooltipDelay: 80, navigationButtons: false, keyboard: false, zoomSpeed: 0.6 },
+          // A calm force layout that settles and then stops, so the graph does
+          // not keep drifting while it is read.
           physics: {
             enabled: true,
-            stabilization: { enabled: true, iterations: 300, fit: true, updateInterval: 50 },
-            barnesHut: { springLength: 150 },
+            solver: 'forceAtlas2Based',
+            forceAtlas2Based: { gravitationalConstant: -38, centralGravity: 0.012, springLength: 85, springConstant: 0.07, damping: 0.6, avoidOverlap: 0.5 },
+            stabilization: { enabled: true, iterations: 400, fit: true, updateInterval: 40 },
+            minVelocity: 0.8,
           },
         },
       );
       network = created.network;
+      // Once the layout has settled, stop the simulation and glide the view to fit.
+      network.on('stabilizationIterationsDone', () => {
+        network?.setOptions({ physics: { enabled: false } });
+        network?.fit({ animation: { duration: 650, easingFunction: 'easeInOutQuad' } });
+      });
       nodeSet = created.nodes;
       edgeSet = created.edges;
 
@@ -470,6 +516,7 @@ export function createGraphView(_controller: AppController, container: HTMLEleme
     dispose: () => {
       destroyed = true;
       unsubscribe();
+      unsubscribeTheme();
       network?.destroy();
       network = null;
     },

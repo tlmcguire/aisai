@@ -40,6 +40,15 @@ export function createToolbar(controller: AppController, container: HTMLElement)
   const picker = createPackagePicker(controller);
   const brand = h('div', { class: 'brand' }, brandMark(), h('span', { class: 'brand-name', text: 'aisai' }));
 
+  // The project being inspected, always visible: name, version and where it came from.
+  const projectLabel = h('span', { class: 'project-label', text: 'Inspecting' });
+  const projectName = h('strong', { class: 'project-name', text: '' });
+  const projectMeta = h('span', { class: 'project-meta', text: '' });
+  const projectChip = h('div', { class: 'project-chip', hidden: true, role: 'status', 'aria-live': 'polite' }, projectLabel, projectName, projectMeta);
+  projectChip.addEventListener('click', () => {
+    if (projectChip.classList.contains('is-deleted')) document.getElementById('package-input')?.focus();
+  });
+
   const scanButton = button('Pull', 'primary');
   scanButton.title = 'Download a package, or clone a repository, into this audit. It does not scan.';
   const folderButton = button('Open folder…');
@@ -161,19 +170,12 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     useUiStore.getState().setSettingsOpen(true);
   });
 
+  // Two groups: the controls, which wrap onto a second row when the window is
+  // narrow, and the status and settings buttons, which always stay in view at
+  // the right edge.
   container.append(
-    brand,
-    picker.element,
-    scanButton,
-    folderButton,
-    staticButton,
-    llmButton,
-    h('div', { class: 'toolbar-spacer' }),
-    updateButton,
-    mockBadge,
-    providerChip,
-    terminalButton,
-    settingsButton,
+    h('div', { class: 'toolbar-main' }, brand, picker.element, scanButton, folderButton, staticButton, llmButton, projectChip),
+    h('div', { class: 'toolbar-end' }, updateButton, mockBadge, providerChip, terminalButton, settingsButton),
   );
 
   const refreshProviders = async (): Promise<void> => {
@@ -182,7 +184,31 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     void controller.refreshChatModel(providers);
   };
 
+  const showProject = (audit: ReturnType<typeof useAuditStore.getState>['current']): void => {
+    projectChip.hidden = !audit;
+    if (!audit) return;
+    const from =
+      audit.source === 'local'
+        ? 'folder'
+        : audit.source === 'git' || audit.source === 'repo'
+          ? 'repository'
+          : ({ npm: 'npm', cargo: 'crates.io', pypi: 'PyPI' } as Record<string, string>)[audit.ecosystem ?? ''] ?? 'PyPI';
+    // Deleted sources leave nothing to inspect: say so and point to the way back.
+    projectChip.classList.toggle('is-deleted', Boolean(audit.sourcesDeleted));
+    projectLabel.textContent = audit.sourcesDeleted ? 'Sources deleted' : 'Inspecting';
+    if (audit.sourcesDeleted) {
+      projectName.textContent = audit.package;
+      projectMeta.textContent = 'pull again to start';
+      projectChip.title = `The downloaded sources of ${audit.package} were deleted. Pull a package or open a folder to start again.`;
+      return;
+    }
+    projectName.textContent = audit.package;
+    projectMeta.textContent = [audit.version && audit.version !== 'local' ? `v${audit.version}` : '', from].filter(Boolean).join(' · ');
+    projectChip.title = `${audit.package}${audit.version ? ` ${audit.version}` : ''} (${from})${audit.fileCount ? ` · ${audit.fileCount} files` : ''}`;
+  };
+
   const unsubscribeAudit = useAuditStore.subscribe((state) => {
+    showProject(state.current);
     brand.classList.toggle('is-busy', state.busy !== null);
     setBusy(scanButton, state.busy === 'audit');
     folderButton.disabled = state.busy === 'audit';
@@ -196,6 +222,8 @@ export function createToolbar(controller: AppController, container: HTMLElement)
     staticButton.title = why || 'Run the static rules over the pulled code';
     llmButton.title = why || 'Ask the model to review the pulled code';
   });
+
+  showProject(useAuditStore.getState().current);
 
   const unsubscribeUi = useUiStore.subscribe((state, previous) => {
     if (state.providersStamp !== previous.providersStamp) void refreshProviders();

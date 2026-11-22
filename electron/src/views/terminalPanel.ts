@@ -6,7 +6,9 @@ import type { AppController } from '../app';
 import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { terminalBus, useTerminalStore } from '../state/terminal';
-import { useUiStore } from '../state/ui';
+import { DEFAULT_LAYOUT, useUiStore, type BottomView } from '../state/ui';
+import { useDebugStore } from '../state/debug';
+import { createDebugPanel } from './debugPanel';
 import { isGlobalShortcut } from './shortcuts';
 
 export interface TerminalPanel {
@@ -41,23 +43,70 @@ export function createTerminalPanel(controller: AppController, container: HTMLEl
     { class: 'ghost tiny icon-button', type: 'button', title: 'New terminal', 'aria-label': 'New terminal' },
     icon('plus'),
   );
+  const growButton = h('button', { class: 'ghost tiny icon-button', type: 'button' }, icon('arrow-up'));
+  const syncGrow = (): void => {
+    const big = useUiStore.getState().terminalHeight >= 440;
+    growButton.replaceChildren(icon(big ? 'arrow-down' : 'arrow-up'));
+    const label = big ? 'Shrink the terminal' : 'Enlarge the terminal';
+    growButton.title = label;
+    growButton.setAttribute('aria-label', label);
+  };
+  growButton.addEventListener('click', () => {
+    const ui = useUiStore.getState();
+    ui.setTerminalHeight(ui.terminalHeight >= 440 ? DEFAULT_LAYOUT.terminalHeight : 520);
+  });
+  useUiStore.subscribe(syncGrow);
+  syncGrow();
   const hideButton = h(
     'button',
     { class: 'ghost tiny icon-button', type: 'button', title: 'Hide the terminal (Ctrl+`)', 'aria-label': 'Hide the terminal' },
     icon('chevron-down'),
   );
+  // The panel shows the shells or the debugger.
+  const viewButton = (view: BottomView, label: string): HTMLButtonElement => {
+    const button = h('button', { class: 'bottom-view', type: 'button', role: 'tab', text: label });
+    button.addEventListener('click', () => useUiStore.getState().setBottomView(view));
+    return button;
+  };
+  const terminalView = viewButton('terminal', 'Terminal');
+  const debugView = viewButton('debug', 'Debug');
+  const debugDot = h('span', { class: 'bottom-view-dot', hidden: true, 'aria-hidden': 'true' });
+  debugView.append(debugDot);
   const header = h(
     'div',
     { class: 'terminal-header' },
-    h('span', { class: 'terminal-title', text: 'Terminal' }),
+    h('span', { class: 'bottom-views', role: 'tablist', 'aria-label': 'Bottom panel' }, terminalView, debugView),
     tabs,
     newButton,
     h('span', { class: 'grow' }),
+    growButton,
     hideButton,
   );
   const screens = h('div', { class: 'terminal-screens' });
   const notice = h('div', { class: 'terminal-notice', hidden: true, role: 'status' });
-  container.append(header, notice, screens);
+  const debugPanel = createDebugPanel(controller);
+  container.append(header, notice, screens, debugPanel.element);
+
+  const showView = (): void => {
+    const view = useUiStore.getState().bottomView;
+    const debugging = view === 'debug';
+    terminalView.classList.toggle('is-active', !debugging);
+    terminalView.setAttribute('aria-selected', String(!debugging));
+    debugView.classList.toggle('is-active', debugging);
+    debugView.setAttribute('aria-selected', String(debugging));
+    tabs.hidden = debugging;
+    newButton.hidden = debugging;
+    screens.hidden = debugging;
+    debugPanel.element.hidden = !debugging;
+    if (debugging) notice.hidden = true;
+  };
+  const syncDot = (): void => {
+    const status = useDebugStore.getState().status;
+    debugDot.hidden = status !== 'running' && status !== 'paused';
+    debugDot.classList.toggle('is-paused', status === 'paused');
+  };
+  const offDebug = useDebugStore.subscribe(syncDot);
+  syncDot();
 
   interface Live {
     term: Terminal;
@@ -111,7 +160,7 @@ export function createTerminalPanel(controller: AppController, container: HTMLEl
     const state = useTerminalStore.getState();
     const open = useUiStore.getState().terminalOpen;
 
-    notice.hidden = !state.error;
+    notice.hidden = !state.error || useUiStore.getState().bottomView === 'debug';
     notice.textContent = state.error ? `The terminal could not start: ${state.error}` : '';
 
     for (const session of state.sessions) attach(session.id);
@@ -153,7 +202,7 @@ export function createTerminalPanel(controller: AppController, container: HTMLEl
 
     for (const [id, entry] of live) entry.host.hidden = id !== state.activeId;
     const active = state.activeId ? live.get(state.activeId) : undefined;
-    if (active && open) {
+    if (active && open && useUiStore.getState().bottomView === 'terminal') {
       // The size is measured once the panel has been laid out.
       requestAnimationFrame(() => {
         sizeOf(active);
@@ -164,7 +213,7 @@ export function createTerminalPanel(controller: AppController, container: HTMLEl
 
   /** Starts the first shell when the panel is opened with none running. */
   const ensureShell = (): void => {
-    if (!useUiStore.getState().terminalOpen) return;
+    if (!useUiStore.getState().terminalOpen || useUiStore.getState().bottomView !== 'terminal') return;
     const state = useTerminalStore.getState();
     if (state.sessions.length === 0) void spawn();
   };
@@ -187,18 +236,26 @@ export function createTerminalPanel(controller: AppController, container: HTMLEl
 
   const unsubscribeTerm = useTerminalStore.subscribe(() => render());
   const unsubscribeUi = useUiStore.subscribe((state, previous) => {
+    if (state.bottomView !== previous.bottomView) {
+      showView();
+      render();
+      ensureShell();
+    }
     if (state.terminalOpen !== previous.terminalOpen) {
       render();
       ensureShell();
     }
   });
 
+  showView();
   render();
 
   return {
     element: container,
     dispose: () => {
       observer.disconnect();
+      offDebug();
+      debugPanel.dispose();
       unsubscribeTerm();
       unsubscribeUi();
       for (const id of Array.from(live.keys())) detach(id);

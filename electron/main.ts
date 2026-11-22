@@ -12,7 +12,7 @@
 import path from 'node:path';
 import { writeFile } from 'node:fs/promises';
 
-import { app, BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type OpenDialogOptions } from 'electron';
 import { autoUpdater, type UpdateInfo } from 'electron-updater';
 import { spawn } from 'node:child_process';
 
@@ -467,6 +467,9 @@ const ALLOWED_API_PREFIXES = [
   // The integrated terminal. Every path here can start or drive a shell, so
   // this prefix is the one most worth keeping out of any wildcard.
   '/api/terminals',
+  // The debugger runs a local project's Python code. The backend refuses it
+  // for anything but a folder the user opened.
+  '/api/debug',
 ] as const;
 
 /** Reports whether an API path is one the renderer may call. */
@@ -629,7 +632,48 @@ function registerIpc(): void {
   });
 }
 
+function buildMenu(): void {
+  const send = (command: 'open-folder' | 'settings' | 'about'): void => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('aisai:menu', command);
+  };
+  const mac = process.platform === 'darwin';
+  const template: Electron.MenuItemConstructorOptions[] = [
+    ...(mac
+      ? [{
+          label: 'aisai',
+          submenu: [
+            { label: 'About aisai', click: () => send('about') },
+            { type: 'separator' as const },
+            { label: 'Settings…', accelerator: 'Cmd+,', registerAccelerator: false, click: () => send('settings') },
+            { type: 'separator' as const },
+            { role: 'services' as const },
+            { type: 'separator' as const },
+            { role: 'hide' as const },
+            { role: 'hideOthers' as const },
+            { role: 'unhide' as const },
+            { type: 'separator' as const },
+            { role: 'quit' as const },
+          ],
+        }]
+      : []),
+    {
+      label: 'File',
+      submenu: [
+        { label: 'Open Folder…', accelerator: 'CmdOrCtrl+O', registerAccelerator: false, click: () => send('open-folder') },
+        { type: 'separator' },
+        ...(mac ? [{ role: 'close' as const }] : [{ label: 'Settings…', click: () => send('settings') }, { role: 'quit' as const }]),
+      ],
+    },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+    ...(mac ? [] : [{ label: 'Help', submenu: [{ label: 'About aisai', click: () => send('about') }] }]),
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 app.whenReady().then(() => {
+  buildMenu();
   registerIpc();
   mainWindow = createWindow();
   void startBackend();
@@ -734,6 +778,17 @@ function configureAutoUpdate(): void {
     if (updateStatus.state !== 'ready') return;
     if (macSelfUpdate) void installMacUpdate();
     else autoUpdater.quitAndInstall();
+  });
+  // Links the assistant cites open in the browser. Only web addresses: never
+  // a file, an app scheme or anything else a page could make up.
+  ipcMain.handle('aisai:open-external', (_event, url: unknown) => {
+    if (typeof url !== 'string') return;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') void shell.openExternal(parsed.toString());
+    } catch {
+      /* not a URL: ignored */
+    }
   });
   ipcMain.handle('aisai:update:page', () => shell.openExternal(updateStatus.url ?? RELEASES_URL));
 

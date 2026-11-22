@@ -65,3 +65,23 @@ window.addEventListener('beforeunload', () => {
   layout.dispose();
   errorScreen.dispose();
 });
+
+// Every button explains itself on hover: one that has no tooltip of its own
+// gets its accessible name (or its text) as one.
+const addTooltips = (root: ParentNode): void => {
+  root.querySelectorAll('button:not([title])').forEach((button) => {
+    const text = button.getAttribute('aria-label') || button.textContent?.trim() || '';
+    if (text && text.length <= 60) button.setAttribute('title', text);
+  });
+};
+addTooltips(document);
+new MutationObserver((records) => {
+  for (const record of records) {
+    record.addedNodes.forEach((node) => {
+      if (node instanceof HTMLElement) {
+        if (node.matches('button:not([title])')) addTooltips(node.parentElement ?? document);
+        else addTooltips(node);
+      }
+    });
+  }
+}).observe(document.body, { childList: true, subtree: true });

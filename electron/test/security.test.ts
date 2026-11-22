@@ -47,7 +47,9 @@ const EXPECTED_BRIDGE_MEMBERS = [
   'http',
   'installUpdate',
   'onBackendStatus',
+  'onMenuCommand',
   'onUpdateStatus',
+  'openExternal',
   'openReleasePage',
   'providerKeyStatus',
   'send',
@@ -64,6 +66,7 @@ const EXPECTED_API_PREFIXES = [
   '/api/advisories',
   '/api/chat',
   '/api/terminals',
+  '/api/debug',
 ];
 
 /**
@@ -231,6 +234,9 @@ return isAllowedApiPath;`;
     expect(predicate('/api/terminals')).toBe(true);
     expect(predicate('/api/terminals/t1/input')).toBe(true);
     expect(predicate('/api/terminalsx')).toBe(false);
+    expect(predicate('/api/debug')).toBe(true);
+    expect(predicate('/api/debug/d1/command')).toBe(true);
+    expect(predicate('/api/debugger')).toBe(false);
     expect(predicate('/api/advisories/status')).toBe(true);
   });
 

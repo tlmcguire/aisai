@@ -509,8 +509,15 @@ const (
 	// Data["data"]); EventTerminalExit reports that its shell ended.
 	EventTerminalData = "terminal.data"
 	EventTerminalExit = "terminal.exit"
-	EventChatDone     = "chat.done"
-	EventChatError    = "chat.error"
+	// EventDebugEvent carries a debugger event (Data is the event: stopped,
+	// continued, scope, evaluated, breakpoints); EventDebugOutput carries
+	// what the program printed (Data["stream"], Data["text"]); EventDebugExit
+	// reports that the program ended (Data["code"]). JobID is the session.
+	EventDebugEvent  = "debug.event"
+	EventDebugOutput = "debug.output"
+	EventDebugExit   = "debug.exit"
+	EventChatDone    = "chat.done"
+	EventChatError   = "chat.error"
 )
 
 // RelPath normalizes a path to be relative and slash-separated, so that

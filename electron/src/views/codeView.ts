@@ -5,8 +5,12 @@ import { useAuditStore } from '../state/audit';
 import { useFindingsStore } from '../state/findings';
 import { brandMark } from '../lib/logo';
 import { useWorkspaceStore } from '../state/workspace';
+import { pausedLineIn, useDebugStore } from '../state/debug';
 
 import { useChatStore } from '../state/chat';
+import { useUiStore } from '../state/ui';
+import { isMac } from '../lib/shortcuts';
+import { icon } from '../lib/icons';
 import { createCodeEditor, type CodeEditor } from './codeEditor';
 
 export interface CodeView {
@@ -36,7 +40,7 @@ export function createCodeView(controller: AppController, container: HTMLElement
   let diskChanged = false;
 
   /** The first screen: two ways in, and the audits already on disk. */
-  const welcome = (): HTMLElement => {
+  const welcome = (deleted: { package: string } | null = null): HTMLElement => {
     const scanPackage = h('button', { class: 'welcome-action primary-action', type: 'button' },
       h('span', { class: 'welcome-action-title', text: 'Audit a package' }),
       h('span', { class: 'welcome-action-text', text: 'From PyPI, npm or crates.io, or paste a package or repository link: pull the source and its dependencies, then run a static or LLM scan.' }),
@@ -52,11 +56,14 @@ export function createCodeView(controller: AppController, container: HTMLElement
       'div',
       { class: 'welcome' },
       h('div', { class: 'welcome-mark' }, brandMark()),
-      h('h1', { class: 'welcome-title', text: 'What should we look at?' }),
+      h('h1', { class: 'welcome-title', text: deleted ? `The sources of ${deleted.package} were deleted` : 'What should we look at?' }),
+      deleted
+        ? h('p', { class: 'welcome-lede', text: 'Its findings and report are kept, but there is no code left to read or scan. Pull it again, or start with something else.' })
+        : null,
       h('div', { class: 'welcome-actions' }, scanPackage, openFolder),
       h('p', { class: 'welcome-keys' },
         h('kbd', { text: navigator.userAgent.includes('Mac') ? '⌘O' : 'Ctrl+O' }), ' opens a folder · ',
-        h('kbd', { text: 'Enter' }), ' in the package field starts a scan',
+        h('kbd', { text: 'Enter' }), ' in the package field starts a pull',
       ),
       recent.length
         ? h('div', { class: 'welcome-recent' },
@@ -214,7 +221,20 @@ export function createCodeView(controller: AppController, container: HTMLElement
       refreshHeader();
     },
     onSave: () => void save(),
+    onBreakpoints: (lines) => {
+      const path = editor.path();
+      if (path) useDebugStore.getState().setBreakpoints(path, lines);
+    },
   });
+
+  /** Shows the breakpoints and the paused line of the open file. */
+  const syncDebug = (): void => {
+    const path = editor.path();
+    if (!path) return;
+    const debug = useDebugStore.getState();
+    editor.setBreakpoints(debug.breakpoints[path] ?? []);
+    editor.setPausedLine(pausedLineIn(debug, path));
+  };
 
   /* ---------------- header ---------------- */
 
@@ -223,6 +243,7 @@ export function createCodeView(controller: AppController, container: HTMLElement
   const refreshHeader = (): void => {
     if (!headerFile) return;
     const model = useChatStore.getState().model;
+    const completionOn = useUiStore.getState().completionEnabled;
     const saveButton = h('button', { class: 'primary tiny', type: 'button', title: 'Save (Ctrl/Cmd+S)' }, 'Save');
     const discardButton = h('button', { class: 'tiny', type: 'button', title: 'Throw away the unsaved changes' }, 'Discard');
     saveButton.addEventListener('click', () => void save());
@@ -246,13 +267,45 @@ export function createCodeView(controller: AppController, container: HTMLElement
           ]
         : []),
       h('span', { class: 'grow' }),
-      h('span', {
-        class: `badge ${model.available ? 'neutral' : 'is-bad'}`,
-        text: model.available ? 'completion on' : 'completion off',
-        title: model.available ? `Inline completion by ${model.name}. Tab accepts, Esc dismisses.` : `${model.reason} Inline completion needs a model.`,
+      ...debugButton(),
+      h('button', {
+        class: `tiny completion-toggle${completionOn && model.available ? ' is-on' : ''}`,
+        type: 'button',
+        role: 'switch',
+        'aria-checked': String(completionOn && model.available),
+        disabled: !model.available || undefined,
+        text: completionOn && model.available ? 'completion on' : 'completion off',
+        title: !model.available
+          ? `${model.reason} Inline completion needs a model.`
+          : completionOn
+            ? `Inline completion by ${model.name}. Tab accepts, Esc dismisses. Click to turn off (${isMac() ? '⌘⌥K' : 'Ctrl+Alt+K'}).`
+            : `Inline completion is off. Click to turn on (${isMac() ? '⌘⌥K' : 'Ctrl+Alt+K'}).`,
+        onclick: () => useUiStore.getState().setCompletionEnabled(!useUiStore.getState().completionEnabled),
       }),
       ...(dirty ? [discardButton, saveButton] : []),
     );
+  };
+
+  /** "Debug" for a Python file of a local project; the panel explains the rest. */
+  const debugButton = (): HTMLElement[] => {
+    if (!headerFile || !/\.py$/i.test(headerFile.path) || !controller.canDebug()) return [];
+    const debug = useDebugStore.getState();
+    const running = debug.status === 'running' || debug.status === 'paused' || debug.status === 'starting';
+    const count = Object.values(debug.breakpoints).reduce((n, lines) => n + lines.length, 0);
+    return [
+      h('button', {
+        class: `tiny debug-file-button${running ? ' is-on' : ''}`,
+        type: 'button',
+        title: running
+          ? 'The debugger is running: show it'
+          : `Run this file under the debugger (F5)${count ? ` · ${count} breakpoint${count === 1 ? '' : 's'}` : ' · click left of a line number to set a breakpoint'}`,
+        onclick: () => {
+          useUiStore.getState().setBottomView('debug');
+          useUiStore.getState().setTerminalOpen(true);
+          if (!running) window.dispatchEvent(new Event('aisai:debug-start'));
+        },
+      }, icon('bug'), running ? (debug.status === 'paused' ? 'paused' : 'debugging') : 'Debug'),
+    ];
   };
 
   /* ---------------- rendering ---------------- */
@@ -274,8 +327,14 @@ export function createCodeView(controller: AppController, container: HTMLElement
     if (!force && samePath && editor.text() === text) return;
     diskChanged = false;
     closePanel();
+    // The same file came back changed (a fix was applied): type the change in.
+    if (!force && samePath && editor.showChange(text)) {
+      editor.setFindings(findingsFor(file));
+      return;
+    }
     editor.setDocument(file.path, text, file.language, locked);
     editor.setFindings(findingsFor(file));
+    syncDebug();
   };
 
   const findingsFor = (file: { path: string; findings?: Finding[] }): Finding[] => {
@@ -291,8 +350,10 @@ export function createCodeView(controller: AppController, container: HTMLElement
     const file = state.file;
 
     const audits = useAuditStore.getState().audits;
-    if (!file && !useAuditStore.getState().current) {
-      const key = `welcome|${audits.map((a) => a.id).join(',')}`;
+    const currentAudit = useAuditStore.getState().current;
+    const deletedAudit = currentAudit?.sourcesDeleted ? currentAudit : null;
+    if (!file && (!currentAudit || deletedAudit)) {
+      const key = `welcome|${deletedAudit?.id ?? ''}|${audits.map((a) => a.id).join(',')}`;
       if (shownKey === key) return;
       shownKey = key;
       shownHeader = '';
@@ -300,7 +361,7 @@ export function createCodeView(controller: AppController, container: HTMLElement
       editorHost.hidden = true;
       placeholder.hidden = false;
       header.replaceChildren(h('span', { text: 'Start' }));
-      placeholder.replaceChildren(welcome());
+      placeholder.replaceChildren(welcome(deletedAudit));
       return;
     }
 
@@ -343,7 +404,7 @@ export function createCodeView(controller: AppController, container: HTMLElement
   };
 
   const syncCompletion = (): void => {
-    editor.setCompletionEnabled(useChatStore.getState().model.available);
+    editor.setCompletionEnabled(useChatStore.getState().model.available && useUiStore.getState().completionEnabled);
     refreshHeader();
   };
 
@@ -361,11 +422,25 @@ export function createCodeView(controller: AppController, container: HTMLElement
   });
 
   const unsubscribeAudit = useAuditStore.subscribe((state, previous) => {
-    if (state.current !== previous.current || state.audits !== previous.audits) render();
+    if (state.current !== previous.current || state.audits !== previous.audits) {
+      render();
+      refreshHeader();
+    }
+  });
+
+  const unsubscribeCompletion = useUiStore.subscribe((state, previous) => {
+    if (state.completionEnabled !== previous.completionEnabled) syncCompletion();
   });
 
   const unsubscribeChat = useChatStore.subscribe((state, previous) => {
     if (state.model !== previous.model) syncCompletion();
+  });
+
+  const unsubscribeDebug = useDebugStore.subscribe((state, previous) => {
+    if (state.breakpoints !== previous.breakpoints || state.status !== previous.status || state.frames !== previous.frames || state.frame !== previous.frame) {
+      syncDebug();
+    }
+    if (state.status !== previous.status || state.breakpoints !== previous.breakpoints) refreshHeader();
   });
 
   render();
@@ -378,6 +453,8 @@ export function createCodeView(controller: AppController, container: HTMLElement
       unsubscribeFindings();
       unsubscribeAudit();
       unsubscribeChat();
+      unsubscribeCompletion();
+      unsubscribeDebug();
       editor.destroy();
     },
   };

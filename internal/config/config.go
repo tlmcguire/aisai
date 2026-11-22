@@ -53,6 +53,10 @@ type Config struct {
 	NumCtx      int    `json:"numCtx"`
 	ScanWorkers int    `json:"scanWorkers"`
 
+	// WebSearch lets the chat model search the web and read pages. Off by
+	// default: what it searches for leaves the machine.
+	WebSearch bool `json:"webSearch,omitempty"`
+
 	// KeepAlive is how long Ollama keeps a model resident in memory after
 	// the last request that used it. The default is three minutes: long
 	// enough to keep a model warm through one scan, short enough to give

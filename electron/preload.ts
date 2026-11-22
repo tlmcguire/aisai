@@ -64,7 +64,18 @@ ipcRenderer.on('aisai:update', (_event, payload: UpdateStatus) => {
   for (const listener of Array.from(updateListeners)) listener(payload);
 });
 
+const menuListeners = new Set<(command: 'open-folder' | 'settings' | 'about') => void>();
+ipcRenderer.on('aisai:menu', (_event, command: 'open-folder' | 'settings' | 'about') => {
+  for (const listener of Array.from(menuListeners)) listener(command);
+});
+
 const bridge: AisaiBridge = {
+  onMenuCommand: (cb) => {
+    menuListeners.add(cb);
+    return () => {
+      menuListeners.delete(cb);
+    };
+  },
   onUpdateStatus: (cb) => {
     updateListeners.add(cb);
     cb(updateStatus);
@@ -75,6 +86,7 @@ const bridge: AisaiBridge = {
   checkForUpdates: () => ipcRenderer.invoke('aisai:update:check') as Promise<void>,
   installUpdate: () => ipcRenderer.invoke('aisai:update:install') as Promise<void>,
   openReleasePage: () => ipcRenderer.invoke('aisai:update:page') as Promise<void>,
+  openExternal: (url: string) => ipcRenderer.invoke('aisai:open-external', url) as Promise<void>,
   getMode: () => currentStatus.mode,
   getStatus: () => currentStatus,
   http: (method: HttpMethod, path: string, body?: unknown): Promise<HttpResponse> =>

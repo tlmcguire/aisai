@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -371,5 +372,41 @@ func TestParseQueries(t *testing.T) {
 	}
 	if got := parseQueries("not json"); got != nil {
 		t.Fatalf("queries = %v", got)
+	}
+}
+
+func TestNumberLinesUsesRealLineNumbers(t *testing.T) {
+	got := numberLines("def f():\n    return 1\n", 42)
+	want := "42| def f():\n43|     return 1"
+	if got != want {
+		t.Fatalf("numberLines = %q, want %q", got, want)
+	}
+}
+
+func TestCompactHistorySummarisesOlderTurns(t *testing.T) {
+	fake := &fakeProvider{answer: "they discussed auth.py:42"}
+	c := New(Deps{LLM: fake, Model: "m"})
+	var history []llm.Message
+	for i := 0; i < 12; i++ {
+		role := llm.RoleUser
+		if i%2 == 1 {
+			role = llm.RoleAssistant
+		}
+		history = append(history, llm.Message{Role: role, Content: fmt.Sprintf("message %d", i)})
+	}
+	var kinds []string
+	out := c.compactHistory(context.Background(), history, func(s Step) { kinds = append(kinds, s.Kind) })
+	if len(out) != 2+keepRecentMessages {
+		t.Fatalf("got %d messages", len(out))
+	}
+	if !strings.Contains(out[0].Content, "auth.py:42") || out[len(out)-1].Content != "message 11" {
+		t.Fatalf("summary or recent turns missing: %+v", out)
+	}
+	if strings.Join(kinds, ",") != "compacting,compacted" {
+		t.Fatalf("steps: %v", kinds)
+	}
+	short := history[:4]
+	if got := c.compactHistory(context.Background(), short, nil); len(got) != 4 {
+		t.Fatal("a short history is sent as it is")
 	}
 }

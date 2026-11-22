@@ -97,6 +97,8 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
   );
 
   const list = h('ul', { class: 'finding-list' });
+  const reportButton = h('button', { class: 'tiny', type: 'button', title: 'Export a report of the findings (HTML, in the aisai theme)' }, 'Export report');
+  reportButton.addEventListener('click', () => void controller.exportReport());
 
   const controls = h(
     'div',
@@ -113,6 +115,7 @@ export function createFindingsRail(controller: AppController, container: HTMLEle
       expiryInput,
     ),
     sortRow,
+    h('div', { class: 'row' }, reportButton),
   );
 
   const body = h('div', { class: 'pane-body' }, list);
