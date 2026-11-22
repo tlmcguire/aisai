@@ -233,7 +233,7 @@ The window is a single column: a toolbar that doubles as the title bar, an optio
 
 - **Three panes:** the left column holds the dependency graph above the file tree, the centre holds the Code, AST and Diff tabs, and the right rail holds the findings.
 - **Sizes:** the defaults are a left column of 300px, a right rail of 340px, a chat panel of 220px, and a file tree taking 42% of the left column. Each is stored in reference pixels and applied in rem, so sizes scale with the interface.
-- **Resizing:** every pane edge is a 5px drag handle that responds to the pointer and to the arrow keys. Double-clicking a handle resets that pane. Sizes set from the Layout settings glide into place; dragging follows the pointer with no transition.
+- **Resizing:** every pane edge is a 5px drag handle that responds to the pointer and to the arrow keys. Double-clicking a handle resets that pane. The chat is the exception: its handle stands at the front of the chat bar, a grip you drag and two arrows that step the panel, so nothing floats over the bar and covers it. Sizes set from the Layout settings glide into place; dragging follows the pointer with no transition.
 - **Spacing:** a 4px-based rhythm (0.25 / 0.5 / 0.75 / 1 / 1.5rem). Related controls are packed tightly; panes are separated by borders, never by gutters.
 - **Window chrome:** the toolbar is the window's drag region. On macOS it leaves 5.25rem on the left for the inset traffic lights; on Windows and Linux it leaves room on the right for the controls overlay.
 - **Minimum size:** the window opens at 1440×900 and can shrink to 960×600 without horizontal scrolling.

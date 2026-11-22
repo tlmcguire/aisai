@@ -4288,6 +4288,37 @@ body.is-window-resizing *::after { transition: none !important; }
   width: 11px;
   height: 11px;
 }
+
+/* The chat's handle stands in the chat bar rather than on the divider, so it
+   is a row of small controls and not a floating pill over the bar. */
+.grab-handle.is-bar {
+  position: static;
+  left: auto;
+  top: auto;
+  transform: none;
+  z-index: auto;
+  flex-direction: row;
+  width: auto;
+  height: auto;
+  gap: 1px;
+  padding: 0 1px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  cursor: row-resize;
+}
+.grab-handle.is-bar.is-sideways {
+  cursor: col-resize;
+}
+.grab-handle.is-bar .grab-arrow {
+  width: 16px;
+  height: 16px;
+}
+.grab-handle.is-bar .grab-dots {
+  width: 5px;
+  height: 8px;
+  background-size: 3px 4px;
+}
 /* The old hairline grip is replaced by the pill on these two dividers. */
 .resizer:has(.grab-handle)::after {
   display: none;

@@ -194,6 +194,8 @@ function relativeTime(then: number): string {
 
 export interface ChatPanel {
   element: HTMLElement;
+  /** The bar at the top of the panel, where the grab handle stands. */
+  header: HTMLElement;
   dispose: () => void;
 }
 
@@ -818,6 +820,7 @@ export function createChatPanel(controller: AppController, container: HTMLElemen
 
   return {
     element: container,
+    header,
     dispose: () => {
       unsubscribe();
       window.clearInterval(tick);
