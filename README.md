@@ -131,7 +131,7 @@ The server prints exactly one line of JSON on stdout — the address the
 Electron main process connects to:
 
 ```json
-{"address":"/path/to/.aisai/aisai.sock","transport":"unix","type":"listening","version":"0.3.0-dev"}
+{"address":"/path/to/.aisai/aisai.sock","transport":"unix","type":"listening","version":"0.4.0-dev"}
 ```
 
 Everything else is logged to stderr.
@@ -657,8 +657,8 @@ app for all three platforms:
 | Linux (x64 and arm64) | AppImage and deb |
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
 The pipeline builds the Go backend once and hands it to every platform
