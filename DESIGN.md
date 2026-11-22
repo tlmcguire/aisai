@@ -285,7 +285,7 @@ Native and restrained.
 
 ### Trees (signature)
 The file tree and the AST share one grammar: indent guides, stroke-drawn arrows, a 1.6rem row height and roving keyboard focus (arrow keys, Home, End, and type-to-jump in the file tree).
-- **File tree:** files carry a small mono language tag (Patina Teal when the language is scanned, Moss when it isn't). Folders carry a teal folder icon and a finding count in their worst severity's colour. Filter matches are highlighted with a Signal Lime tint.
+- **File tree:** files carry the logo of their language — the mark an editor shows, in the colours of that language — dimmed when AISAI cannot scan the language; the header of an open file carries the same mark. Folders carry a teal folder icon and a finding count in their worst severity's colour. Filter matches are highlighted with a Signal Lime tint.
 - **AST:** each node type is a chip in its syntax colour, and its line range is set in tabular numbers. Rows stagger in only when a new tree loads, never when a node is toggled.
 
 ### Download tracker (signature)
@@ -293,6 +293,8 @@ A strip under the status bar lists each package as it downloads: a spinner while
 
 ### Icons
 Drawn as SVG on a 16-unit grid: a 1.5 stroke, round caps and joins, in the current text colour, sized 1em so they sit on the text baseline. The set lives in `electron/src/lib/icons.ts` (gear, chevrons, sort arrows). A new icon is added there in the same stroke, never as a Unicode character. The settings gear turns 45° on hover; no other icon moves.
+
+The language logos are the one exception: they are the file icons of the Material Icon Theme for Visual Studio Code, in `electron/src/assets/langicons`, kept in the colours and the drawing of their own language rather than redrawn on our grid, because a logo people already know is worth more than one that matches the house style. A file of a language with no mark keeps the plain mono tag.
 
 ### The mark
 The letter A drawn as a syntax tree: a Bone root node and branches, a Patina Teal crossbar edge, and one Signal Lime flagged leaf. While a job runs, the leaf pulses; the mark is the progress indicator.

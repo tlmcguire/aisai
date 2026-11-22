@@ -2,6 +2,7 @@ import type { AppController } from '../app';
 import type { FileNode, Finding } from '../api/types';
 import { h } from '../lib/dom';
 import { t, tn } from '../lib/i18n';
+import { fileSymbol, isScanned } from '../lib/langicons';
 import { severityClass } from '../lib/severity';
 import { maxSeverity } from '../api/types';
 import { useFindingsStore } from '../state/findings';
@@ -11,22 +12,11 @@ import { useWorkspaceStore } from '../state/workspace';
  * The file tree.
  *
  * Built for reading a package you have never seen: indent guides show the
- * nesting, every file carries a short language tag, directories show how
+ * nesting, every file carries the logo of its language, directories show how
  * many findings they hold and how bad the worst one is, and a filter box
  * narrows thousands of files to the few that matter. The keyboard works the
  * way a native tree does (arrows, Home/End, Enter).
  */
-
-/** Short, readable tags for common extensions. */
-const EXT_TAG: Record<string, string> = {
-  py: 'py', pyi: 'py', js: 'js', mjs: 'js', cjs: 'js', jsx: 'jsx', ts: 'ts', tsx: 'tsx',
-  go: 'go', rs: 'rs', java: 'java', cs: 'c#', rb: 'rb', c: 'c', h: 'h', cc: 'c++', cpp: 'c++',
-  hpp: 'h++', php: 'php', sh: 'sh', bash: 'sh', scala: 'sc', json: '{}', toml: 'toml',
-  yaml: 'yml', yml: 'yml', md: 'md', txt: 'txt', cfg: 'cfg', ini: 'ini', html: 'html', css: 'css',
-};
-
-/** Extensions AISAI parses and scans; others are dimmed. */
-const SCANNED = new Set(['py', 'pyi', 'js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx', 'go', 'rs', 'java', 'cs', 'rb', 'c', 'h', 'cc', 'cpp', 'cxx', 'hpp', 'hh', 'hxx', 'php', 'sh', 'bash', 'zsh', 'scala', 'sc']);
 
 function extOf(name: string): string {
   const dot = name.lastIndexOf('.');
@@ -150,13 +140,19 @@ export function createFileTree(controller: AppController, container: HTMLElement
     const isDir = node.type === 'dir';
     const count = node.findingCount ?? 0;
     const ext = extOf(node.name);
+    const scanned = isScanned(node.name);
     const selected = !isDir && node.path === selectedPath();
-    const tag = isDir ? null : h('span', { class: `file-tag${SCANNED.has(ext) ? '' : ' is-plain'}`, text: EXT_TAG[ext] ?? (ext.slice(0, 4) || t('files.noExtensionTag')) });
+    // The symbol of the language, in its own colour; a file of a language
+    // AISAI cannot scan keeps the quiet tag.
+    const symbol = isDir
+      ? null
+      : fileSymbol(node.name, scanned) ??
+        h('span', { class: `file-tag${scanned ? '' : ' is-plain'}`, text: ext.slice(0, 4) || t('files.noExtensionTag') });
 
     return h(
       'div',
       {
-        class: `tree-row${isDir ? ' is-dir' : ''}${selected ? ' selected' : ''}${!isDir && !SCANNED.has(ext) ? ' is-plain' : ''}`,
+        class: `tree-row${isDir ? ' is-dir' : ''}${selected ? ' selected' : ''}${!isDir && !scanned ? ' is-plain' : ''}`,
         role: 'treeitem',
         tabindex: '-1',
         'data-path': node.path,
@@ -170,7 +166,7 @@ export function createFileTree(controller: AppController, container: HTMLElement
         onclick: () => (isDir ? toggle(node.path) : open(node)),
       },
       h('span', { class: `twisty${isDir ? '' : ' leaf'}`, 'aria-hidden': 'true' }),
-      isDir ? h('span', { class: `folder-icon${isOpen ? ' is-open' : ''}`, 'aria-hidden': 'true' }) : tag,
+      isDir ? h('span', { class: `folder-icon${isOpen ? ' is-open' : ''}`, 'aria-hidden': 'true' }) : symbol,
       h('span', { class: 'name' }, ...highlight(node.name)),
       count
         ? h('span', {

@@ -13,6 +13,7 @@ import type { AppController } from '../app';
 import type { CodeSelection, Finding } from '../api/types';
 import { h } from '../lib/dom';
 import { t, tn } from '../lib/i18n';
+import { fileSymbol, isScanned } from '../lib/langicons';
 import { useAuditStore } from '../state/audit';
 import { useFindingsStore } from '../state/findings';
 import { brandMark } from '../lib/logo';
@@ -496,7 +497,9 @@ export function createCodeView(controller: AppController, container: HTMLElement
     const discardButton = h('button', { class: 'tiny', type: 'button', title: t('code.discardChangesHint') }, t('code.discard'));
     saveButton.addEventListener('click', () => void save());
     discardButton.addEventListener('click', discard);
+    const symbol = headerFile.path ? fileSymbol(headerFile.path, isScanned(headerFile.path)) : null;
     header.replaceChildren(
+      ...(symbol ? [symbol] : []),
       h('span', { text: headerFile.path }),
       h('span', { class: 'badge neutral', text: headerFile.language || t('code.plainText') }),
       h('span', {

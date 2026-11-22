@@ -901,6 +901,17 @@ button.tiny.is-armed {
 .folder-icon.is-open {
   background: var(--signal);
 }
+/* The logo of the language of a file, drawn in the colour of that language. */
+.file-symbol {
+  flex: 0 0 0.95rem;
+  width: 0.95rem;
+  height: 0.95rem;
+  display: block;
+}
+/* A language AISAI cannot scan is dimmed, so the files that matter stand out. */
+.file-symbol.is-plain {
+  opacity: 0.5;
+}
 .file-tag {
   flex: 0 0 auto;
   min-width: 1.6rem;
