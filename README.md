@@ -33,7 +33,7 @@ the chat below, which names the model that answers.
 | ![The syntax tree drawn as a graph, with the nodes that carry findings in red](docs/screenshots/ast-graph.png) | ![Settings, Layout: five ready-made arrangements of the panes](docs/screenshots/layout-presets.png) |
 | **AST graph.** The syntax tree of the open file as a node-link diagram; nodes with a finding are red, a click jumps to the line. | **Layout presets.** Move panes by their grip, or pick an arrangement in Settings. |
 | ![The Reader layout: code, findings and the chat docked on the right](docs/screenshots/reader-layout.png) | ![The package picker with npm selected and a suggestion shown](docs/screenshots/package-manager-picker.png) |
-| **Reader layout.** The dependency column is hidden and the chat is docked on the right. | **Package managers.** Choose PyPI, npm or crates.io, then the package and version. |
+| **Reader layout.** The dependency column is hidden and the chat is docked on the right. | **Package managers.** Choose PyPI, npm or crates.io, type a name or paste a link, then Pull. |
 
 ### How an audit runs
 
@@ -377,6 +377,8 @@ settings. Scanning, the graph, the AST and the static rules keep working.
 
 A shortcut never takes a key the editor or the field you are typing in already
 uses.
+
+![The keyboard shortcuts sheet](docs/screenshots/shortcuts.png)
 
 ### The terminal
 

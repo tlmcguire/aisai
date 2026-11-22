@@ -3297,3 +3297,24 @@ button:focus-visible:hover:not(:disabled) {
   border-radius: 4px;
   background: var(--bg-surface);
 }
+
+/* A narrow chat header keeps one row: the thread name and model chip
+   shorten, and the chunk list (also shown under each answer) goes. */
+.chat-header {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.chat-header > * {
+  flex: 0 0 auto;
+}
+.chat-header > .thread-wrap,
+.chat-header > .chat-model {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.chat-header .thread-button {
+  max-width: 100%;
+}
+.workspace.dock-right .chat-header > .chunks-used {
+  display: none;
+}
