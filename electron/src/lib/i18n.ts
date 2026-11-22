@@ -310,6 +310,8 @@ export function localeFor(preference: LocalePreference, languages: readonly stri
 export interface LocaleState {
   preference: LocalePreference;
   locale: Locale;
+  /** True while the interface is being put into the language now in effect. */
+  translating: boolean;
   setPreference: (preference: LocalePreference) => void;
 }
 
@@ -319,6 +321,7 @@ let current: Locale = localeFor(initialPreference);
 export const useLocaleStore = create<LocaleState>((set) => ({
   preference: initialPreference,
   locale: current,
+  translating: false,
   setPreference: (preference) => {
     try {
       localStorage.setItem(STORAGE_KEY, preference);
@@ -406,6 +409,18 @@ export function t(key: MessageKey, params?: Params): string {
 }
 
 /**
+ * The text of a message as plain text.
+ *
+ * A few lines are written once and do not change with the language later:
+ * the line that says the interface is being put into another language, for
+ * one, because the next language writes that line again. Such a line is
+ * shown as it is, and is not remembered.
+ */
+export function plainText(message: Translated): string {
+  return String(message);
+}
+
+/**
  * The text of a plural message for a count: tn('findings.count', 3) reads
  * "findings.count.other" in English. The count is available as {n}.
  */
@@ -470,6 +485,9 @@ function writeText(node: Node, text: string): void {
   else element.textContent = text;
 }
 
+/** How many waves have been started; the last one owns the flag. */
+let wave = 0;
+
 /** Where two elements stand on the screen, so that the wave can follow. */
 function domOrder(a: Node, b: Node): number {
   if (a === b) return 0;
@@ -480,15 +498,47 @@ function domOrder(a: Node, b: Node): number {
 }
 
 /**
+ * Where a piece of text sits on the screen, if the browser can tell.
+ *
+ * A range knows the exact box of the text itself. Not every environment can
+ * measure one — a test browser cannot, for one — and there the element that
+ * holds the text is close enough.
+ */
+function rectOf(node: Node, range: Range): DOMRect | null {
+  if (typeof range.getBoundingClientRect === 'function') {
+    range.selectNodeContents(node);
+    return range.getBoundingClientRect();
+  }
+  const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  if (!element || typeof element.getBoundingClientRect !== 'function') return null;
+  return element.getBoundingClientRect();
+}
+
+/** Whether a message is on the screen right now. */
+function inView(node: Node, range: Range): boolean {
+  const rect = rectOf(node, range);
+  if (!rect || rect.width <= 0 || rect.height <= 0) return false;
+  return rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth;
+}
+
+/**
  * Puts the interface in the language that is in effect now.
  *
  * Every message that is on screen is made again, so the interface speaks the
  * new language without being built again — and nothing is lost while it
  * changes: the open file, the terminal, the chat and the scroll positions
- * stay as they are. The new text is typed out, unless the system asks for
- * less motion.
+ * stay as they are.
+ *
+ * The wave that types the new text out is for the eye, and the eye is in
+ * one place: the messages that are on screen are typed out, and the rest
+ * are simply there at once. A page full of text changes in the time it
+ * takes to read it, not in the time it takes to type it.
  */
 export function relocalize(): Promise<void> {
+  // Two changes in a row: the first wave is stopped by the second one, and
+  // only the last of them may say that the work is done.
+  const run = ++wave;
+  useLocaleStore.setState({ translating: true });
   const changed: { node: Node; text: string }[] = [];
   for (const ref of [...tracked]) {
     const node = ref.deref() as Node | undefined;
@@ -513,7 +563,15 @@ export function relocalize(): Promise<void> {
     }
   }
   changed.sort((a, b) => domOrder(a.node, b.node));
-  return typewrite(changed.map((item) => ({ text: item.text, write: (text) => writeText(item.node, text) })));
+  const range = document.createRange();
+  const onScreen: { node: Node; text: string }[] = [];
+  const away: { node: Node; text: string }[] = [];
+  for (const item of changed) (inView(item.node, range) ? onScreen : away).push(item);
+  for (const item of away) writeText(item.node, item.text);
+  const typing = onScreen.map((item) => ({ text: item.text, write: (text: string) => writeText(item.node, text) }));
+  return typewrite(typing).finally(() => {
+    if (run === wave) useLocaleStore.setState({ translating: false });
+  });
 }
 
 /** The placeholders a message uses, for checking that a translation keeps them. */

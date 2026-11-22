@@ -7,13 +7,15 @@
  * elements are visited in the order they appear on the screen and the wave
  * moves over them, so only a handful of them are typing at any moment.
  *
- * People who ask their system for less motion get the text at once.
+ * The wave is short on purpose: the interface is speaking a new language,
+ * not loading a page, and the text has to be there before the user reads
+ * it. People who ask their system for less motion get the text at once.
  */
 
 /** How many elements are typing at the same time. */
 const WAVE = 6;
-/** How long the wave takes over the whole page, in milliseconds. */
-const BUDGET = 1400;
+/** How long the wave takes over the elements on screen, in milliseconds. */
+const BUDGET = 600;
 /** The shortest time an element spends typing, in milliseconds. */
 const MIN_MS = 80;
 /** The longest time an element spends typing, in milliseconds. */

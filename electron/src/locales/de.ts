@@ -551,6 +551,7 @@ export const de: Catalog = {
   'layout.stateFetched': 'geladen',
   'layout.stateFetchedWithWarnings': 'geladen mit Warnungen',
   'layout.stateSkipped': 'übersprungen',
+  'layout.switchingLanguage': 'Wechsel zu {language}…',
   'layout.tabAst': 'AST',
   'layout.tabCode': 'Code',
   'layout.tabDiff': 'Diff',

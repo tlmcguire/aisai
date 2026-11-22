@@ -534,6 +534,7 @@ export const ja: Catalog = {
   'layout.stateFetched': '取得済み',
   'layout.stateFetchedWithWarnings': '警告ありで取得済み',
   'layout.stateSkipped': 'スキップ',
+  'layout.switchingLanguage': '{language} に切り替え中…',
   'layout.tabAst': 'AST',
   'layout.tabCode': 'コード',
   'layout.tabDiff': '差分',

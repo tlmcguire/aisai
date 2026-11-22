@@ -235,6 +235,7 @@ The root size is fluid, `clamp(15px, 13.4px + 0.16vw, 22px)`, multiplied by the 
 
 The window is a single column: a toolbar that doubles as the title bar, an optional status strip and download tracker, the three-pane shell, and the chat panel.
 
+- **Strips:** between the toolbar and the panes sit the status strip, the download tracker and the line that says the interface is being put into another language. Each one is a quiet band of the column and appears only while it has something to say.
 - **Three panes:** the left column holds the dependency graph above the file tree, the centre holds the Code, AST and Diff tabs, and the right rail holds the findings.
 - **Sizes:** the defaults are a left column of 300px, a right rail of 340px, a chat panel of 220px, and a file tree taking 42% of the left column. Each is stored in reference pixels and applied in rem, so sizes scale with the interface.
 - **Resizing:** every pane edge is a 5px drag handle that responds to the pointer and to the arrow keys. Double-clicking a handle resets that pane. The chat is the exception: its handle stands at the front of the chat bar, a grip you drag and two arrows that step the panel, so nothing floats over the bar and covers it. Sizes set from the Layout settings glide into place; dragging follows the pointer with no transition.

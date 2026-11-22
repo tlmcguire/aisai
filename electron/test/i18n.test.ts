@@ -27,8 +27,55 @@ beforeEach(() => {
   }));
 });
 
+/** The wave is for the eye, so it needs motion to be seen at all. */
+function allowMotion(): void {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+  }));
+}
+
+/**
+ * Puts only the given element on the screen.
+ *
+ * A test browser cannot measure a range, so the measuring is done here: an
+ * element that is not the one has no box at all.
+ */
+function showOnly(element: Element): void {
+  const box = (visible: boolean): DOMRect =>
+    ({
+      x: 0,
+      y: 0,
+      width: visible ? 40 : 0,
+      height: visible ? 12 : 0,
+      top: 0,
+      left: 0,
+      right: visible ? 40 : 0,
+      bottom: visible ? 12 : 0,
+      toJSON: () => '',
+    }) as DOMRect;
+  Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value(this: Range): DOMRect {
+      const holder =
+        this.startContainer.nodeType === Node.ELEMENT_NODE
+          ? (this.startContainer as Element)
+          : this.startContainer.parentElement;
+      return box(holder === element);
+    },
+  });
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
+  // The measuring of a range is put back as it was.
+  delete (Range.prototype as unknown as { getBoundingClientRect?: unknown }).getBoundingClientRect;
 });
 
 describe('a language change', () => {
@@ -88,5 +135,57 @@ describe('a language change', () => {
     useLocaleStore.getState().setPreference('ja');
     await relocalize();
     expect(label.textContent).toBe('package-lock.json');
+  });
+
+  it('says that it is translating while it does', async () => {
+    useLocaleStore.getState().setPreference('en');
+    const label = document.createElement('span');
+    label.textContent = t('toolbar.inspecting');
+    document.body.append(label);
+
+    useLocaleStore.getState().setPreference('de');
+    const promise = relocalize();
+    expect(useLocaleStore.getState().translating).toBe(true);
+    await promise;
+    expect(useLocaleStore.getState().translating).toBe(false);
+  });
+
+  it('keeps saying that it is translating while the last wave runs', async () => {
+    allowMotion();
+    useLocaleStore.getState().setPreference('en');
+    const label = document.createElement('span');
+    label.textContent = t('toolbar.inspecting');
+    document.body.append(label);
+    showOnly(label);
+
+    useLocaleStore.getState().setPreference('de');
+    const first = relocalize();
+    const second = relocalize();
+    // The first wave is stopped by the second one, but the work is not done
+    // until the last one is.
+    await first;
+    expect(useLocaleStore.getState().translating).toBe(true);
+    await second;
+    expect(useLocaleStore.getState().translating).toBe(false);
+  });
+
+  it('types the text that is on the screen and puts the rest there at once', async () => {
+    allowMotion();
+    useLocaleStore.getState().setPreference('en');
+    const onScreen = document.createElement('span');
+    onScreen.textContent = t('toolbar.inspecting');
+    const away = document.createElement('span');
+    away.textContent = t('toolbar.inspecting');
+    document.body.append(onScreen, away);
+    showOnly(onScreen);
+
+    useLocaleStore.getState().setPreference('de');
+    const promise = relocalize();
+    // The text that is out of sight is there at once, and the text that is
+    // on the screen is still the old text: it is about to be typed out.
+    expect(away.textContent).toBe('Wird untersucht');
+    expect(onScreen.textContent).toBe('Inspecting');
+    await promise;
+    expect(onScreen.textContent).toBe('Wird untersucht');
   });
 });

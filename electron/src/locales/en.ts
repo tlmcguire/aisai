@@ -559,6 +559,7 @@ export const en = {
   'layout.stateFetched': 'fetched',
   'layout.stateFetchedWithWarnings': 'fetched with warnings',
   'layout.stateSkipped': 'skipped',
+  'layout.switchingLanguage': 'Switching to {language}…',
   'layout.tabAst': 'AST',
   'layout.tabCode': 'Code',
   'layout.tabDiff': 'Diff',

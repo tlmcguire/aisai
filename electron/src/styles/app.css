@@ -3468,6 +3468,23 @@ button:focus-visible:hover:not(:disabled) {
 .error-banner[hidden] { display: none; }
 .error-banner-text { max-width: 90ch; }
 
+/* The line that says the interface is being put into another language. It is
+   a quiet notice, not an error: the app is working, it just takes a moment,
+   and without the line a user thinks it has hung. */
+.language-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-4);
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  animation: strip-in var(--dur-base) var(--ease-out);
+}
+.language-status[hidden] { display: none; }
+.language-status .spinner { position: static; margin: 0; flex: none; }
+
 .project-chip.is-deleted { cursor: pointer; max-width: 56ch; }
 .project-chip.is-deleted::before { background: var(--warning); }
 .project-chip.is-deleted .project-name { text-decoration: line-through; color: var(--fg-muted); }

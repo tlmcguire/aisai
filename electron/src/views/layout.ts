@@ -15,7 +15,7 @@ import type { AppController } from '../app';
 import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { formatBytes } from '../lib/format';
-import { t, tn, type MessageKey } from '../lib/i18n';
+import { LOCALES, plainText, t, tn, useLocaleStore, type MessageKey } from '../lib/i18n';
 import { useAuditStore } from '../state/audit';
 import { DEFAULT_LAYOUT, paneName, useUiStore, type MainTab, type PaneId } from '../state/ui';
 import { createAstView } from './astView';
@@ -102,6 +102,24 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     useUiStore.getState().setSettingsOpen(true);
   });
   const downloadPanel = h('div', { class: 'download-panel', hidden: true }, downloadList);
+  // The interface is put into another language without being built again,
+  // and that takes a moment. The line says so, or a user who changed the
+  // language thinks the app has hung.
+  const languageStatusText = h('span', { class: 'language-status-text', text: '' });
+  const languageStatus = h(
+    'div',
+    { class: 'language-status', role: 'status', hidden: true },
+    h('span', { class: 'spinner', 'aria-hidden': 'true' }),
+    languageStatusText,
+  );
+  useLocaleStore.subscribe((state) => {
+    languageStatus.hidden = !state.translating;
+    if (!state.translating) return;
+    const name = LOCALES.find((entry) => entry.id === state.locale)?.name ?? state.locale;
+    // The language is named in its own language, and the line is already in
+    // the new one: the app has switched, and says what it is switching to.
+    languageStatusText.textContent = plainText(t('layout.switchingLanguage', { language: name }));
+  });
   const statusStrip = h(
     'div',
     { class: 'status-strip', hidden: true, role: 'status' },
@@ -462,7 +480,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
 
   const stack = h('div', { class: 'stack' }, shell, terminalResizer, terminalPanel);
   const workspace = h('div', { class: 'workspace' }, stack, chatResizer, chatPanel);
-  root.append(toolbar, errorBanner, statusStrip, downloadPanel, workspace);
+  root.append(toolbar, errorBanner, languageStatus, statusStrip, downloadPanel, workspace);
 
   /* ---------------- views ---------------- */
   const graphView = createGraphView(controller, graphBody);
