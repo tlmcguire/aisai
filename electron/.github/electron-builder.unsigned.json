@@ -1,5 +1,6 @@
 {
   "forceCodeSigning": false,
+  "afterPack": ".github/adhoc-sign.mjs",
   "mac": {
     "notarize": false
   }
