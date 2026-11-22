@@ -125,6 +125,8 @@ type Audit struct {
 	sourcesDeleted bool
 	// advisoriesChecked is how many packages the last advisory lookup queried.
 	advisoriesChecked int
+	// advisoriesRunning is true while a lookup is in flight.
+	advisoriesRunning bool
 	// truncated reports that a local folder was larger than the copy limits
 	// (20,000 files or 256 MB), so only part of it is audited.
 	truncated bool

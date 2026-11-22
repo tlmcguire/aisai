@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/tlmcguire/aisai/internal/advisory"
 	"github.com/tlmcguire/aisai/internal/findings"
@@ -12,6 +13,10 @@ import (
 	"github.com/tlmcguire/aisai/internal/purl"
 	"github.com/tlmcguire/aisai/internal/registry"
 )
+
+// advisoryWorkers is how many advisory lookups run at the same time. OSV is a
+// public service, so the number is kept modest.
+const advisoryWorkers = 8
 
 // ErrNoAdvisorySource is returned when an advisory query is requested but no
 // advisory client was configured.
@@ -65,6 +70,15 @@ func (m *Manager) FetchAdvisories(ctx context.Context, id string, refresh bool) 
 		return list, nil
 	}
 
+	a.mu.Lock()
+	a.advisoriesRunning = true
+	a.mu.Unlock()
+	defer func() {
+		a.mu.Lock()
+		a.advisoriesRunning = false
+		a.mu.Unlock()
+	}()
+
 	a.mu.RLock()
 	pkgs := append([]model.Package(nil), a.packages...)
 	edges := append([]model.GraphEdge(nil), a.edges...)
@@ -89,10 +103,19 @@ func (m *Manager) FetchAdvisories(ctx context.Context, id string, refresh bool) 
 	var all []model.Advisory
 	checked := 0
 
-	for _, p := range pkgs {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
+	// The lookups are independent, so they run side by side: a project with
+	// hundreds of locked packages took about a minute one at a time. The
+	// results are used in package order afterwards, so the output does not
+	// depend on which answer came back first.
+	type lookup struct {
+		advs []model.Advisory
+		err  error
+		done bool
+	}
+	results := make([]lookup, len(pkgs))
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, advisoryWorkers)
+	for i, p := range pkgs {
 		// A local project is not a published package, so it is not looked up
 		// under its folder name (that would report the advisories of an
 		// unrelated project). Its locked dependencies are: they are real
@@ -102,7 +125,25 @@ func (m *Manager) FetchAdvisories(ctx context.Context, id string, refresh bool) 
 			continue
 		}
 		checked++
-		advs, qerr := m.deps.Advisory.QueryFor(ctx, registry.OSVEcosystem(p.Ecosystem), p.Name, p.Version)
+		wg.Add(1)
+		slots <- struct{}{}
+		go func(i int, p model.Package) {
+			defer wg.Done()
+			defer func() { <-slots }()
+			advs, qerr := m.deps.Advisory.QueryFor(ctx, registry.OSVEcosystem(p.Ecosystem), p.Name, p.Version)
+			results[i] = lookup{advs: advs, err: qerr, done: true}
+		}(i, p)
+	}
+	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	for i, p := range pkgs {
+		if !results[i].done {
+			continue
+		}
+		advs, qerr := results[i].advs, results[i].err
 		if qerr != nil {
 			// Keep going: one unreachable package must not lose the rest.
 			m.emit(model.Event{
@@ -174,6 +215,17 @@ func (m *Manager) FetchAdvisories(ctx context.Context, id string, refresh bool) 
 	a.mu.Unlock()
 
 	return all, nil
+}
+
+// AdvisoriesRunning reports whether an advisory lookup is in flight for an audit.
+func (m *Manager) AdvisoriesRunning(id string) bool {
+	a, err := m.audit(id)
+	if err != nil {
+		return false
+	}
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.advisoriesRunning
 }
 
 // AdvisoryState reports whether the advisories of an audit were looked up

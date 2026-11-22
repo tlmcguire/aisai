@@ -31,6 +31,8 @@ export const useAdvisoryStore = create<AdvisoryState>((set) => ({
   status: 'unknown',
   checked: 0,
   error: null,
+  // A lookup that ended without results (it failed, or never ran) is "unknown",
+  // not "nothing found": only a finished lookup says there is nothing.
   setList: (list, checked, fetched) => set({ list, checked, status: fetched ? 'ready' : 'unknown', error: null }),
   setChecking: () => set({ status: 'checking', error: null }),
   setError: (error) => set({ status: 'error', error }),

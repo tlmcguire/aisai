@@ -4936,3 +4936,11 @@ body.is-window-resizing *::after { transition: none !important; }
 .graph-tip-warn {
   color: var(--warning);
 }
+
+/* The spinner is positioned for buttons; inside running text it flows with it. */
+.vuln-note .spinner {
+  position: static;
+  display: inline-block;
+  vertical-align: -2px;
+  margin: 0 6px 0 0;
+}

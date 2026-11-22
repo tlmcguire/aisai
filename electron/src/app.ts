@@ -1187,12 +1187,19 @@ export class AppController {
     if (!this.auditId) return;
     const id = this.auditId;
     try {
-      const response = await this.client.request<{ advisories: Advisory[]; fetched?: boolean; checked?: number }>(
+      const response = await this.client.request<{ advisories: Advisory[]; fetched?: boolean; checked?: number; running?: boolean }>(
         'GET',
         `/api/audits/${id}/advisories`,
       );
       if (this.auditId !== id) return;
-      useAdvisoryStore.getState().setList(response.advisories ?? [], response.checked ?? 0, Boolean(response.fetched));
+      const store = useAdvisoryStore.getState();
+      if (response.running) {
+        // A lookup is in flight (started earlier, or from another window).
+        if (store.status !== 'checking') store.setChecking();
+        this.pollAdvisories(id);
+        return;
+      }
+      store.setList(response.advisories ?? [], response.checked ?? 0, Boolean(response.fetched));
     } catch {
       /* the list stays as it was */
     }
@@ -1210,9 +1217,45 @@ export class AppController {
     store.setChecking();
     try {
       await this.client.request('POST', `/api/audits/${this.auditId}/advisories`, { background: true });
+      // The advisories.ready event ends the wait; polling covers a missed one.
+      this.pollAdvisories(this.auditId);
     } catch (err) {
       store.setError(messageOf(err));
     }
+  }
+
+  private advisoryPoll: ReturnType<typeof setInterval> | null = null;
+
+  /** Asks every few seconds whether the lookup has finished, until it has. */
+  private pollAdvisories(id: string): void {
+    if (this.advisoryPoll) return;
+    const started = Date.now();
+    this.advisoryPoll = setInterval(() => {
+      const stop = (): void => {
+        if (this.advisoryPoll) clearInterval(this.advisoryPoll);
+        this.advisoryPoll = null;
+      };
+      if (this.auditId !== id || useAdvisoryStore.getState().status !== 'checking') {
+        stop();
+        return;
+      }
+      if (Date.now() - started > 15 * 60 * 1000) {
+        stop();
+        useAdvisoryStore.getState().setError('The lookup took too long. Check your connection and try again.');
+        return;
+      }
+      void this.client
+        .request<{ advisories: Advisory[]; fetched?: boolean; checked?: number; running?: boolean }>('GET', `/api/audits/${id}/advisories`)
+        .then((response) => {
+          if (response.running || this.auditId !== id) return;
+          stop();
+          useAdvisoryStore.getState().setList(response.advisories ?? [], response.checked ?? 0, Boolean(response.fetched));
+          void this.loadGraph();
+        })
+        .catch(() => {
+          /* the next tick tries again */
+        });
+    }, 3000);
   }
 
   async fetchAdvisories(): Promise<Advisory[]> {

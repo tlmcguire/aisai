@@ -1144,6 +1144,11 @@ func (s *Server) handleFetchAdvisories(w http.ResponseWriter, r *http.Request) {
 			fail(w, err)
 			return
 		}
+		// A lookup already in flight is not started twice.
+		if s.manager.AdvisoriesRunning(id) {
+			writeJSON(w, http.StatusAccepted, map[string]any{"started": false, "running": true, "mode": s.manager.AdvisoryMode()})
+			return
+		}
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 			defer cancel()
@@ -1162,6 +1167,9 @@ func (s *Server) handleFetchAdvisories(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fail(w, err)
 		return
+	}
+	if advisories == nil {
+		advisories = []model.Advisory{}
 	}
 	fetched, checked, _ := s.manager.AdvisoryState(id)
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -1189,6 +1197,7 @@ func (s *Server) handleListAdvisories(w http.ResponseWriter, r *http.Request) {
 		"mode":       s.manager.AdvisoryMode(),
 		"fetched":    fetched,
 		"checked":    checked,
+		"running":    s.manager.AdvisoriesRunning(id),
 	})
 }
 
