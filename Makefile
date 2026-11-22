@@ -27,7 +27,7 @@ GOFLAGS ?=
 # The build is stamped with the version, the commit and the build date, so
 # that a released binary reports where it came from. When the tree is not a
 # git checkout the values fall back to a development marker.
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.1.0-dev)
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.2.0-dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
