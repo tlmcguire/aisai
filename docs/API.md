@@ -42,7 +42,7 @@ fails CI if the two drift.
 ```json
 {
   "ok": true,
-  "version": "0.7.1",
+  "version": "0.8.0",
   "workspace": "/Users/x/Library/Application Support/AISAI",
   "uptimeSeconds": 42,
   "providers": [

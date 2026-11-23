@@ -891,7 +891,7 @@ export class MockApi {
     if (method === 'GET' && p === '/api/health') {
       return this.ok<T>({
         ok: true,
-        version: '0.7.1-mock',
+        version: '0.8.0-mock',
         workspace: CONFIG.workspace,
         uptimeSeconds: 412,
         providers: PROVIDERS,
