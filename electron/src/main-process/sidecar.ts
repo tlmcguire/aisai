@@ -189,8 +189,10 @@ function startViaSpawn(opts: SidecarOptions, timeoutMs: number): Promise<Sidecar
     };
 
     try {
-      child = spawn(opts.serverPath, ['--socket', opts.socketPath], {
-        stdio: ['ignore', 'pipe', 'pipe'],
+      child = spawn(opts.serverPath, ['--socket', opts.socketPath, '--exit-with-parent'], {
+        // stdin stays an open pipe: the server exits when it closes, so it
+        // cannot outlive this process.
+        stdio: ['pipe', 'pipe', 'pipe'],
       });
     } catch (err) {
       clearTimeout(timer);

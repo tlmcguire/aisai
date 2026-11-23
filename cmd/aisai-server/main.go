@@ -14,6 +14,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -50,6 +51,7 @@ func main() {
 		cfgPath    = flag.String("config", "", "path of the config file")
 		workspace  = flag.String("workspace", "", "override the workspace directory")
 		showVer    = flag.Bool("version", false, "print the version and exit")
+		withParent = flag.Bool("exit-with-parent", false, "shut down when stdin closes (the parent process died)")
 	)
 	flag.Parse()
 
@@ -61,12 +63,12 @@ func main() {
 		return
 	}
 
-	if err := run(*socketPath, *cfgPath, *workspace); err != nil {
+	if err := run(*socketPath, *cfgPath, *workspace, *withParent); err != nil {
 		log.Fatalf("fatal: %v", err)
 	}
 }
 
-func run(socketPath, cfgPath, workspaceOverride string) error {
+func run(socketPath, cfgPath, workspaceOverride string, exitWithParent bool) error {
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		return err
@@ -255,6 +257,16 @@ func run(socketPath, cfgPath, workspaceOverride string) error {
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
+	// The desktop app holds the write end of our stdin. When it exits for any
+	// reason (quit, crash, SIGKILL) the pipe closes, and without this the
+	// server would be adopted by init and linger forever.
+	if exitWithParent {
+		go func() {
+			_, _ = io.Copy(io.Discard, os.Stdin)
+			sigCh <- syscall.SIGHUP
+		}()
+	}
 
 	select {
 	case err := <-errCh:

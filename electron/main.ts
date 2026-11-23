@@ -970,11 +970,20 @@ async function checkForUpdate(): Promise<void> {
 app.on('window-all-closed', () => {
   wsClient?.close();
   sidecar?.close();
+  sidecar = null;
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+  wsClient?.close();
+  sidecar?.close();
+  sidecar = null;
 });
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     mainWindow = createWindow();
+    // window-all-closed stopped the backend; bring it back with the window.
+    if (!sidecar) void startBackend();
   }
 });
