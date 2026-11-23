@@ -62,9 +62,9 @@ test.describe('the grab handles', () => {
 
   test('dragging from an arrow of the terminal handle resizes the terminal', async () => {
     const before = await height('.terminal-panel');
-    await dragFromDots('.terminal-panel', '.resizer:has(.grab-handle)', 60, '.grab-arrow');
+    await dragFromDots('.terminal-panel', '.resizer:has(.grab-handle)', -100, '.grab-arrow');
     const after = await height('.terminal-panel');
-    expect(Math.abs(after - before + 60)).toBeLessThan(8);
+    expect(Math.abs(after - before - 100)).toBeLessThan(8);
   });
 
   test('dragging the chat handle resizes the chat', async () => {
