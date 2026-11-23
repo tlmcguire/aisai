@@ -240,6 +240,19 @@ export function createTerminalPanel(controller: AppController, container: HTMLEl
   newButton.addEventListener('click', () => void spawn());
   hideButton.addEventListener('click', () => useUiStore.getState().setTerminalOpen(false));
 
+  // The shortcut for a new terminal: the panel is opened on the terminal and
+  // a shell is started in it, even when other shells are already running.
+  const onNewTerminal = (): void => {
+    const ui = useUiStore.getState();
+    const wasEmpty = useTerminalStore.getState().sessions.length === 0;
+    const wasShown = ui.terminalOpen && ui.bottomView === 'terminal';
+    ui.setBottomView('terminal');
+    ui.setTerminalOpen(true);
+    // Showing an empty panel starts its first shell by itself.
+    if (wasShown || !wasEmpty) void spawn();
+  };
+  window.addEventListener('aisai:new-terminal', onNewTerminal);
+
   const observer = new ResizeObserver(() => {
     const active = live.get(useTerminalStore.getState().activeId ?? '');
     if (active && useUiStore.getState().terminalOpen) sizeOf(active);
@@ -265,6 +278,7 @@ export function createTerminalPanel(controller: AppController, container: HTMLEl
   return {
     element: container,
     dispose: () => {
+      window.removeEventListener('aisai:new-terminal', onNewTerminal);
       observer.disconnect();
       offDebug();
       debugPanel.dispose();

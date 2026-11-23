@@ -11,22 +11,25 @@
  * model is contacted.
  */
 
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
 
-import { electronDirOf, STUB_RELATIVE_PATH } from './global-setup';
+import { electronDirOf, freshProfile, STUB_RELATIVE_PATH } from './global-setup';
 
 let app: ElectronApplication;
 let window: Page;
+let profile: string;
 
 test.describe('audit → scan → finding → patch → re-scan', () => {
   test.beforeAll(async () => {
     // The path of the config file is used rather than import.meta, because
     // Playwright compiles the TypeScript of a test to CommonJS.
     const electronDir = electronDirOf(test.info().config);
+    profile = freshProfile();
     app = await electron.launch({
-      args: [electronDir],
+      args: [`--user-data-dir=${profile}`, electronDir],
       cwd: electronDir,
       env: {
         ...process.env,
@@ -44,6 +47,7 @@ test.describe('audit → scan → finding → patch → re-scan', () => {
 
   test.afterAll(async () => {
     await app?.close();
+    rmSync(profile, { recursive: true, force: true });
   });
 
   /**

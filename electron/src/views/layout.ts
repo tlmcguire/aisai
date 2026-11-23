@@ -283,27 +283,65 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   /* ---------------- movable panes ---------------- */
   const shell = h('main', { class: 'shell' });
   const paneEls: Record<PaneId, HTMLElement> = { deps: graphPane, main: mainPane, findings: railPane };
-  const PANE_MIME = 'application/x-aisai-pane';
 
   // Every pane gets a grip to drag it by and two arrows for the keyboard.
   const paneTools = (id: PaneId): HTMLElement => {
     const grip = h('span', {
       class: 'pane-grip',
-      draggable: 'true',
       title: t('layout.dragPane', { pane: paneName(id) }),
       'aria-hidden': 'true',
       text: '⋮⋮',
     });
-    grip.addEventListener('dragstart', (event) => {
-      event.dataTransfer?.setData(PANE_MIME, id);
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-      document.body.classList.add('is-moving-pane');
-      paneEls[id].classList.add('is-dragged');
-    });
-    grip.addEventListener('dragend', () => {
-      document.body.classList.remove('is-moving-pane');
-      paneEls[id].classList.remove('is-dragged');
-      clearDropMarks();
+    // The pane is moved with the pointer rather than with the browser's own
+    // drag and drop, which starts late, needs a real drag image and is easily
+    // swallowed by the window: the pane under the pointer is marked, and the
+    // dragged pane goes before or after it when the pointer is released.
+    grip.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      const origin = { x: event.clientX, y: event.clientY };
+      let moving = false;
+      let target: { id: PaneId; where: 'before' | 'after' } | null = null;
+      const mark = (clientX: number): void => {
+        clearDropMarks();
+        target = null;
+        for (const other of Object.keys(paneEls) as PaneId[]) {
+          if (other === id) continue;
+          const rect = paneEls[other].getBoundingClientRect();
+          if (clientX < rect.left || clientX > rect.right) continue;
+          const where = clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+          paneEls[other].classList.add(where === 'before' ? 'drop-before' : 'drop-after');
+          target = { id: other, where };
+          return;
+        }
+      };
+      const onMove = (move: PointerEvent): void => {
+        if (!moving) {
+          if (Math.abs(move.clientX - origin.x) + Math.abs(move.clientY - origin.y) <= 4) return;
+          moving = true;
+          document.body.classList.add('is-moving-pane');
+          paneEls[id].classList.add('is-dragged');
+        }
+        mark(move.clientX);
+      };
+      const finish = (drop: boolean): void => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onCancel);
+        document.body.classList.remove('is-moving-pane');
+        paneEls[id].classList.remove('is-dragged');
+        clearDropMarks();
+        const hit = target as { id: PaneId; where: 'before' | 'after' } | null;
+        if (drop && moving && hit) {
+          const rest = useUiStore.getState().paneOrder.filter((pane) => pane !== id);
+          useUiStore.getState().movePane(id, rest.indexOf(hit.id) + (hit.where === 'after' ? 1 : 0));
+        }
+      };
+      const onUp = (): void => finish(true);
+      const onCancel = (): void => finish(false);
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onCancel);
     });
     const arrow = (label: string, text: string, delta: -1 | 1): HTMLElement =>
       h('button', {
@@ -323,33 +361,6 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const clearDropMarks = (): void => {
     for (const el of Object.values(paneEls)) el.classList.remove('drop-before', 'drop-after');
   };
-  for (const id of Object.keys(paneEls) as PaneId[]) {
-    const el = paneEls[id];
-    const side = (event: DragEvent): 'before' | 'after' => {
-      const rect = el.getBoundingClientRect();
-      return event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
-    };
-    el.addEventListener('dragover', (event) => {
-      if (!event.dataTransfer?.types.includes(PANE_MIME)) return;
-      event.preventDefault();
-      event.dataTransfer.dropEffect = 'move';
-      clearDropMarks();
-      el.classList.add(side(event) === 'before' ? 'drop-before' : 'drop-after');
-    });
-    el.addEventListener('dragleave', (event) => {
-      if (!el.contains(event.relatedTarget as Node | null)) el.classList.remove('drop-before', 'drop-after');
-    });
-    el.addEventListener('drop', (event) => {
-      const dragged = event.dataTransfer?.getData(PANE_MIME) as PaneId | undefined;
-      if (!dragged || dragged === id || !(dragged in paneEls)) return;
-      event.preventDefault();
-      const where = side(event);
-      clearDropMarks();
-      const rest = useUiStore.getState().paneOrder.filter((pane) => pane !== dragged);
-      useUiStore.getState().movePane(dragged, rest.indexOf(id) + (where === 'after' ? 1 : 0));
-    });
-  }
-
   /* ---------------- chat ---------------- */
   const chatPanel = h('section', { class: 'chat-panel', 'aria-label': t('layout.chat') });
 
@@ -403,7 +414,12 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
      * jump to it. `host` is the bar the pill stands in; without one the pill
      * stands on the divider.
      */
-    drag: { host?: HTMLElement; begin: () => (dx: number, dy: number) => void },
+    drag: {
+      host?: HTMLElement;
+      begin: () => (dx: number, dy: number) => void;
+      /** When given, a press on the dots moves the panel to another place instead of resizing it. */
+      relocate?: (event: PointerEvent) => void;
+    },
   ): (() => void) => {
     const bigger = h('button', { class: 'grab-arrow', type: 'button', tabindex: '-1' });
     const smaller = h('button', { class: 'grab-arrow', type: 'button', tabindex: '-1' });
@@ -434,6 +450,10 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       event.preventDefault();
       // The divider underneath must not start a drag of its own as well.
       event.stopPropagation();
+      if (drag.relocate && (event.target as HTMLElement).closest('.grab-dots')) {
+        drag.relocate(event);
+        return;
+      }
       downOn = event.target as HTMLElement;
       dragged = false;
       const origin = { x: event.clientX, y: event.clientY };
@@ -510,6 +530,55 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const diffView = createDiffView(controller, diffPanel);
   const findingsRail = createFindingsRail(controller, railBody);
   const chat = createChatPanel(controller, chatPanel);
+  // The dots of the chat's handle move the chat, like the grip of a pane:
+  // dragged to the right edge of the window it docks at the side, dragged to
+  // the bottom it docks below. The place it would go is shown while it moves.
+  const dockPreview = h('div', { class: 'chat-dock-preview', hidden: true, 'aria-hidden': 'true' });
+  root.append(dockPreview);
+  const relocateChat = (event: PointerEvent): void => {
+    const origin = { x: event.clientX, y: event.clientY };
+    let moving = false;
+    let target: 'bottom' | 'right' | null = null;
+    const show = (clientX: number, clientY: number): void => {
+      const area = workspace.getBoundingClientRect();
+      if (clientX > area.right - area.width * 0.3) target = 'right';
+      else if (clientY > area.bottom - area.height * 0.4) target = 'bottom';
+      else target = null;
+      dockPreview.hidden = target === null;
+      if (target === 'right') {
+        const width = Math.min(area.width * 0.3, useUiStore.getState().chatWidth * uiScale());
+        Object.assign(dockPreview.style, { left: `${area.right - width}px`, top: `${area.top}px`, width: `${width}px`, height: `${area.height}px` });
+      } else if (target === 'bottom') {
+        const height = Math.min(area.height * 0.4, useUiStore.getState().chatHeight * uiScale());
+        Object.assign(dockPreview.style, { left: `${area.left}px`, top: `${area.bottom - height}px`, width: `${area.width}px`, height: `${height}px` });
+      }
+    };
+    const onMove = (move: PointerEvent): void => {
+      if (!moving) {
+        if (Math.abs(move.clientX - origin.x) + Math.abs(move.clientY - origin.y) <= 4) return;
+        moving = true;
+        document.body.classList.add('is-moving-pane');
+        chatPanel.classList.add('is-dragged');
+      }
+      show(move.clientX, move.clientY);
+    };
+    const finish = (drop: boolean): void => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      document.body.classList.remove('is-moving-pane');
+      chatPanel.classList.remove('is-dragged');
+      dockPreview.hidden = true;
+      const where = target as 'bottom' | 'right' | null;
+      if (drop && moving && where) useUiStore.getState().setChatDock(where);
+    };
+    const onUp = (): void => finish(true);
+    const onCancel = (): void => finish(false);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+  };
+
   // The chat's grab handle stands in the chat bar rather than on the divider:
   // a pill floating over the bar covered the controls of the bar.
   const syncChatHandle = grabHandle(
@@ -523,6 +592,8 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     {
       host: chat.header,
       begin: () => {
+        // A collapsed chat has nothing to resize: dragging its handle opens it.
+        if (!useUiStore.getState().chatOpen) chat.header.querySelector<HTMLElement>('button[data-role="chat-toggle"]')?.click();
         const ui = useUiStore.getState();
         if (ui.chatDock === 'right') {
           const start = ui.chatWidth;
@@ -531,6 +602,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
         const start = ui.chatHeight;
         return (_dx, dy) => useUiStore.getState().setChatHeight(start - dy / uiScale());
       },
+      relocate: relocateChat,
     },
   );
   syncChatHandle();

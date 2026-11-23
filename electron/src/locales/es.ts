@@ -907,6 +907,7 @@ export const es: Catalog = {
   'shortcuts.newChat': 'Nuevo chat',
   'shortcuts.notSet': 'sin asignar',
   'shortcuts.openFolder': 'Abrir una carpeta de proyecto',
+  'shortcuts.newTerminal': 'Abrir una nueva sesión de terminal',
   'shortcuts.openSettings': 'Abrir los ajustes',
   'shortcuts.openTutorials': 'Abrir los tutoriales',
   'shortcuts.paste': 'Pegar',

@@ -201,6 +201,7 @@ export interface ChatPanel {
 
 export function createChatPanel(controller: AppController, container: HTMLElement): ChatPanel {
   const toggle = h('button', { class: 'ghost tiny icon-button', type: 'button' }, icon('chevron-down'));
+  toggle.dataset.role = 'chat-toggle';
   const growButton = h('button', { class: 'ghost tiny icon-button', type: 'button' }, icon('arrow-up'));
   const chunksUsed = h('span', { class: 'chunks-used', text: '' });
   const modelChip = h('span', { class: 'badge neutral chat-model', text: '' });

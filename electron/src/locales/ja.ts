@@ -886,6 +886,7 @@ export const ja: Catalog = {
   'shortcuts.newChat': '新しいチャット',
   'shortcuts.notSet': '未設定',
   'shortcuts.openFolder': 'プロジェクトフォルダーを開く',
+  'shortcuts.newTerminal': '新しいターミナルセッションを開く',
   'shortcuts.openSettings': '設定を開く',
   'shortcuts.openTutorials': 'チュートリアルを開く',
   'shortcuts.paste': '貼り付け',

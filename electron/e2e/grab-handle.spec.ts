@@ -5,20 +5,23 @@
  * release on an arrow steps it.
  */
 
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
 
-import { electronDirOf, STUB_RELATIVE_PATH } from './global-setup';
+import { electronDirOf, freshProfile, STUB_RELATIVE_PATH } from './global-setup';
 
 let app: ElectronApplication;
 let window: Page;
+let profile: string;
 
 test.describe('the grab handles', () => {
   test.beforeAll(async () => {
     const electronDir = electronDirOf(test.info().config);
+    profile = freshProfile();
     app = await electron.launch({
-      args: [electronDir],
+      args: [`--user-data-dir=${profile}`, electronDir],
       cwd: electronDir,
       env: {
         ...process.env,
@@ -33,6 +36,7 @@ test.describe('the grab handles', () => {
 
   test.afterAll(async () => {
     await app?.close();
+    rmSync(profile, { recursive: true, force: true });
   });
 
   const height = (selector: string): Promise<number> =>
@@ -52,7 +56,8 @@ test.describe('the grab handles', () => {
   };
 
   test('dragging the terminal handle resizes the terminal', async () => {
-    await window.click('button[aria-label="Terminal"]');
+    // The panel stays open between runs, as its state is saved.
+    if (!(await window.locator('.terminal-panel').isVisible())) await window.click('button[aria-label="Terminal"]');
     await window.locator('.terminal-panel').waitFor({ state: 'visible' });
     const before = await height('.terminal-panel');
     await dragFromDots('.terminal-panel', '.resizer:has(.grab-handle)', 100);
@@ -62,15 +67,70 @@ test.describe('the grab handles', () => {
 
   test('dragging from an arrow of the terminal handle resizes the terminal', async () => {
     const before = await height('.terminal-panel');
-    await dragFromDots('.terminal-panel', '.resizer:has(.grab-handle)', 60, '.grab-arrow');
+    await dragFromDots('.terminal-panel', '.resizer:has(.grab-handle)', -100, '.grab-arrow');
     const after = await height('.terminal-panel');
-    expect(Math.abs(after - before + 60)).toBeLessThan(8);
+    expect(Math.abs(after - before - 100)).toBeLessThan(8);
   });
 
-  test('dragging the chat handle resizes the chat', async () => {
+  test('dragging an arrow of the chat handle resizes the chat', async () => {
     const before = await height('.chat-panel');
-    await dragFromDots('.chat-panel', '.chat-header .grab-handle', -60);
+    await dragFromDots('.chat-panel', '.chat-header .grab-handle', -60, '.grab-arrow');
     const after = await height('.chat-panel');
     expect(Math.abs(after - before - 60)).toBeLessThan(8);
+  });
+
+  test('dragging the handle of a collapsed chat opens and resizes it', async () => {
+    await window.click('.chat-header button[data-role="chat-toggle"]');
+    await expect(window.locator('.chat-panel.collapsed')).toHaveCount(1);
+    // The panel glides down; the handle is pressed where it ends up.
+    await window.waitForTimeout(600);
+    await dragFromDots('.chat-panel', '.chat-header .grab-handle', -90, '.grab-arrow');
+    await expect(window.locator('.chat-panel.collapsed')).toHaveCount(0);
+    expect(await height('.chat-panel')).toBeGreaterThan(150);
+  });
+
+  test('dragging the dot grid of a pane moves the pane', async () => {
+    const order = (): Promise<string[]> =>
+      window.evaluate(() => [...document.querySelectorAll('.pane')].map((el) => el.className.split(' ').find((c) => c.startsWith('pane-') && c !== 'pane-grip')!));
+    const before = await order();
+    const grip = (await window.locator('.pane-graph .pane-grip').boundingBox())!;
+    const rail = (await window.locator('.pane-rail').boundingBox())!;
+    await window.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await window.mouse.down();
+    await window.mouse.move(rail.x + rail.width * 0.8, rail.y + 100, { steps: 10 });
+    await window.mouse.up();
+    await window.waitForTimeout(300);
+    const after = await order();
+    expect(after).not.toEqual(before);
+    expect(after.indexOf('pane-graph')).toBeGreaterThan(after.indexOf('pane-rail'));
+  });
+
+  test('Ctrl+Shift+` opens a new terminal session each time', async () => {
+    const tabs = (): Promise<number> => window.locator('.terminal-tab').count();
+    await window.keyboard.press('Control+Shift+Backquote');
+    await expect(window.locator('.terminal-panel')).toBeVisible();
+    await expect.poll(tabs).toBeGreaterThan(0);
+    const before = await tabs();
+    await window.keyboard.press('Control+Shift+Backquote');
+    await expect.poll(tabs).toBe(before + 1);
+  });
+
+  test('dragging the dot grid of the chat docks it at the side, and back below', async () => {
+    const workspace = window.locator('.workspace');
+    const dragDotsTo = async (fx: number, fy: number): Promise<void> => {
+      const dots = (await window.locator('.chat-header .grab-dots').boundingBox())!;
+      const area = (await workspace.boundingBox())!;
+      await window.mouse.move(dots.x + dots.width / 2, dots.y + dots.height / 2);
+      await window.mouse.down();
+      await window.mouse.move(area.x + area.width * fx, area.y + area.height * fy, { steps: 12 });
+      await expect(window.locator('.chat-dock-preview')).toBeVisible();
+      await window.mouse.up();
+      await expect(window.locator('.chat-dock-preview')).toBeHidden();
+    };
+    await dragDotsTo(0.92, 0.4);
+    await expect(workspace).toHaveClass(/dock-right/);
+    await window.waitForTimeout(400);
+    await dragDotsTo(0.5, 0.92);
+    await expect(workspace).not.toHaveClass(/dock-right/);
   });
 });

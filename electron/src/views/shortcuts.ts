@@ -48,6 +48,7 @@ export function appShortcuts(controller: AppController, openSheet: () => void): 
     { id: 'app.settings', group: t('shortcuts.groupGeneral'), keys: 'Mod+,', label: t('shortcuts.openSettings'), inFields: true, run: () => ui().setSettingsOpen(true) },
     { id: 'app.shortcuts', group: t('shortcuts.groupGeneral'), keys: 'Mod+Shift+/', label: t('shortcuts.showKeyboardShortcuts'), inFields: true, run: openSheet },
     { id: 'app.terminal', group: t('shortcuts.groupGeneral'), keys: 'Ctrl+`', label: t('shortcuts.toggleTerminal'), inFields: true, run: () => ui().setTerminalOpen(!ui().terminalOpen) },
+    { id: 'app.newTerminal', group: t('shortcuts.groupGeneral'), keys: 'Ctrl+Shift+`', label: t('shortcuts.newTerminal'), inFields: true, run: () => window.dispatchEvent(new Event('aisai:new-terminal')) },
     { id: 'app.tutorials', group: t('shortcuts.groupGeneral'), keys: '', label: t('shortcuts.openTutorials'), inFields: true, run: () => window.dispatchEvent(new Event('aisai:tutorials')) },
 
     { id: 'file.save', group: t('shortcuts.groupFile'), keys: 'Mod+S', label: t('shortcuts.saveFile'), inFields: true, run: () => editorCommand('save') },
