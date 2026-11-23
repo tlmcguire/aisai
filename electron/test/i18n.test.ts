@@ -13,8 +13,8 @@ import { joinMessages, relocalize, t, tn, useLocaleStore } from '../src/lib/i18n
 
 beforeEach(() => {
   document.body.replaceChildren();
-  // The typewriter asks the system whether less motion is wanted; here the
-  // answer is always yes, so that the text is there at once.
+  // The change asks the system whether less motion is wanted; here the
+  // answer is yes, so that the text is there at once.
   vi.stubGlobal('matchMedia', (query: string) => ({
     matches: query.includes('prefers-reduced-motion'),
     media: query,
@@ -27,55 +27,8 @@ beforeEach(() => {
   }));
 });
 
-/** The wave is for the eye, so it needs motion to be seen at all. */
-function allowMotion(): void {
-  vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: () => undefined,
-    removeEventListener: () => undefined,
-    addListener: () => undefined,
-    removeListener: () => undefined,
-    dispatchEvent: () => false,
-  }));
-}
-
-/**
- * Puts only the given element on the screen.
- *
- * A test browser cannot measure a range, so the measuring is done here: an
- * element that is not the one has no box at all.
- */
-function showOnly(element: Element): void {
-  const box = (visible: boolean): DOMRect =>
-    ({
-      x: 0,
-      y: 0,
-      width: visible ? 40 : 0,
-      height: visible ? 12 : 0,
-      top: 0,
-      left: 0,
-      right: visible ? 40 : 0,
-      bottom: visible ? 12 : 0,
-      toJSON: () => '',
-    }) as DOMRect;
-  Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
-    configurable: true,
-    value(this: Range): DOMRect {
-      const holder =
-        this.startContainer.nodeType === Node.ELEMENT_NODE
-          ? (this.startContainer as Element)
-          : this.startContainer.parentElement;
-      return box(holder === element);
-    },
-  });
-}
-
 afterEach(() => {
   vi.unstubAllGlobals();
-  // The measuring of a range is put back as it was.
-  delete (Range.prototype as unknown as { getBoundingClientRect?: unknown }).getBoundingClientRect;
 });
 
 describe('a language change', () => {
@@ -137,78 +90,70 @@ describe('a language change', () => {
     expect(label.textContent).toBe('package-lock.json');
   });
 
-  it('says that it is translating while it does', async () => {
-    useLocaleStore.getState().setPreference('en');
-    const label = document.createElement('span');
-    label.textContent = t('toolbar.inspecting');
-    document.body.append(label);
+  /** A page that can cross-fade: the update is run at once, the fade ends when released. */
+  const stubViewTransition = (): { release: () => void } => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }));
+    let release = (): void => undefined;
+    const finished = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    Object.defineProperty(document, 'startViewTransition', {
+      configurable: true,
+      value: (update: () => void) => {
+        update();
+        return { finished };
+      },
+    });
+    return { release };
+  };
 
+  afterEach(() => {
+    Reflect.deleteProperty(document, 'startViewTransition');
+  });
+
+  it('writes every text at once and says that it is translating until the cross-fade ends', async () => {
+    useLocaleStore.getState().setPreference('en');
+    const first = document.createElement('span');
+    first.textContent = t('toolbar.inspecting');
+    const second = document.createElement('span');
+    second.textContent = t('toolbar.inspecting');
+    document.body.append(first, second);
+
+    const fade = stubViewTransition();
     useLocaleStore.getState().setPreference('de');
     const promise = relocalize();
+    expect(first.textContent).toBe('Wird untersucht');
+    expect(second.textContent).toBe('Wird untersucht');
     expect(useLocaleStore.getState().translating).toBe(true);
+    fade.release();
     await promise;
     expect(useLocaleStore.getState().translating).toBe(false);
   });
 
-  it('keeps saying that it is translating while the last wave runs', async () => {
-    allowMotion();
+  it('is not done until the last of two changes in a row is done', async () => {
     useLocaleStore.getState().setPreference('en');
     const label = document.createElement('span');
     label.textContent = t('toolbar.inspecting');
     document.body.append(label);
-    showOnly(label);
 
+    const fade = stubViewTransition();
     useLocaleStore.getState().setPreference('de');
     const first = relocalize();
     const second = relocalize();
-    // The first wave is stopped by the second one, but the work is not done
-    // until the last one is.
-    await first;
-    expect(useLocaleStore.getState().translating).toBe(true);
-    await second;
+    fade.release();
+    await Promise.all([first, second]);
     expect(useLocaleStore.getState().translating).toBe(false);
   });
 
-  it('types the text that is on the screen and puts the rest there at once', async () => {
-    allowMotion();
+  it('puts the text there at once when less motion is wanted', async () => {
     useLocaleStore.getState().setPreference('en');
-    const onScreen = document.createElement('span');
-    onScreen.textContent = t('toolbar.inspecting');
-    const away = document.createElement('span');
-    away.textContent = t('toolbar.inspecting');
-    document.body.append(onScreen, away);
-    showOnly(onScreen);
+    const label = document.createElement('span');
+    label.textContent = t('toolbar.inspecting');
+    document.body.append(label);
 
     useLocaleStore.getState().setPreference('de');
-    const promise = relocalize();
-    // The text that is out of sight is there at once, and the text that is
-    // on the screen is still the old text: it is about to be typed out.
-    expect(away.textContent).toBe('Wird untersucht');
-    expect(onScreen.textContent).toBe('Inspecting');
-    await promise;
-    expect(onScreen.textContent).toBe('Wird untersucht');
-  });
-
-  it('animates elements inside an open dialog before elements in the background', async () => {
-    allowMotion();
-    useLocaleStore.getState().setPreference('en');
-
-    const backgroundLabel = document.createElement('span');
-    backgroundLabel.textContent = t('toolbar.inspecting');
-    document.body.append(backgroundLabel);
-
-    const dialog = document.createElement('dialog');
-    dialog.setAttribute('open', '');
-    const dialogLabel = document.createElement('span');
-    dialogLabel.textContent = t('settings.appearanceTitle');
-    dialog.append(dialogLabel);
-    document.body.append(dialog);
-
-    showOnly(dialogLabel);
-
-    useLocaleStore.getState().setPreference('de');
-    const promise = relocalize();
-    await promise;
-    expect(dialogLabel.textContent).toBe('Darstellung');
+    await relocalize();
+    expect(label.textContent).toBe('Wird untersucht');
+    expect(useLocaleStore.getState().translating).toBe(false);
   });
 });

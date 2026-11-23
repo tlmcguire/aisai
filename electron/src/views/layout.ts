@@ -396,7 +396,14 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     resizer: HTMLElement,
     name: string,
     step: (bigger: boolean) => void,
-    bar?: { host: HTMLElement; drag: (clientX: number, clientY: number) => void },
+    /**
+     * How the pill drags its panel. `begin` runs when the press starts and
+     * returns a function that is given how far the pointer has moved since,
+     * so the panel follows the pointer from where it was grabbed and does not
+     * jump to it. `host` is the bar the pill stands in; without one the pill
+     * stands on the divider.
+     */
+    drag: { host?: HTMLElement; begin: () => (dx: number, dy: number) => void },
   ): (() => void) => {
     const bigger = h('button', { class: 'grab-arrow', type: 'button', tabindex: '-1' });
     const smaller = h('button', { class: 'grab-arrow', type: 'button', tabindex: '-1' });
@@ -419,45 +426,48 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       // A double click on an arrow must not reset the divider.
       button.addEventListener('dblclick', (event) => event.stopPropagation());
     }
-    if (bar) {
-      // The handle stands in the bar rather than on the divider, so it keeps
-      // track of the press itself and drags the pane with it.
-      pill.classList.add('is-bar');
-      pill.addEventListener('pointerdown', (event) => {
-        event.preventDefault();
-        downOn = event.target as HTMLElement;
-        dragged = false;
-        const origin = { x: event.clientX, y: event.clientY };
-        const sideways = useUiStore.getState().chatDock === 'right';
-        document.body.classList.add('is-resizing');
-        if (!sideways) document.body.classList.add('is-resizing-row');
-        const onMove = rafThrottle((move: PointerEvent): void => {
-          if (Math.abs(move.clientX - origin.x) + Math.abs(move.clientY - origin.y) > 4) dragged = true;
-          bar.drag(move.clientX, move.clientY);
-        });
-        const onUp = (): void => {
-          window.removeEventListener('pointermove', onMove);
-          window.removeEventListener('pointerup', onUp);
-          document.body.classList.remove('is-resizing', 'is-resizing-row');
-          stepOnRelease();
-        };
-        window.addEventListener('pointermove', onMove);
-        window.addEventListener('pointerup', onUp);
-      });
+    // The pill keeps track of the press itself and drags the panel with it,
+    // wherever on the pill the press lands: an arrow, the dots or the gap
+    // between them. It does not rely on the divider to capture the pointer.
+    pill.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      // The divider underneath must not start a drag of its own as well.
+      event.stopPropagation();
+      downOn = event.target as HTMLElement;
+      dragged = false;
+      const origin = { x: event.clientX, y: event.clientY };
+      const move = drag.begin();
+      const sideways = pill.classList.contains('is-sideways');
+      document.body.classList.add('is-resizing');
+      if (!sideways) document.body.classList.add('is-resizing-row');
+      const apply = rafThrottle((e: PointerEvent): void => move(e.clientX - origin.x, e.clientY - origin.y));
+      const onMove = (e: PointerEvent): void => {
+        if (Math.abs(e.clientX - origin.x) + Math.abs(e.clientY - origin.y) > 4) dragged = true;
+        if (dragged) apply(e);
+      };
+      const finish = (commit: boolean): void => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onCancel);
+        document.body.classList.remove('is-resizing', 'is-resizing-row');
+        if (commit) stepOnRelease();
+        else {
+          downOn = null;
+          dragged = false;
+        }
+      };
+      const onUp = (): void => finish(true);
+      const onCancel = (): void => finish(false);
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onCancel);
+    });
+    if (drag.host) {
       // The handle goes to the front of the bar, where a grip belongs.
-      bar.host.prepend(pill);
+      pill.classList.add('is-bar');
+      drag.host.prepend(pill);
     } else {
-      resizer.addEventListener('pointerdown', (event) => {
-        downOn = event.target as HTMLElement;
-        dragged = false;
-        const origin = { x: event.clientX, y: event.clientY };
-        const onMove = (move: PointerEvent): void => {
-          if (Math.abs(move.clientX - origin.x) + Math.abs(move.clientY - origin.y) > 4) dragged = true;
-        };
-        resizer.addEventListener('pointermove', onMove);
-        resizer.addEventListener('pointerup', () => resizer.removeEventListener('pointermove', onMove), { once: true });
-      });
-      resizer.addEventListener('pointerup', stepOnRelease);
       resizer.append(pill);
     }
     /** Points the arrows the way the panel grows: up, or left when docked at the side. */
@@ -473,10 +483,20 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
     return () => sync(useUiStore.getState().chatDock === 'right' && name === 'chat');
   };
   const STEP = 80;
-  grabHandle(terminalResizer, 'terminal', (grow) => {
-    const ui = useUiStore.getState();
-    ui.setTerminalHeight(ui.terminalHeight + (grow ? STEP : -STEP));
-  });
+  grabHandle(
+    terminalResizer,
+    'terminal',
+    (grow) => {
+      const ui = useUiStore.getState();
+      ui.setTerminalHeight(ui.terminalHeight + (grow ? STEP : -STEP));
+    },
+    {
+      begin: () => {
+        const start = useUiStore.getState().terminalHeight;
+        return (_dx, dy) => useUiStore.getState().setTerminalHeight(start - dy / uiScale());
+      },
+    },
+  );
 
   const stack = h('div', { class: 'stack' }, shell, terminalResizer, terminalPanel);
   const workspace = h('div', { class: 'workspace' }, stack, chatResizer, chatPanel);
@@ -492,11 +512,6 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const chat = createChatPanel(controller, chatPanel);
   // The chat's grab handle stands in the chat bar rather than on the divider:
   // a pill floating over the bar covered the controls of the bar.
-  const resizeChat = (clientX: number, clientY: number): void => {
-    const ui = useUiStore.getState();
-    if (ui.chatDock === 'right') ui.setChatWidth((workspace.getBoundingClientRect().right - clientX) / uiScale());
-    else ui.setChatHeight((root.getBoundingClientRect().bottom - clientY) / uiScale());
-  };
   const syncChatHandle = grabHandle(
     chatResizer,
     'chat',
@@ -505,7 +520,18 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       if (ui.chatDock === 'right') ui.setChatWidth(ui.chatWidth + (grow ? STEP : -STEP));
       else ui.setChatHeight(ui.chatHeight + (grow ? STEP : -STEP));
     },
-    { host: chat.header, drag: resizeChat },
+    {
+      host: chat.header,
+      begin: () => {
+        const ui = useUiStore.getState();
+        if (ui.chatDock === 'right') {
+          const start = ui.chatWidth;
+          return (dx) => useUiStore.getState().setChatWidth(start - dx / uiScale());
+        }
+        const start = ui.chatHeight;
+        return (_dx, dy) => useUiStore.getState().setChatHeight(start - dy / uiScale());
+      },
+    },
   );
   syncChatHandle();
   useUiStore.subscribe((state, previous) => {

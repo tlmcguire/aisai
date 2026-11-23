@@ -3702,15 +3702,26 @@ button:focus-visible:hover:not(:disabled) {
    a quiet notice, not an error: the app is working, it just takes a moment,
    and without the line a user thinks it has hung. */
 .language-status {
+  /* Floating, so that showing it does not push the whole layout down. */
+  position: fixed;
+  top: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-panel);
   display: flex;
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-4);
   background: var(--bg-raised);
-  border-bottom: 1px solid var(--border);
   color: var(--fg-muted);
   font-size: var(--text-sm);
-  animation: strip-in var(--dur-base) var(--ease-out);
+  animation: language-status-in var(--dur-base) var(--ease-out);
+}
+@keyframes language-status-in {
+  from { opacity: 0; }
 }
 .language-status[hidden] { display: none; }
 .language-status .spinner { position: static; margin: 0; flex: none; }
@@ -5331,4 +5342,12 @@ dialog.graph-window {
   max-width: min(62ch, calc(100% - 4rem));
   margin: 0 auto;
   text-align: center;
+}
+
+/* A language switch is one cross-fade of the page: the text is replaced in
+   a single step under it, so nothing shifts while it changes. */
+html.is-relocalizing::view-transition-old(root),
+html.is-relocalizing::view-transition-new(root) {
+  animation-duration: 240ms;
+  animation-timing-function: var(--ease-out);
 }
