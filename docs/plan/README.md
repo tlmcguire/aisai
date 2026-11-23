@@ -30,6 +30,19 @@ Last verified: **2026-11-21**.
 | W8 | MCP | [w8-mcp.md](w8-mcp.md) | 🔄 in progress | 26/39 | — |
 | W9 | Benchmark | [w9-benchmark.md](w9-benchmark.md) | ✅ core done | 38/45 | — |
 | W10 | Hardening & release | [w10-hardening-release.md](w10-hardening-release.md) | ✅ core done | 52/59 | — |
+| W11 | Call-graph reachability | [w11-reachability.md](w11-reachability.md) | ⬜ not started | 0/25 | W7, W14 |
+| W12 | Malicious-package signals | [w12-malicious-signals.md](w12-malicious-signals.md) | ⬜ not started | 0/26 | W1, W7 |
+| W13 | Historical dependency resolution | [w13-historical-resolution.md](w13-historical-resolution.md) | ⬜ not started | 0/21 | W1, W14 |
+| W14 | Transitive coverage & lockfiles | [w14-transitive-lockfiles.md](w14-transitive-lockfiles.md) | ⬜ not started | 0/21 | W1 |
+| W15 | Advisory & risk sources | [w15-advisory-sources.md](w15-advisory-sources.md) | ⬜ not started | 0/20 | W7 |
+| W16 | More ecosystems | [w16-ecosystems.md](w16-ecosystems.md) | ⬜ not started | 0/14 | W1, W14, W15 |
+| W17 | Monitoring, re-checks & local projects | [w17-monitoring-local.md](w17-monitoring-local.md) | ⬜ not started | 0/17 | W13, W15 |
+
+W11–W17 were added on 2026-11-23 from the known-limitations list in the root `README.md` and a
+review of the code. Their boxes are all open; none of the gaps they describe has been started.
+The suggested order is W14 first (reachability needs the complete tree), then W11 (reachability),
+then W12 (malicious signals), then W15 (more sources), W13 (history), W17 (re-checks), and W16
+(more ecosystems) last.
 
 `Boxes` is *ticked / total* in the workstream file. `🔄 in progress` means the workstream's core
 deliverables exist and have been verified, but some of the boxes listed in the plan are still
