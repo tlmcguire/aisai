@@ -4542,8 +4542,8 @@ body.is-window-resizing *::after { transition: none !important; }
   opacity: 0.7;
 }
 .grab-handle.is-sideways .grab-dots {
-  width: 5px;
-  height: 8px;
+  width: 6px;
+  height: 12px;
   background-size: 3px 4px;
 }
 .grab-arrow {
@@ -4594,8 +4594,13 @@ body.is-window-resizing *::after { transition: none !important; }
   height: 16px;
 }
 .grab-handle.is-bar .grab-dots {
-  width: 5px;
-  height: 8px;
+  /* Two columns by three rows of whole dots, so none is cut off on the
+     right; the padding makes the grip a comfortable target to press. */
+  box-sizing: content-box;
+  width: 6px;
+  height: 12px;
+  padding: 4px 5px;
+  background-clip: content-box;
   background-size: 3px 4px;
 }
 /* The old hairline grip is replaced by the pill on these two dividers. */
