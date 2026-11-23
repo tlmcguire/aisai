@@ -30,7 +30,6 @@
 import { create } from 'zustand';
 
 import { catalogs as CATALOGS, type Catalog, type MessageKey } from './messages';
-import { typewrite } from './typewriter';
 
 export type { Catalog, MessageKey };
 
@@ -488,53 +487,6 @@ function writeText(node: Node, text: string): void {
 /** How many waves have been started; the last one owns the flag. */
 let wave = 0;
 
-/** Whether a node sits inside an open modal dialog on screen. */
-function isInsideOpenDialog(node: Node): boolean {
-  const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
-  return Boolean(element && typeof element.closest === 'function' && element.closest('dialog[open]'));
-}
-
-/** Where two elements stand on the screen, so that the wave can follow. */
-function domOrder(a: Node, b: Node): number {
-  if (a === b) return 0;
-  // If a dialog is open, elements inside the active dialog are in the foreground
-  // where the user is looking (e.g. during a language switch in Settings), so the
-  // wave starts there first.
-  const aInDialog = isInsideOpenDialog(a);
-  const bInDialog = isInsideOpenDialog(b);
-  if (aInDialog && !bInDialog) return -1;
-  if (!aInDialog && bInDialog) return 1;
-
-  const position = a.compareDocumentPosition(b);
-  if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
-  if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1;
-  return 0;
-}
-
-/**
- * Where a piece of text sits on the screen, if the browser can tell.
- *
- * A range knows the exact box of the text itself. Not every environment can
- * measure one — a test browser cannot, for one — and there the element that
- * holds the text is close enough.
- */
-function rectOf(node: Node, range: Range): DOMRect | null {
-  if (typeof range.getBoundingClientRect === 'function') {
-    range.selectNodeContents(node);
-    return range.getBoundingClientRect();
-  }
-  const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
-  if (!element || typeof element.getBoundingClientRect !== 'function') return null;
-  return element.getBoundingClientRect();
-}
-
-/** Whether a message is on the screen right now. */
-function inView(node: Node, range: Range): boolean {
-  const rect = rectOf(node, range);
-  if (!rect || rect.width <= 0 || rect.height <= 0) return false;
-  return rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth;
-}
-
 /**
  * Puts the interface in the language that is in effect now.
  *
@@ -543,10 +495,8 @@ function inView(node: Node, range: Range): boolean {
  * changes: the open file, the terminal, the chat and the scroll positions
  * stay as they are.
  *
- * The wave that types the new text out is for the eye, and the eye is in
- * one place: the messages that are on screen are typed out, and the rest
- * are simply there at once. A page full of text changes in the time it
- * takes to read it, not in the time it takes to type it.
+ * The new text is written in one step, under a cross-fade of the page, so
+ * the change is smooth and the layout does not shift while it happens.
  */
 export function relocalize(): Promise<void> {
   // Two changes in a row: the first wave is stopped by the second one, and
@@ -576,16 +526,30 @@ export function relocalize(): Promise<void> {
       if (readText(node) !== text) changed.push({ node, text });
     }
   }
-  changed.sort((a, b) => domOrder(a.node, b.node));
-  const range = document.createRange();
-  const onScreen: { node: Node; text: string }[] = [];
-  const away: { node: Node; text: string }[] = [];
-  for (const item of changed) (inView(item.node, range) ? onScreen : away).push(item);
-  for (const item of away) writeText(item.node, item.text);
-  const typing = onScreen.map((item) => ({ text: item.text, write: (text: string) => writeText(item.node, text) }));
-  return typewrite(typing).finally(() => {
+  // Every new text is written in one step, so the layout settles once and
+  // does not shift character by character. Where the browser can, the step
+  // is a cross-fade of the whole page, which is what makes it smooth.
+  const apply = (): void => {
+    for (const item of changed) writeText(item.node, item.text);
+  };
+  const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const doc = document as Document & { startViewTransition?: (update: () => void) => { finished: Promise<unknown> } };
+  const settle = (): void => {
     if (run === wave) useLocaleStore.setState({ translating: false });
-  });
+  };
+  if (changed.length === 0 || reduced || typeof doc.startViewTransition !== 'function') {
+    apply();
+    settle();
+    return Promise.resolve();
+  }
+  document.documentElement.classList.add('is-relocalizing');
+  const transition = doc.startViewTransition(apply);
+  return transition.finished
+    .catch(() => undefined)
+    .then(() => {
+      document.documentElement.classList.remove('is-relocalizing');
+      settle();
+    });
 }
 
 /** The placeholders a message uses, for checking that a translation keeps them. */

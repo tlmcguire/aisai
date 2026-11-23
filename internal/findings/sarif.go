@@ -99,7 +99,7 @@ func WriteSARIF(fs []model.Finding, opts SARIFOptions) ([]byte, error) {
 		opts.ToolName = "AISAI"
 	}
 	if opts.ToolVersion == "" {
-		opts.ToolVersion = "0.6.1"
+		opts.ToolVersion = "0.7.0"
 	}
 	if opts.InformationURI == "" {
 		opts.InformationURI = "https://github.com/tlmcguire/aisai"
