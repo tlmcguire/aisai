@@ -266,6 +266,17 @@ func run(socketPath, cfgPath, workspaceOverride string, exitWithParent bool) err
 			_, _ = io.Copy(io.Discard, os.Stdin)
 			sigCh <- syscall.SIGHUP
 		}()
+		// Belt and braces: if the pipe somehow stays open, a parent that has
+		// died still shows as a changed parent PID (we are adopted by init).
+		parent := os.Getppid()
+		go func() {
+			for range time.Tick(2 * time.Second) {
+				if os.Getppid() != parent {
+					sigCh <- syscall.SIGHUP
+					return
+				}
+			}
+		}()
 	}
 
 	select {

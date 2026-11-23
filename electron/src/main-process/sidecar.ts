@@ -96,6 +96,7 @@ function startViaUtilityProcess(
     let settled = false;
     const stderrTail: string[] = [];
     let child: UtilityProcess | null = null;
+    let closing = false; // set by close(): that exit is expected, not a crash
 
     const timer = setTimeout(() => {
       if (settled) return;
@@ -135,6 +136,7 @@ function startViaUtilityProcess(
         finish(null, {
           listening: info,
           close: () => {
+            closing = true;
             try {
               child?.kill();
             } catch {
@@ -153,7 +155,7 @@ function startViaUtilityProcess(
     });
 
     child.on('exit', (code) => {
-      opts.onExit?.(code, null);
+      if (!closing) opts.onExit?.(code, null);
       finish(
         new StartupError(
           `backend exited with code ${code} before it was ready${stderrTail.length ? `: ${stderrTail.join('').trim()}` : ''}`,
@@ -168,6 +170,7 @@ function startViaSpawn(opts: SidecarOptions, timeoutMs: number): Promise<Sidecar
     let settled = false;
     const stderrTail: string[] = [];
     let child: ChildProcess | null = null;
+    let closing = false; // set by close(): that exit is expected, not a crash
 
     const timer = setTimeout(() => {
       if (settled) return;
@@ -208,8 +211,19 @@ function startViaSpawn(opts: SidecarOptions, timeoutMs: number): Promise<Sidecar
         finish(null, {
           listening: info,
           close: () => {
+            closing = true;
             try {
               child?.kill();
+              // A server that ignores SIGTERM must not be left running.
+              const stuck = setTimeout(() => {
+                try {
+                  child?.kill('SIGKILL');
+                } catch {
+                  /* ignore */
+                }
+              }, 3000);
+              stuck.unref();
+              child?.once('exit', () => clearTimeout(stuck));
             } catch {
               /* ignore */
             }
@@ -230,7 +244,7 @@ function startViaSpawn(opts: SidecarOptions, timeoutMs: number): Promise<Sidecar
     });
 
     child.on('exit', (code, signal) => {
-      opts.onExit?.(code, signal);
+      if (!closing) opts.onExit?.(code, signal);
       finish(
         new StartupError(
           `backend exited with code ${code} before it was ready${stderrTail.length ? `: ${stderrTail.join('').trim()}` : ''}`,
