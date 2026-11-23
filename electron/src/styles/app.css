@@ -2875,7 +2875,9 @@ button.ghost.icon:hover .icon-gear {
 }
 .pane-grip {
   cursor: grab;
-  padding: 0 var(--space-1);
+  user-select: none;
+  touch-action: none;
+  padding: var(--space-1) var(--space-2);
   letter-spacing: -2px;
   color: var(--fg-muted);
 }
@@ -4542,9 +4544,9 @@ body.is-window-resizing *::after { transition: none !important; }
   opacity: 0.7;
 }
 .grab-handle.is-sideways .grab-dots {
-  width: 6px;
-  height: 12px;
-  background-size: 3px 4px;
+  width: 8px;
+  height: 8px;
+  background-size: 4px 4px;
 }
 .grab-arrow {
   display: inline-flex;
@@ -4594,14 +4596,17 @@ body.is-window-resizing *::after { transition: none !important; }
   height: 16px;
 }
 .grab-handle.is-bar .grab-dots {
-  /* Two columns by three rows of whole dots, so none is cut off on the
-     right; the padding makes the grip a comfortable target to press. */
+  /* Two columns by three rows of whole, evenly spaced dots; the padding
+     makes the grip a comfortable target to press. */
   box-sizing: content-box;
-  width: 6px;
+  width: 8px;
   height: 12px;
-  padding: 4px 5px;
+  padding: 4px 4px;
+  background: radial-gradient(circle, currentColor 1px, transparent 1.5px) 0 0 / 4px 4px;
   background-clip: content-box;
-  background-size: 3px 4px;
+  background-origin: content-box;
+  opacity: 0.8;
+  cursor: inherit;
 }
 /* The old hairline grip is replaced by the pill on these two dividers. */
 .resizer:has(.grab-handle)::after {
@@ -5355,4 +5360,10 @@ html.is-relocalizing::view-transition-old(root),
 html.is-relocalizing::view-transition-new(root) {
   animation-duration: 240ms;
   animation-timing-function: var(--ease-out);
+}
+
+body.is-moving-pane,
+body.is-moving-pane * {
+  cursor: grabbing !important;
+  user-select: none;
 }

@@ -73,4 +73,32 @@ test.describe('the grab handles', () => {
     const after = await height('.chat-panel');
     expect(Math.abs(after - before - 60)).toBeLessThan(8);
   });
+
+  test('dragging the handle of a collapsed chat opens and resizes it', async () => {
+    await window.click('.chat-header button[data-role="chat-toggle"]');
+    await expect(window.locator('.chat-panel.collapsed')).toHaveCount(1);
+    // The panel glides down; the handle is pressed where it ends up.
+    await window.waitForTimeout(600);
+    await dragFromDots('.chat-panel', '.chat-header .grab-handle', -90);
+    await expect(window.locator('.chat-panel.collapsed')).toHaveCount(0);
+    expect(await height('.chat-panel')).toBeGreaterThan(150);
+  });
+
+  test('dragging the dot grid of a pane moves the pane', async () => {
+    const order = (): Promise<string[]> =>
+      window.evaluate(() => [...document.querySelectorAll('.pane')].map((el) => el.className.split(' ').find((c) => c.startsWith('pane-') && c !== 'pane-grip')!));
+    const before = await order();
+    const grip = (await window.locator('.pane-graph .pane-grip').boundingBox())!;
+    const rail = (await window.locator('.pane-rail').boundingBox())!;
+    await window.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await window.mouse.down();
+    await window.mouse.move(rail.x + rail.width * 0.8, rail.y + 100, { steps: 10 });
+    await window.mouse.up();
+    await window.waitForTimeout(300);
+    const after = await order();
+    expect(after).not.toEqual(before);
+    expect(after.indexOf('pane-graph')).toBeGreaterThan(after.indexOf('pane-rail'));
+    // Put the pane back, as the order is saved between runs.
+    await window.evaluate(() => localStorage.clear());
+  });
 });
