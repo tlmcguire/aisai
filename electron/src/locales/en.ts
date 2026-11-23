@@ -915,6 +915,7 @@ export const en = {
   'shortcuts.newChat': 'New chat',
   'shortcuts.notSet': 'not set',
   'shortcuts.openFolder': 'Open a project folder',
+  'shortcuts.newTerminal': 'Open a new terminal session',
   'shortcuts.openSettings': 'Open Settings',
   'shortcuts.openTutorials': 'Open the tutorials',
   'shortcuts.paste': 'Paste',

@@ -12,7 +12,8 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import type { FullConfig } from '@playwright/test';
@@ -38,6 +39,15 @@ export const STUB_RELATIVE_PATH = join(STUB_DIR_NAME, 'stub-backend.cjs');
  */
 export function electronDirOf(config: FullConfig): string {
   return config.configFile ? dirname(config.configFile) : config.rootDir;
+}
+
+/**
+ * A fresh, empty profile for one test file, passed to Electron as
+ * --user-data-dir. The app saves its layout between runs, and without this
+ * every test run would share, and change, the profile of the app itself.
+ */
+export function freshProfile(): string {
+  return mkdtempSync(join(tmpdir(), 'aisai-e2e-'));
 }
 
 /** Builds the Electron app when it has not been built yet. */

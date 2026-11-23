@@ -5,20 +5,23 @@
  * release on an arrow steps it.
  */
 
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
 
-import { electronDirOf, STUB_RELATIVE_PATH } from './global-setup';
+import { electronDirOf, freshProfile, STUB_RELATIVE_PATH } from './global-setup';
 
 let app: ElectronApplication;
 let window: Page;
+let profile: string;
 
 test.describe('the grab handles', () => {
   test.beforeAll(async () => {
     const electronDir = electronDirOf(test.info().config);
+    profile = freshProfile();
     app = await electron.launch({
-      args: [electronDir],
+      args: [`--user-data-dir=${profile}`, electronDir],
       cwd: electronDir,
       env: {
         ...process.env,
@@ -33,6 +36,7 @@ test.describe('the grab handles', () => {
 
   test.afterAll(async () => {
     await app?.close();
+    rmSync(profile, { recursive: true, force: true });
   });
 
   const height = (selector: string): Promise<number> =>
@@ -52,7 +56,8 @@ test.describe('the grab handles', () => {
   };
 
   test('dragging the terminal handle resizes the terminal', async () => {
-    await window.click('button[aria-label="Terminal"]');
+    // The panel stays open between runs, as its state is saved.
+    if (!(await window.locator('.terminal-panel').isVisible())) await window.click('button[aria-label="Terminal"]');
     await window.locator('.terminal-panel').waitFor({ state: 'visible' });
     const before = await height('.terminal-panel');
     await dragFromDots('.terminal-panel', '.resizer:has(.grab-handle)', 100);
@@ -98,7 +103,15 @@ test.describe('the grab handles', () => {
     const after = await order();
     expect(after).not.toEqual(before);
     expect(after.indexOf('pane-graph')).toBeGreaterThan(after.indexOf('pane-rail'));
-    // Put the pane back, as the order is saved between runs.
-    await window.evaluate(() => localStorage.clear());
+  });
+
+  test('Ctrl+Shift+` opens a new terminal session each time', async () => {
+    const tabs = (): Promise<number> => window.locator('.terminal-tab').count();
+    await window.keyboard.press('Control+Shift+Backquote');
+    await expect(window.locator('.terminal-panel')).toBeVisible();
+    await expect.poll(tabs).toBeGreaterThan(0);
+    const before = await tabs();
+    await window.keyboard.press('Control+Shift+Backquote');
+    await expect.poll(tabs).toBe(before + 1);
   });
 });
