@@ -72,9 +72,9 @@ test.describe('the grab handles', () => {
     expect(Math.abs(after - before - 100)).toBeLessThan(8);
   });
 
-  test('dragging the chat handle resizes the chat', async () => {
+  test('dragging an arrow of the chat handle resizes the chat', async () => {
     const before = await height('.chat-panel');
-    await dragFromDots('.chat-panel', '.chat-header .grab-handle', -60);
+    await dragFromDots('.chat-panel', '.chat-header .grab-handle', -60, '.grab-arrow');
     const after = await height('.chat-panel');
     expect(Math.abs(after - before - 60)).toBeLessThan(8);
   });
@@ -84,7 +84,7 @@ test.describe('the grab handles', () => {
     await expect(window.locator('.chat-panel.collapsed')).toHaveCount(1);
     // The panel glides down; the handle is pressed where it ends up.
     await window.waitForTimeout(600);
-    await dragFromDots('.chat-panel', '.chat-header .grab-handle', -90);
+    await dragFromDots('.chat-panel', '.chat-header .grab-handle', -90, '.grab-arrow');
     await expect(window.locator('.chat-panel.collapsed')).toHaveCount(0);
     expect(await height('.chat-panel')).toBeGreaterThan(150);
   });
@@ -113,5 +113,24 @@ test.describe('the grab handles', () => {
     const before = await tabs();
     await window.keyboard.press('Control+Shift+Backquote');
     await expect.poll(tabs).toBe(before + 1);
+  });
+
+  test('dragging the dot grid of the chat docks it at the side, and back below', async () => {
+    const workspace = window.locator('.workspace');
+    const dragDotsTo = async (fx: number, fy: number): Promise<void> => {
+      const dots = (await window.locator('.chat-header .grab-dots').boundingBox())!;
+      const area = (await workspace.boundingBox())!;
+      await window.mouse.move(dots.x + dots.width / 2, dots.y + dots.height / 2);
+      await window.mouse.down();
+      await window.mouse.move(area.x + area.width * fx, area.y + area.height * fy, { steps: 12 });
+      await expect(window.locator('.chat-dock-preview')).toBeVisible();
+      await window.mouse.up();
+      await expect(window.locator('.chat-dock-preview')).toBeHidden();
+    };
+    await dragDotsTo(0.92, 0.4);
+    await expect(workspace).toHaveClass(/dock-right/);
+    await window.waitForTimeout(400);
+    await dragDotsTo(0.5, 0.92);
+    await expect(workspace).not.toHaveClass(/dock-right/);
   });
 });

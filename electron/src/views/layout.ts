@@ -414,7 +414,12 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
      * jump to it. `host` is the bar the pill stands in; without one the pill
      * stands on the divider.
      */
-    drag: { host?: HTMLElement; begin: () => (dx: number, dy: number) => void },
+    drag: {
+      host?: HTMLElement;
+      begin: () => (dx: number, dy: number) => void;
+      /** When given, a press on the dots moves the panel to another place instead of resizing it. */
+      relocate?: (event: PointerEvent) => void;
+    },
   ): (() => void) => {
     const bigger = h('button', { class: 'grab-arrow', type: 'button', tabindex: '-1' });
     const smaller = h('button', { class: 'grab-arrow', type: 'button', tabindex: '-1' });
@@ -445,6 +450,10 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
       event.preventDefault();
       // The divider underneath must not start a drag of its own as well.
       event.stopPropagation();
+      if (drag.relocate && (event.target as HTMLElement).closest('.grab-dots')) {
+        drag.relocate(event);
+        return;
+      }
       downOn = event.target as HTMLElement;
       dragged = false;
       const origin = { x: event.clientX, y: event.clientY };
@@ -521,6 +530,55 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
   const diffView = createDiffView(controller, diffPanel);
   const findingsRail = createFindingsRail(controller, railBody);
   const chat = createChatPanel(controller, chatPanel);
+  // The dots of the chat's handle move the chat, like the grip of a pane:
+  // dragged to the right edge of the window it docks at the side, dragged to
+  // the bottom it docks below. The place it would go is shown while it moves.
+  const dockPreview = h('div', { class: 'chat-dock-preview', hidden: true, 'aria-hidden': 'true' });
+  root.append(dockPreview);
+  const relocateChat = (event: PointerEvent): void => {
+    const origin = { x: event.clientX, y: event.clientY };
+    let moving = false;
+    let target: 'bottom' | 'right' | null = null;
+    const show = (clientX: number, clientY: number): void => {
+      const area = workspace.getBoundingClientRect();
+      if (clientX > area.right - area.width * 0.3) target = 'right';
+      else if (clientY > area.bottom - area.height * 0.4) target = 'bottom';
+      else target = null;
+      dockPreview.hidden = target === null;
+      if (target === 'right') {
+        const width = Math.min(area.width * 0.3, useUiStore.getState().chatWidth * uiScale());
+        Object.assign(dockPreview.style, { left: `${area.right - width}px`, top: `${area.top}px`, width: `${width}px`, height: `${area.height}px` });
+      } else if (target === 'bottom') {
+        const height = Math.min(area.height * 0.4, useUiStore.getState().chatHeight * uiScale());
+        Object.assign(dockPreview.style, { left: `${area.left}px`, top: `${area.bottom - height}px`, width: `${area.width}px`, height: `${height}px` });
+      }
+    };
+    const onMove = (move: PointerEvent): void => {
+      if (!moving) {
+        if (Math.abs(move.clientX - origin.x) + Math.abs(move.clientY - origin.y) <= 4) return;
+        moving = true;
+        document.body.classList.add('is-moving-pane');
+        chatPanel.classList.add('is-dragged');
+      }
+      show(move.clientX, move.clientY);
+    };
+    const finish = (drop: boolean): void => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      document.body.classList.remove('is-moving-pane');
+      chatPanel.classList.remove('is-dragged');
+      dockPreview.hidden = true;
+      const where = target as 'bottom' | 'right' | null;
+      if (drop && moving && where) useUiStore.getState().setChatDock(where);
+    };
+    const onUp = (): void => finish(true);
+    const onCancel = (): void => finish(false);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+  };
+
   // The chat's grab handle stands in the chat bar rather than on the divider:
   // a pill floating over the bar covered the controls of the bar.
   const syncChatHandle = grabHandle(
@@ -544,6 +602,7 @@ export function createLayout(controller: AppController, root: HTMLElement): Layo
         const start = ui.chatHeight;
         return (_dx, dy) => useUiStore.getState().setChatHeight(start - dy / uiScale());
       },
+      relocate: relocateChat,
     },
   );
   syncChatHandle();
